@@ -206,8 +206,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id):
         'home_team' : 0,
         'away_team' : 0,
         'game_date' : 0}
-    # Znajdź wszystkie divy o klasie '_row_1csk6_9'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1csk6_9")
+    # Znajdź wszystkie divy o klasie '_row_1nw75_8'
+    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1nw75_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")

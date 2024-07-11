@@ -25,5 +25,7 @@
                  'Podbeskidzie B-B' : 26,
                  'Arka Gdynia' : 27,
                  'Zagłębie Sosnowiec' : 28,
-                 'Sandecja Nowy Sącz' : 29
+                 'Sandecja Nowy Sącz' : 29,
+				 'GKS Katowice' : 32,
+				 'Motor Lublin' : 318
                  }

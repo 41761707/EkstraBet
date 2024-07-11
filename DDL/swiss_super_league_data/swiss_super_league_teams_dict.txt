@@ -1,0 +1,21 @@
+    team_ids = {
+		'Young Boys' : 696,
+		'Lugano' : 697,
+		'Servette' : 698,
+		'St. Gallen' : 699,
+		'Winterthur' : 700,
+		'Zurich' : 701,
+		'Luzern' : 702,
+		'Lausanne' : 703,
+		'Basel' : 704,
+		'Yverdon' : 705,
+		'Grasshoppers' : 706,
+		'Lausanne Ouchy' : 707,
+		'Thun' : 708,
+		'Sion' : 711,
+		'Schaffhausen' : 712,
+		'Vaduz' : 713,
+		'Xamax' : 714,
+		'Aarau' : 715
+		
+    }

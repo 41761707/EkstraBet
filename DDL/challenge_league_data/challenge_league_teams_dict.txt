@@ -1,0 +1,21 @@
+    team_ids = {
+		'Sion' : 711,
+		'Thun' : 708,
+		'Vaduz' : 713,
+		'Xamax' : 714,
+		'Wil' : 716,
+		'Aarau' : 715,
+		'Nyonnais' : 717,
+		'Bellinzona' : 718,
+		'Baden' : 719,
+		'Schaffhausen' : 712,
+		'Yverdon' : 705,
+		'Lausanne' : 703,
+		'Lausanne Ouchy' : 707,
+		'Grasshoppers' : 706,
+		'Rapperswil' : 720,
+		'Winterthur' : 700,
+		'Kriens' : 721,
+		'Luzern' : 702,
+		'Chiasso' : 721
+    }

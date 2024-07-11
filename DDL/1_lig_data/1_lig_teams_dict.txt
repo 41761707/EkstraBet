@@ -1,0 +1,8 @@
+    team_ids = {
+		'Rizespor' : 771,
+		'Ankaragucu' : 779,
+		'Boluspor' : 797,
+		'Umraniyespor' : 783,
+		'Erzurumspor' : 788,
+		
+    }

@@ -20,13 +20,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2024-06-06' order by game_date"
+    query = "SELECT * FROM matches where league in (1,21) order by game_date"
     matches_df = pd.read_sql(query, conn)
     query = "SELECT id, name FROM teams"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-04-10' order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-01' order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     #upcoming_df.set_index('id', inplace=True)
     conn.close()
@@ -117,26 +117,32 @@ def predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, rat
     #print(external_tests_np[0])
     predictions = predict_model.make_winner_predictions(external_tests_np)
     for i in range(len(predictions)):
-        #record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1]) & (upcoming_df['season'] == 1)]
-        #id = record.iloc[0]['id']
+        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
+        id = record.iloc[0]['id']
         #print(external_tests_np[i][8])
         percentages = np.round(predictions[i] * 100, 2)
         #print("{};{:.2f};{:.2f};{:.2f}".format(id, percentages[0], percentages[1], percentages[2]))
         print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
         print("Rankingi: {} - {}".format(ratings[schedule[i][0]], ratings[schedule[i][1]]))
         print(percentages)
+        print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 1 , {:.2f})".format(id, percentages[0]))
+        print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 2 , {:.2f})".format(id, percentages[1]))
+        print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 3 , {:.2f})".format(id, percentages[2]))
+    
 
 def predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df):
     external_tests = data.generate_btts_test(schedule, ratings, powers, last_five_matches)
     external_tests_np = np.array(external_tests)
     predictions = predict_model.make_btts_predictions(external_tests_np)
     for i in range(len(predictions)):
-        #record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1]) & (upcoming_df['season'] == 1)]
-        #id = record.iloc[0]['id']
+        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
+        id = record.iloc[0]['id']
         percentages = np.round(predictions[i] * 100, 2)
         #print("{};{:.2f};{:.2f}".format(id, percentages[0],percentages[1]))
         print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
         print("{:.2f}, {:.2f}".format(percentages[0], percentages[1]))
+        print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 6 , {:.2f})".format(id, percentages[0]))
+        print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 172 , {:.2f})".format(id, percentages[1]))
 
 
 def predict_chosen_matches_winner_one(data, schedule, predict_model, my_rating, ratings, matches_df, teams_dict, upcoming_df):
@@ -297,60 +303,9 @@ def main():
             predict_model.divide_set()
             predict_model.train_btts_model()
             predict_model.test_btts_model()
-        '''schedule = [
-            [15,16], [6, 17], [11, 12], [14, 3], [4, 5], [18, 10], [2, 13], [7, 1], [9, 8], #Ekstralasa kolejka 28
-            [16, 10], [4, 7], [6, 9], [17, 12], [8, 2], [13, 14], [18, 3], [5, 1], [15, 11], #Ekstralasa kolejka 29
-            [9, 15], [2, 6], [7, 18], [1, 17], [12, 4], [10, 8], [11, 5], [3, 13], [14, 16], #Ekstralasa kolejka 30
-            [13, 7], [17, 3], [18, 1], [8, 4], [11, 2], [15, 12], [16, 9], [5, 10], [6, 14], #Ekstralasa kolejka 31
-            [28, 23], [318, 27], [34, 30], [32, 35], [19, 24], [31, 21], [20, 22], [48, 33], [26, 319], #Fortuna 1 Liga kolejka 27
-            [319, 28], [30, 26], [48, 24], [33, 34], [23, 20], [35, 31], [27, 19], [21, 318], [22, 32], #Fortuna 1 Liga kolejka 28
-            [26, 33], [28, 30], [34, 24], [19, 21], [48, 27], [20, 319], [22, 35], [318, 31], [32, 23], #Fortuna 1 Liga kolejka 29
-            [24, 26], [30, 20], [33, 28], [27, 34], [21, 48], [319, 32], [23, 22], [31, 19], [35, 318], #Fortuna 1 Liga kolejka 30
-            [58, 55], [65, 70], [74, 59], [52, 68], [67, 60], [63, 56], [51, 64], [57, 62], [53, 54], [61, 66], #Premier League kolejka 33
-            [59, 61], [68, 65], [56, 58], [70, 74], [60, 53], [66, 67], [54, 63], [64, 57], [62,51], [55, 52], #Premier League kolejka 34
-            [57, 51], [62, 64], [56, 74], [58, 70], [60, 68], [66, 65], [54, 61], [63, 59], [55, 53], [67, 52], #Premier League kolejka 35
-            [68, 66], [53, 63], [65, 62], [59, 54], [74, 58], [70, 67], [52, 60], [61, 57], [51, 55], [64, 56], #Premier League kolejka 36
-            [320, 71], [72, 86], [90, 85], [89, 79], [82, 92], [102, 84], [87, 78], [88, 76], [100, 81], [73, 75], [80, 91], [77, 83], # Championship kolejka 43
-            [71, 77], [78, 73], [79, 80], [76, 89], [91, 90], [81, 320], [83, 87], [75, 82], [92, 88], [86, 100], [84, 72], [85, 102], # Championship kolejka 44
-            [92, 72], [86, 85], [89, 91], [78, 84], [79, 90], [87, 320], [76, 80], [100, 77], [73, 81], [75, 83], [82, 102], [88, 71], # Championship kolejka 45
-            [90, 76], [85, 92], [102, 79], [72, 73], [71, 86], [84, 75], [320, 82], [91, 78], [81, 89], [83, 100], [80, 87], [77, 88], # Championship kolejka 46
-            [199, 212], [213, 211], [207, 204], [206, 208], [198, 226], [210, 201], [209, 203], [200, 218], [205, 219], [202, 215], #Seria A kolejka 32
-            [219, 199], [218, 204], [211, 198], [215, 209], [210, 213], [207, 226], [212, 205], [208, 202], [203, 206], [201, 200], #Seria A kolejka 33
-            [202, 211], [206, 209], [205, 210], [226, 212], [219, 218], [200, 207], [204, 201], [199, 215], [213, 208], [198, 203], #Seria A kolejka 34
-            [201, 219], [203, 204], [218, 213], [211, 226], [208, 199], [212, 202], [210, 200], [207, 206], [209, 198], [215, 205], #Seria A kolejka 35
-            [233, 323], [238, 235], [236, 230], [216, 237], [234, 324], [217, 231], [239, 228], [325, 244], [223, 214], [220, 224], #Seria B kolejka 33
-            [228, 223], [244, 239], [235, 233], [230, 234], [224, 237], [324, 236], [323, 216], [325, 220], [214, 217], [231, 238], #Seria B kolejka 34
-            [234, 323], [220, 216], [224, 214], [233, 231], [223, 325], [237, 235], [238, 324], [239, 230], [228, 244], [217, 236], #Seria B kolejka 35
-            [216, 234], [235, 239], [323, 220], [236, 238], [214, 228], [231, 237], [230, 223], [324, 224], [325, 217], [244, 233], #Seria B kolejka 36
-            [262, 269], [259, 266], [267, 271], [265, 258], [270, 257], [284, 268], [277, 279], [264, 261], [260, 273], [263, 272], #LaLiga kolejka 31
-            [264, 277], [269, 284], [267, 263], [272, 262], [266, 270], [271, 260], [273, 261], [279, 259], [258, 257], [268, 265], #LaLiga kolejka 32
-            [273, 271], [257, 272], [279, 269], [259, 264], [260, 258], [270, 265], [277, 263], [261, 267], [262, 268], [284, 266], #LaLiga kolejka 33
-            [271, 264], [260, 284], [258, 270], [266, 257], [265, 259], [263, 262], [269, 261], [272, 279], [268, 277], [267, 273], #LaLiga kolejka 34
-            [282, 275], [286, 290], [274, 327], [278, 300], [289, 295], [287, 291], [288, 281], [292, 293], [294, 276], [326, 280], [303, 296], #LaLiga 2 kolejka 35
-            [291, 282], [300, 274], [293, 278], [296, 326], [276, 286], [280, 294], [275, 288], [281, 303], [327, 287], [295, 292], [290, 289], #LaLiga 2 kolejka 36
-            [288, 293], [292, 300], [282, 294], [276, 275], [286, 296], [303, 327], [289, 291], [278, 290], [274, 280], [287, 281], [326, 295], #LaLiga 2 kolejka 37
-            [296, 278], [295, 274], [280, 289], [293, 276], [290, 303], [281, 300], [288, 287], [275, 286], [327, 282], [294, 292], [291, 326], #LaLiga 2 kolejka 38
-            [126, 106], [119, 115], [108, 117], [136, 120], [112, 116], [111, 118], [114, 105], [110, 109], [107, 113], #Ligue 1 kolejka 29 
-            [113, 114], [120, 108], [106, 112], [136, 126], [109, 119], [115, 116], [118, 110], [117, 107], [105, 111], #Ligue 1 kolejka 30
-            [116, 120], [105, 136], [126, 109], [112, 115], [114, 117], [119, 113], [108, 118], [111, 110], [107, 106], #Ligue 1 kolejka 31
-            [118, 120], [136, 119], [106, 114], [109, 111], [126, 108], [110, 112], [113, 105], [115, 107], [117, 116], #Ligue 1 kolejka 32
-            [122, 125], [127, 138], [134, 141], [321, 133], [147, 135], [142, 144], [139, 121], [123, 129], [143, 140], [132, 124], #Ligue 2 kolejka 32
-            [141, 121], [122, 134], [133, 147], [124, 123], [144, 132], [321, 139], [135, 138], [129, 143], [140, 142], [125, 127], #Ligue 2 kolejka 33
-            [121, 142], [138, 321], [127, 147], [134, 144], [132, 125], [135, 124], [139, 133], [141, 129], [123, 140], [143, 122], #Ligue 2 kolejka 34
-            [125, 134], [122, 139], [133, 123], [144, 138], [321, 141], [142, 127], [129, 124], [140, 135], [143, 132], [147, 121], #Ligue 2 kolejka 35
-            [168, 157], [162, 165], [163, 155], [154, 164], [167, 183], [156, 161], [169, 160], [180, 158], [159, 166],  #Bundesliga kolejka 29
-            [160, 168], [164, 180], [183, 156], [165, 163], [161, 167], [157, 154], [166, 169], [155, 159], [158, 162],  #Bundesliga kolejka 30
-            [167, 165], [154, 160], [168, 166], [156, 155], [158, 161], [159, 169], [163, 157], [162, 164], [180, 183],  #Bundesliga kolejka 31
-            [165, 156], [155, 168], [169, 154], [161, 180], [166, 163], [164, 158], [157, 167], [160, 159], [183, 162],  #Bundesliga kolejka 32
-            [173, 187], [171, 189], [182, 194], [175, 186], [184, 174], [170, 177], [181, 176], [188, 178], [185, 322],  #2. Bundesliga kolejka 29 
-            [177, 175], [322, 170], [174, 173], [187, 184], [194, 181], [178, 182], [176, 185], [186, 171], [189, 188],  #2. Bundesliga kolejka 30
-            [171, 176], [185, 189], [181, 178], [182, 187], [175, 322], [170, 174], [177, 186], [188, 194], [184, 173],  #2. Bundesliga kolejka 31
-            [174, 177], [178, 185], [173, 181], [194, 170], [189, 186], [187, 188], [322, 171], [176, 175], [184, 182],  #2. Bundesliga kolejka 32
-        ]'''
+
         schedule = [
-            [490, 488], [475, 477], [483, 485], [484, 486], [476, 492], [481, 487], [480, 489], [491, 482], #SERIE A BRASIL
-            [384, 376], [378, 381], [380, 383], [372, 375], [377, 382], [373, 379], [362, 361], 
-            [369, 359], [365, 366], [371, 358], [368, 363], [360, 374], [370, 367] #MLS
+            [2, 14], [1, 20], [32, 10], [6, 16], [5, 8], [13, 9], [3, 7], [318, 4], [11, 12]
         ]
         if model_type == 'winner':
             predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, ratings, upcoming_df)
