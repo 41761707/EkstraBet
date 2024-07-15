@@ -42,5 +42,7 @@ team_ids = { 'Burnley' : 74,
 'Brighton' : 59,
 'Leicester' : 71,
 'Southampton' : 73,
-'Plymouth' : 320
+'Plymouth' : 320,
+'Portsmouth' : 843,
+'Oxford Utd' : 844
 }

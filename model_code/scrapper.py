@@ -6,41 +6,36 @@ from datetime import datetime
 
 def get_team_id(team_name):
     team_ids = {
-		'Galatasaray' : 763,
-		'Fenerbahce' : 764,
-		'Trabzonspor' : 765,
-		'Basaksehir' : 766,
-		'Kasimpasa' : 767,
-		'Besiktas' : 768,
-		'Sivasspor' : 769,
-		'Alanyaspor' : 770,
-		'Rizespor' : 771,
-		'Antalyaspor' : 772,
-		'Gaziantep' : 773,
-		'Adana Demirspor' : 774,
-		'Samsunspor' : 775,
-		'Kayserispor' : 776,
-		'Hatayspor' : 777,
-		'Konyaspor' : 778,
-		'Ankaragucu' : 779,
-		'Karagumruk' : 780,
-		'Pendikspor': 781,
-		'Istanbulspor' : 782,
-		'Umraniyespor' : 783,
-		'Giresunspor' : 784,
-		'Altay' : 785,
-		'Goztepe' : 786,
-		'Yeni Malatyaspor' : 787,
-		'Erzurumspor' : 788,
-		'Genclerbirligi' : 789,
-		'Denizlispor' : 790,
-		'Bursaspor' : 791,
-		'Akhisarspor' : 792,
-		'Ankaraspor' : 793,
-		'Karabukspor' : 794,
-		'Adanaspor' : 795,
-		'Gaziantepspor' : 796
-    }
+		'Real Salt Lake' : 358,
+		'Minnesota' : 359,
+		'Los Angeles Galaxy' : 360,
+		'Los Angeles FC' : 361,
+		'Austin FC' : 362,
+		'Colorado Rapids' : 363,
+		'Vancouver Whitecaps' : 364,
+		'Houston Dynamo' : 365,
+		'Seattle Sounders' : 366,
+		'Portland Timbers' : 367,
+		'St. Louis City' : 368,
+		'FC Dallas' : 369,
+		'San Jose Earthquakes' : 370,
+		'Sporting Kansas City' : 371,
+		'Inter Miami' : 372,
+		'Cincinnati' : 373,
+		'New York City' : 374,
+		'Columbus Crew' : 375,
+		'New York Red Bulls' : 376,
+		'Toronto FC' : 377,
+		'Charlotte' : 378,
+		'Philadelphia Union' : 379,
+		'DC United' : 380,
+		'Orlando City' : 381,
+		'Nashville SC' : 382,
+		'Atlanta Utd' : 383,
+		'CF Montreal' : 384,
+		'Chicago Fire' : 385,
+		'New England Revolution' : 386
+	}
     return team_ids[team_name]
 
 def parse_match_date(match_date):
@@ -99,7 +94,7 @@ def get_match_data(driver, league_id, season_id, link):
     # participant__participantName - drużyny biorące udział w meczu
     # detailScore__wrapper - wynik meczu
     driver.get(link)
-    time.sleep(2) # Let the user actually see something!
+    time.sleep(3) # Let the user actually see something!
     # Znajdź wszystkie divy o klasie '_row_1nw75_8'
     stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1nw75_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'

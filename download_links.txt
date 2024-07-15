@@ -10,15 +10,15 @@
 1 8 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2016-2017/wyniki/
 
 
--------------------------- FORTUNA 1 LIGA ----------------------------------
-21 11 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2024-2025/wyniki/
-21 1 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2023-2024/wyniki/
-21 2 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2022-2023/wyniki/
-21 3 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2021-2022/wyniki/
-21 4 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2020-2021/wyniki/
-21 5 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2019-2020/wyniki/
-21 6 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2018-2019/wyniki/
-21 7 https://www.flashscore.pl/pilka-nozna/polska/fortuna-1-liga-2017-2018/wyniki/
+-------------------------- BETCLIC 1 LIGA ----------------------------------
+21 11 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2024-2025/wyniki/
+21 1 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2023-2024/wyniki/
+21 2 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2022-2023/wyniki/
+21 3 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2021-2022/wyniki/
+21 4 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2020-2021/wyniki/
+21 5 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2019-2020/wyniki/
+21 6 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2018-2019/wyniki/
+21 7 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-20217-2018/wyniki/
 
 
 -------------------------- PREMIER LEAGUE ----------------------------------

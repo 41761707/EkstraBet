@@ -8,49 +8,31 @@ from datetime import datetime
 
 import db_module
 def get_team_id(team_name):
-    team_ids = { 'Puszcza Niepołomice' : 14,
-'Górnik Zabrze' : 7,
-'Raków Częstochowa' : 4,
-'Radomiak Radom' : 10,
-'Stal Mielec' : 11,
-'Warta Poznań' : 15,
-'Widzew Łódź' : 12,
-'Korona Kielce' : 16,
-'Ruch Chorzów' : 17,
-'ŁKS Łódź' : 18,
-'Miedź Legnica' : 21,
-'Bruk-Bet T.' : 22,
-'Górnik Łęczna' : 24,
-'Wisła Kraków' : 23,
-'Podbeskidzie B-B' : 26,
-'Arka Gdynia' : 27,
-'Zagłębie Sosnowiec' : 28,
-'Sandecja Nowy Sącz' : 29,
-'Stal Rzeszów' : 30,
-'Chrobry Głogów' : 31,
-'GKS Katowice' : 32,
-'GKS Tychy' : 33,
-'Resovia Rzeszów' : 34,
-'Odra Opole' : 35,
-'Skra Częstochowa' : 36,
-'Chojniczanka' : 37,
-'Stomil Olsztyn' : 38,
-'Górnik Polkowice' : 39,
-'GKS Jastrzębie' : 40,
-'GKS Bełchatów' : 41,
-'Olimpia Grudziądz' : 42,
-'Wigry Suwałki' : 43,
-'Bytovia Bytów' : 44,
-'Garbarnia Kraków' : 45,
-'Pogoń Siedlce' : 46,
-'Wisła Puławy' : 47,
-'Znicz Pruszków' : 48,
-'MKS Kluczbork' : 49,
-'Wisła Płock' : 19,
-'Lechia Gdańsk' : 20,
-'Motor Lublin' : 318,
-'Polonia Warszawa' : 319,
-}
+    team_ids = {
+		'Club America' : 816,
+		'Monterrey' : 817,
+		'Tigres' : 818,
+		'U.N.A.M.' : 819,
+		'Guadalajara' : 820,
+		'Puebla' : 821,
+		'Atl. San Luis' : 822,
+		'Leon' : 823,
+		'Santos Laguna': 824,
+		'Mazatlan FC' : 825,
+		'Pachuca' : 826,
+		'Toluca' : 827,
+		'Tijuana' : 828,
+		'Queretaro' : 829,
+		'Juarez' : 830,
+		'Cruz Azul' : 831,
+		'Atlas' : 832,
+		'Necaxa' : 833,
+		'Veracruz' : 834,
+		'Lobos BUAP' : 835,
+		'Atl. Morelia' : 836,
+		'Chiapas' : 837
+		
+    }
     return team_ids[team_name]
 
 def parse_match_date(match_date):
@@ -107,7 +89,8 @@ def get_1x2_odds(id, link, driver):
         'BETFAN' : 6,
         'Etoto' : 7,
         'LV BET': 5,
-        'Superbet.pl' : 1
+        'Superbet.pl' : 1,
+        'Fuksiarz.pl' : 8
     }
     bookies = []
     for book in book_divs:
@@ -130,7 +113,6 @@ def get_1x2_odds(id, link, driver):
         print(text_1)
         print(text_2)
         print(text_3)
-        break
         
 def get_over_under_odds(id, link, driver):
     # 8 - o2,5
@@ -145,7 +127,8 @@ def get_over_under_odds(id, link, driver):
         'BETFAN' : 6,
         'Etoto' : 7,
         'LV BET': 5,
-        'Superbet.pl' : 1
+        'Superbet.pl' : 1,
+        'Fuksiarz.pl' : 8
     }
     bookies = []
     for book in book_divs:
@@ -169,7 +152,6 @@ def get_over_under_odds(id, link, driver):
             text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 12, text_tab[2])
             print(text_1)
             print(text_2)
-            break
         #print(text_3)
 
 def get_btts_odds(id, link, driver):
@@ -185,7 +167,8 @@ def get_btts_odds(id, link, driver):
         'BETFAN' : 6,
         'Etoto' : 7,
         'LV BET': 5,
-        'Superbet.pl' : 1
+        'Superbet.pl' : 1,
+        'Fuksiarz.pl' : 8
     }
     bookies = []
     for book in book_divs:
@@ -207,7 +190,6 @@ def get_btts_odds(id, link, driver):
         text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 172, text_tab[1])
         print(text_1)
         print(text_2)
-        break
 
 def get_handi_odds(id, link, driver):
     pass
@@ -226,10 +208,10 @@ def get_data(games, driver, matches_df, league_id, season_id):
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
-    for link in links:
+    for link in links[2:]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id)
-        #get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
-        #get_over_under_odds(match_id, "{}{}".format(link,'/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver)
+        get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
+        get_over_under_odds(match_id, "{}{}".format(link,'/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver)
         get_btts_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/obie-druzyny-strzela/koniec-meczu'), driver)
         #get_handi_odds(match_id, 'https://www.flashscore.pl/mecz/{}/#/zestawienie-kursow/handicap-azjat/koniec-meczu'.format(id), driver)
         #get_double_chance_odds(match_id, 'https://www.flashscore.pl/mecz/{}/#/zestawienie-kursow/podwojna-szansa/koniec-meczu'.format(id), driver)

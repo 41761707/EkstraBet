@@ -17,14 +17,12 @@ def main():
     query_countries = "select l.id as id, c.emoji as country from leagues l join countries c on l.country = c.id"
     league_country_df = pd.read_sql(query_countries, conn)
     league_country_dict = league_country_df.set_index('id')['country'].to_dict()
-    st.title("Ekstrabet")
+    st.title("Ekstrabet: sezon 1")
     st.page_link("Home.py", label="Strona domowa", icon="🏠")
     st.header("Lista obsługiwanych lig:")
     for key, value in leagues_dict.items():
         st.page_link("pages/{}.py".format(value), label=value, icon = league_country_dict[key])
 
-    #games = st.slider("Liczba analizowanych spotkań", 5, 15, 10)
-    #single_team_data(4, games, conn)
 
 
     conn.close()

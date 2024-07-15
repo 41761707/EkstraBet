@@ -29,5 +29,6 @@
         'Braunschweig' : 181,
         'Kiel' : 182,
         'Heidenheim' : 183,
-		'Düsseldorf' : 174
+		'Düsseldorf' : 174,
+		'St. Pauli' : 185
     }

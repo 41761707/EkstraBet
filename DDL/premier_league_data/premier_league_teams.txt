@@ -1,4 +1,5 @@
-    team_ids = { 'Liverpool' : 51,
+    team_ids = { 
+				 'Liverpool' : 51,
                  'Manchester City' : 52,
                  'Arsenal' : 53,
                  'Aston Villa' : 54,
@@ -30,5 +31,6 @@
                  'Stoke' : 81,
                  'Hull' : 82,
                  'Sunderland' : 83,
-                 'Middlesbrough' : 84
+                 'Middlesbrough' : 84,
+				 'Ipswich' : 102,
                  }

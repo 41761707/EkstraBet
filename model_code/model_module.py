@@ -149,7 +149,7 @@ class Model:
 
     def divide_set(self):
         first = int(len(self.indexes) * 0.9)
-        second = int(len(self.indexes) * 0.85)
+        second = int(len(self.indexes) * 0.95)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
@@ -162,6 +162,11 @@ class Model:
         return test_prediction
     
     def make_winner_predictions(self, tests):
+        test_prediction = self.model.predict(tests)
+        #test_prediction = np.argmax(test_prediction, axis=1)
+        return test_prediction
+    
+    def make_goals_ppb_predictions(self, tests):
         test_prediction = self.model.predict(tests)
         #test_prediction = np.argmax(test_prediction, axis=1)
         return test_prediction
@@ -230,10 +235,28 @@ class Model:
             self.model.compile(loss='mse', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals/')
+            #self.model.save_weights('model_goals/model_weights.h5')
+
+    def train_goals_ppb_model(self):
+        if self.create_model == 'new':
+            self.model = Sequential([layers.Input((int(self.entries), self.features)),
+                    layers.LSTM(64, activation = 'relu'),
+                    layers.Dense(32, activation = 'relu'),
+                    layers.Dense(16, activation = 'relu'),
+                    layers.Dense(7, activation = 'softmax')])
+            cp = ModelCheckpoint('model_goals_ppb/', save_best_only = True)
+            #self.model.load_weights('model_goals/model_weights.h5')
+            self.model.compile(loss='categorical_crossentropy', 
+                optimizer=Adagrad(learning_rate=0.001),
+                metrics=['accuracy'])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            #print(self.model.summary())
+        else:
+            self.model = load_model('model_goals_ppb/')
             #self.model.save_weights('model_goals/model_weights.h5')
 
     def train_winner_model(self):
@@ -250,7 +273,7 @@ class Model:
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
             print(self.model.summary())
         else:
             self.model = load_model('model_winner/')
@@ -270,7 +293,7 @@ class Model:
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
             print(self.model.summary())
         else:
             self.model = load_model('model_btts/')
@@ -295,6 +318,15 @@ class Model:
         plt.plot(graph_indexes, self.y_test[-50:])
         plt.legend(['Predykcje', 'Obserwacje'])
         plt.show()
+
+    def goals_ppb_test(self):
+        test_predictions = self.model.predict(self.X_test)
+        test_predictions = self.model.predict(self.X_test)
+        np_array = np.array(self.y_test)
+        test_max = np.argmax(np_array, axis=1)
+        predict_max = np.argmax(test_predictions, axis = 1)
+        print("Liczba meczów: {}".format(len(self.X_test)))
+        print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
 
     
     def test_winner_model(self):
@@ -329,7 +361,6 @@ class Model:
 
     def test_btts_model(self):
         test_predictions = self.model.predict(self.X_test)
-        print("Liczba meczów: {}".format(len(self.X_test)))
         test_predictions = self.model.predict(self.X_test)
         np_array = np.array(self.y_test)
         test_max = np.argmax(np_array, axis=1)

@@ -30,5 +30,6 @@
         'Frosinone' : 226,
         'Chievo' : 227,
         'Palermo' : 228,
-        'Pescara' : 229
+        'Pescara' : 229,
+		'Como' : 236
     }

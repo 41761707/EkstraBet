@@ -2,232 +2,277 @@ import numpy as np
 import pandas as pd
 import sys
 import db_module
+import warnings
 
-def read_data(goals_txt, winner_txt, btts_txt):
-    winner_results = []
-    goals_results = []
-    btts_results = []
-    try:
-        with open(goals_txt, 'r', encoding = 'utf-8-sig') as file:
-            for line in file:
-                # Usunięcie białych znaków (np. nowych linii) z końca linii
-                line = line.strip()
-                # Podzielenie linii względem separatora ;
-                parts = line.split(';')
-                array = [parts[0], int(parts[1]), parts[2]]
-                # Dodanie wyników do listy
-                goals_results.append(array)
-    except FileNotFoundError:
-        print(f"Plik {goals_txt} nie został znaleziony.")
-    except Exception as e:
-        print(f"Wystąpił błąd: {e}")
-    try:
-        with open(winner_txt, 'r', encoding = 'utf-8-sig') as file:
-            for line in file:
-                # Usunięcie białych znaków (np. nowych linii) z końca linii
-                line = line.strip()
-                # Podzielenie linii względem separatora ;
-                parts = line.split(';')
-                # Dodanie wyników do listy
-                array = [parts[0], float(parts[1]), float(parts[2]), float(parts[3])]
-                winner_results.append(array)
-    except FileNotFoundError:
-        print(f"Plik {winner_txt} nie został znaleziony.")
-    except Exception as e:
-        print(f"Wystąpił błąd: {e}")
-    try:
-        with open(btts_txt, 'r', encoding = 'utf-8-sig') as file:
-            for line in file:
-                # Usunięcie białych znaków (np. nowych linii) z końca linii
-                line = line.strip()
-                # Podzielenie linii względem separatora ;
-                parts = line.split(';')
-                # Dodanie wyników do listy
-                array = [int(parts[0]), float(parts[1]), float(parts[2])]
-                btts_results.append(array)
-    except FileNotFoundError:
-        print(f"Plik {winner_txt} nie został znaleziony.")
-    except Exception as e:
-        print(f"Wystąpił błąd: {e}")
+def generate_predictions(conn, league, season, current_round):
+    query = "select id from matches where league = {} and season = {} and round = {}".format(league, season, current_round)
+    matches_id = pd.read_sql(query,conn)
+    matches_id_np = matches_id.values.flatten() 
+    #W pętli dla każdego meczu
+    #3. Pobrać wszystkie wpisy z tabeli "predictions" dla powyższych parametrów
+    #4. Pobrać wszystkie wpisy z tabeli "odds" dla powyższych parametrów
+    for id in matches_id_np:
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 1)
+        home_win = pd.read_sql(query, conn).to_numpy()
+        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 2)
+        draw = pd.read_sql(query, conn).to_numpy()
+        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 3)
+        guest_win = pd.read_sql(query, conn).to_numpy()
+        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 6)
+        btts_yes = pd.read_sql(query, conn).to_numpy()
+        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 172)
+        btts_no = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 173)
+        exact_goals = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 8)
+        over_2_5 = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 12)
+        under_2_5 = pd.read_sql(query, conn).to_numpy()
 
-    
-    return goals_results, winner_results, btts_results
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 174)
+        zero_goals = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 175)
+        one_goal = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 176)
+        two_goals = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 177)
+        three_goals = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 178)
+        four_goals = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 179)
+        five_goals = pd.read_sql(query, conn).to_numpy()
+        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 180)
+        six_plus_goals = pd.read_sql(query, conn).to_numpy()
+
+        bookie_dict = {
+            'USTALONE' : 0,
+            'Superbet' : 1,
+            'Betclic' : 2,
+            'Fortuna': 3,
+            'STS' : 4,
+            'LvBet': 5,
+            'Betfan' : 6,
+            'Etoto' : 7,
+            'Fuksiarz' : 8,
+        }
+        query = 'select b.name as bookmaker, o.event as event, o.odds as odds from odds o join bookmakers b on o.bookmaker = b.id where match_id = {}'.format(id)
+        odds_details = pd.read_sql(query, conn)
+        home_win_odds = [round(100/home_win[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        draw_odds = [round(100/draw[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        guest_win_odds = [round(100/guest_win[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        btts_no_odds = [round(100/btts_no[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        btts_yes_odds = [round(100/btts_yes[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        under_odds = [round(100/under_2_5[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        over_odds = [round(100/over_2_5[0][0], 2)] + [0] * (len(bookie_dict) - 1)
+        for _, row in odds_details.iterrows():
+            if row.event == 1: #GOSPO WIN
+                home_win_odds[bookie_dict[row.bookmaker]] = row.odds
+            if row.event == 2: #GOSPO WIN
+                draw_odds[bookie_dict[row.bookmaker]] = row.odds
+            if row.event == 3: #GOSPO WIN
+                guest_win_odds[bookie_dict[row.bookmaker]] = row.odds
+            if row.event == 6:
+                btts_yes_odds[bookie_dict[row.bookmaker]] = row.odds
+            if row.event  == 172:
+                btts_no_odds[bookie_dict[row.bookmaker]] = row.odds
+            if row.event == 8:
+                over_odds[bookie_dict[row.bookmaker]] = row.odds
+            if row.event == 12:
+                under_odds[bookie_dict[row.bookmaker]] = row.odds
+
+        home_win_EV = round((home_win[0][0] / 100) * max(home_win_odds[1:]) - 1, 2)
+        draw_EV = round((draw[0][0] / 100) * max(draw_odds[1:]) - 1, 2)
+        guest_win_EV = round((guest_win[0][0] / 100) * max(guest_win_odds[1:]) - 1, 2)
+        btts_no_EV = round((btts_no[0][0] / 100) * max(btts_no_odds[1:]) - 1, 2)
+        btts_yes_EV = round((btts_yes[0][0] / 100) * max(btts_yes_odds[1:]) - 1, 2)
+        under_EV = round((under_2_5[0][0] / 100) * max(under_odds[1:]) - 1, 2)
+        over_EV = round((over_2_5[0][0] / 100) * max(over_odds[1:]) - 1, 2)
+        EVs = [home_win_EV, draw_EV, guest_win_EV, btts_no_EV, btts_yes_EV, under_EV, over_EV]
+        #print(EVs)
+
+        #5. Do tabeli final_predictions wpisać wybory modelu.
+        results_prediction = np.array([home_win[0][0], draw[0][0], guest_win[0][0]])
+        btts_predictions = np.array([btts_no[0][0], btts_yes[0][0]])
+        ou_predictions = np.array([under_2_5[0][0], over_2_5[0][0]])
+        goals_no = [zero_goals[0][0], one_goal[0][0], two_goals[0][0], three_goals[0][0], four_goals[0][0], five_goals[0][0], six_plus_goals[0][0]]
+        #print(results_prediction)
+        #print(btts_predictions)
+        #print(ou_predictions)
+        #print(goals_no)
+        result_pred_id = np.argmax(results_prediction)
+        btts_pred_id = np.argmax(btts_predictions)
+        ou_pred_id = np.argmax(ou_predictions)
+        exact_pred_id = np.argmax(goals_no)
+        #print(exact_pred_id)
+        event_id = -1
+        confidence = -1
+        EV = -1
+        odds = -1
+        bookmaker = -1
+        #RESULT
+        if result_pred_id == 0:
+            event_id = 1
+            confidence = home_win[0][0]
+            if home_win_EV > 0:
+                EV = home_win_EV
+                odds = max(home_win_odds[1:])
+                bookmaker = np.argmax(home_win_odds[1:]) + 1
+        elif result_pred_id == 1:
+            event_id = 2
+            confidence = draw[0][0]
+            if draw_EV > 0:
+                EV = draw_EV
+                odds = max(draw_odds[1:])
+                bookmaker = np.argmax(draw_odds[1:]) + 1
+        else:
+            event_id = 3
+            confidence = guest_win[0][0]
+            if guest_win_EV > 0:
+                EV = guest_win_EV
+                odds = max(guest_win_odds[1:])
+                bookmaker = np.argmax(guest_win_odds[1:]) + 1
+        print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
+        if event_id in (1, 2, 3) and EV > 0:
+            print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+        EV = 0
+        #BTTS
+        if btts_pred_id == 0:
+            event_id = 172
+            confidence = btts_no[0][0]
+            if btts_no_EV > 0:
+                EV = btts_no_EV
+                odds = max(btts_no_odds[1:])
+                bookmaker = np.argmax(btts_no_odds[1:]) + 1
+        else:
+            event_id = 6
+            confidence = btts_yes[0][0] 
+            if btts_yes_EV > 0:
+                EV = btts_yes_EV
+                odds = max(btts_yes_odds[1:])
+                bookmaker = np.argmax(btts_yes_odds[1:]) + 1
+        print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
+        #print(event_id, " ", EV)
+        #print(EVs)
+        if event_id in (6, 172) and EV > 0:
+            print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+        #OU
+        EV = 0
+        if ou_pred_id == 0:
+            event_id = 12
+            confidence = under_2_5[0][0]
+            if under_EV > 0:
+                EV = under_EV
+                odds = max(under_odds[1:])
+                bookmaker = np.argmax(under_odds[1:]) + 1
+        else:
+            event_id = 8
+            confidence = over_2_5[0][0] 
+            if over_EV > 0:
+                EV = over_EV
+                odds = max(over_odds[1:])
+                bookmaker = np.argmax(over_odds[1:]) + 1
+        print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
+        print(event_id, " ", EV, " " , EVs)
+        if event_id in (8, 12) and EV > 0:
+            print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+        #Przez wybory modelu rozumiemy największe % dla danego typu zdarzenia (Rezultat, BTTS, OU) - 3 predykcje dla jednego spotkania
+        #6. Do tabeli bets wpisać te, których EV wyszło dodanie i są to pierwsze wybory modelu (podzbiór final_predictions)
+
+
+def generate_statistics(conn, league, season, current_round):
+    query = 'select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round = {}'.format(league, season, current_round)
+    match_stats_df = pd.read_sql(query, conn)
+    correct_ou_pred = 0
+    correct_ou_bets = 0
+    ou_no_bets = 0
+    ou_profit_bets = 0
+    correct_btts_pred = 0
+    correct_btts_bets = 0
+    btts_no_bets = 0
+    btts_profit_bets = 0
+    correct_result_pred = 0
+    correct_result_bets = 0
+    result_no_bets = 0
+    result_profit_bets = 0
+
+    for index, row in match_stats_df.iterrows():
+        id = row['id']
+        query = 'select event_id from final_predictions where match_id = {}'.format(id)
+        predictions_df = pd.read_sql(query, conn)
+        query = 'select event_id, odds, bookmaker from bets where match_id = {}'.format(id)
+        bets_df = pd.read_sql(query, conn)
+        for index, predict in predictions_df.iterrows():
+            if predict['event_id'] == 8 and row['total'] > 2.5:
+                correct_ou_pred = correct_ou_pred + 1
+            elif predict['event_id'] == 12 and row['total'] < 2.5:
+                correct_ou_pred = correct_ou_pred + 1
+            elif predict['event_id'] == 1 and row['result'] == '1':
+                correct_result_pred = correct_result_pred + 1
+            elif predict['event_id'] == 2 and row['result'] == 'X':
+                correct_result_pred = correct_result_pred + 1
+            elif predict['event_id'] == 3 and row['result'] == '2':
+                correct_result_pred = correct_result_pred + 1
+            elif predict['event_id'] == 6 and (row['home_goals'] >0 and row['away_goals'] > 0 ):
+                correct_btts_pred = correct_btts_pred + 1
+            elif predict['event_id'] == 172 and not (row['home_goals'] > 0 and row['away_goals'] > 0):
+                correct_btts_pred = correct_btts_pred + 1
+            else:
+                pass
+
+        for index, bet in bets_df.iterrows():
+            if bet['event_id'] in (8,12):
+                    ou_no_bets = ou_no_bets + 1
+                    ou_profit_bets = ou_profit_bets - 1
+            if bet['event_id'] in (1,2,3):
+                    result_no_bets = result_no_bets + 1
+                    result_profit_bets = result_profit_bets - 1
+            if bet['event_id'] in (6,172):
+                    btts_no_bets = btts_no_bets + 1
+                    btts_profit_bets = btts_profit_bets - 1
+
+            if bet['event_id'] == 8 and row['total'] > 2.5:
+                correct_ou_bets = correct_ou_bets + 1
+                ou_profit_bets = ou_profit_bets + bet['odds']
+            elif bet['event_id'] == 12 and row['total'] < 2.5:
+                correct_ou_bets = correct_ou_bets + 1
+                ou_profit_bets = ou_profit_bets + bet['odds']
+            elif bet['event_id'] == 1 and row['result'] == '1':
+                correct_result_bets = correct_result_bets + 1
+                result_profit_bets = result_profit_bets + bet['odds']
+            elif bet['event_id'] == 2 and row['result'] == 'X':
+                correct_result_bets = correct_result_bets + 1
+                result_profit_bets = result_profit_bets + bet['odds']
+            elif bet['event_id'] == 3 and row['result'] == '2':
+                correct_result_bets = correct_result_bets + 1
+                result_profit_bets = result_profit_bets + bet['odds']
+            elif bet['event_id'] == 6 and (row['home_goals'] >0 and row['away_goals'] > 0 ):
+                correct_btts_bets = correct_btts_bets + 1
+                btts_profit_bets = btts_profit_bets + bet['odds']
+            elif bet['event_id'] == 172 and not (row['home_goals'] > 0 and row['away_goals'] > 0):
+                correct_btts_bets = correct_btts_bets + 1
+                btts_profit_bets = btts_profit_bets + bet['odds']
+            else:
+                pass
+    print("Liczba przewidywań OU: {}, liczba poprawnych: {:.2f}, skuteczność: {:.2f}%".format(len(match_stats_df), correct_ou_pred, 100 * correct_ou_pred / len(match_stats_df)))
+    print("Liczba przewidywań BTTS: {}, liczba poprawnych: {:.2f}, skuteczność: {:.2f}%".format(len(match_stats_df), correct_btts_pred, 100 * correct_btts_pred / len(match_stats_df)))
+    print("Liczba przewidywań RESULT: {}, liczba poprawnych: {:.2f}, skuteczność: {:.2f}%".format(len(match_stats_df), correct_result_pred, 100 * correct_result_pred / len(match_stats_df)))
+    print("Liczba zakładów OU: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(ou_no_bets, correct_ou_bets, ou_profit_bets, 100 * correct_ou_bets / ou_no_bets))
+    print("Liczba zakładów BTTS: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(btts_no_bets, correct_btts_bets, btts_profit_bets, 100 * correct_btts_bets / btts_no_bets))
+    print("Liczba zakładów RESULT: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(result_no_bets, correct_result_bets, result_profit_bets, 100 * correct_result_bets / result_no_bets))
 
 def main():
-    goals_results = []
-    winner_results = []
-    btts_results = []
-    goals_txt = sys.argv[1]
-    winner_txt = sys.argv[2]
-    btts_txt = sys.argv[3]
-    goals_results, winner_results, btts_results = read_data(goals_txt, winner_txt, btts_txt)
+    warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
+    #1. Wybrać dla jakiej ligi, jakiego sezonu i jakiej rundy wygenerować zestawienie
+    league = int(sys.argv[1])
+    season = int(sys.argv[2])
+    current_round = int(sys.argv[3])
+    mode = int(sys.argv[4])
+    #2. Wyciągnąć wszystkie idki meczów spełniających powyższe wymagania
     conn = db_module.db_connect()
-    #POL1 - 1
-    #POL2 - 21
-    #ENG1 - 2
-    #ENG2 - 8
-    #FRA1 - 3
-    #FRA2 - 13
-    #ITA1 - 5
-    #ITA2 - 26
-    #ESP1 - 6
-    #ESP2 - 14
-    #GER1 - 4
-    #GER2 - 20
-    query = "SELECT m.id, t1.name, t2.name, m.league, m.season, m.home_team_goals, m.away_team_goals, m.result FROM matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id where game_date > '2024-04-10'  order by game_date"
-    upcoming_df = pd.read_sql(query, conn)
-    upcoming_np = upcoming_df.to_numpy()
-    bookmakers = "SELECT match_id, event, odds FROM ODDS WHERE BOOKMAKER = 4"
-    bookmakers_df = pd.read_sql(bookmakers, conn)
-    bookmakers_np = bookmakers_df.to_numpy()
-    correct_goals = 0
-    correct_ou = 0
-    correct_winners = 0
-    correct_btts = 0
-    account_winners = 0
-    account_ou = 0
-    btts_winner = 0
-    size = 0
-    goals_results = sorted(goals_results, key=lambda x: x[0])
-    winner_results = sorted(winner_results, key=lambda x: x[0])
-    btts_results = sorted(btts_results, key=lambda x: x[0])
-    print(goals_results[:5])
-    print(winner_results[:5])
-    print(btts_results[:5])
-    for i in range(len(goals_results)):
-        for b in range(len(btts_results)):
-            if int(goals_results[i][0]) == int(btts_results[b][0]):
-                for c in range(len(upcoming_df)):
-                    if int(goals_results[i][0]) == int(upcoming_np[c][0]):
-                        btts_flag = False
-                        btts_winner = btts_winner - 1
-                        btts = 1
-                        if int(upcoming_np[c][5]) > 0 and int(upcoming_np[c][6]) > 0:
-                            btts = 0
-                        btts_local = [btts_results[b][1], btts_results[b][2]]
-                        max_btts = np.max(btts_local)
-                        max_btts_index = btts_local.index(max_btts)
-                        if max_btts_index == btts:
-                            correct_btts = correct_btts + 1
-                            btts_flag = True
-                        for d in range(len(bookmakers_np)):
-                            if int(goals_results[i][0]) == int(bookmakers_np[d][0]):
-                                if int(bookmakers_np[d][1]) == 6 and btts_flag and btts == 0:
-                                    print("Mecz: {} vs {} - {}:{}".format(upcoming_np[c][1], upcoming_np[c][2], upcoming_np[c][5], upcoming_np[c][6]))
-                                    print("Zdarzenie: BTTS TAK")
-                                    print("Kurs: ", bookmakers_np[d][2])
-                                    btts_winner = btts_winner + float(bookmakers_np[d][2]) * 0.88
-                                elif int(bookmakers_np[d][1]) == 172 and btts_flag and btts == 1:
-                                    print("Mecz: {} vs {} - {}:{}".format(upcoming_np[c][1], upcoming_np[c][2], upcoming_np[c][5], upcoming_np[c][6]))
-                                    print("Zdarzenie: BTTS NIE")
-                                    print("Kurs: ", bookmakers_np[d][2])
-                                    btts_winner = btts_winner + float(bookmakers_np[d][2]) * 0.88
-
-
-        for a in range(len(winner_results)):
-            if int(goals_results[i][0]) == int(winner_results[a][0]):
-                for j in range(len(upcoming_df)):
-                    if int(goals_results[i][0]) == int(upcoming_np[j][0]):
-                        size = size + 1
-                        account_winners = account_winners - 1
-                        account_ou = account_ou - 1
-                        correct_winner_flag = False
-                        correct_ou_flag = False
-                        sum_goals = upcoming_np[j][5] + upcoming_np[j][6]
-                        ou = goals_results[i][2]
-                        if (sum_goals < 2.5 and ou == 'U') or (sum_goals > 2.5 and ou == 'O'):
-                            correct_ou_flag = True
-                            correct_ou = correct_ou + 1
-                        results = [winner_results[a][1], winner_results[a][2], winner_results[a][3]]
-                        #print(results)
-                        max_value = np.max(results) 
-                        max_index = results.index(max_value) 
-                        gen_result = ""
-                        real_result = ""
-                        if max_index == 0:
-                            gen_result = upcoming_np[j][1]
-                        elif max_index == 2:
-                            gen_result = upcoming_np[j][2]
-                        else:
-                            gen_result = 'REMIS'
-
-                        if upcoming_np[j][7] == '1':
-                            real_result = upcoming_np[j][1]
-                        elif upcoming_np[j][7] == '2':
-                            real_result = upcoming_np[j][2]
-                        else:
-                            real_result = 'REMIS'
-
-                        if int(sum_goals) == int(goals_results[i][1]):
-                            correct_goals = correct_goals + 1
-
-                        #print("Mecz: {} vs {} - {}:{}".format(upcoming_np[j][1], upcoming_np[j][2], upcoming_np[j][5], upcoming_np[j][6]))
-                        #print("Wygenerowany rezultat: {}".format(gen_result))
-                        #print(results)
-                        #print("Prawdziwy rezultat: {}".format(real_result))
-                        #print("Wygenerowana liczba bramek: {}".format(goals_results[i][1]))
-                        #print("Prawdziwa liczba bramek: {}".format(sum_goals))
-                        #print("{} vs {}".format(ou, "U" if sum_goals < 2.5 else "O"))
-                        #print("{} - {} - {}".format(upcoming_np[j][0], max_index, upcoming_np[j][7] ))
-                        if max_index == 0 and upcoming_np[j][7] == '1':
-                            correct_winner_flag = True
-                            correct_winners = correct_winners + 1
-                        if max_index == 1 and upcoming_np[j][7] == 'X':
-                            correct_winner_flag = True
-                            correct_winners = correct_winners + 1
-                        if max_index == 2 and upcoming_np[j][7] == '2':
-                            correct_winner_flag = True
-                            correct_winners = correct_winners + 1
-                        for k in range(len(bookmakers_np)):
-                            if int(goals_results[i][0]) == int(bookmakers_np[k][0]):
-                                if int(bookmakers_np[k][1]) == 1:
-                                    #Zwyciestwo gospo
-                                    if upcoming_np[j][7] == '1' and correct_winner_flag:
-                                        #print("Mecz: {} vs {} - {}:{}".format(upcoming_np[j][1], upcoming_np[j][2], upcoming_np[j][5], upcoming_np[j][6]))
-                                        #print("Zdarzenie: Zwycięstwo gospo")
-                                        #print("Kurs: ", bookmakers_np[k][2])
-                                        account_winners = account_winners + float(bookmakers_np[k][2]) #* 0.88
-                                elif int(bookmakers_np[k][1]) == 2:
-                                    if upcoming_np[j][7] == 'X' and correct_winner_flag:
-                                        #print("Mecz: {} vs {} - {}:{}".format(upcoming_np[j][1], upcoming_np[j][2], upcoming_np[j][5], upcoming_np[j][6]))
-                                        #print("Zdarzenie: Remis")
-                                        #print("Kurs: ", bookmakers_np[k][2])
-                                        account_winners = account_winners + float(bookmakers_np[k][2]) #* 0.88
-                                elif int(bookmakers_np[k][1]) == 3:
-                                    if upcoming_np[j][7] == '2' and correct_winner_flag:
-                                        #print("Mecz: {} vs {} - {}:{}".format(upcoming_np[j][1], upcoming_np[j][2], upcoming_np[j][5], upcoming_np[j][6]))
-                                        #print("Zdarzenie: Zwycięstwo gość")
-                                        #print("Kurs: ", bookmakers_np[k][2])
-                                        account_winners = account_winners + float(bookmakers_np[k][2]) #* 0.88
-                                elif int(bookmakers_np[k][1]) == 8:
-                                    if sum_goals > 2.5 and correct_ou_flag:
-                                        #print(sum_goals)
-                                        #print(float(bookmakers_np[k][2]))
-                                        #print("Mecz: {} vs {} - {}:{}".format(upcoming_np[j][1], upcoming_np[j][2], upcoming_np[j][5], upcoming_np[j][6]))
-                                        #print("Zdarzenie: Under 2.5")
-                                        #print("Kurs: ", bookmakers_np[k][2])
-                                        account_ou = account_ou + float(bookmakers_np[k][2]) #* 0.88
-                                elif int(bookmakers_np[k][1]) == 12:
-                                    if sum_goals < 2.5 and correct_ou_flag:
-                                        #print("Mecz: {} vs {} - {}:{}".format(upcoming_np[j][1], upcoming_np[j][2], upcoming_np[j][5], upcoming_np[j][6]))
-                                        #print("Zdarzenie: Over 2.5")
-                                        #print("Kurs: ", bookmakers_np[k][2])
-                                        #print(float(bookmakers_np[k][2]))
-                                        account_ou = account_ou + float(bookmakers_np[k][2]) #* 0.88
-                                else:  
-                                    pass
-    print("Rozmiar danych: ", size)
-    print("Prawidlowe OU: ", correct_ou)
-    print("Prawidlowe OU %: ", correct_ou / size)
-    print( "Prawidłowy rezultat: ", correct_winners)
-    print("Prawidłowy rezultat %: ", correct_winners / size)
-    print("Prawidłowa liczba bramek: ", correct_goals)
-    print("Prawidłowa liczba bramek %: ", correct_goals / size)
-    print("Prawidłowe BTTS: ", correct_btts)
-    print("Prawidłowe BTTS %: ", correct_btts / size)
-    print("ZYSK Z OU: ", account_ou)
-    print("ZYSK Z 1X2: ", account_winners)
-    print("ZYSK Z BTTS: ", btts_winner)
+    if mode == 0:
+        generate_predictions(conn, league, season, current_round)
+    if mode == 1:
+        generate_statistics(conn, league, season, current_round)
     conn.close()
 
 if __name__ == '__main__':

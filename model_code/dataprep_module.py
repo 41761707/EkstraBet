@@ -39,6 +39,44 @@ class DataPrep:
         self.model_columns_df = pd.DataFrame(self.model_columns)
         #self.model_columns_df.set_index('id', inplace=True)
 
+    def prepare_predict_goals_ppb(self):
+        for index, match in self.matches_df.iterrows():
+            results = []
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) == 0:
+                results = [1, 0, 0, 0, 0, 0, 0]
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) == 1:
+                results = [0, 1, 0, 0, 0, 0, 0]
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) == 2:
+                results = [0, 0, 1, 0, 0, 0, 0]
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) == 3:
+                results = [0, 0, 0, 1, 0, 0, 0]
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) == 4:
+                results = [0, 0, 0, 0, 1, 0, 0]
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) == 5:
+                results = [0, 0, 0, 0, 0, 1, 0]
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) > 5:
+                results = [0, 0, 0, 0, 0, 0, 1]
+            self.model_columns.append({'id' : index, 
+                                       #'home_rating' : self.matches_df.loc[index, 'home_rating'],
+                                       #'away_rating' : self.matches_df.loc[index, 'away_rating'],
+                                       'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
+                                       'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
+                                       'away_away_att_power' : self.matches_df.at[index, 'away_away_att_power'],
+                                       'away_away_def_power' : self.matches_df.at[index, 'away_away_def_power'],
+                                       #'home_team' : self.matches_df.at[index, 'home_team'],
+                                       #'away_team' : self.matches_df.at[index, 'away_team'],
+                                       'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
+                                       'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
+                                       '0_goals' : results[0],
+                                       '1_goals' : results[1],
+                                       '2_goals' : results[2],
+                                       '3_goals' : results[3],
+                                       '4_goals' : results[4],
+                                       '5_goals' : results[5],
+                                       '6_goals' : results[5]})
+        self.model_columns_df = pd.DataFrame(self.model_columns)
+        #self.model_columns_df.set_index('id', inplace=True)
+
     def prepare_predict_btts(self):
         for index, match in self.matches_df.iterrows():
             results = []
