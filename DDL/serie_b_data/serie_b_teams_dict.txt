@@ -48,6 +48,9 @@
 		'Catanzaro' : 323,
 		'Sampdoria' : 217,
 		'FeralpiSalo' : 324,
-		'Lecco' : 325
+		'Lecco' : 325,
+		'Sassuolo' : 210,
+		'Mantova' : 848,
+		'Carrarese' : 850
 		
     }

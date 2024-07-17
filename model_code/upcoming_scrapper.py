@@ -5,54 +5,37 @@ from selenium.webdriver.common.by import By
 from datetime import datetime
 
 def get_team_id(team_name):
-    team_ids = { 'Burnley' : 74,
-    'Sheffield Utd' : 70,
-    'Luton' : 68,
-    'Middlesbrough' : 84,
-    'Coventry' : 85,
-    'Sunderland' : 83,
-    'Blackburn' : 86,
-    'Millwall' : 87,
-    'West Brom' : 77,
-    'Swansea' : 80,
-    'Watford' : 75,
-    'Preston' : 88,
-    'Norwich' : 76,
-    'Bristol City' : 89,
-    'Hull' : 82,
-    'Stoke' : 81,
-    'Birmingham' : 90,
-    'Huddersfield' : 79,
-    'Rotherham' : 91,
-    'QPR' : 92,
-    'Cardiff' : 78,
-    'Reading' : 93,
-    'Blackpool' : 94,
-    'Wigan' : 95,
-    'Fulham' : 62,
-    'Bournemouth' : 63,
-    'Nottingham' : 67,
-    'Peterborough' : 96,
-    'Derby' : 97,
-    'Barnsley' : 98,
-    'Brentford' : 65,
-    'Wycombe' : 99,
-    'Sheffield Wed' : 100,
-    'Leeds' : 72,
-    'Charlton' : 101,
-    'Aston Villa' : 54,
-    'Ipswich' : 102,
-    'Bolton' : 103,
-    'Wolves' : 60,
-    'Burton' : 104,
-    'Newcastle' : 58,
-    'Brighton' : 59,
-    'Leicester' : 71,
-    'Southampton' : 73,
-    'Plymouth' : 320,
-    'Portsmouth' : 843,
-    'Oxford Utd' : 844
-    }
+    team_ids = {
+		'Real Salt Lake' : 358,
+		'Minnesota' : 359,
+		'Los Angeles Galaxy' : 360,
+		'Los Angeles FC' : 361,
+		'Austin FC' : 362,
+		'Colorado Rapids' : 363,
+		'Vancouver Whitecaps' : 364,
+		'Houston Dynamo' : 365,
+		'Seattle Sounders' : 366,
+		'Portland Timbers' : 367,
+		'St. Louis City' : 368,
+		'FC Dallas' : 369,
+		'San Jose Earthquakes' : 370,
+		'Sporting Kansas City' : 371,
+		'Inter Miami' : 372,
+		'Cincinnati' : 373,
+		'New York City' : 374,
+		'Columbus Crew' : 375,
+		'New York Red Bulls' : 376,
+		'Toronto FC' : 377,
+		'Charlotte' : 378,
+		'Philadelphia Union' : 379,
+		'DC United' : 380,
+		'Orlando City' : 381,
+		'Nashville SC' : 382,
+		'Atlanta Utd' : 383,
+		'CF Montreal' : 384,
+		'Chicago Fire' : 385,
+		'New England Revolution' : 386
+	}
     return team_ids[team_name]
 
 def parse_match_date(match_date):
@@ -73,7 +56,7 @@ def get_match_links(games, driver):
     return links
                 
 
-def get_match_data(driver, league_id, season_id, link):
+def get_match_data(driver, league_id, season_id, link, round_to_d):
     stats = []
     match_info = []
     match_data = {
@@ -139,6 +122,8 @@ def get_match_data(driver, league_id, season_id, link):
     match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
     match_data['away_team'] = get_team_id(match_info[3])
     match_data['game_date'] = parse_match_date(match_info[0])
+    if int(round) == round_to_d + 1:
+        return -1
     match_data['round'] = round
     return match_data
 
@@ -152,10 +137,13 @@ def main():
     #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
+    round_to_d = int(sys.argv[4])
     games = sys.argv[3]
     links = get_match_links(games, driver)
     for link in links:
-        match_data = get_match_data(driver, league_id, season_id, link)
+        match_data = get_match_data(driver, league_id, season_id, link, round_to_d)
+        if match_data == -1:
+            break
         sql = '''INSERT INTO matches (league, \
 season, \
 home_team, \

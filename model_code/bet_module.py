@@ -172,7 +172,7 @@ def generate_predictions(conn, league, season, current_round):
                 odds = max(over_odds[1:])
                 bookmaker = np.argmax(over_odds[1:]) + 1
         print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
-        print(event_id, " ", EV, " " , EVs)
+        #print(event_id, " ", EV, " " , EVs)
         if event_id in (8, 12) and EV > 0:
             print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
         #Przez wybory modelu rozumiemy największe % dla danego typu zdarzenia (Rezultat, BTTS, OU) - 3 predykcje dla jednego spotkania
@@ -196,6 +196,8 @@ def generate_statistics(conn, league, season, current_round):
     result_profit_bets = 0
 
     for index, row in match_stats_df.iterrows():
+        if row['result'] == '0':
+            continue
         id = row['id']
         query = 'select event_id from final_predictions where match_id = {}'.format(id)
         predictions_df = pd.read_sql(query, conn)

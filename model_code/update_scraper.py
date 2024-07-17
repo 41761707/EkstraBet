@@ -9,30 +9,36 @@ import db_module
 
 def get_team_id(team_name):
     team_ids = {
-		'Club America' : 816,
-		'Monterrey' : 817,
-		'Tigres' : 818,
-		'U.N.A.M.' : 819,
-		'Guadalajara' : 820,
-		'Puebla' : 821,
-		'Atl. San Luis' : 822,
-		'Leon' : 823,
-		'Santos Laguna': 824,
-		'Mazatlan FC' : 825,
-		'Pachuca' : 826,
-		'Toluca' : 827,
-		'Tijuana' : 828,
-		'Queretaro' : 829,
-		'Juarez' : 830,
-		'Cruz Azul' : 831,
-		'Atlas' : 832,
-		'Necaxa' : 833,
-		'Veracruz' : 834,
-		'Lobos BUAP' : 835,
-		'Atl. Morelia' : 836,
-		'Chiapas' : 837
-		
-    }
+		'Real Salt Lake' : 358,
+		'Minnesota' : 359,
+		'Los Angeles Galaxy' : 360,
+		'Los Angeles FC' : 361,
+		'Austin FC' : 362,
+		'Colorado Rapids' : 363,
+		'Vancouver Whitecaps' : 364,
+		'Houston Dynamo' : 365,
+		'Seattle Sounders' : 366,
+		'Portland Timbers' : 367,
+		'St. Louis City' : 368,
+		'FC Dallas' : 369,
+		'San Jose Earthquakes' : 370,
+		'Sporting Kansas City' : 371,
+		'Inter Miami' : 372,
+		'Cincinnati' : 373,
+		'New York City' : 374,
+		'Columbus Crew' : 375,
+		'New York Red Bulls' : 376,
+		'Toronto FC' : 377,
+		'Charlotte' : 378,
+		'Philadelphia Union' : 379,
+		'DC United' : 380,
+		'Orlando City' : 381,
+		'Nashville SC' : 382,
+		'Atlanta Utd' : 383,
+		'CF Montreal' : 384,
+		'Chicago Fire' : 385,
+		'New England Revolution' : 386
+	}
     return team_ids[team_name]
 
 def parse_match_date(match_date):
@@ -89,8 +95,8 @@ def update_match_data(driver, league_id, season_id, link, match_id):
     # detailScore__wrapper - wynik meczu
     driver.get(link)
     time.sleep(2) # Let the user actually see something!
-    # Znajdź wszystkie divy o klasie '_row_qsznl_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_qsznl_8")
+    # Znajdź wszystkie divy o klasie '_row_1nw75_8'
+    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1nw75_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -203,7 +209,7 @@ def main():
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where league = {} and season = {}".format(league_id, season_id)
+    query = "SELECT * FROM matches where league = {} and season = {} and result = '0'".format(league_id, season_id)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
@@ -212,7 +218,7 @@ def main():
     #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
     games = sys.argv[3]
     links = get_match_links(games, driver)
-    for link in links:
+    for link in links[:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id)
         match_data = update_match_data(driver, league_id, season_id, link, match_id)
         sql = '''UPDATE `ekstrabet`.`matches` SET  `game_date` = '{game_date}', \

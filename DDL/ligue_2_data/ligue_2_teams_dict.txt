@@ -42,5 +42,6 @@
 				'Bourg en Bresse' : 328,
 				'Tours': 329,
 				'Reims' : 115,
-				'Strasbourg' : 119
+				'Strasbourg' : 119,
+				'Martigues' : 845
                 }

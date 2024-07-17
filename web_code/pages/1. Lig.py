@@ -9,9 +9,7 @@ import db_module
 import base_site_module
 
 def main():
-    current_date = datetime.today().strftime('%Y-%m-%d')
-    #league, season, round, name, current_date
-    base = base_site_module.Base(40, 1, 1, "1. Lig", current_date)
+    st.header("1. Lig - brak danych")
 
 if __name__ == '__main__':
     main()

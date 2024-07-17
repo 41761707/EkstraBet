@@ -42,7 +42,7 @@ def parse_match_date(match_date):
 
     return date_formatted
 
-def get_match_id(link, driver, matches_df, league_id, season_id):
+def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d):
     id = -1
     driver.get(link)
     time.sleep(2)
@@ -58,6 +58,10 @@ def get_match_id(link, driver, matches_df, league_id, season_id):
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
+    round_divs = driver.find_elements(By.CLASS_NAME, "tournamentHeader__country")
+    for div in round_divs:
+        round_info = div.text.strip()
+        round = round_info.split(" ")[-1]
     # Dodaj zawartość divów do listy danych
     for div in time_divs:
         match_info.append(div.text.strip())
@@ -70,6 +74,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id):
     match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
     match_data['away_team'] = get_team_id(match_info[3])
     match_data['game_date'] = parse_match_date(match_info[0])
+    if int(round) == round_to_d + 1:
+        return -1
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
     if id == -1:
@@ -200,7 +206,7 @@ def get_double_chance_odds(id, link, driver):
 def get_correct_score_odds(id, link, driver):
     pass
 
-def get_data(games, driver, matches_df, league_id, season_id):
+def get_data(games, driver, matches_df, league_id, season_id, round_to_d):
     driver.get(games)
     time.sleep(15)
     game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
@@ -208,8 +214,10 @@ def get_data(games, driver, matches_df, league_id, season_id):
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
-    for link in links[2:]:
-        match_id = get_match_id(link, driver, matches_df, league_id, season_id)
+    for link in links:
+        match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d)
+        if match_id == -1:
+            break
         get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
         get_over_under_odds(match_id, "{}{}".format(link,'/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver)
         get_btts_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/obie-druzyny-strzela/koniec-meczu'), driver)
@@ -222,6 +230,7 @@ def main():
     conn = db_module.db_connect()
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
+    round_to_d = int(sys.argv[4])
     query = "SELECT * FROM matches where league = {} and season = {}".format(league_id, season_id)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
@@ -231,7 +240,7 @@ def main():
     #games = 'https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/'
     games = sys.argv[3]
     #games = 'https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/'
-    get_data(games, driver, matches_df, league_id, season_id)
+    get_data(games, driver, matches_df, league_id, season_id, round_to_d)
     conn.close()
 if __name__ == '__main__':
     main()
