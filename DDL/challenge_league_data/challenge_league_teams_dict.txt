@@ -17,5 +17,6 @@
 		'Winterthur' : 700,
 		'Kriens' : 721,
 		'Luzern' : 702,
-		'Chiasso' : 721
+		'Chiasso' : 721,
+		'Etoile-Carouge' : 856
     }

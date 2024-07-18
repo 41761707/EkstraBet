@@ -33,5 +33,7 @@
 		'Anderlecht U23' : 617,
 		'Francs Borains' : 618,
 		'St. Liege U23' : 619,
-		'Virton' : 620
+		'Virton' : 620,
+		'Lokeren-Temse' : 852,
+		'RAAL La Louviere' : 853
     }
