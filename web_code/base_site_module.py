@@ -125,11 +125,11 @@ class Base:
             'Label': ["OU", "BTTS", "REZULTAT"],
             'Wszystkie': [ou_no_bets, btts_no_bets, result_no_bets],
             'Poprawne': [correct_ou_bets, correct_btts_bets, correct_result_bets],
-            'Profit' : [str(round(ou_profit_bets,2)), str(round(btts_profit_bets,2)), str(round(result_profit_bets,2))],
+            'Profit (unit)' : [str(round(ou_profit_bets,2)), str(round(btts_profit_bets,2)), str(round(result_profit_bets,2))],
             'Skuteczność' : [str(ou_accuracy)+"%", str(btts_accuracy)+"%", str(result_accuracy)+"%"]
             }
             df = pd.DataFrame(data)
-            styled_df = df.style.applymap(self.highlight_cells_profit, subset = ['Profit'])
+            styled_df = df.style.applymap(self.highlight_cells_profit, subset = ['Profit (unit)'])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
         col3, col4 = st.columns(2)
         with col3:

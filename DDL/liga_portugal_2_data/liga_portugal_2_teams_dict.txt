@@ -35,5 +35,7 @@ team_ids = {
 	'Estoril' : 538,
 	'Vizela' : 542,
 	'Arouca' : 532,
-	'CD Cova da Piedade' : 573
+	'Alverca' : 572,
+	'CD Cova da Piedade' : 573,
+	'Felgueiras' : 855
 }
