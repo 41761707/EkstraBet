@@ -9,7 +9,7 @@ import db_module
 import base_site_module
 
 def main():
-    #current_date = datetime.today().strftime('%Y-%m-%d')
+    current_date = datetime.today().strftime('%Y-%m-%d')
     #league, season, round, name, current_date
     base = base_site_module.Base(39, 11, 1, "Challenge League", current_date)
 

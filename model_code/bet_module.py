@@ -5,7 +5,8 @@ import db_module
 import warnings
 
 def generate_predictions(conn, league, season, current_round):
-    query = "select id from matches where league = {} and season = {} and round = {}".format(league, season, current_round)
+    query = "select id from matches where league = {} and season = {} and round = {} and cast(game_date as date) = current_date".format(league, season, current_round)
+    print(query)
     matches_id = pd.read_sql(query,conn)
     matches_id_np = matches_id.values.flatten() 
     #W pętli dla każdego meczu
