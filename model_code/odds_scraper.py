@@ -4,34 +4,12 @@ import pandas as pd
 import mysql.connector
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import db_module
 def get_team_id(team_name):
-    team_ids = {
-		'Club America' : 816,
-		'Monterrey' : 817,
-		'Tigres' : 818,
-		'U.N.A.M.' : 819,
-		'Guadalajara' : 820,
-		'Puebla' : 821,
-		'Atl. San Luis' : 822,
-		'Leon' : 823,
-		'Santos Laguna': 824,
-		'Mazatlan FC' : 825,
-		'Pachuca' : 826,
-		'Toluca' : 827,
-		'Tijuana' : 828,
-		'Queretaro' : 829,
-		'Juarez' : 830,
-		'Cruz Azul' : 831,
-		'Atlas' : 832,
-		'Necaxa' : 833,
-		'Veracruz' : 834,
-		'Lobos BUAP' : 835,
-		'Atl. Morelia' : 836,
-		'Chiapas' : 837
-		
+    team_ids = {	
+=======
     }
     return team_ids[team_name]
 
@@ -74,7 +52,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d):
     match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
     match_data['away_team'] = get_team_id(match_info[3])
     match_data['game_date'] = parse_match_date(match_info[0])
-    if int(round) == round_to_d + 1:
+    if int(round) != round_to_d:
         return -1
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
@@ -231,7 +209,12 @@ def main():
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     round_to_d = int(sys.argv[4])
+<<<<<<< Updated upstream
     query = "SELECT * FROM matches where league = {} and season = {}".format(league_id, season_id)
+=======
+    current_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
+    query = "SELECT * FROM matches where league = {} and season = {} and round = {}".format(league_id, season_id, round_to_d)
+>>>>>>> Stashed changes
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here

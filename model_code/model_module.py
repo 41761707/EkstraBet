@@ -148,8 +148,8 @@ class Model:
 
 
     def divide_set(self):
-        first = int(len(self.indexes) * 0.9)
-        second = int(len(self.indexes) * 0.95)
+        first = int(len(self.indexes) * 0.8)
+        second = int(len(self.indexes) * 0.85)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]

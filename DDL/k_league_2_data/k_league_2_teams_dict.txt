@@ -10,7 +10,7 @@
 		'Seoul' : 338,
 		'Jeonbuk' : 339,
 		'Daegu' : 340,
-		'Daejon' : 341,
+		'Daejeon' : 341,
 		'Suwon Bluewings' : 342,
 		'Seongnam' : 343,
 		'Busan' : 344,
