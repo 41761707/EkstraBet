@@ -80,8 +80,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d):
     match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
     match_data['away_team'] = get_team_id(match_info[3])
     match_data['game_date'] = parse_match_date(match_info[0])
-    if int(round) != round_to_d:
-        return -1
+    #if int(round) != round_to_d:
+    #    return -1
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
     if id == -1:
@@ -237,17 +237,9 @@ def main():
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     round_to_d = int(sys.argv[4])
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-    query = "SELECT * FROM matches where league = {} and season = {}".format(league_id, season_id)
-=======
-    current_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
-    query = "SELECT * FROM matches where league = {} and season = {} and round = {}".format(league_id, season_id, round_to_d)
->>>>>>> Stashed changes
-=======
-    current_date = datetime.today().strftime('%Y-%m-%d')
-    query = "SELECT * FROM matches where league = {} and season = {} and cast(game_date as date) = {}".format(league_id, season_id, current_date)
->>>>>>> 2988dfaf6ccaed4bd0965469cbe883909c85fb5b
+    #current_date = datetime.today().strftime('%Y-%m-%d')+1
+    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
+    #query = "SELECT * FROM matches where league = {} and season = {} and cast(game_date as date) = {}".format(league_id, season_id, current_date)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here

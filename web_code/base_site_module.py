@@ -31,12 +31,12 @@ class Base:
         all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(self.league, self.season)
         all_teams_df = pd.read_sql(all_teams, conn)
         teams_dict = all_teams_df.set_index('id')['name'].to_dict()
-        games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
-        ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
         #TO-DO: Przedstawianie historycznych predykcji
         with st.expander("Terminarz, kolejka numer: {}".format(self.round)):
             self.generate_schedule(league, self.round, season, conn)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
+            games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
+            ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
             self.show_teams(conn, teams_dict, games, ou_line)
         with st.expander("Statystyki ligowe"):
             st.header("Charakterstyki ligi {}".format(self.name))
@@ -47,14 +47,12 @@ class Base:
         conn.close()
     
     def generate_comparision(self, labels, wins, loses):
-        #st.write(wins)
         data = {
         'Zakład': [x for x in labels],
         'Wygrane': [x for x in wins],
         'Przegrane': [x for x in loses],
         }
         df = pd.DataFrame(data)
-        #st.write(data)
         sns.set_theme(style="darkgrid")
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -76,20 +74,45 @@ class Base:
 
         for bars, outcomes in zip([bars1, bars2], [df['Wygrane'], df['Przegrane']]):
             for bar, outcome in zip(bars, outcomes):
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 1.5, f'{int(outcome)}', 
+                ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 1.5, 0.5), f'{int(outcome)}', 
                         ha='center', va='bottom', color='black', fontsize=20)
 
         # Wyświetlenie wykresu
         st.pyplot(fig)
-
-    def generate_pie_chart(self, labels, type_a, type_b):
-        pass
+    def generate_pie_chart_binary(self, labels, type_a, type_b):
+        # Dane do wykresu
+        data = {
+            'Label': [x for x in labels],
+            'Ppb': [type_a, type_b],
+        }
+        sns.set_theme(style="darkgrid")
+        df = pd.DataFrame(data)
         
-    def generate_pie_chart(self, labels, type_a, type_b, type_c):
+        # Ustawienia wykresu kołowego
+        fig, ax = plt.subplots(figsize=(10, 6))
+        wedges, texts, autotexts = ax.pie(df['Ppb'], labels=df['Label'], autopct='%1.1f%%', colors=['orangered', 'lightgreen'],
+                                        textprops=dict(color="white"), startangle=140)
+        
+        # Ustawienia tytułu i koloru tła
+        #ax.set_title(title, loc='left', fontsize=24, color='white', pad = 40)
+        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
+        ax.axis('equal')  # Utrzymanie proporcji koła
+        
+        # Ustawienia kolorów tekstów na biały
+        for text in texts:
+            text.set_color('white')
+            text.set_fontsize(20)  # Zwiększenie czcionki napisów
+        for autotext in autotexts:
+            autotext.set_color('black')
+            autotext.set_fontsize(22)
+        
+        st.pyplot(fig)
+        
+    def generate_pie_chart_result(self, labels, type_a, type_b, type_c):
         pass
 
-    def show_statistics(self, no_events, correct_ou_pred, correct_btts_pred, correct_result_pred,
-                        first_round, last_round, ou_no_bets, correct_ou_bets, btts_no_bets, correct_btts_bets,
+    def show_statistics(self, no_events, ou_predictions, correct_btts_pred, correct_result_pred,
+                        first_round, last_round, ou_bets, btts_no_bets, correct_btts_bets,
                         result_no_bets, correct_result_bets, ou_profit_bets, btts_profit_bets, result_profit_bets, predictions):
         col1, col2 = st.columns(2)
         with col1:
@@ -98,14 +121,14 @@ class Base:
             result_accuracy_pred = 0
             if predictions != 0:
                 predictions = predictions / no_events
-                ou_accuracy_pred = round(100 * correct_ou_pred / predictions, 2)
+                ou_accuracy_pred = round(100 * ou_predictions['correct_ou_pred'] / predictions, 2)
                 btts_accuracy_pred = round(100 * correct_btts_pred / predictions, 2)
                 result_accuracy_pred = round(100 * correct_result_pred / predictions, 2)    
             st.header("Wszystkie przewidywnia \n Kolejki: {} - {}".format(first_round, last_round))
             data = {
             'Label': ["OU", "BTTS", "REZULTAT"],
             'Wszystkie': [predictions] * 3,
-            'Poprawne': [correct_ou_pred, correct_btts_pred, correct_result_pred],
+            'Poprawne': [ou_predictions['correct_ou_pred'], correct_btts_pred, correct_result_pred],
             'Skuteczność' : [str(ou_accuracy_pred) + "%", str(btts_accuracy_pred) + "%", str(result_accuracy_pred) + "%"]
             }
             df = pd.DataFrame(data)
@@ -114,8 +137,8 @@ class Base:
             ou_accuracy = 0
             btts_accuracy = 0
             result_accuracy = 0
-            if ou_no_bets != 0:
-                ou_accuracy = round(100 * correct_ou_bets / ou_no_bets, 2)
+            if ou_bets['ou_bets'] != 0:
+                ou_accuracy = round(100 * ou_bets['correct_ou_bets'] / ou_bets['ou_bets'], 2)
             if btts_no_bets != 0:
                 btts_accuracy = round(100 * correct_btts_bets / btts_no_bets, 2)
             if result_no_bets != 0:
@@ -123,8 +146,8 @@ class Base:
             st.header("Wszystkie zakłady \n Kolejki: {} - {}".format(first_round, last_round))
             data = {
             'Label': ["OU", "BTTS", "REZULTAT"],
-            'Wszystkie': [ou_no_bets, btts_no_bets, result_no_bets],
-            'Poprawne': [correct_ou_bets, correct_btts_bets, correct_result_bets],
+            'Wszystkie': [ou_bets['ou_bets'], btts_no_bets, result_no_bets],
+            'Poprawne': [ou_bets['correct_ou_bets'], correct_btts_bets, correct_result_bets],
             'Profit (unit)' : [str(round(ou_profit_bets,2)), str(round(btts_profit_bets,2)), str(round(result_profit_bets,2))],
             'Skuteczność' : [str(ou_accuracy)+"%", str(btts_accuracy)+"%", str(result_accuracy)+"%"]
             }
@@ -135,18 +158,47 @@ class Base:
         with col3:
             st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych predykcji")
             self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
-                                      [correct_ou_pred, correct_btts_pred, correct_result_pred], 
-                                      [predictions - correct_ou_pred, predictions - correct_btts_pred, predictions - correct_result_pred])
+                                      [ou_predictions['correct_ou_pred'], correct_btts_pred, correct_result_pred], 
+                                      [predictions - ou_predictions['correct_ou_pred'], predictions - correct_btts_pred, predictions - correct_result_pred])
         with col4:
             st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych zakładów")
             self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
-                                      [correct_ou_bets, correct_btts_bets, correct_result_bets], 
-                                      [ou_no_bets - correct_ou_bets, btts_no_bets - correct_btts_bets, result_no_bets - correct_result_bets])
+                                      [ou_bets['correct_ou_bets'], correct_btts_bets, correct_result_bets], 
+                                      [ou_bets['ou_bets'] - ou_bets['correct_ou_bets'], btts_no_bets - correct_btts_bets, result_no_bets - correct_result_bets])
         col5, col6 = st.columns(2)
         with col5:
-            st.header("Under vs Over - porównanie liczby predykcji oraz ich skuteczności")
+            #st.write(round(ou_predictions['under_pred'] * 100 / predictions, 2), round(ou_predictions['over_pred'] * 100 / predictions, 2))
+            if predictions > 0:
+                st.header("Under vs Over - porównanie liczby predykcji oraz ich skuteczności")
+                data = {
+                'Label': ["Under 2.5", "Over 2.5"],
+                'Wszystkie': [ou_predictions['under_pred'], ou_predictions['over_pred']],
+                'Poprawne': [ou_predictions['under_correct'], ou_predictions['over_correct']],
+                'Procent przewidywań' : [str(round(ou_predictions['under_pred'] * 100 / predictions, 2)) + "%", str(round(ou_predictions['over_pred'] * 100 / predictions, 2)) + "%"],
+                'Skuteczność' : [str(round(100 * ou_predictions['under_correct'] / max(ou_predictions['under_pred'], 1), 2)) + "%", str(round( 100 * ou_predictions['over_correct'] / max(ou_predictions['over_pred'], 1), 2)) + "%"]
+                }
+                df = pd.DataFrame(data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                #st.write(ou_predictions)
+                st.write('Rozkład wykonanych przewidywań na zdarzenie OU')
+                self.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], round(ou_predictions['under_pred'] * 100 / predictions, 2), round(ou_predictions['over_pred'] * 100 / predictions, 2))
+                st.write('Wynik przewidywań w zależności od typu zdarzenia')
         with col6:
-            st.header("Under vs Over - porównanie liczby zakładów oraz ich skuteczności")
+            if ou_bets['ou_bets'] > 0:
+                st.header("Under vs Over - porównanie liczby zakładów oraz ich skuteczności")
+                data = {
+                'Label': ["Under 2.5", "Over 2.5"],
+                'Wszystkie': [ou_bets['under_bets'], ou_bets['over_bets']],
+                'Poprawne': [ou_bets['under_correct'], ou_bets['over_correct']],
+                'Procent przewidywań' : [str(round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2)) + "%", str(round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2)) + "%"],
+                'Skuteczność' : [str(round(100 * ou_bets['under_correct'] / max(ou_bets['under_bets'], 1), 2)) + "%", str(round( 100 * ou_bets['over_correct'] / max(ou_bets['over_bets'], 1), 2)) + "%"]
+                }
+                df = pd.DataFrame(data)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                #st.write(ou_bets)
+                st.write('Rozkład wykonanych zakładów na zdarzenie OU')
+                self.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2), round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2))
+                st.write('Wynik zakładów w zależności od typu zdarzenia')
         col7, col8 = st.columns(2)
         with col7:
             st.header("NO BTTS vs BTTS - porównanie liczby predykcji oraz ich skuteczności")
@@ -179,8 +231,22 @@ class Base:
         no_events = 3 #OU, BTTS, RESULT
         #TO-DO: Modyfikacja obliczania o rozróżnienie, jakiego typu bety/predykcje wygrywały/przegrywały
         predictions = 0
-        correct_ou_pred = 0
+        ou_predictions = {
+            'correct_ou_pred' : 0,
+            'over_pred' : 0,
+            'over_correct' : 0,
+            'under_pred' : 0,
+            'under_correct' : 0,
+        }
         correct_ou_bets = 0
+        ou_bets = {
+            'ou_bets' : 0,
+            'correct_ou_bets' : 0,
+            'over_bets' : 0,
+            'over_correct' : 0,
+            'under_bets' : 0,
+            'under_correct': 0
+        }
         ou_no_bets = 0
         ou_profit_bets = 0
         correct_btts_pred = 0
@@ -196,7 +262,7 @@ class Base:
         if tax_flag:
             tax = 0.12
 
-        for index, row in match_stats_df.iterrows():
+        for _, row in match_stats_df.iterrows():
             if row['result'] == '0':
                 continue
             id = row['id']
@@ -204,13 +270,19 @@ class Base:
             predictions_df = pd.read_sql(query, conn)
             query = 'select event_id, odds, bookmaker from bets where match_id = {}'.format(id)
             bets_df = pd.read_sql(query, conn)
-            for index, predict in predictions_df.iterrows():
+            for _, predict in predictions_df.iterrows():
                 if row['result'] != '0':
                     predictions = predictions + 1
-                if predict['event_id'] == 8 and row['total'] > 2.5:
-                    correct_ou_pred = correct_ou_pred + 1
-                elif predict['event_id'] == 12 and row['total'] < 2.5:
-                    correct_ou_pred = correct_ou_pred + 1
+                if predict['event_id'] == 8:
+                    ou_predictions['over_pred'] = ou_predictions['over_pred'] + 1
+                    if row['total'] > 2.5:
+                        ou_predictions['over_correct'] = ou_predictions['over_correct'] + 1
+                        ou_predictions['correct_ou_pred'] = ou_predictions['correct_ou_pred'] + 1
+                elif predict['event_id'] == 12:
+                    ou_predictions['under_pred'] = ou_predictions['under_pred'] + 1
+                    if row['total'] < 2.5:
+                        ou_predictions['under_correct'] = ou_predictions['under_correct'] + 1
+                        ou_predictions['correct_ou_pred'] = ou_predictions['correct_ou_pred'] + 1
                 elif predict['event_id'] == 1 and row['result'] == '1':
                     correct_result_pred = correct_result_pred + 1
                 elif predict['event_id'] == 2 and row['result'] == 'X':
@@ -224,8 +296,9 @@ class Base:
                 else:
                     pass
 
-            for index, bet in bets_df.iterrows():
+            for _, bet in bets_df.iterrows():
                 if bet['event_id'] in (8,12):
+                        ou_bets['ou_bets'] = ou_bets['ou_bets'] + 1
                         ou_no_bets = ou_no_bets + 1
                         ou_profit_bets = ou_profit_bets - 1
                 if bet['event_id'] in (1,2,3):
@@ -235,12 +308,20 @@ class Base:
                         btts_no_bets = btts_no_bets + 1
                         btts_profit_bets = btts_profit_bets - 1
 
-                if bet['event_id'] == 8 and row['total'] > 2.5:
-                    correct_ou_bets = correct_ou_bets + 1
-                    ou_profit_bets = ou_profit_bets + (bet['odds'] * (1-tax))
-                elif bet['event_id'] == 12 and row['total'] < 2.5:
-                    correct_ou_bets = correct_ou_bets + 1
-                    ou_profit_bets = ou_profit_bets + (bet['odds'] * (1-tax))
+                if bet['event_id'] == 8:
+                    ou_bets['over_bets'] = ou_bets['over_bets'] + 1
+                    if row['total'] > 2.5:
+                        ou_bets['correct_ou_bets'] = ou_bets['correct_ou_bets'] + 1
+                        ou_bets['over_correct'] = ou_bets['over_correct'] + 1
+                        correct_ou_bets = correct_ou_bets + 1
+                        ou_profit_bets = ou_profit_bets + (bet['odds'] * (1-tax))
+                elif bet['event_id'] == 12:
+                    ou_bets['under_bets'] = ou_bets['under_bets'] + 1
+                    if row['total'] < 2.5:
+                        ou_bets['correct_ou_bets'] = ou_bets['correct_ou_bets'] + 1
+                        ou_bets['under_correct'] = ou_bets['under_correct'] + 1
+                        correct_ou_bets = correct_ou_bets + 1
+                        ou_profit_bets = ou_profit_bets + (bet['odds'] * (1-tax))
                 elif bet['event_id'] == 1 and row['result'] == '1':
                     correct_result_bets = correct_result_bets + 1
                     result_profit_bets = result_profit_bets + (bet['odds'] * (1-tax))
@@ -258,8 +339,8 @@ class Base:
                     btts_profit_bets = btts_profit_bets + (bet['odds'] * (1-tax))
                 else:
                     pass
-        self.show_statistics(no_events, correct_ou_pred, correct_btts_pred, correct_result_pred,
-                        first_round, last_round, ou_no_bets, correct_ou_bets, btts_no_bets, correct_btts_bets,
+        self.show_statistics(no_events, ou_predictions, correct_btts_pred, correct_result_pred,
+                        first_round, last_round, ou_bets, btts_no_bets, correct_btts_bets,
                         result_no_bets, correct_result_bets, ou_profit_bets, btts_profit_bets, result_profit_bets, predictions)
 
     def highlight_cells_EV(self, val):
@@ -288,7 +369,7 @@ class Base:
         hit_rate = (df['Goals'] > ou_line).mean() * 100
         # Ustawienia osi
         ax.grid(False)
-        ax.axhline(y=ou_line, color='white', linestyle='-', linewidth=2)
+        ax.axhline(y=ou_line, color='white', linestyle='--', linewidth=2)
         ax.set_xticks(df.index)
         ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
         ax.set_xlabel("")
@@ -304,8 +385,8 @@ class Base:
                 bar.set_color('green')
             else:
                 bar.set_color('red')
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 0.25, f'{int(goals)}', 
-                ha='center', va='bottom', color='black', fontsize=12)
+            ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 0.4, 0.5), f'{int(goals)}', 
+                ha='center', va='bottom', color='white', fontsize=16)
 
         # Wyświetlenie wykresu
         st.pyplot(fig)
@@ -354,7 +435,7 @@ class Base:
             team_name = team_name_df.loc[0, 'name']
         query = '''select m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result
                     from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
-                    where m.game_date <= '{}' and (m.home_team = {} or m.away_team = {})  
+                    where cast(m.game_date as date) <= '{}' and (m.home_team = {} or m.away_team = {}) and m.result <> '0'
                     order by m.game_date desc'''.format(self.date, team_id, team_id)
         data = pd.read_sql(query,conn)
         date = []
@@ -378,7 +459,7 @@ class Base:
             else:
                 btts.append(-1)
             #DATE
-            date.append(row.date.strftime('%d.%m'))
+            date.append(row.date.strftime('%d.%m.%y'))
             #HOME AND AWAY
             home_team.append(row.home)
             home_team_score.append(row.home_goals)
@@ -434,7 +515,7 @@ class Base:
         bars = ax.bar(df.index, df['Ppb'], color=['lightgreen', 'lightblue', 'orangered'])
         ax.grid(False)
         ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']])
+        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_title("Rozkład prawdopodobieństwa zdarzenia: Rezultat", loc='left', fontsize=24, color='white')
@@ -459,7 +540,7 @@ class Base:
         bars = ax.bar(df.index, df['Ppb'], color=['orangered', 'lightgreen'])
         ax.grid(False)
         ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']])
+        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_title("Rozkład prawdopodobieństwa zdarzenia: OU 2.5", loc='left', fontsize=24, color='white')
@@ -484,7 +565,7 @@ class Base:
         bars = ax.bar(df.index, df['Ppb'], color=['lightblue' for x in range(7)])
         ax.grid(False)
         ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']])
+        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 13)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_title("Rozkład ppb. zdarzenia: Dokładna liczba bramek", loc='left', fontsize=24, color='white')
@@ -509,7 +590,7 @@ class Base:
         bars = ax.bar(df.index, df['Ppb'], color=['orangered', 'lightgreen'])
         ax.grid(False)
         ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']])
+        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_title("Rozkład prawdopodobieństwa zdarzenia: BTTS", loc='left', fontsize=24, color='white')
@@ -561,7 +642,74 @@ class Base:
         # Wyświetlenie wykresu
         st.pyplot(fig)
 
-    def show_predictions(self, home, guest, id, conn):
+    def match_pred_summary(self, id, result, home_goals, away_goals, conn):
+        st.header("Pomeczowe statystyki predykcji i zakładów")
+        query = "select f.event_id as event_id, e.name as name from final_predictions f join events e on f.event_id = e.id where match_id = {}".format(id)
+        final_predictions_df = pd.read_sql(query, conn)
+        predicts = [""] * 3
+        outcomes = [""] * 3
+        correct = ["NIE"] * 3
+        bet_placed = ["NIE"] * 3
+        ou = 1 if home_goals + away_goals > 2.5 else 0
+        btts = 1 if home_goals > 0 and away_goals > 0 else 0
+        outcomes[0] = 'Poniżej 2.5 gola' if ou == 0 else 'Powyżej 2.5 gola'
+        outcomes[1] = 'Obie drużyny strzelą' if btts == 1 else 'Obie drużyny nie strzelą'
+        if result == '1':
+            outcomes[2] = 'Zwycięstwo gospodarza'
+        elif result == 'X': 
+            outcomes[2] = 'Remis'
+        else:
+            outcomes[2] = 'Zwycięstwo gościa'
+        for _, row in final_predictions_df.iterrows():
+            if row['event_id'] in (1,2,3):
+                predicts[2] = row['name']
+                if (result == '1' and row['event_id'] == 1) or (result == 'X' and row['event_id'] == 2) or (result == '2' and row['event_id'] == 3):
+                    correct[2] = 'TAK'
+            if row['event_id'] in (8,12):
+                predicts[0] = row['name']
+                if (ou == 0 and row['event_id'] == 12) or (ou == 1 and row['event_id'] == 8):
+                    correct[0] = 'TAK'
+            if row['event_id'] in (6, 172):
+                predicts[1] = row['name']
+                if (btts == 0 and row['event_id'] == 172) or (btts == 1 and row['event_id'] == 6):
+                    correct[1] = 'TAK'
+        query = "select event_id as event_id from bets b where match_id = {}".format(id)
+        final_bets_df = pd.read_sql(query, conn)
+        for _, row in final_bets_df.iterrows():
+            if row['event_id'] in (1,2,3):
+                    bet_placed[2] = 'TAK'
+            if row['event_id'] in (8,12):
+                    bet_placed[0] = 'TAK'
+            if row['event_id'] in (6, 172):
+                    bet_placed[1] = 'TAK'
+        final_predictions_df = pd.read_sql(query, conn)
+        data = {
+        'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
+        'Predykcja' : [x for x in predicts],
+        'Obserwacja' : [x for x in outcomes],
+        'Czy przewidywanie poprawne?' : [x for x in correct],
+        'Czy postawiono?' : [x for x in bet_placed]
+        }
+        df = pd.DataFrame(data)
+        df.index = range(1, len(df) + 1)
+        #styled_df = df.style.applymap(self.highlight_cells_EV, subset = ['VB'])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        correct_pred = correct.count('TAK')
+        no_bets = bet_placed.count('TAK')
+        correct_bet = 0
+        for i in range(len(correct)):
+            if correct[i] == 'TAK' and bet_placed[i] == 'TAK':
+                correct_bet = correct_bet + 1
+        st.write("Liczba poprawnych predykcji: {}".format(correct_pred))
+        st.write("Skuteczność predykcji dla analizowanego meczu: {:.2f}%".format(100 * correct_pred/len(predicts)))
+        if no_bets > 0:
+            st.write("Liczba zawartych zakładów: {}".format(no_bets))
+            st.write("Liczba poprawych zakładów: {}".format(correct_bet))
+            st.write("Skuteczność predykcji dla analizowanego meczu: {:.2f}%".format(100 * correct_bet / max(no_bets,1)))
+        else:
+            st.write("Dla wybranego meczu nie zawarto żadnych zakładów")
+
+    def show_predictions(self, home_goals, away_goals, id, conn, result):
         query = "select value from predictions where match_id = {} and event_id = {}".format(id, 1)
         home_win = pd.read_sql(query, conn).to_numpy()
         query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 2)
@@ -646,9 +794,9 @@ class Base:
         for _, row in odds_details.iterrows():
             if row.event == 1: #GOSPO WIN
                 home_win_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 2: #GOSPO WIN
+            if row.event == 2: #REMIS
                 draw_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 3: #GOSPO WIN
+            if row.event == 3: #GOŚĆ WIN
                 guest_win_odds[bookie_dict[row.bookmaker]] = row.odds
             if row.event == 6:
                 btts_yes_odds[bookie_dict[row.bookmaker]] = row.odds
@@ -735,6 +883,10 @@ class Base:
         styled_df = df.style.applymap(self.highlight_cells_EV, subset = ['VB'])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
         st.write("Zakłady o współczynniku VB (Value Bet) większym od 0 (oznaczone jasnozielonym tłem) uznawane są za WARTE ROZPATRZENIA")
+        if result != '0':
+            self.match_pred_summary(id, result, home_goals, away_goals, conn)
+
+
 
     def generate_schedule(self, league_id, round, season, conn):
         query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
@@ -749,7 +901,7 @@ class Base:
             else:
                 button_label = button_label + ", data: {}".format(row.date.strftime('%d.%m.%y %H:%M'))
             if st.button(button_label, use_container_width=True):
-                self.show_predictions(row.home, row.guest, row.id, conn)
+                self.show_predictions(row.h_g, row.a_g, row.id, conn, row.result)
 
     def winner_bar_chart(self, opponent, home_team, away_team, result, team_name):
         wins, draws, loses = 0, 0, 0
@@ -791,6 +943,13 @@ class Base:
                 ha='center', va='center', color='white', fontsize=22)
         st.pyplot(fig)
 
+    def prediction_team(self, games, key, whole_season, conn):
+        query = "select m.id, f.event_id from final_predictions f join matches m on f.match_id = m.id where (m.home_team = {} or m.away_team = {}) and m.season = {} order by m.game_date desc".format(key, key, self.season)
+        team_preds = pd.read_sql(query,conn)
+        if whole_season == 0:
+            team_preds = team_preds[:(3 * games)]
+
+
     def show_teams(self, conn, teams_dict, games, ou_line):
         st.header("Drużyny grające w {} w sezonie {}:".format(self.name, self.years))
         for key, value in teams_dict.items():
@@ -801,7 +960,6 @@ class Base:
                 with col1:
                     with st.container():
                         self.goals_bar_chart(date[:games], opponent[:games], goals[:games], team_name, ou_line)
-
                 with col2:
                     with st.container():
                         self.btts_bar_chart(date[:games], opponent[:games], btts[:games], team_name)
@@ -812,3 +970,7 @@ class Base:
                 with col4:
                     with st.container():
                         self.matches_list(date[:games], home_team[:games], home_team_score[:games], away_team[:games], away_team_score[:games], team_name)
+                st.header("Skuteczność predykcji ostatnich {} meczów z udziałem drużyny".format(games))
+                if st.checkbox("Pokaż historie z całego aktualnego sezonu"):
+                    self.prediction_team(games, key, 1, conn)
+                self.prediction_team(games, key, 0, conn)

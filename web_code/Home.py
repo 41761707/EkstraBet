@@ -17,11 +17,7 @@ def main():
     query_countries = "select l.id as id, c.emoji as country from leagues l join countries c on l.country = c.id where l.active = 1 order by l.country"
     league_country_df = pd.read_sql(query_countries, conn)
     league_country_dict = league_country_df.set_index('id')['country'].to_dict()
-<<<<<<< HEAD
     st.title("Krzychu (Bet asystent): sezon 1")
-=======
-    st.title("Krzychu (Bot do betów): sezon 1")
->>>>>>> 2988dfaf6ccaed4bd0965469cbe883909c85fb5b
     st.page_link("Home.py", label="Strona domowa", icon="🏠")
     with st.expander("Lista obsługiwanych lig"):
         for key, value in leagues_dict.items():
