@@ -59,7 +59,7 @@ class Base:
         width = 0.35  # Szerokość słupka
         x = df.index
 
-        bars1 = ax.bar(x - width/2, df['Wygrane'], width, label='Wygrane', color='lightgreen')
+        bars1 = ax.bar(x - width/2, df['Wygrane'], width, label='Wygrane', color='green')
         bars2 = ax.bar(x + width/2, df['Przegrane'], width, label='Przegrane', color='orangered')
 
         ax.grid(False)
@@ -75,7 +75,7 @@ class Base:
         for bars, outcomes in zip([bars1, bars2], [df['Wygrane'], df['Przegrane']]):
             for bar, outcome in zip(bars, outcomes):
                 ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 1.5, 0.5), f'{int(outcome)}', 
-                        ha='center', va='bottom', color='black', fontsize=20)
+                        ha='center', va='bottom', color='white', fontsize=20)
 
         # Wyświetlenie wykresu
         st.pyplot(fig)
@@ -226,10 +226,11 @@ class Base:
         tax_flag = st.checkbox("Uwzględnij podatek 12%")
         rounds = list(range(first_round, last_round + 1))
         rounds_str =','.join(map(str, rounds))
-        query = 'select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({})'.format(league, season, rounds_str)
+        #query = 'select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({})'.format(league, season, rounds_str)
+        query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0'"
         match_stats_df = pd.read_sql(query, conn)
         no_events = 3 #OU, BTTS, RESULT
-        #TO-DO: Modyfikacja obliczania o rozróżnienie, jakiego typu bety/predykcje wygrywały/przegrywały
+        #TO-DO: Poniższe w oparciu o pole outcome w final_predictions / outcomes
         predictions = 0
         ou_predictions = {
             'correct_ou_pred' : 0,
@@ -943,12 +944,6 @@ class Base:
                 ha='center', va='center', color='white', fontsize=22)
         st.pyplot(fig)
 
-    def prediction_team(self, games, key, whole_season, conn):
-        query = "select m.id, f.event_id from final_predictions f join matches m on f.match_id = m.id where (m.home_team = {} or m.away_team = {}) and m.season = {} order by m.game_date desc".format(key, key, self.season)
-        team_preds = pd.read_sql(query,conn)
-        if whole_season == 0:
-            team_preds = team_preds[:(3 * games)]
-
 
     def show_teams(self, conn, teams_dict, games, ou_line):
         st.header("Drużyny grające w {} w sezonie {}:".format(self.name, self.years))
@@ -971,6 +966,3 @@ class Base:
                     with st.container():
                         self.matches_list(date[:games], home_team[:games], home_team_score[:games], away_team[:games], away_team_score[:games], team_name)
                 st.header("Skuteczność predykcji ostatnich {} meczów z udziałem drużyny".format(games))
-                if st.checkbox("Pokaż historie z całego aktualnego sezonu"):
-                    self.prediction_team(games, key, 1, conn)
-                self.prediction_team(games, key, 0, conn)

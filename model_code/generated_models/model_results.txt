@@ -1,0 +1,19 @@
+---------- MODEL WINNER TEST ----------
+Liczba meczów: 3918
+Liczba poprawnych: 2178
+Skuteczność: 0.555895865237366
+
+---------- MODEL BTTS TEST ------------
+Liczba meczów: 3918
+Liczba poprawnych: 2444
+Skuteczność: 0.6237876467585503
+
+----------- MODEL PPB GOALS TEST ------
+Liczba meczów: 3918
+Skuteczność: 0.2616130678917815
+OU skuteczność: 0.6151097498723839
+
+----------- MODEL GOALS TOTAL TEST ----
+Liczba meczów: 3918
+Skuteczność: 0.29836651352730986
+OU skuteczność: 0.6957631444614599

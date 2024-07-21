@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from sklearn.metrics import accuracy_score
 from tensorflow.keras.optimizers import Adagrad
 from tensorflow.keras.models import load_model
@@ -148,8 +148,8 @@ class Model:
 
 
     def divide_set(self):
-        first = int(len(self.indexes) * 0.8)
-        second = int(len(self.indexes) * 0.85)
+        first = int(len(self.indexes) * 0.9)
+        second = int(len(self.indexes) * 0.95)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
@@ -249,11 +249,12 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(7, activation = 'softmax')])
             cp = ModelCheckpoint('model_goals_ppb/', save_best_only = True)
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             #self.model.load_weights('model_goals/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals_ppb/')
@@ -313,20 +314,27 @@ class Model:
         #for i in range(len(self.X_test)):
         #    generated_ou = "U" if test_predictions[i] < 2.5 else "O"
         #    print("{};{};{}".format(self.indexes_test[i], test_predictions[i], generated_ou))
-        graph_indexes = [x for x in range(1,51)]
-        plt.plot(graph_indexes, test_predictions[-50:])
-        plt.plot(graph_indexes, self.y_test[-50:])
-        plt.legend(['Predykcje', 'Obserwacje'])
-        plt.show()
+        #graph_indexes = [x for x in range(1,51)]
+        #plt.plot(graph_indexes, test_predictions[-50:])
+        #plt.plot(graph_indexes, self.y_test[-50:])
+        #plt.legend(['Predykcje', 'Obserwacje'])
+        #plt.show()
 
     def goals_ppb_test(self):
-        test_predictions = self.model.predict(self.X_test)
         test_predictions = self.model.predict(self.X_test)
         np_array = np.array(self.y_test)
         test_max = np.argmax(np_array, axis=1)
         predict_max = np.argmax(test_predictions, axis = 1)
+        ou_predictions = 0
+        for i in range(len(test_predictions)):
+            #print("Indeks meczu: {}".format(self.indexes_test[i]))
+            #print("Zaobserwowana liczba bramek: {}".format(test_max[i]))
+            #print("Przewidywana liczba bramek: {}".format(predict_max[i]))
+            if (test_max[i] < 2.5 and predict_max[i] < 2.5) or (test_max[i] > 2.5 and predict_max[i] > 2.5):
+                ou_predictions += 1
         print("Liczba meczów: {}".format(len(self.X_test)))
         print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
+        print("OU skuteczność: {}".format(ou_predictions / len(test_predictions)))
 
     
     def test_winner_model(self):
@@ -334,41 +342,24 @@ class Model:
         np_array = np.array(self.y_test)
         test_max = np.argmax(np_array, axis=1)
         predict_max = np.argmax(test_predictions, axis = 1)
-        zeros_array = np.array([0 for x in test_max])
-        rand = np.array([random.randint(0,2) for x in test_max])
-        better_elo = []
-        #print(self.X_test[:10])
-        #print(test_predictions[:10])
-        #print(self.y_test[:10])
-        for element in self.X_test:
-            if element[0] > element[1]:
-                better_elo.append(0)
-            elif element[0] < element[1]:
-                better_elo.append(2)
-            else:
-                better_elo.append(1)
-        better_elo = np.array(better_elo)
-        #print("PIERWSZY TEST: ", self.indexes_test[0])
-        #print("OSTATNI TEST: ", self.indexes_test[-1])
         print("Liczba meczów: {}".format(len(self.X_test)))
+        print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
         print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        print("Always_home: {}".format(np.sum(test_max  == zeros_array ) / len(test_max)))
-        print("Rand: {}".format(np.sum(test_max  == rand ) / len(test_max)))
-        print("Better ELO: {}".format(np.sum(test_max  == better_elo ) / len(test_max)))
         #for i in range(len(self.X_test)):
         #    percentages = np.round(test_predictions[i] * 100, 2)
         #    print("{};{:.2f};{:.2f};{:.2f}".format(self.indexes_test[i], percentages[0], percentages[1], percentages[2]))
+        #    print("{};{};{}".format(self.indexes_test[i], predict_max[i], test_max[i]))
 
     def test_btts_model(self):
-        test_predictions = self.model.predict(self.X_test)
         test_predictions = self.model.predict(self.X_test)
         np_array = np.array(self.y_test)
         test_max = np.argmax(np_array, axis=1)
         predict_max = np.argmax(test_predictions, axis = 1)
         print("Liczba meczów: {}".format(len(self.X_test)))
+        print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
         print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
         #for i in range(len(self.X_test)):
         #    percentages = np.round(test_predictions[i] * 100, 2)
         #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
-
+        #    print("{};{};{}".format(self.indexes_test[i], predict_max[i], test_max[i]))
 
