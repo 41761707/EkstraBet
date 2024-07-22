@@ -9,7 +9,6 @@ import ratings_module
 import model_module 
 import dataprep_module
 import views_module
-import league_module
 import bet_module
 import db_module
 ## @package main
@@ -20,13 +19,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2024-07-22' and home_team < 840 and away_team < 840 order by game_date"
+    query = "SELECT * FROM matches where game_date < '2024-07-18' and league in (15,30) and home_team < 840 and away_team < 840 order by game_date"
     matches_df = pd.read_sql(query, conn)
     query = "SELECT id, name FROM teams"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-22' and home_team < 840 and away_team < 840  order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-18' and league in (15,30) and home_team < 840 and away_team < 840  order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     #upcoming_df.set_index('id', inplace=True)
     conn.close()
@@ -300,7 +299,7 @@ def main():
         my_rating = rating_factory.create_rating("WinnerRating", matches_df, teams_df)
         my_rating.rating_wrapper()
         matches_df, _, teams_dict , _, ratings = my_rating.get_data()
-        #my_rating.print_ratings()
+        my_rating.print_ratings()
     if model_type == 'btts':
         my_rating = rating_factory.create_rating("BTTSRating", matches_df, teams_df)
         my_rating.rating_wrapper()
@@ -360,14 +359,14 @@ def main():
 
         schedule = generate_schedule(upcoming_df)
         #print(schedule)
-        #if model_type == 'winner':
-        #    predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, ratings, upcoming_df, pretty_print)
-        #if model_type == 'goals_ppb':
-        #    predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-        #if model_type == 'goals_total':
-        #    predict_chosen_matches_goals(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-        #if model_type == 'btts':
-        #    predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
+        if model_type == 'winner':
+            predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, ratings, upcoming_df, pretty_print)
+        if model_type == 'goals_ppb':
+            predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
+        if model_type == 'goals_total':
+            predict_chosen_matches_goals(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
+        if model_type == 'btts':
+            predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
         #Mock testing
         #predict_whole_season(data, schedule, predict_model, my_rating, ratings, matches_df, teams_dict, upcoming_df)
 

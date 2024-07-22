@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title = "1.Lig", page_icon = "⚽", layout="wide")
+st.set_page_config(page_title = "1. Lig", page_icon = "⚽", layout="wide")
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -9,7 +9,9 @@ import db_module
 import base_site_module
 
 def main():
-    st.header("1. Lig - brak danych")
+    current_date = datetime.today().strftime('%Y-%m-%d')
+    #league, season, round, name, current_date
+    base = base_site_module.Base(40, 11, 1, "1. Lig", current_date)
 
 if __name__ == '__main__':
     main()

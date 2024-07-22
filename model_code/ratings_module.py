@@ -163,6 +163,8 @@ class GoalsRating:
         ratings_list = [(self.teams_dict[k],v) for k,v in self.ratings.items()]
         ratings_list.sort(key=lambda x: x[1], reverse= True)
         for item in ratings_list:
+            if item[1] == 1500:
+                continue
             print(item[0],": ", item[1])
 
 class WinnerRating:
@@ -323,6 +325,8 @@ class WinnerRating:
         ratings_list = [(self.teams_dict[k],v) for k,v in self.ratings.items()]
         ratings_list.sort(key=lambda x: x[1], reverse= True)
         for item in ratings_list:
+            if item[1] == 1500:
+                continue
             print(item[0],": ", item[1])
 
 class BTTSRating:
@@ -481,6 +485,8 @@ class BTTSRating:
         ratings_list = [(self.teams_dict[k],v) for k,v in self.ratings.items()]
         ratings_list.sort(key=lambda x: x[1], reverse= True)
         for item in ratings_list:
+            if item[1] == 1500:
+                continue
             print(item[0],": ", item[1])
     
 

@@ -3,8 +3,11 @@ import sys
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from datetime import datetime
+import pandas as pd
+import numpy as np
+import db_module
 
-def get_team_id(team_name):
+'''def get_team_id(team_name):
     team_ids = {
 		'Real Salt Lake' : 358,
 		'Minnesota' : 359,
@@ -36,7 +39,7 @@ def get_team_id(team_name):
 		'Chicago Fire' : 385,
 		'New England Revolution' : 386
 	}
-    return team_ids[team_name]
+    return team_ids[team_name]'''
 
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
@@ -56,7 +59,7 @@ def get_match_links(games, driver):
     return links
                 
 
-def get_match_data(driver, league_id, season_id, link, round_to_d):
+def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     stats = []
     match_info = []
     match_data = {
@@ -119,8 +122,8 @@ def get_match_data(driver, league_id, season_id, link, round_to_d):
     #print(match_info)
     match_data['league'] = league_id #id ligi
     match_data['season'] = season_id #id sezonu
-    match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
-    match_data['away_team'] = get_team_id(match_info[3])
+    match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
+    match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     if int(round) == round_to_d + 1:
         return -1
@@ -129,19 +132,28 @@ def get_match_data(driver, league_id, season_id, link, round_to_d):
 
 def main():
     #WYWOŁANIE
-    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
-    driver = webdriver.Chrome(options=options)
+    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze> <numer rundy>
+    conn = db_module.db_connect()
     #Link do strony z wynikami
     #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     round_to_d = int(sys.argv[4])
     games = sys.argv[3]
+    query = "select country from leagues where id = {}".format(league_id)
+    country_df = pd.read_sql(query,conn)
+    country = country_df.values.flatten() 
+    query = "select name, id from teams where country = {}".format(country[0])
+    teams_df = pd.read_sql(query, conn)
+    team_id = teams_df.set_index('name')['id'].to_dict()
+    print(team_id)
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
+    driver = webdriver.Chrome(options=options)
     links = get_match_links(games, driver)
+    conn.close()
     for link in links:
-        match_data = get_match_data(driver, league_id, season_id, link, round_to_d)
+        match_data = get_match_data(driver, league_id, season_id, link, round_to_d, team_id)
         if match_data == -1:
             break
         sql = '''INSERT INTO matches (league, \

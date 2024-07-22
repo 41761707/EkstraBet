@@ -148,8 +148,8 @@ class Model:
 
 
     def divide_set(self):
-        first = int(len(self.indexes) * 0.9)
-        second = int(len(self.indexes) * 0.95)
+        first = int(len(self.indexes) * 0.7)
+        second = int(len(self.indexes) * 0.75)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
@@ -358,8 +358,9 @@ class Model:
         print("Liczba meczów: {}".format(len(self.X_test)))
         print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
         print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        #for i in range(len(self.X_test)):
-        #    percentages = np.round(test_predictions[i] * 100, 2)
-        #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
-        #    print("{};{};{}".format(self.indexes_test[i], predict_max[i], test_max[i]))
+        for i in range(len(self.X_test)):
+            percentages = np.round(test_predictions[i] * 100, 2)
+            print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
+            #print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
+            print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
 
