@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from datetime import datetime, timedelta
 
 import db_module
-def get_team_id(team_name):
+'''def get_team_id(team_name):
     team_ids = {
 		'Real Salt Lake' : 358,
 		'Minnesota' : 359,
@@ -39,7 +39,7 @@ def get_team_id(team_name):
 		'Chicago Fire' : 385,
 		'New England Revolution' : 386
 	}
-    return team_ids[team_name]
+    return team_ids[team_name]'''
 
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
@@ -48,7 +48,7 @@ def parse_match_date(match_date):
 
     return date_formatted
 
-def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d):
+def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id):
     id = -1
     driver.get(link)
     time.sleep(2)
@@ -77,11 +77,11 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d):
     #print(match_info)
     match_data['league'] = league_id #id ligi
     match_data['season'] = season_id #id sezonu
-    match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
-    match_data['away_team'] = get_team_id(match_info[3])
+    match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
+    match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    #if int(round) != round_to_d:
-    #    return -1
+    if int(round) != round_to_d:
+        return -1
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
     if id == -1:
@@ -212,7 +212,7 @@ def get_double_chance_odds(id, link, driver):
 def get_correct_score_odds(id, link, driver):
     pass
 
-def get_data(games, driver, matches_df, league_id, season_id, round_to_d):
+def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_id):
     driver.get(games)
     time.sleep(15)
     game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
@@ -221,7 +221,7 @@ def get_data(games, driver, matches_df, league_id, season_id, round_to_d):
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
     for link in links:
-        match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d)
+        match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id)
         if match_id == -1:
             break
         get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
@@ -237,6 +237,13 @@ def main():
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     round_to_d = int(sys.argv[4])
+    query = "select country from leagues where id = {}".format(league_id)
+    country_df = pd.read_sql(query,conn)
+    country = country_df.values.flatten() 
+    query = "select name, id from teams where country = {}".format(country[0])
+    teams_df = pd.read_sql(query, conn)
+    team_id = teams_df.set_index('name')['id'].to_dict()
+    print(team_id)
     #current_date = datetime.today().strftime('%Y-%m-%d')+1
     query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
     #query = "SELECT * FROM matches where league = {} and season = {} and cast(game_date as date) = {}".format(league_id, season_id, current_date)
@@ -248,7 +255,7 @@ def main():
     #games = 'https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/'
     games = sys.argv[3]
     #games = 'https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/'
-    get_data(games, driver, matches_df, league_id, season_id, round_to_d)
+    get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_id)
     conn.close()
 if __name__ == '__main__':
     main()

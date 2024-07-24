@@ -148,8 +148,8 @@ class Model:
 
 
     def divide_set(self):
-        first = int(len(self.indexes) * 0.7)
-        second = int(len(self.indexes) * 0.75)
+        first = int(len(self.indexes) * 0.9)
+        second = int(len(self.indexes) * 0.95)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
@@ -268,13 +268,14 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(3, activation = 'softmax')])
             cp = ModelCheckpoint('model_winner/', save_best_only = True)
-            #self.model.load_weights('model_winner/model_weights.h5')
-            #self.model.compile(loss='categorical_crossentropy', 
-            self.model.compile(loss=self.ranked_probability_score, 
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
+            self.model.load_weights('model_winner/model_weights.h5')
+            self.model.compile(loss='categorical_crossentropy', 
+            #self.model.compile(loss=self.ranked_probability_score, 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_winner/')
@@ -358,9 +359,9 @@ class Model:
         print("Liczba meczów: {}".format(len(self.X_test)))
         print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
         print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        for i in range(len(self.X_test)):
-            percentages = np.round(test_predictions[i] * 100, 2)
-            print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
-            #print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
-            print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
+        #for i in range(len(self.X_test)):
+        #    percentages = np.round(test_predictions[i] * 100, 2)
+        #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
+        #     print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
+        #    print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
 

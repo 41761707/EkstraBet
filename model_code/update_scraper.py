@@ -8,7 +8,7 @@ from datetime import datetime
 import db_module
 
 def get_team_id(team_name):
-    team_ids = { 'Śląsk Wrocław' : 1,
+    '''team_ids = { 'Śląsk Wrocław' : 1,
                  'Jagiellonia Białystok' : 2,
                  'Lech Poznań' : 3,
                  'Raków Częstochowa' : 4,
@@ -39,7 +39,7 @@ def get_team_id(team_name):
 				 'GKS Katowice' : 32,
 				 'Motor Lublin' : 318
                  }
-    return team_ids[team_name]
+    return team_ids[team_name]'''
 
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
@@ -59,7 +59,7 @@ def get_match_links(games, driver):
     return links
                 
 
-def update_match_data(driver, league_id, season_id, link, match_id):
+def update_match_data(driver, league_id, season_id, link, match_id, team_id):
     stats = []
     match_info = []
     match_data = {
@@ -119,8 +119,8 @@ def update_match_data(driver, league_id, season_id, link, match_id):
     #print(match_info)
     #match_data['league'] = league_id #id ligi
     #match_data['season'] = season_id #id sezonu
-    #match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
-    #match_data['away_team'] = get_team_id(match_info[3])
+    #match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
+    #match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     match_data['round'] = round
     score = match_info[5].split('\n')
@@ -169,7 +169,7 @@ def update_match_data(driver, league_id, season_id, link, match_id):
             match_data['away_team_rc'] = int(stat[2])
     return match_data
 
-def get_match_id(link, driver, matches_df, league_id, season_id):
+def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     id = -1
     driver.get(link)
     time.sleep(2)
@@ -194,8 +194,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id):
     #print(match_info)
     match_data['league'] = league_id #id ligi
     match_data['season'] = season_id #id sezonu
-    match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
-    match_data['away_team'] = get_team_id(match_info[3])
+    match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
+    match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
@@ -208,8 +208,9 @@ def main():
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
+    round_to_d = int(sys.argv[4])
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0'".format(league_id, season_id)
+    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
@@ -217,10 +218,17 @@ def main():
     #Link do strony z wynikami
     #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
     games = sys.argv[3]
+    query = "select country from leagues where id = {}".format(league_id)
+    country_df = pd.read_sql(query,conn)
+    country = country_df.values.flatten() 
+    query = "select name, id from teams where country = {}".format(country[0])
+    teams_df = pd.read_sql(query, conn)
+    team_id = teams_df.set_index('name')['id'].to_dict()
+    print(team_id)
     links = get_match_links(games, driver)
     for link in links[:len(matches_df)]:
-        match_id = get_match_id(link, driver, matches_df, league_id, season_id)
-        match_data = update_match_data(driver, league_id, season_id, link, match_id)
+        match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
+        match_data = update_match_data(driver, league_id, season_id, link, match_id, team_id)
         sql = '''UPDATE `ekstrabet`.`matches` SET  `game_date` = '{game_date}', \
 `home_team_goals` = '{home_team_goals}', \
 `away_team_goals` = '{away_team_goals}', \

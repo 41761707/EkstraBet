@@ -35,3 +35,4 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 
 ### Change-log
 21.07.2024 - Wykrycie błędu w trakcie testowania modelu goals_ppb, wprowadzenie istotnych poprawek
+22.07.2024 - Poprawki w modelu do 1x2

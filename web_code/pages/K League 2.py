@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(layout="wide")
+st.set_page_config(page_title = "K League 2", page_icon = "⚽", layout="wide")
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns

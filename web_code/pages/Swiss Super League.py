@@ -11,7 +11,7 @@ import base_site_module
 def main():
     current_date = datetime.today().strftime('%Y-%m-%d')
     #league, season, round, name, current_date
-    base = base_site_module.Base(23, 11, 1, "Swiss Super League ", current_date)
+    base = base_site_module.Base(23, 11, 5, "Swiss Super League ", current_date)
 
 if __name__ == '__main__':
     main()

@@ -2,7 +2,7 @@
 -- Query: select * from bets
 LIMIT 0, 50000
 
--- Date: 2024-07-22 00:42
+-- Date: 2024-07-22 21:14
 */
 INSERT INTO `bets` (`id`,`match_id`,`event_id`,`odds`,`EV`,`bookmaker`,`outcome`) VALUES (1,78025,2,3.35,0.76,4,0);
 INSERT INTO `bets` (`id`,`match_id`,`event_id`,`odds`,`EV`,`bookmaker`,`outcome`) VALUES (2,78025,6,1.73,0.09,4,0);

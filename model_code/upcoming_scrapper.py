@@ -125,7 +125,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    if int(round) == round_to_d + 1:
+    if int(round) != round_to_d:
         return -1
     match_data['round'] = round
     return match_data
