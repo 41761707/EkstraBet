@@ -124,7 +124,7 @@ class GoalsRating:
                                                        self.matches_df.loc[index, 'result'], 
                                                        goal_diff,
                                                        int(self.matches_df.loc[index, 'home_team_rc'] + self.matches_df.loc[index, 'away_team_rc']),
-                                                       self.matches_df.at[index, 'round'])
+                                                       10)
             
             self.matches_df.at[index, 'home_rating'] = home_rating
             self.matches_df.at[index, 'away_rating'] = away_rating

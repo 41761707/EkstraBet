@@ -7,6 +7,7 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 1. 1X2
 2. BTTS
 3. Dokładna liczba bramek
+4. (NOWE) Rozkład prawdopodobieństwa bramek + Over / Under 2.5
 
 ## Aktualnie obsługiwane ligi
 1. Ekstraklasa + 1. Liga (Polska)
@@ -18,6 +19,19 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 7. K League 1 + K League 2 (Korea Południowa)
 8. MLS (USA)
 9. J1 League + J2 League (Japonia)
+10. Jupiler League i Challenger Pro League (Belgia)
+11. Swiss Super League i Challenge League (Szwajcaria)
+12. Super Lig i 1.Lig (Turcja)
+13. Liga Portugal i Liga Portugal 2 (Portugalia)
+14. Eredivisie i Eerste Divisie (Holandia)
+
+## Planowane rozszerzenia
+1. Serie A i Serie B (Brazylia)
+2. Liga Profesional (Argentyna)
+3. Chance liga i Dywizja 2 (Czechy)
+4. Premiership (Szkocja)
+5. Bundesliga i 2. Liga (Austria)
+6. TBD
 
 
 ## Opis przebiegu generowania predykcji oraz zakładów
@@ -35,4 +49,5 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 
 ### Change-log
 21.07.2024 - Wykrycie błędu w trakcie testowania modelu goals_ppb, wprowadzenie istotnych poprawek
+
 22.07.2024 - Poprawki w modelu do 1x2

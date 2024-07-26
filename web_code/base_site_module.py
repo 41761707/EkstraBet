@@ -33,9 +33,10 @@ class Base:
         teams_dict = all_teams_df.set_index('id')['name'].to_dict()
         #TO-DO: Przedstawianie historycznych predykcji
         #if self.round > 1 and self.league != 25 : #durne MLS
+        self.EV_plus = st.checkbox("Uwzględnij tylko wartościowe zakłady (VB > 0)")
         with st.expander("Terminarz, poprzednia kolejka numer: {}".format(self.round-1)):
             self.generate_schedule(league, self.round-1, season)
-        with st.expander("Terminarz, kolejka numer: {}".format(self.round)):
+        with st.expander("Terminarz, aktualna kolejka numer: {}".format(self.round)):
             self.generate_schedule(league, self.round, season)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
@@ -70,7 +71,7 @@ class Base:
         ax.set_xticklabels([f"{bet_type}" for bet_type in df['Zakład']])
         ax.set_xlabel("")
         ax.set_ylabel("")
-        ax.tick_params(colors='white', which='both')
+        ax.tick_params(colors='white', which='both', labelsize = 20)
         ax.set_facecolor('#291F1E')
         ax.legend()
         fig.patch.set_facecolor('black')
@@ -82,6 +83,7 @@ class Base:
 
         # Wyświetlenie wykresu
         st.pyplot(fig)
+
     def generate_pie_chart_binary(self, labels, type_a, type_b):
         # Dane do wykresu
         data = {
@@ -216,6 +218,9 @@ class Base:
                                                round(ou_predictions['under_pred'] * 100 / predictions, 2), 
                                                round(ou_predictions['over_pred'] * 100 / predictions, 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
+                self.generate_comparision(['Under 2.5', 'Over 2.5'], 
+                                          [ou_predictions['under_correct'], ou_predictions['over_correct']],
+                                          [ou_predictions['under_pred'] - ou_predictions['under_correct'], ou_predictions['over_pred'] - ou_predictions['over_correct']])
         with col6:
             if ou_bets['ou_bets'] > 0:
                 st.header("Under vs Over - porównanie liczby zakładów oraz ich skuteczności")
@@ -236,6 +241,9 @@ class Base:
                                                round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2), 
                                                round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2))
                 st.write('Wynik zakładów w zależności od typu zdarzenia')
+                self.generate_comparision(['Under 2.5', 'Over 2.5'], 
+                                          [ou_bets['under_correct'], ou_bets['over_correct']],
+                                          [ou_bets['under_bets'] - ou_bets['under_correct'], ou_bets['over_bets'] - ou_bets['over_correct']])
         col7, col8 = st.columns(2)
         with col7:
             if predictions > 0:
@@ -337,7 +345,6 @@ class Base:
         else:
             first_round, last_round = 1, 1
         tax_flag = st.checkbox("Uwzględnij podatek 12%")
-        EV_flag = st.checkbox("Tylko wartościowe zakłady")
         rounds = list(range(first_round, last_round + 1))
         rounds_str =','.join(map(str, rounds))
         query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
@@ -450,7 +457,7 @@ class Base:
                     pass
 
             for _, bet in bets_df.iterrows():
-                if EV_flag and bet['EV'] < 0:
+                if self.EV_plus and bet['EV'] < 0:
                     continue
                 if bet['event_id'] in (8,12):
                         ou_bets['ou_bets'] = ou_bets['ou_bets'] + 1
@@ -519,7 +526,7 @@ class Base:
     
     def goals_bar_chart(self,date, opponent, goals, team_name, ou_line):
         data = {
-        'Date': [x for x in reversed(date)],
+        'Date': [x[:-3] for x in reversed(date)],
         'Opponent': [x[:3] for x in reversed(opponent)],
         'Goals': [x for x in reversed(goals)],
         }
@@ -559,7 +566,7 @@ class Base:
 
     def btts_bar_chart(self, date, opponent, btts, team_name):
         data = {
-        'Date': [x for x in reversed(date)],
+        'Date': [x[:-3] for x in reversed(date)],
         'Opponent': [x[:3] for x in reversed(opponent)],
         'BTTS': [x for x in reversed(btts)],
         }
@@ -810,7 +817,6 @@ class Base:
 
     def match_pred_summary(self, id, result, home_goals, away_goals):
         st.header("Pomeczowe statystyki predykcji i zakładów")
-        EV_plus = st.checkbox("Uwzględnij tylko wartościowe zakłady (VB > 0)")
         query = "select f.event_id as event_id, e.name as name from final_predictions f join events e on f.event_id = e.id where match_id = {}".format(id)
         final_predictions_df = pd.read_sql(query, self.conn)
         predicts = [""] * 3
@@ -844,19 +850,19 @@ class Base:
         final_bets_df = pd.read_sql(query, self.conn)
         for _, row in final_bets_df.iterrows():
             if row['event_id'] in (1,2,3):  
-                if EV_plus:
+                if self.EV_plus:
                     if row['EV'] > 0:
                         bet_placed[2] = 'TAK'
                 else:
                     bet_placed[2] = 'TAK'
             if row['event_id'] in (8,12):
-                if EV_plus:
+                if self.EV_plus:
                     if row['EV'] > 0:
                         bet_placed[0] = 'TAK'
                 else:
                     bet_placed[0] = 'TAK'
             if row['event_id'] in (6, 172):
-                if EV_plus:
+                if self.EV_plus:
                     if row['EV'] > 0:
                         bet_placed[1] = 'TAK'
                 else:

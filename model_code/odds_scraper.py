@@ -214,13 +214,13 @@ def get_correct_score_odds(id, link, driver):
 
 def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_id):
     driver.get(games)
-    time.sleep(15)
+    time.sleep(5)
     game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
     links = []
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
-    for link in links:
+    for link in links[:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id)
         if match_id == -1:
             break
@@ -245,7 +245,7 @@ def main():
     team_id = teams_df.set_index('name')['id'].to_dict()
     print(team_id)
     #current_date = datetime.today().strftime('%Y-%m-%d')+1
-    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
     #query = "SELECT * FROM matches where league = {} and season = {} and cast(game_date as date) = {}".format(league_id, season_id, current_date)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
