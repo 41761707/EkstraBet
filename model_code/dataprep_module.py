@@ -85,20 +85,33 @@ class DataPrep:
             else:
                 results = [0, 1]
             self.model_columns.append({'id' : index, 
-                                       #'home_rating' : self.matches_df.loc[index, 'home_rating'],
-                                       #'away_rating' : self.matches_df.loc[index, 'away_rating'],
                                        'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
                                        'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
                                        'home_away_att_power' : self.matches_df.at[index, 'home_away_att_power'],
                                        'home_away_def_power' : self.matches_df.at[index, 'home_away_def_power'],
-                                       #'away_home_att_power' : self.matches_df.at[index, 'away_home_att_power'],
-                                       #'away_home_def_power' : self.matches_df.at[index, 'away_home_def_power'],
-                                       #'away_away_att_power' : self.matches_df.at[index, 'away_away_att_power'],
-                                       #'away_away_def_power' : self.matches_df.at[index, 'away_away_def_power'],
                                        'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
                                        'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
                                        'btts_yes' : results[0],
                                        'btts_no' : results[1]})
+        self.model_columns_df = pd.DataFrame(self.model_columns)
+        #self.model_columns_df.set_index('id', inplace=True)
+
+    def prepare_predict_ou(self):
+        for index, _ in self.matches_df.iterrows():
+            results = []
+            if int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals']) > 2.5:
+                results = [0, 1]
+            else:
+                results = [1, 0]
+            self.model_columns.append({'id' : index, 
+                                       'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
+                                       'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
+                                       'home_away_att_power' : self.matches_df.at[index, 'home_away_att_power'],
+                                       'home_away_def_power' : self.matches_df.at[index, 'home_away_def_power'],
+                                       'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
+                                       'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
+                                       'under_2_5' : results[0],
+                                       'over_2_5' : results[1]})
         self.model_columns_df = pd.DataFrame(self.model_columns)
         #self.model_columns_df.set_index('id', inplace=True)
 

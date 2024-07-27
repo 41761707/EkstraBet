@@ -19,13 +19,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2024-07-25' and league in (1, 21) order by game_date"
+    query = "SELECT * FROM matches where game_date < '2024-07-26' and league in (1, 21) order by game_date"
     matches_df = pd.read_sql(query, conn)
     query = "SELECT id, name FROM teams"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-25' and league in (1, 21) and home_team < 840 and away_team < 840 order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-27' and league in(1, 21) order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     #upcoming_df.set_index('id', inplace=True)
     conn.close()
@@ -149,6 +149,20 @@ def predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratin
             print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 6 , {:.2f});".format(id, percentages[0]))
             print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 172 , {:.2f});".format(id, percentages[1]))
 
+def predict_chosen_matches_goals_ou(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print):
+    external_tests = data.generate_btts_test(schedule, ratings, powers, last_five_matches)
+    external_tests_np = np.array(external_tests)
+    predictions = predict_model.make_btts_predictions(external_tests_np)
+    for i in range(len(predictions)):
+        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
+        id = record.iloc[0]['id']
+        percentages = np.round(predictions[i] * 100, 2)
+        if pretty_print == "pretty":
+            print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
+            print("Under: {:.2f}, Over: {:.2f}".format(percentages[0], percentages[1]))
+        else:
+            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 12 , {:.2f});".format(id, percentages[0]))
+            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 8 , {:.2f});".format(id, percentages[1]))
 def predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print):
     external_tests = data.generate_goals_test(schedule, ratings, powers, last_five_matches)
     external_tests_np = np.array(external_tests)
@@ -288,7 +302,7 @@ def main():
     matches_df, teams_df, upcoming_df = get_values()
     rating_factory = ratings_module.RatingFactory()
     my_rating = ""
-    if model_type == 'goals_total' or model_type == 'goals_ppb':
+    if model_type == 'goals_total' or model_type == 'goals_ppb' or model_type == 'goals_ou':
         my_rating = rating_factory.create_rating("GoalsRating", matches_df, teams_df)
         my_rating.rating_wrapper()
         matches_df, _, teams_dict , powers, ratings, last_five_matches = my_rating.get_data()
@@ -335,6 +349,16 @@ def main():
             predict_model.train_goals_ppb_model()
             predict_model.goals_ppb_test()
 
+        if model_type =='goals_ou':
+            data.prepare_predict_ou()
+            _, _, _, model_columns_df = data.get_data()
+            predict_model = model_module.Model(model_type, model_columns_df, 9, 6, model_mode)
+            predict_model.create_window()
+            predict_model.window_to_numpy(2)
+            predict_model.divide_set()
+            predict_model.train_ou_model()
+            predict_model.test_btts_model()
+
         if model_type == 'winner':
             data.prepare_predict_winner()
             _, _, _, model_columns_df = data.get_data()
@@ -363,6 +387,8 @@ def main():
             predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
         if model_type == 'goals_total':
             predict_chosen_matches_goals(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
+        if model_type == 'goals_ou':
+            predict_chosen_matches_goals_ou(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
         if model_type == 'btts':
             predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
         #Mock testing

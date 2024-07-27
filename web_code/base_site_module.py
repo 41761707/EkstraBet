@@ -187,15 +187,17 @@ class Base:
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
         col3, col4 = st.columns(2)
         with col3:
-            st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych predykcji")
-            self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
-                                      [ou_predictions['correct_ou_pred'], btts_predictions['correct_btts_pred'], result_predictions['correct_result_pred']], 
-                                      [predictions - ou_predictions['correct_ou_pred'], predictions - btts_predictions['correct_btts_pred'], predictions - result_predictions['correct_result_pred']])
+            if predictions != 0:
+                st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych predykcji")
+                self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
+                                        [ou_predictions['correct_ou_pred'], btts_predictions['correct_btts_pred'], result_predictions['correct_result_pred']], 
+                                        [predictions - ou_predictions['correct_ou_pred'], predictions - btts_predictions['correct_btts_pred'], predictions - result_predictions['correct_result_pred']])
         with col4:
-            st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych zakładów")
-            self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
-                                      [ou_bets['correct_ou_bets'], btts_bets['correct_btts_bets'], result_bets['correct_result_bets']], 
-                                      [ou_bets['ou_bets'] - ou_bets['correct_ou_bets'], btts_bets['btts_bets'] - btts_bets['correct_btts_bets'], result_bets['result_bets'] - result_bets['correct_result_bets']])
+            if ou_bets['ou_bets'] != 0 or btts_bets['btts_bets'] != 0 or result_bets['result_bets'] != 0:
+                st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych zakładów")
+                self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
+                                        [ou_bets['correct_ou_bets'], btts_bets['correct_btts_bets'], result_bets['correct_result_bets']], 
+                                        [ou_bets['ou_bets'] - ou_bets['correct_ou_bets'], btts_bets['btts_bets'] - btts_bets['correct_btts_bets'], result_bets['result_bets'] - result_bets['correct_result_bets']])
         col5, col6 = st.columns(2)
         with col5:
             #st.write(round(ou_predictions['under_pred'] * 100 / predictions, 2), round(ou_predictions['over_pred'] * 100 / predictions, 2))
@@ -265,6 +267,9 @@ class Base:
                                                round(btts_predictions['btts_no_pred'] * 100 / predictions, 2), 
                                                round(btts_predictions['btts_yes_pred'] * 100 / predictions, 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
+                self.generate_comparision(['NO BTTS', 'BTTS'], 
+                                          [btts_predictions['btts_no_correct'], btts_predictions['btts_yes_correct']],
+                                          [btts_predictions['btts_no_pred'] - btts_predictions['btts_no_correct'], btts_predictions['btts_yes_pred'] - btts_predictions['btts_yes_correct']])
         with col8:
             if btts_bets['btts_bets'] > 0:
                 st.header("NO BTTS vs BTTS - porównanie liczby zakładów oraz ich skuteczności")
@@ -284,6 +289,9 @@ class Base:
                                                round(btts_bets['btts_no_bets'] * 100 / btts_bets['btts_bets'], 2), 
                                                round(btts_bets['btts_yes_bets'] * 100 / btts_bets['btts_bets'], 2))
                 st.write('Wynik zakładów w zależności od typu zdarzenia')
+                self.generate_comparision(['NO BTTS', 'BTTS'],  
+                                          [btts_bets['btts_no_correct'], btts_bets['btts_yes_correct']],
+                                          [btts_bets['btts_no_bets'] - btts_bets['btts_no_correct'], btts_bets['btts_yes_bets'] - btts_bets['btts_yes_correct']])
         col9, col10 = st.columns(2)
         with col9:
             if result_bets['result_bets'] > 0:
@@ -308,6 +316,11 @@ class Base:
                                                round(result_predictions['draw_pred'] * 100 / predictions, 2),
                                                round(result_predictions['away_win_pred'] * 100 / predictions, 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
+                self.generate_comparision(['Gospodarz', 'Remis', 'Gość'], 
+                                          [result_predictions['home_win_correct'], result_predictions['draw_correct'], result_predictions['away_win_correct']],
+                                          [result_predictions['home_win_pred'] - result_predictions['home_win_correct'], 
+                                           result_predictions['draw_pred'] - result_predictions['draw_correct'],
+                                           result_predictions['away_win_pred'] - result_predictions['away_win_correct']])
         with col10:
             if result_bets['result_bets'] > 0:
                 st.header("NO BTTS vs BTTS - porównanie liczby zakładów oraz ich skuteczności")
@@ -330,6 +343,11 @@ class Base:
                                                round(result_bets['draw_bets'] * 100 / result_bets['result_bets'], 2),
                                                round(result_bets['away_win_bets'] * 100 / result_bets['result_bets'], 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
+                self.generate_comparision(['Gospodarz', 'Remis', 'Gość'],  
+                                          [result_bets['home_win_correct'], result_bets['draw_correct'], result_bets['away_win_correct']],
+                                          [result_bets['home_win_bets'] - result_bets['home_win_correct'], 
+                                           result_bets['draw_bets'] - result_bets['draw_correct'], 
+                                           result_bets['away_win_bets'] - result_bets['away_win_correct']])
         #col11, col12 = st.columns(2)
         #with col11:
         #    st.header("Profit z zakładów - kolejka po kolejce")
@@ -347,8 +365,8 @@ class Base:
         tax_flag = st.checkbox("Uwzględnij podatek 12%")
         rounds = list(range(first_round, last_round + 1))
         rounds_str =','.join(map(str, rounds))
-        query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
-        #query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0'"
+        #query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
+        query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0'"
         match_stats_df = pd.read_sql(query, self.conn)
         no_events = 3 #OU, BTTS, RESULT
         #TO-DO: Poniższe w oparciu o pole outcome w final_predictions / outcomes
@@ -890,7 +908,7 @@ class Base:
         if no_bets > 0:
             st.write("Liczba zawartych zakładów: {}".format(no_bets))
             st.write("Liczba poprawych zakładów: {}".format(correct_bet))
-            st.write("Skuteczność predykcji dla analizowanego meczu: {:.2f}%".format(100 * correct_bet / max(no_bets,1)))
+            st.write("Skuteczność zakładów dla analizowanego meczu: {:.2f}%".format(100 * correct_bet / max(no_bets,1)))
         else:
             st.write("Dla wybranego meczu nie zawarto żadnych zakładów")
 
@@ -1094,7 +1112,7 @@ class Base:
             if st.button(button_label, use_container_width=True):
                 self.show_predictions(row.h_g, row.a_g, row.id, row.result)
 
-    def winner_bar_chart(self, opponent, home_team, away_team, result, team_name):
+    def winner_bar_chart(self, opponent, home_team, result, team_name):
         wins, draws, loses = 0, 0, 0
         for i in range(len(opponent)):
             if home_team[i] == team_name:
@@ -1220,7 +1238,7 @@ class Base:
                 col3, col4 = st.columns(2)
                 with col3:
                     with st.container():
-                        self.winner_bar_chart(opponent[:games], home_team[:games], away_team[:games] ,result[:games], team_name)
+                        self.winner_bar_chart(opponent[:games], home_team[:games] ,result[:games], team_name)
                 with col4:
                     with st.container():
                         self.matches_list(date[:games], home_team[:games], home_team_score[:games], away_team[:games], away_team_score[:games], team_name)

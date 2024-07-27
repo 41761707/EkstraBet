@@ -301,6 +301,24 @@ class Model:
             self.model = load_model('model_btts/')
             self.model.save_weights('model_btts/model_weights.h5')
 
+    def train_ou_model(self):
+        if self.create_model == 'new':
+            self.model = Sequential([layers.Input((int(self.entries), self.features)),
+                    layers.LSTM(64, activation = 'sigmoid'),
+                    layers.Dense(32, activation = 'relu'),
+                    layers.Dense(16, activation = 'relu'),
+                    layers.Dense(2, activation = 'softmax')])
+            cp = ModelCheckpoint('model_ou/', save_best_only = True)
+            self.model.compile(loss='categorical_crossentropy',  
+                optimizer=Adagrad(learning_rate=0.001),
+                metrics=['accuracy'])
+
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            print(self.model.summary())
+        else:
+            self.model = load_model('model_ou/')
+            self.model.save_weights('model_ou/model_weights.h5')
+
     def goals_total_test(self):
         test_predictions = self.model.predict(self.X_test).flatten().astype(int)
         accuracy = accuracy_score(test_predictions, self.y_test)
@@ -352,6 +370,20 @@ class Model:
         #    print("{};{};{}".format(self.indexes_test[i], predict_max[i], test_max[i]))
 
     def test_btts_model(self):
+        test_predictions = self.model.predict(self.X_test)
+        np_array = np.array(self.y_test)
+        test_max = np.argmax(np_array, axis=1)
+        predict_max = np.argmax(test_predictions, axis = 1)
+        print("Liczba meczów: {}".format(len(self.X_test)))
+        print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
+        print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
+        #for i in range(len(self.X_test)):
+        #    percentages = np.round(test_predictions[i] * 100, 2)
+        #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
+        #     print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
+        #    print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
+
+    def test_ou_model(self):
         test_predictions = self.model.predict(self.X_test)
         np_array = np.array(self.y_test)
         test_max = np.argmax(np_array, axis=1)
