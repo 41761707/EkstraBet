@@ -44,7 +44,8 @@ def get_team_id(team_name):
 		'Blansko' : 656,
 		'Vysehrad' : 657,
 		'Sokolov' : 658,
-		'Vitkovice' : 659
+		'Vitkovice' : 659,
+        'Ostrava B' : 860
 	}
     return team_ids[team_name]
 

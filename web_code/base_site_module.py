@@ -6,6 +6,8 @@ import seaborn as sns
 from datetime import datetime, timedelta
 
 import db_module
+import graphs_module
+import tables_module
 
 class Base:
     def __init__(self, league, season, current_round, name, date):
@@ -42,6 +44,8 @@ class Base:
             games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
             ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
             self.show_teams( teams_dict, games, ou_line)
+        with st.expander("Tabela ligowa w sezonie {}".format(self.years)):
+            pass
         with st.expander("Statystyki ligowe"):
             st.header("Charakterstyki ligi {}".format(self.name))
         with st.expander("Statystyki predykcji"):
@@ -49,99 +53,6 @@ class Base:
             self.generate_statistics(self.league, self.season, self.round)
                     
         self.conn.close()
-    
-    def generate_comparision(self, labels, wins, loses):
-        data = {
-        'Zakład': [x for x in labels],
-        'Wygrane': [x for x in wins],
-        'Przegrane': [x for x in loses],
-        }
-        df = pd.DataFrame(data)
-        sns.set_theme(style="darkgrid")
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        width = 0.35  # Szerokość słupka
-        x = df.index
-
-        bars1 = ax.bar(x - width/2, df['Wygrane'], width, label='Wygrane', color='green')
-        bars2 = ax.bar(x + width/2, df['Przegrane'], width, label='Przegrane', color='orangered')
-
-        ax.grid(False)
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{bet_type}" for bet_type in df['Zakład']])
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.tick_params(colors='white', which='both', labelsize = 20)
-        ax.set_facecolor('#291F1E')
-        ax.legend()
-        fig.patch.set_facecolor('black')
-
-        for bars, outcomes in zip([bars1, bars2], [df['Wygrane'], df['Przegrane']]):
-            for bar, outcome in zip(bars, outcomes):
-                ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 1.5, 0.5), f'{int(outcome)}', 
-                        ha='center', va='bottom', color='white', fontsize=20)
-
-        # Wyświetlenie wykresu
-        st.pyplot(fig)
-
-    def generate_pie_chart_binary(self, labels, type_a, type_b):
-        # Dane do wykresu
-        data = {
-            'Label': [x for x in labels],
-            'Ppb': [type_a, type_b],
-        }
-        sns.set_theme(style="darkgrid")
-        df = pd.DataFrame(data)
-        
-        # Ustawienia wykresu kołowego
-        fig, ax = plt.subplots(figsize=(10, 6))
-        wedges, texts, autotexts = ax.pie(df['Ppb'], labels=df['Label'], autopct='%1.1f%%', colors=['orangered', 'lightgreen'],
-                                        textprops=dict(color="white"), startangle=140)
-        
-        # Ustawienia tytułu i koloru tła
-        #ax.set_title(title, loc='left', fontsize=24, color='white', pad = 40)
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-        ax.axis('equal')  # Utrzymanie proporcji koła
-        
-        # Ustawienia kolorów tekstów na biały
-        for text in texts:
-            text.set_color('white')
-            text.set_fontsize(20)  # Zwiększenie czcionki napisów
-        for autotext in autotexts:
-            autotext.set_color('black')
-            autotext.set_fontsize(22)
-        
-        st.pyplot(fig)
-        
-    def generate_pie_chart_result(self, labels, type_a, type_b, type_c):
-            # Data for the chart
-            data = {
-                'Label': [x for x in labels],
-                'Ppb': [type_a, type_b, type_c],
-            }
-            sns.set_theme(style="darkgrid")
-            df = pd.DataFrame(data)
-            
-            # Pie chart settings
-            fig, ax = plt.subplots(figsize=(10, 6))
-            wedges, texts, autotexts = ax.pie(df['Ppb'], labels=df['Label'], autopct='%1.1f%%', 
-                                            colors=['orangered', 'lightgreen', 'skyblue'],
-                                            textprops=dict(color="white"), startangle=140)
-            
-            # Background and title settings
-            #ax.set_title(title, loc='left', fontsize=24, color='white', pad = 40)
-            fig.patch.set_facecolor('black')  # Set the background color of the figure to black
-            ax.axis('equal')  # Maintain aspect ratio
-            
-            # Set text colors to white and adjust font size
-            for text in texts:
-                text.set_color('white')
-                text.set_fontsize(20)  # Increase the font size of labels
-            for autotext in autotexts:
-                autotext.set_color('black')
-                autotext.set_fontsize(22)
-            
-            st.pyplot(fig)
 
     def show_statistics(self, no_events, ou_predictions, btts_predictions, result_predictions,
                         first_round, last_round, ou_bets, btts_bets, result_bets, predictions):
@@ -183,19 +94,19 @@ class Base:
             'Skuteczność' : [str(ou_accuracy)+"%", str(btts_accuracy)+"%", str(result_accuracy)+"%"]
             }
             df = pd.DataFrame(data)
-            styled_df = df.style.applymap(self.highlight_cells_profit, subset = ['Profit (unit)'])
+            styled_df = df.style.applymap(graphs_module.highlight_cells_profit, subset = ['Profit (unit)'])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
         col3, col4 = st.columns(2)
         with col3:
             if predictions != 0:
                 st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych predykcji")
-                self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
+                graphs_module.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
                                         [ou_predictions['correct_ou_pred'], btts_predictions['correct_btts_pred'], result_predictions['correct_result_pred']], 
                                         [predictions - ou_predictions['correct_ou_pred'], predictions - btts_predictions['correct_btts_pred'], predictions - result_predictions['correct_result_pred']])
         with col4:
             if ou_bets['ou_bets'] != 0 or btts_bets['btts_bets'] != 0 or result_bets['result_bets'] != 0:
                 st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych zakładów")
-                self.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
+                graphs_module.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
                                         [ou_bets['correct_ou_bets'], btts_bets['correct_btts_bets'], result_bets['correct_result_bets']], 
                                         [ou_bets['ou_bets'] - ou_bets['correct_ou_bets'], btts_bets['btts_bets'] - btts_bets['correct_btts_bets'], result_bets['result_bets'] - result_bets['correct_result_bets']])
         col5, col6 = st.columns(2)
@@ -216,11 +127,11 @@ class Base:
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 #st.write(ou_predictions)
                 st.write('Rozkład wykonanych przewidywań na zdarzenie OU')
-                self.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], 
+                graphs_module.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], 
                                                round(ou_predictions['under_pred'] * 100 / predictions, 2), 
                                                round(ou_predictions['over_pred'] * 100 / predictions, 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
-                self.generate_comparision(['Under 2.5', 'Over 2.5'], 
+                graphs_module.generate_comparision(['Under 2.5', 'Over 2.5'], 
                                           [ou_predictions['under_correct'], ou_predictions['over_correct']],
                                           [ou_predictions['under_pred'] - ou_predictions['under_correct'], ou_predictions['over_pred'] - ou_predictions['over_correct']])
         with col6:
@@ -239,11 +150,11 @@ class Base:
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 #st.write(ou_bets)
                 st.write('Rozkład wykonanych zakładów na zdarzenie OU')
-                self.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], 
+                graphs_module.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], 
                                                round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2), 
                                                round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2))
                 st.write('Wynik zakładów w zależności od typu zdarzenia')
-                self.generate_comparision(['Under 2.5', 'Over 2.5'], 
+                graphs_module.generate_comparision(['Under 2.5', 'Over 2.5'], 
                                           [ou_bets['under_correct'], ou_bets['over_correct']],
                                           [ou_bets['under_bets'] - ou_bets['under_correct'], ou_bets['over_bets'] - ou_bets['over_correct']])
         col7, col8 = st.columns(2)
@@ -263,11 +174,11 @@ class Base:
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 #st.write(ou_predictions)
                 st.write('Rozkład wykonanych przewidywań na zdarzenie BTTS')
-                self.generate_pie_chart_binary(['NO BTTS', 'BTTS'], 
+                graphs_module.generate_pie_chart_binary(['NO BTTS', 'BTTS'], 
                                                round(btts_predictions['btts_no_pred'] * 100 / predictions, 2), 
                                                round(btts_predictions['btts_yes_pred'] * 100 / predictions, 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
-                self.generate_comparision(['NO BTTS', 'BTTS'], 
+                graphs_module.generate_comparision(['NO BTTS', 'BTTS'], 
                                           [btts_predictions['btts_no_correct'], btts_predictions['btts_yes_correct']],
                                           [btts_predictions['btts_no_pred'] - btts_predictions['btts_no_correct'], btts_predictions['btts_yes_pred'] - btts_predictions['btts_yes_correct']])
         with col8:
@@ -285,11 +196,11 @@ class Base:
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 st.write('Rozkład wykonanych zakładów na zdarzenie BTTS')
-                self.generate_pie_chart_binary(["NO BTTS", "BTTS"], 
+                graphs_module.generate_pie_chart_binary(["NO BTTS", "BTTS"], 
                                                round(btts_bets['btts_no_bets'] * 100 / btts_bets['btts_bets'], 2), 
                                                round(btts_bets['btts_yes_bets'] * 100 / btts_bets['btts_bets'], 2))
                 st.write('Wynik zakładów w zależności od typu zdarzenia')
-                self.generate_comparision(['NO BTTS', 'BTTS'],  
+                graphs_module.generate_comparision(['NO BTTS', 'BTTS'],  
                                           [btts_bets['btts_no_correct'], btts_bets['btts_yes_correct']],
                                           [btts_bets['btts_no_bets'] - btts_bets['btts_no_correct'], btts_bets['btts_yes_bets'] - btts_bets['btts_yes_correct']])
         col9, col10 = st.columns(2)
@@ -311,12 +222,12 @@ class Base:
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 #st.write(ou_predictions)
                 st.write('Rozkład wykonanych przewidywań na rezultat spotkania')
-                self.generate_pie_chart_result(["Gospodarz", "Remis", "Gość"], 
+                graphs_module.generate_pie_chart_result(["Gospodarz", "Remis", "Gość"], 
                                                round(result_predictions['home_win_pred'] * 100 / predictions, 2), 
                                                round(result_predictions['draw_pred'] * 100 / predictions, 2),
                                                round(result_predictions['away_win_pred'] * 100 / predictions, 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
-                self.generate_comparision(['Gospodarz', 'Remis', 'Gość'], 
+                graphs_module.generate_comparision(['Gospodarz', 'Remis', 'Gość'], 
                                           [result_predictions['home_win_correct'], result_predictions['draw_correct'], result_predictions['away_win_correct']],
                                           [result_predictions['home_win_pred'] - result_predictions['home_win_correct'], 
                                            result_predictions['draw_pred'] - result_predictions['draw_correct'],
@@ -338,12 +249,12 @@ class Base:
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 st.write('Rozkład wykonanych zakładów na rezultat spotkania')
-                self.generate_pie_chart_result(["Gospodarz", "Remis", "Gość"], 
+                graphs_module.generate_pie_chart_result(["Gospodarz", "Remis", "Gość"], 
                                                round(result_bets['home_win_bets'] * 100 / result_bets['result_bets'], 2),
                                                round(result_bets['draw_bets'] * 100 / result_bets['result_bets'], 2),
                                                round(result_bets['away_win_bets'] * 100 / result_bets['result_bets'], 2))
                 st.write('Wynik przewidywań w zależności od typu zdarzenia')
-                self.generate_comparision(['Gospodarz', 'Remis', 'Gość'],  
+                graphs_module.generate_comparision(['Gospodarz', 'Remis', 'Gość'],  
                                           [result_bets['home_win_correct'], result_bets['draw_correct'], result_bets['away_win_correct']],
                                           [result_bets['home_win_bets'] - result_bets['home_win_correct'], 
                                            result_bets['draw_bets'] - result_bets['draw_correct'], 
@@ -367,6 +278,7 @@ class Base:
         rounds_str =','.join(map(str, rounds))
         #query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
         query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0'"
+        #query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) = current_date and result != '0'"
         match_stats_df = pd.read_sql(query, self.conn)
         no_events = 3 #OU, BTTS, RESULT
         #TO-DO: Poniższe w oparciu o pole outcome w final_predictions / outcomes
@@ -534,91 +446,6 @@ class Base:
         self.show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
                         first_round, last_round, ou_bets, btts_bets, result_bets, predictions)
 
-    def highlight_cells_EV(self, val):
-        color = 'background-color: lightgreen; color : black' if float(val) > 0.0 else ''
-        return color
-    
-    def highlight_cells_profit(self, val):
-        color = 'background-color: lightgreen; color : black' if float(val) > 0.0 else 'background-color: lightcoral'
-        return color
-    
-    def goals_bar_chart(self,date, opponent, goals, team_name, ou_line):
-        data = {
-        'Date': [x[:-3] for x in reversed(date)],
-        'Opponent': [x[:3] for x in reversed(opponent)],
-        'Goals': [x for x in reversed(goals)],
-        }
-        df = pd.DataFrame(data)
-
-        # Konfigurowanie stylu wykresu
-        sns.set_theme(style="darkgrid")
-
-        # Tworzenie wykresu goals
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(df.index, df['Goals'], color='gray')
-        avg_goals = df['Goals'].mean()
-        hit_rate = (df['Goals'] > ou_line).mean() * 100
-        # Ustawienia osi
-        ax.grid(False)
-        ax.axhline(y=ou_line, color='white', linestyle='--', linewidth=2)
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_title("Bramki w meczach: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(team_name, avg_goals, ou_line, hit_rate), loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-
-        # Kolorowanie pasków na czerwono lub zielono
-        for bar, goals in zip(bars, df['Goals']):
-            if goals > ou_line:
-                bar.set_color('green')
-            else:
-                bar.set_color('red')
-            ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 0.4, 0.5), f'{int(goals)}', 
-                ha='center', va='bottom', color='white', fontsize=16)
-
-        # Wyświetlenie wykresu
-        st.pyplot(fig)
-
-    def btts_bar_chart(self, date, opponent, btts, team_name):
-        data = {
-        'Date': [x[:-3] for x in reversed(date)],
-        'Opponent': [x[:3] for x in reversed(opponent)],
-        'BTTS': [x for x in reversed(btts)],
-        }
-        df = pd.DataFrame(data)
-
-        # Konfigurowanie stylu wykresu
-        sns.set_theme(style="darkgrid")
-
-        # Tworzenie wykresu goals
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(df.index, df['BTTS'], color='gray')
-        hit_rate = (df['BTTS'] == 1).mean() * 100
-        # Ustawienia osi
-        ax.grid(False)
-        ax.axhline(y=0, color='white', linestyle='-', linewidth=2, label='Goal Threshold')
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_title("BTTS w meczach: {} \nLiczba BTTS: {} \nHitrate BTTS: {:.1f}%".format(team_name, (df['BTTS'] == 1).sum(),  hit_rate), loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-
-        # Kolorowanie pasków na czerwono lub zielono
-        for bar, btts in zip(bars, df['BTTS']):
-            if btts == 1:
-                bar.set_color('green')
-            else:
-                bar.set_color('red')
-
-        # Wyświetlenie wykresu
-        st.pyplot(fig)
-
     def single_team_data(self, team_id):
         query = "select name from teams where id = {}".format(team_id)
         team_name_df = pd.read_sql(query, self.conn)
@@ -665,59 +492,6 @@ class Base:
             results.append(row.result)
         return date, opponent, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, results
 
-    def matches_list(self, date, home_team, home_team_score, away_team, away_team_score, team_name):
-        outcome = []
-        for i in range(len(date)):
-            if home_team[i] == team_name:
-                if home_team_score[i] > away_team_score[i]:
-                    outcome.append('✅')
-                elif home_team_score[i] < away_team_score[i]:
-                    outcome.append('❌')
-                else:
-                    outcome.append('🤝')
-            else:
-                if home_team_score[i] < away_team_score[i]:
-                    outcome.append('✅')
-                elif home_team_score[i] > away_team_score[i]:
-                    outcome.append('❌')
-                else:
-                    outcome.append('🤝')
-        data = {
-        'Data': [x for x in date],
-        'Gospodarz' : [x for x in home_team],
-        'Wynik' : [str(x) + "-" + str(y) for x,y in zip(home_team_score, away_team_score)],
-        'Gość' : [x for x in away_team],
-        'Rezultat' : [x for x in outcome]
-        }
-        df = pd.DataFrame(data)
-        df.index = range(1, len(df) + 1)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-    def graph_winner(self, home, draw, away):
-        # Dane do wykresu
-        data = {
-        'Label': ["Gospodarz", "Remis", "Gość"],
-        'Ppb': [home, draw, away],
-        }
-        sns.set_theme(style="darkgrid")
-        df = pd.DataFrame(data)
-        # Ustawienia wykresu
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(df.index, df['Ppb'], color=['lightgreen', 'lightblue', 'orangered'])
-        ax.grid(False)
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_title("Rozkład prawdopodobieństwa zdarzenia: Rezultat", loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-        for bar, ppb in zip(bars, df['Ppb']):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
-                ha='center', va='bottom', color='black', fontsize=22)
-        st.pyplot(fig)
-
     def graph_ou(self, under, over):
          # Dane do wykresu
         data = {
@@ -741,96 +515,6 @@ class Base:
         for bar, ppb in zip(bars, df['Ppb']):
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
                 ha='center', va='bottom', color='black', fontsize=22)
-        st.pyplot(fig)
-
-    def graph_exact_goals(self, goals_no):
-         # Dane do wykresu
-        data = {
-        'Label': ["0 bramek", "1 bramka", "2 bramki", "3 bramki", "4 bramki", "5 bramek", "6 lub więcej"],
-        'Ppb': [x for x in goals_no],
-        }
-        sns.set_theme(style="darkgrid")
-        df = pd.DataFrame(data)
-        # Ustawienia wykresu
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(df.index, df['Ppb'], color=['lightblue' for x in range(7)])
-        ax.grid(False)
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 13)
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_title("Rozkład ppb. zdarzenia: Dokładna liczba bramek", loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-        for bar, ppb in zip(bars, df['Ppb']):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 3, f'{float(ppb)}%', 
-                ha='center', va='bottom', color='black', fontsize=16)
-        st.pyplot(fig)
-
-    def graph_btts(self, no, yes):
-        # Dane do wykresu
-        data = {
-        'Label': ["Nie", "Tak"],
-        'Ppb': [no, yes],
-        }
-        sns.set_theme(style="darkgrid")
-        df = pd.DataFrame(data)
-        # Ustawienia wykresu
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(df.index, df['Ppb'], color=['orangered', 'lightgreen'])
-        ax.grid(False)
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_title("Rozkład prawdopodobieństwa zdarzenia: BTTS", loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-        for bar, ppb in zip(bars, df['Ppb']):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
-                ha='center', va='bottom', color='black', fontsize=22)
-        st.pyplot(fig)
-
-    def goals_line_chart(self,date, opponent, goals, team_name, ou_line):
-        data = {
-        'Date': [x for x in reversed(date)],
-        'Opponent': [x[:3] for x in reversed(opponent)],
-        'Goals': [x for x in reversed(goals)],
-        }
-        df = pd.DataFrame(data)
-
-        # Konfigurowanie stylu wykresu
-        sns.set_theme(style="darkgrid")
-
-        # Tworzenie wykresu goals
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(df.index, df['Goals'], color='gray')
-        avg_goals = df['Goals'].mean()
-        hit_rate = (df['Goals'] > ou_line).mean() * 100
-        # Ustawienia osi
-        ax.grid(False)
-        ax.axhline(y=ou_line, color='white', linestyle='-', linewidth=2)
-        ax.set_xticks(df.index)
-        ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        ax.set_title("Bramki w meczach: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(team_name, avg_goals, ou_line, hit_rate), loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-
-        # Kolorowanie pasków na czerwono lub zielono
-        for bar, goals in zip(bars, df['Goals']):
-            if goals > ou_line:
-                bar.set_color('green')
-            else:
-                bar.set_color('red')
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 0.25, f'{int(goals)}', 
-                ha='center', va='bottom', color='black', fontsize=12)
-
-        # Wyświetlenie wykresu
         st.pyplot(fig)
 
     def match_pred_summary(self, id, result, home_goals, away_goals):
@@ -895,7 +579,7 @@ class Base:
         }
         df = pd.DataFrame(data)
         df.index = range(1, len(df) + 1)
-        #styled_df = df.style.applymap(self.highlight_cells_EV, subset = ['VB'])
+        #styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset = ['VB'])
         st.dataframe(df, use_container_width=True, hide_index=True)
         correct_pred = correct.count('TAK')
         no_bets = bet_placed.count('TAK')
@@ -911,6 +595,16 @@ class Base:
             st.write("Skuteczność zakładów dla analizowanego meczu: {:.2f}%".format(100 * correct_bet / max(no_bets,1)))
         else:
             st.write("Dla wybranego meczu nie zawarto żadnych zakładów")
+    
+    def generate_h2h(self, match_id):
+        #Get teams
+        query = 'select home_team, away_team from matches where id = {}'.format(match_id)
+        teams_in_match_df = pd.read_sql(query, self.conn)
+        query = '''select m.game_date as date, t1.name as home_team, m.home_team_goals as home_team_goals, t2.name as away_team, m.away_team_goals as away_team 
+            from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id
+            where m.home_team in ({},{}) and m.away_team in ({},{}) 
+            order by m.game_date desc'''.format(teams_in_match_df['home_team'], teams_in_match_df['away_team'], teams_in_match_df['home_team', teams_in_match_df['away_team']])
+        h2h_df = pd.read_sql(query, self.conn)
 
     def show_predictions(self, home_goals, away_goals, id, result):
         query = "select value from predictions where match_id = {} and event_id = {}".format(id, 1)
@@ -952,13 +646,13 @@ class Base:
         #st.write("{}; {}; {}; {}; {}".format(home_win[0][0], draw[0][0], guest_win[0][0], btts_no[0][0], btts_yes[0][0]))
         col1, col2 = st.columns(2)
         with col1:
-            self.graph_winner(home_win[0][0], draw[0][0], guest_win[0][0])
+            graphs_module.graph_winner(home_win[0][0], draw[0][0], guest_win[0][0])
         with col2:
-            self.graph_btts(btts_no[0][0], btts_yes[0][0])
+            graphs_module.graph_btts(btts_no[0][0], btts_yes[0][0])
 
         col3, col4 = st.columns(2)
         with col3:
-            self.graph_exact_goals(goals_no)
+            graphs_module.graph_exact_goals(goals_no)
         with col4:
             self.graph_ou(under_2_5[0][0], over_2_5[0][0])
         
@@ -1045,7 +739,7 @@ class Base:
             st.dataframe(df, use_container_width=True, hide_index=True)
 
         #TO-DO: Zestawienie H2H
-
+        #self.generate_h2h(id)
         st.header("Proponowane zakłady na mecz przez model: ")
         home_win_EV = round((home_win[0][0] / 100) * max(home_win_odds[1:]) - 1, 2)
         home_win_bookmaker = np.argmax(home_win_odds[1:]) + 1
@@ -1083,7 +777,7 @@ class Base:
         }
         df = pd.DataFrame(data)
         df.index = range(1, len(df) + 1)
-        styled_df = df.style.applymap(self.highlight_cells_EV, subset = ['VB'])
+        styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset = ['VB'])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
         st.write("Zakłady o współczynniku VB (Value Bet) większym od 0 (oznaczone jasnozielonym tłem) uznawane są za WARTE ROZPATRZENIA")
         if result != '0':
@@ -1111,46 +805,6 @@ class Base:
                 button_label = button_label + ", data: {}".format(row.date.strftime('%d.%m.%y %H:%M'))
             if st.button(button_label, use_container_width=True):
                 self.show_predictions(row.h_g, row.a_g, row.id, row.result)
-
-    def winner_bar_chart(self, opponent, home_team, result, team_name):
-        wins, draws, loses = 0, 0, 0
-        for i in range(len(opponent)):
-            if home_team[i] == team_name:
-                if result[i] == '1':
-                    wins = wins + 1
-                elif result[i] == 'X':
-                    draws = draws + 1
-                else:
-                    loses = loses + 1
-            else:
-                if result[i] == '1':
-                    loses = loses + 1
-                elif result[i] == 'X':
-                    draws = draws + 1
-                else:
-                    wins = wins + 1
-        data = {
-        'Label': ["Porażki", "Remisy", "Wygrane"],
-        'Results' : [loses, draws, wins]
-        }
-        sns.set_theme(style="darkgrid")
-        df = pd.DataFrame(data)
-        # Ustawienia wykresu
-        fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.barh(df.index, df['Results'], color=['orangered', 'slategrey', 'lightgreen'])
-        ax.grid(False)
-        ax.set_yticks(df.index)
-        ax.set_yticklabels([f"{label}" for label in df['Label']])
-        ax.set_ylabel("")
-        ax.set_xlabel("")
-        ax.set_title("Rezultaty meczów: {}".format(team_name), loc='left', fontsize=24, color='white')
-        ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-        ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-        fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-        for bar, result in zip(bars, df['Results']):
-            ax.text(bar.get_width() + 0.15, bar.get_y() + bar.get_height() / 2, f'{int(result)}', 
-                ha='center', va='center', color='white', fontsize=22)
-        st.pyplot(fig)
 
     def predicts_per_team(self, games, team_name, key):
         query = "select event_id, outcome from final_predictions f join matches m on m.id = f.match_id where (m.home_team = {} or m.away_team = {}) and m.result != '0' order by m.game_date desc".format(key, key)
@@ -1193,7 +847,7 @@ class Base:
                     }
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                self.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+                graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
             suma = sum(btts_outcomes)
             liczba = len(btts_outcomes)
             with col2:
@@ -1206,7 +860,7 @@ class Base:
                     }
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                self.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+                graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
             suma = sum(result_outcomes)
             liczba = len(result_outcomes)
             with col3:
@@ -1219,7 +873,7 @@ class Base:
                     }
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                self.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+                graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
 
 
     def show_teams(self, teams_dict, games, ou_line):
@@ -1231,16 +885,16 @@ class Base:
                 col1, col2 = st.columns(2)
                 with col1:
                     with st.container():
-                        self.goals_bar_chart(date[:games], opponent[:games], goals[:games], team_name, ou_line)
+                        graphs_module.goals_bar_chart(date[:games], opponent[:games], goals[:games], team_name, ou_line)
                 with col2:
                     with st.container():
-                        self.btts_bar_chart(date[:games], opponent[:games], btts[:games], team_name)
+                        graphs_module.btts_bar_chart(date[:games], opponent[:games], btts[:games], team_name)
                 col3, col4 = st.columns(2)
                 with col3:
                     with st.container():
-                        self.winner_bar_chart(opponent[:games], home_team[:games] ,result[:games], team_name)
+                        graphs_module.winner_bar_chart(opponent[:games], home_team[:games] ,result[:games], team_name)
                 with col4:
                     with st.container():
-                        self.matches_list(date[:games], home_team[:games], home_team_score[:games], away_team[:games], away_team_score[:games], team_name)
+                        tables_module.matches_list(date[:games], home_team[:games], home_team_score[:games], away_team[:games], away_team_score[:games], team_name)
                 self.predicts_per_team(games, team_name, key)
                 

@@ -51,7 +51,7 @@ def parse_match_date(match_date):
 def get_match_links(games, driver):
     links = []
     driver.get(games)
-    time.sleep(15)
+    time.sleep(5)
     game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
