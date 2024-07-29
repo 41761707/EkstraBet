@@ -106,6 +106,18 @@ class Model:
                 results[0],
                 results[1]
                 ]
+    def turn_match_into_numpy_ou(self, match):
+        total_goals = int(match['home_team_goals']) + int(match['away_team_goals'])
+        results = [0, 1] if total_goals > 2.5 else [1, 0]
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                results[0],
+                results[1]
+                ]
     
     def create_window(self):
         model_tolist = self.model_columns_df.values.tolist()
@@ -120,11 +132,16 @@ class Model:
                         home_team_matches.append(self.turn_match_into_numpy_winner(match))
                     for _, match in away_matches.iterrows():
                         away_team_matches.append(self.turn_match_into_numpy_winner(match))
-                else:
+                elif self.model_type == 'btts':
                     for _, match in home_matches.iterrows():
                         home_team_matches.append(self.turn_match_into_numpy_btts(match))
                     for _, match in away_matches.iterrows():
                         away_team_matches.append(self.turn_match_into_numpy_btts(match))
+                else:
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_ou(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_ou(match)) 
                 self.window_helper.append({'id' : model_tolist[i][0], 
                                             'Match-8' : home_team_matches[0], 
                                             'Match-7' : away_team_matches[0], 

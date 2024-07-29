@@ -79,6 +79,9 @@ class DataPrep:
             total_goals = int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals'])
             results = [0, 1] if total_goals > 2.5 else [1, 0]
             self.model_columns.append({'id' : index, 
+                                       'home_team' : self.matches_df.loc[index, 'home_team'],
+                                       'away_team' : self.matches_df.loc[index, 'away_team'],
+                                       'game_date' : self.matches_df.loc[index, 'game_date'],
                                        'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
                                        'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
                                        'home_away_att_power' : self.matches_df.at[index, 'home_away_att_power'],
