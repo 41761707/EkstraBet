@@ -119,6 +119,30 @@ class Model:
                 results[1]
                 ]
     
+    def turn_match_into_numpy_goals_ppb(self, match):
+        total_goals = int(match['home_team_goals']) + int(match['away_team_goals'])
+        results = [0] * 7
+        results[min(total_goals, 6)] = 1
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                results[0], results[1], results[2], results[3], results[4], results[5], results[6]
+                ]
+    
+    def turn_match_into_numpy_goals_total(self, match):
+        goals = int(match['home_team_goals']) + int(match['away_team_goals'])
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                goals
+                ]
+    
     def create_window(self):
         model_tolist = self.model_columns_df.values.tolist()
         for i in range(len(model_tolist)):
@@ -137,11 +161,23 @@ class Model:
                         home_team_matches.append(self.turn_match_into_numpy_btts(match))
                     for _, match in away_matches.iterrows():
                         away_team_matches.append(self.turn_match_into_numpy_btts(match))
-                else:
+                elif self.model_type == 'goals_ou':
                     for _, match in home_matches.iterrows():
                         home_team_matches.append(self.turn_match_into_numpy_ou(match))
                     for _, match in away_matches.iterrows():
                         away_team_matches.append(self.turn_match_into_numpy_ou(match)) 
+                elif self.model_type == 'goals_ppb':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_goals_ppb(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_goals_ppb(match)) 
+                elif self.model_type == 'goals_total':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_goals_total(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_goals_total(match)) 
+                else:
+                    print("Błędny argument")
                 self.window_helper.append({'id' : model_tolist[i][0], 
                                             'Match-8' : home_team_matches[0], 
                                             'Match-7' : away_team_matches[0], 
@@ -170,6 +206,8 @@ class Model:
         
     def window_to_numpy(self, labels):
         df_as_np = self.window_df.to_numpy()
+        #for element in df_as_np:
+        #    print(element)
         #self.indexes = list(range(1, len(df_as_np) + 1)) 
         self.indexes = df_as_np[:, 0]
         mid = df_as_np[:, 1:]
@@ -265,15 +303,16 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(1)])
             cp = ModelCheckpoint('model_goals/', save_best_only = True)
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             self.model.load_weights('model_goals/model_weights.h5')
             self.model.compile(loss='mse', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals/')
-            #self.model.save_weights('model_goals/model_weights.h5')
+            self.model.save_weights('model_goals/model_weights.h5')
 
     def train_goals_ppb_model(self):
         if self.create_model == 'new':
@@ -292,7 +331,7 @@ class Model:
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals_ppb/')
-            #self.model.save_weights('model_goals/model_weights.h5')
+            self.model.save_weights('model_goals_ppb/model_weights.h5')
 
     def train_winner_model(self):
         if self.create_model == 'new':
@@ -323,13 +362,14 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(2, activation = 'softmax')])
             cp = ModelCheckpoint('model_btts/', save_best_only = True)
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             #self.model.load_weights('model_btts/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
             #self.model.compile(loss=self.ranked_probability_score, 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_btts/')
