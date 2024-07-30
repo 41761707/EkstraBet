@@ -61,10 +61,6 @@ class GoalsRating:
             j_a_att = float(self.powers["{}a_att".format(self.matches_df.loc[index, 'away_team'])])
             j_a_def = float(self.powers["{}a_def".format(self.matches_df.loc[index, 'away_team'])])
 
-            self.matches_df.at[index, 'home_goals_avg'] = sum(self.last_five_matches[self.matches_df.loc[index, 'home_team']]) / len(self.last_five_matches[self.matches_df.loc[index, 'home_team']])
-            self.matches_df.at[index, 'away_goals_avg'] = sum(self.last_five_matches[self.matches_df.loc[index, 'away_team']]) / len(self.last_five_matches[self.matches_df.loc[index, 'away_team']])
-            i_h_att, i_a_att, i_h_def, i_a_def = self.update_home_team(i_h_att, i_h_def, i_a_att, j_a_def, j_a_att, i_a_def, s_h, s_a, 0.5, 0.5)
-            j_a_att, j_h_att, j_a_def, j_h_def = self.update_away_team(j_a_att, j_h_att, j_a_def, j_h_def, i_h_def, i_h_att, s_h, s_a, 0.5, 0.5)
             self.matches_df.at[index, 'home_home_att_power'] =i_h_att
             self.matches_df.at[index, 'home_home_def_power'] =i_h_def
             self.matches_df.at[index, 'home_away_att_power'] =i_a_att
@@ -74,6 +70,11 @@ class GoalsRating:
             self.matches_df.at[index, 'away_home_def_power'] =j_h_def
             self.matches_df.at[index, 'away_away_att_power'] =j_a_att
             self.matches_df.at[index, 'away_away_def_power'] =j_a_def
+
+            self.matches_df.at[index, 'home_goals_avg'] = sum(self.last_five_matches[self.matches_df.loc[index, 'home_team']]) / len(self.last_five_matches[self.matches_df.loc[index, 'home_team']])
+            self.matches_df.at[index, 'away_goals_avg'] = sum(self.last_five_matches[self.matches_df.loc[index, 'away_team']]) / len(self.last_five_matches[self.matches_df.loc[index, 'away_team']])
+            i_h_att, i_a_att, i_h_def, i_a_def = self.update_home_team(i_h_att, i_h_def, i_a_att, j_a_def, j_a_att, i_a_def, s_h, s_a, 0.5, 0.5)
+            j_a_att, j_h_att, j_a_def, j_h_def = self.update_away_team(j_a_att, j_h_att, j_a_def, j_h_def, i_h_def, i_h_att, s_h, s_a, 0.5, 0.5)
             self.powers["{}h_att".format(self.matches_df.loc[index, 'home_team'])] = i_h_att
             self.powers["{}h_def".format(self.matches_df.loc[index, 'home_team'])] = i_h_def
             self.powers["{}a_att".format(self.matches_df.loc[index, 'home_team'])] = i_a_att
@@ -185,17 +186,18 @@ class WinnerRating:
             self.league_features["{}_goals".format(self.matches_df.loc[index, 'league'])] += self.matches_df.loc[index, 'home_team_goals'] + self.matches_df.loc[index, 'away_team_goals']
             self.league_features["{}_matches".format(self.matches_df.loc[index, 'league'])] += 1
             goal_diff = abs(self.matches_df.loc[index, 'home_team_goals'] - self.matches_df.loc[index, 'away_team_goals'])
+            home_team = self.matches_df.loc[index, 'home_team']
+            away_team = self.matches_df.loc[index, 'away_team']
+            self.matches_df.at[index, 'home_rating'] = self.ratings[home_team]
+            self.matches_df.at[index, 'away_rating'] = self.ratings[away_team]
             home_rating, away_rating = self.main_rating(self.ratings, 
-                                                        self.matches_df.loc[index, 'home_team'], 
-                                                        self.matches_df.loc[index, 'away_team'], 
+                                                        home_team,
+                                                        away_team, 
                                                         self.matches_df.loc[index, 'result'], 
                                                         goal_diff,
                                                         int(self.matches_df.loc[index, 'home_team_rc'] + self.matches_df.loc[index, 'away_team_rc']),
                                                         #int(self.matches_df.loc[index, 'round']))
                                                         10)
-            
-            self.matches_df.at[index, 'home_rating'] = home_rating
-            self.matches_df.at[index, 'away_rating'] = away_rating
 
     def get_data(self):
         return self.matches_df, self.teams_df, self.teams_dict, self.powers, self.ratings
@@ -318,6 +320,15 @@ class BTTSRating:
             j_h_def = float(self.powers["{}h_def".format(self.matches_df.loc[index, 'away_team'])])
             j_a_att = float(self.powers["{}a_att".format(self.matches_df.loc[index, 'away_team'])])
             j_a_def = float(self.powers["{}a_def".format(self.matches_df.loc[index, 'away_team'])])
+            self.matches_df.at[index, 'home_home_att_power'] =i_h_att
+            self.matches_df.at[index, 'home_home_def_power'] =i_h_def
+            self.matches_df.at[index, 'home_away_att_power'] =i_a_att
+            self.matches_df.at[index, 'home_away_def_power'] =i_a_def
+
+            self.matches_df.at[index, 'away_home_att_power'] =j_h_att
+            self.matches_df.at[index, 'away_home_def_power'] =j_h_def
+            self.matches_df.at[index, 'away_away_att_power'] =j_a_att
+            self.matches_df.at[index, 'away_away_def_power'] =j_a_def
             goal_diff = abs(self.matches_df.loc[index, 'home_team_goals'] - self.matches_df.loc[index, 'away_team_goals'])
             home_rating, away_rating = self.main_rating(self.ratings, 
                                                        self.matches_df.loc[index, 'home_team'], 
@@ -334,15 +345,6 @@ class BTTSRating:
             
             i_h_att, i_a_att, i_h_def, i_a_def = self.update_home_team(i_h_att, i_h_def, i_a_att, j_a_def, j_a_att, i_a_def, s_h, s_a, 0.5, 0.5)
             j_a_att, j_h_att, j_a_def, j_h_def = self.update_away_team(j_a_att, j_h_att, j_a_def, j_h_def, i_h_def, i_h_att, s_h, s_a, 0.5, 0.5)
-            self.matches_df.at[index, 'home_home_att_power'] =i_h_att
-            self.matches_df.at[index, 'home_home_def_power'] =i_h_def
-            self.matches_df.at[index, 'home_away_att_power'] =i_a_att
-            self.matches_df.at[index, 'home_away_def_power'] =i_a_def
-
-            self.matches_df.at[index, 'away_home_att_power'] =j_h_att
-            self.matches_df.at[index, 'away_home_def_power'] =j_h_def
-            self.matches_df.at[index, 'away_away_att_power'] =j_a_att
-            self.matches_df.at[index, 'away_away_def_power'] =j_a_def
             #self.matches_df.at[index, 'league_goals_avg'] = self.league_features["{}_goals".format(self.matches_df.loc[index, 'league'])] / self.league_features["{}_matches".format(self.matches_df.loc[index, 'league'])]
             self.powers["{}h_att".format(self.matches_df.loc[index, 'home_team'])] = i_h_att
             self.powers["{}h_def".format(self.matches_df.loc[index, 'home_team'])] = i_h_def
