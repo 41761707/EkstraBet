@@ -15,8 +15,9 @@ from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 import random
 
 class Model:
-    def __init__(self, model_type, model_columns_df, entries, features, create_model):
+    def __init__(self, model_type, matches_df, model_columns_df, entries, features, create_model):
         self.model_columns_df = model_columns_df
+        self.matches_df = matches_df
         self.model_type = model_type
         self.model = ''
         self.entries = entries
@@ -56,50 +57,8 @@ class Model:
         normalized_data_list = normalized_data.tolist()
 
         return normalized_data_list
-    
-    def ranked_probability_score(y_true, y_pred):
-        N = len(y_true)  # liczba obserwacji
-        M = len(y_pred[0])  # liczba możliwych wyników
 
-        # Inicjalizacja tablicy dla RPS
-        rps_array = np.zeros(N)
-
-        # Obliczanie RPS dla każdej obserwacji
-        for i in range(N):
-            rps = 0
-            for j in range(M - 1):
-                rps += (np.sum(y_pred[i][:j+1]) - np.sum(y_true[i][:j+1]))**2
-            rps_array[i] = rps / (M - 1)
-
-        # Obliczanie średniego RPS
-        mean_rps = np.mean(rps_array)
-        
-        return mean_rps
-    
-    def ranked_probability_score(self, y_true, y_pred):
-        """
-        Calculate the Ranked Probability Score (RPS) for probabilistic multi-class predictions.
-        
-        Parameters:
-        y_true (tensor): True class labels in one-hot encoded format.
-        y_pred (tensor): Predicted probabilities for each class.
-        
-        Returns:
-        tensor: The RPS loss value.
-        """
-        # Calculate the cumulative sums of the predicted and true probabilities
-        cumulative_true = tf.cumsum(y_true, axis=-1)
-        cumulative_pred = tf.cumsum(y_pred, axis=-1)
-        
-        # Calculate the squared differences
-        squared_diff = tf.square(cumulative_true - cumulative_pred)
-        
-        # Sum the squared differences across all classes
-        rps = tf.reduce_mean(squared_diff, axis=-1)
-        
-        return tf.reduce_mean(rps)
-
-    def create_window(self):
+    '''def create_window(self):
         model_tolist = self.model_columns_df.values.tolist()
         iter = 0
         while True:
@@ -117,7 +76,122 @@ class Model:
             if iter > len(self.model_columns_df)-self.entries:
                 break
         self.window_df = pd.DataFrame(self.window_helper)
-        #self.window_df = self.window_df.drop(columns=['id'])
+        #self.window_df = self.window_df.drop(columns=['id'])'''
+    
+    def get_last_matches(self, team_id, game_date, amount):
+        filtered_rows = self.matches_df[((self.matches_df['home_team'] == int(team_id)) | 
+                                        (self.matches_df['away_team'] == int(team_id))) & 
+                                        (self.matches_df['game_date'] < game_date)].tail(int(amount))
+        return filtered_rows
+    
+    def turn_match_into_numpy_winner(self, match):
+        result = match['result']
+        results = [1, 0, 0] if result == 1 else [0, 1, 0] if result == 0 else [0, 0, 1]
+        return [match['home_rating'], 
+                match['away_rating'], 
+                results[0],
+                results[1],
+                results[2]
+                ]
+    def turn_match_into_numpy_btts(self, match):
+        home_goals = int(match['home_team_goals'])
+        away_goals = int(match['away_team_goals'])
+        results = [1, 0] if home_goals > 0 and away_goals > 0 else [0, 1]
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                results[0],
+                results[1]
+                ]
+    def turn_match_into_numpy_ou(self, match):
+        total_goals = int(match['home_team_goals']) + int(match['away_team_goals'])
+        results = [0, 1] if total_goals > 2.5 else [1, 0]
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                results[0],
+                results[1]
+                ]
+    
+    def turn_match_into_numpy_goals_ppb(self, match):
+        total_goals = int(match['home_team_goals']) + int(match['away_team_goals'])
+        results = [0] * 7
+        results[min(total_goals, 6)] = 1
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                results[0], results[1], results[2], results[3], results[4], results[5], results[6]
+                ]
+    
+    def turn_match_into_numpy_goals_total(self, match):
+        goals = int(match['home_team_goals']) + int(match['away_team_goals'])
+        return [match['home_home_att_power'],
+                match['home_home_def_power'],
+                match['away_away_att_power'],
+                match['away_away_def_power'],
+                match['home_goals_avg'],
+                match['away_goals_avg'],
+                goals
+                ]
+    
+    def create_window(self):
+        model_tolist = self.model_columns_df.values.tolist()
+        for i in range(len(model_tolist)):
+            home_matches = self.get_last_matches(model_tolist[i][1], model_tolist[i][3], 4)
+            away_matches = self.get_last_matches(model_tolist[i][2], model_tolist[i][3], 4)
+            if len(home_matches) == 4 and len(away_matches) == 4:
+                home_team_matches = []
+                away_team_matches = []
+                if self.model_type == 'winner':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_winner(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_winner(match))
+                elif self.model_type == 'btts':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_btts(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_btts(match))
+                elif self.model_type == 'goals_ou':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_ou(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_ou(match)) 
+                elif self.model_type == 'goals_ppb':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_goals_ppb(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_goals_ppb(match)) 
+                elif self.model_type == 'goals_total':
+                    for _, match in home_matches.iterrows():
+                        home_team_matches.append(self.turn_match_into_numpy_goals_total(match))
+                    for _, match in away_matches.iterrows():
+                        away_team_matches.append(self.turn_match_into_numpy_goals_total(match)) 
+                else:
+                    print("Błędny argument")
+                self.window_helper.append({'id' : model_tolist[i][0], 
+                                            'Match-8' : home_team_matches[0], 
+                                            'Match-7' : away_team_matches[0], 
+                                            'Match-6' : home_team_matches[1], 
+                                            'Match-5' : away_team_matches[1], 
+                                            'Match-4' : home_team_matches[2], 
+                                            'Match-3' : away_team_matches[2], 
+                                            'Match-2' : home_team_matches[3],
+                                            'Match-1' : away_team_matches[3],
+                                            'Match-CURR' : model_tolist[i][4:]})
+            else:
+                continue
+        self.window_df = pd.DataFrame(self.window_helper)
+        
 
     def remade(self, labels):
         new_self_x = []
@@ -132,6 +206,8 @@ class Model:
         
     def window_to_numpy(self, labels):
         df_as_np = self.window_df.to_numpy()
+        #for element in df_as_np:
+        #    print(element)
         #self.indexes = list(range(1, len(df_as_np) + 1)) 
         self.indexes = df_as_np[:, 0]
         mid = df_as_np[:, 1:]
@@ -139,11 +215,7 @@ class Model:
         for element in tmp_y:
             self.y.append(element[(-1) * labels :])
         self.X = mid.reshape((len(self.indexes), mid.shape[1], 1))
-        #print("SELF.X po RESHAPE: ", self.X[0])
         self.X = self.remade(labels)
-        #Normalizacja
-        #self.X = self.normalize_rank(self.X)
-        #print(self.X[:5])
 
 
 
@@ -231,15 +303,16 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(1)])
             cp = ModelCheckpoint('model_goals/', save_best_only = True)
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             self.model.load_weights('model_goals/model_weights.h5')
             self.model.compile(loss='mse', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals/')
-            #self.model.save_weights('model_goals/model_weights.h5')
+            self.model.save_weights('model_goals/model_weights.h5')
 
     def train_goals_ppb_model(self):
         if self.create_model == 'new':
@@ -258,7 +331,7 @@ class Model:
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals_ppb/')
-            #self.model.save_weights('model_goals/model_weights.h5')
+            self.model.save_weights('model_goals_ppb/model_weights.h5')
 
     def train_winner_model(self):
         if self.create_model == 'new':
@@ -289,13 +362,14 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(2, activation = 'softmax')])
             cp = ModelCheckpoint('model_btts/', save_best_only = True)
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             #self.model.load_weights('model_btts/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
             #self.model.compile(loss=self.ranked_probability_score, 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_btts/')

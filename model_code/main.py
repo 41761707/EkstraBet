@@ -19,13 +19,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2024-07-25' and league in (15, 30) and home_team < 840 and away_team < 840 order by game_date"
+    query = "SELECT * FROM matches where game_date < '2024-07-30' and league in (12, 41) and home_team < 840 and away_team < 840 order by game_date"
     matches_df = pd.read_sql(query, conn)
     query = "SELECT id, name FROM teams"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-25' and league in (15, 30) and home_team < 840 and away_team < 840  order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-30' and league in (12, 41) and home_team < 840 and away_team < 840  order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     #upcoming_df.set_index('id', inplace=True)
     conn.close()
@@ -96,7 +96,7 @@ def predict_chosen_matches_goals(data, schedule, predict_model, teams_dict, rati
         generated_ou = "U" if predictions[i] < 2.5 else "O"
         if pretty_print == 'pretty':
 
-            print("{};{};{}".format(id, predictions[i], generated_ou))
+            #print("{};{};{}".format(id, predictions[i], generated_ou))
             print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
             print("Wygenerowana liczba bramek w spotkaniu: {} - O/U: {}".format(predictions[i], generated_ou))
             '''print("Rankingi druzyny domowej {} - {} - {} - {}".format(
@@ -317,7 +317,6 @@ def main():
         my_rating.rating_wrapper()
         matches_df, _, teams_dict , powers, ratings, last_five_matches = my_rating.get_data()
         #my_rating.print_ratings()
-
     data = dataprep_module.DataPrep(matches_df, teams_df, upcoming_df)
     if sys.argv[3] != '-1':
         if model_type == 'goals_total':
@@ -332,7 +331,7 @@ def main():
         if model_type == 'goals_total':
             data.prepare_predict_goals()
             _, _, _, model_columns_df = data.get_data() 
-            predict_model = model_module.Model(model_type, model_columns_df, 9, 6, model_mode)
+            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
             predict_model.create_window()
             predict_model.window_to_numpy(1)
             predict_model.divide_set()
@@ -342,7 +341,7 @@ def main():
         if model_type == 'goals_ppb':
             data.prepare_predict_goals_ppb()
             _, _, _, model_columns_df = data.get_data() 
-            predict_model = model_module.Model(model_type, model_columns_df, 9, 6, model_mode)
+            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
             predict_model.create_window()
             predict_model.window_to_numpy(7)
             predict_model.divide_set()
@@ -352,7 +351,7 @@ def main():
         if model_type =='goals_ou':
             data.prepare_predict_ou()
             _, _, _, model_columns_df = data.get_data()
-            predict_model = model_module.Model(model_type, model_columns_df, 9, 6, model_mode)
+            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
             predict_model.create_window()
             predict_model.window_to_numpy(2)
             predict_model.divide_set()
@@ -362,7 +361,7 @@ def main():
         if model_type == 'winner':
             data.prepare_predict_winner()
             _, _, _, model_columns_df = data.get_data()
-            predict_model = model_module.Model(model_type, model_columns_df, 9, 2, model_mode)
+            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 2, model_mode)
             predict_model.create_window()
             predict_model.window_to_numpy(3)
             predict_model.divide_set()
@@ -372,7 +371,7 @@ def main():
         if model_type =='btts':
             data.prepare_predict_btts()
             _, _, _, model_columns_df = data.get_data()
-            predict_model = model_module.Model(model_type, model_columns_df, 9, 6, model_mode)
+            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
             predict_model.create_window()
             predict_model.window_to_numpy(2)
             predict_model.divide_set()
