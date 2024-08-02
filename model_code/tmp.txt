@@ -1,0 +1,51 @@
+Spotkanie: Zagłębie Lubin - Puszcza Niepołomice
+Rankingi: 1688.66 - 1668.88
+Gospo: 43.44, Remis: 31.27, Gość: 25.29
+Spotkanie: GKS Tychy - Warta Poznań
+Rankingi: 1353.98 - 1502.42
+Gospo: 16.09, Remis: 45.59, Gość: 38.32
+Spotkanie: Ruch Chorzów - Pogoń Siedlce
+Rankingi: 1651.17 - 1322.33
+Gospo: 71.00, Remis: 18.02, Gość: 10.97
+Spotkanie: Górnik Zabrze - Pogoń Szczecin
+Rankingi: 1677.81 - 1788.83
+Gospo: 42.36, Remis: 19.99, Gość: 37.65
+Spotkanie: GKS Katowice - Raków Częstochowa
+Rankingi: 1665.75 - 1634.04
+Gospo: 45.02, Remis: 30.86, Gość: 24.12
+Spotkanie: Wisła Płock - Chrobry Głogów
+Rankingi: 1466.64 - 1408.91
+Gospo: 44.70, Remis: 33.16, Gość: 22.13
+Spotkanie: Jagiellonia Białystok - Stal Mielec
+Rankingi: 1865.28 - 1603.08
+Gospo: 68.27, Remis: 14.91, Gość: 16.82
+Spotkanie: Polonia Warszawa - Arka Gdynia
+Rankingi: 1398.99 - 1559.68
+Gospo: 37.66, Remis: 23.01, Gość: 39.33
+Spotkanie: Lech Poznań - Lechia Gdańsk
+Rankingi: 1668.66 - 1552.07
+Gospo: 54.80, Remis: 24.38, Gość: 20.82
+Spotkanie: Stal Rzeszów - Miedź Legnica
+Rankingi: 1565.33 - 1540.02
+Gospo: 54.49, Remis: 16.34, Gość: 29.17
+Spotkanie: Znicz Pruszków - Wisła Kraków
+Rankingi: 1521.61 - 1518.45
+Gospo: 47.66, Remis: 27.04, Gość: 25.30
+Spotkanie: Motor Lublin - Korona Kielce
+Rankingi: 1616.66 - 1617.83
+Gospo: 41.23, Remis: 36.57, Gość: 22.20
+Spotkanie: Bruk-Bet T. - Odra Opole
+Rankingi: 1560.51 - 1495.71
+Gospo: 50.29, Remis: 27.78, Gość: 21.93
+Spotkanie: Śląsk Wrocław - Radomiak Radom
+Rankingi: 1660.77 - 1541.92
+Gospo: 51.58, Remis: 29.17, Gość: 19.24
+Spotkanie: Legia Warszawa - Piast Gliwice
+Rankingi: 1841.08 - 1765.64
+Gospo: 55.37, Remis: 18.88, Gość: 25.76
+Spotkanie: Cracovia - Widzew Łódź
+Rankingi: 1689.08 - 1691.25
+Gospo: 45.81, Remis: 26.53, Gość: 27.66
+Spotkanie: ŁKS Łódź - Górnik Łęczna
+Rankingi: 1432.27 - 1514.67
+Gospo: 41.90, Remis: 20.81, Gość: 37.29

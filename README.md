@@ -19,19 +19,19 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 7. K League 1 + K League 2 (Korea Południowa)
 8. MLS (USA)
 9. J1 League + J2 League (Japonia)
-10. Jupiler League i Challenger Pro League (Belgia)
-11. Swiss Super League i Challenge League (Szwajcaria)
-12. Super Lig i 1.Lig (Turcja)
-13. Liga Portugal i Liga Portugal 2 (Portugalia)
-14. Eredivisie i Eerste Divisie (Holandia)
+10. Jupiler League + Challenger Pro League (Belgia)
+11. Swiss Super League + Challenge League (Szwajcaria)
+12. Super Lig + 1.Lig (Turcja)
+13. Liga Portugal + Liga Portugal 2 (Portugalia)
+14. Eredivisie + Eerste Divisie (Holandia)
+15. (NOWE) Chance liga + Dywizja 2 (Czechy)
+16. (NOWE) Bundesliga + 2. Liga (Austria)
 
 ## Planowane rozszerzenia
 1. Serie A i Serie B (Brazylia)
 2. Liga Profesional (Argentyna)
-3. Chance liga i Dywizja 2 (Czechy)
-4. Premiership (Szkocja)
-5. Bundesliga i 2. Liga (Austria)
-6. TBD
+3. Premiership i 1 Dywizja (Szkocja)
+4. TBD
 
 
 ## Opis przebiegu generowania predykcji oraz zakładów
@@ -51,3 +51,6 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 21.07.2024 - Wykrycie błędu w trakcie testowania modelu goals_ppb, wprowadzenie istotnych poprawek
 
 22.07.2024 - Poprawki w modelu do 1x2
+
+30.07.2024 - Poprawki w generowaniu okna oraz obliczaniu rankingów. Zmiany obejmują istotne mechaniki działania wszystkich modeli
+

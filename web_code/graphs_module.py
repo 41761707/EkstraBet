@@ -338,3 +338,28 @@ def winner_bar_chart(opponent, home_team, result, team_name):
         ax.text(bar.get_width() + 0.15, bar.get_y() + bar.get_height() / 2, f'{int(result)}', 
             ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)
+
+def graph_ou(under, over):
+        # Dane do wykresu
+    data = {
+    'Label': ["Under 2.5", "Over 2.5"],
+    'Ppb': [under, over],
+    }
+    sns.set_theme(style="darkgrid")
+    df = pd.DataFrame(data)
+    # Ustawienia wykresu
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(df.index, df['Ppb'], color=['orangered', 'lightgreen'])
+    ax.grid(False)
+    ax.set_xticks(df.index)
+    ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_title("Rozkład prawdopodobieństwa zdarzenia: OU 2.5", loc='left', fontsize=24, color='white')
+    ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
+    ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
+    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
+    for bar, ppb in zip(bars, df['Ppb']):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
+            ha='center', va='bottom', color='black', fontsize=22)
+    st.pyplot(fig)

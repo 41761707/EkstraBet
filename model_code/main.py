@@ -19,13 +19,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2024-07-30' and league in (12, 41) and home_team < 840 and away_team < 840 order by game_date"
+    query = "SELECT * FROM matches where game_date < '2024-08-01' and league in (23, 39) order by game_date"
     matches_df = pd.read_sql(query, conn)
     query = "SELECT id, name FROM teams"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-07-30' and league in (12, 41) and home_team < 840 and away_team < 840  order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-08-01' and league in (39) and home_team not in (856) and away_team not in (856) order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     #upcoming_df.set_index('id', inplace=True)
     conn.close()
@@ -173,14 +173,14 @@ def predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, 
         percentages = np.round(predictions[i] * 100, 2)
         under_2_5 = percentages[0] + percentages[1] + percentages[2]
         over_2_5 = percentages[3] + percentages[4] + percentages[5] + percentages[6]
-        ou = 'UNDER' if under_2_5 > over_2_5 else 'OVER'
+
         #print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
         #for i in range(len(percentages)):
         #    print("Ppb {} bramek: {}".format(i, percentages[i]))
         #print("{:.2f}, {:.2f}".format(percentages[0], percentages[1]))
         if pretty_print == 'pretty':
             print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-            print("Wygenerowane OU: {}".format(ou))
+            print("Under: {:.2f}, Over: {:.2f}".format(under_2_5, over_2_5))
             for i in range(len(percentages)):
                 print("Ppb {} bramek: {}".format(i, percentages[i]))
         else:

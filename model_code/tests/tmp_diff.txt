@@ -1,0 +1,63 @@
+Spotkanie: Lisen - Slavia Praga B
+Wygenerowane OU: UNDER
+Ppb 0 bramek: 2.0199999809265137
+Ppb 1 bramek: 19.049999237060547
+Ppb 2 bramek: 35.040000915527344
+Ppb 3 bramek: 27.1299991607666
+Ppb 4 bramek: 13.5
+Ppb 5 bramek: 2.2699999809265137
+Ppb 6 bramek: 0.9900000095367432
+Spotkanie: Vyskov - Vlasim
+Wygenerowane OU: OVER
+Ppb 0 bramek: 0.5199999809265137
+Ppb 1 bramek: 8.75
+Ppb 2 bramek: 29.950000762939453
+Ppb 3 bramek: 40.15999984741211
+Ppb 4 bramek: 16.469999313354492
+Ppb 5 bramek: 2.2100000381469727
+Ppb 6 bramek: 1.940000057220459
+Spotkanie: Prostejov - Zlin
+Wygenerowane OU: UNDER
+Ppb 0 bramek: 6.639999866485596
+Ppb 1 bramek: 29.520000457763672
+Ppb 2 bramek: 38.400001525878906
+Ppb 3 bramek: 15.239999771118164
+Ppb 4 bramek: 9.710000038146973
+Ppb 5 bramek: 0.2199999988079071
+Ppb 6 bramek: 0.27000001072883606
+Spotkanie: Chrudim - Brno
+Wygenerowane OU: UNDER
+Ppb 0 bramek: 4.099999904632568
+Ppb 1 bramek: 23.190000534057617
+Ppb 2 bramek: 43.47999954223633
+Ppb 3 bramek: 20.540000915527344
+Ppb 4 bramek: 8.140000343322754
+Ppb 5 bramek: 0.25
+Ppb 6 bramek: 0.30000001192092896
+Spotkanie: Sigma Ołomuniec B - Zizkov
+Wygenerowane OU: OVER
+Ppb 0 bramek: 0.029999999329447746
+Ppb 1 bramek: 1.5
+Ppb 2 bramek: 4.679999828338623
+Ppb 3 bramek: 33.529998779296875
+Ppb 4 bramek: 35.06999969482422
+Ppb 5 bramek: 10.239999771118164
+Ppb 6 bramek: 14.949999809265137
+Spotkanie: Sparta Praga B - Jihlava
+Wygenerowane OU: OVER
+Ppb 0 bramek: 0.029999999329447746
+Ppb 1 bramek: 2.359999895095825
+Ppb 2 bramek: 4.5
+Ppb 3 bramek: 31.889999389648438
+Ppb 4 bramek: 36.2599983215332
+Ppb 5 bramek: 8.300000190734863
+Ppb 6 bramek: 16.649999618530273
+Spotkanie: Varnsdorf - Opawa
+Wygenerowane OU: OVER
+Ppb 0 bramek: 0.029999999329447746
+Ppb 1 bramek: 3.569999933242798
+Ppb 2 bramek: 8.34000015258789
+Ppb 3 bramek: 34.75
+Ppb 4 bramek: 22.030000686645508
+Ppb 5 bramek: 18.010000228881836
+Ppb 6 bramek: 13.270000457763672
