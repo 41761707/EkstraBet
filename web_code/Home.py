@@ -19,8 +19,8 @@ def main():
     league_country_dict = league_country_df.set_index('id')['country'].to_dict()
     st.title("Krzychu (Bet asystent): sezon 1")
     #st.page_link("Home.py", label="Strona domowa", icon="🏠")
-    st.page_link("pages/Stats.py", label="Kącik statystyczny", icon="📊")
-    st.page_link("pages/Betting.py", label="Kącik bukmacherski", icon="💸")
+    st.page_link("pages/Statystyki.py", label="Kącik statystyczny", icon="📊")
+    st.page_link("pages/Bukmacherka.py", label="Kącik bukmacherski", icon="💸")
     with st.expander("Lista obsługiwanych lig"):
         for key, value in leagues_dict.items():
             st.page_link("pages/{}.py".format(value), label=value, icon = league_country_dict[key])

@@ -344,7 +344,6 @@ class Model:
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             self.model.load_weights('model_winner/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
-            #self.model.compile(loss=self.ranked_probability_score, 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
@@ -383,11 +382,12 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(2, activation = 'softmax')])
             cp = ModelCheckpoint('model_ou/', save_best_only = True)
+            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             self.model.compile(loss='categorical_crossentropy',  
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_ou/')

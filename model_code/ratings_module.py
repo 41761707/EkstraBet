@@ -173,10 +173,10 @@ class WinnerRating:
             if team[1] not in self.teams_dict:
                 self.teams_dict[team[0]] = team[1]
         for index, _ in self.matches_df.iterrows():
-            #if self.ratings[self.matches_df.loc[index, 'home_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 32, 36, 37, 38, 39, 40):
+            #if self.ratings[self.matches_df.loc[index, 'home_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 31, 32, 36, 37, 38, 39, 40, 41):
             #    self.ratings[self.matches_df.loc[index, 'home_team']] = 1200
             #    print(self.matches_df.loc[index, 'home_team'])
-            #if self.ratings[self.matches_df.loc[index, 'away_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 32, 36, 37, 38, 39, 40):
+            #if self.ratings[self.matches_df.loc[index, 'away_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 31, 32, 36, 37, 38, 39, 40, 41):
             #    self.ratings[self.matches_df.loc[index, 'away_team']] = 1200
             #    print(self.matches_df.loc[index, 'away_team'])
             if "{}_goals".format(self.matches_df.loc[index, 'league']) not in self.league_features:
@@ -206,9 +206,9 @@ class WinnerRating:
         ratings_list = [(self.teams_dict[k],v) for k,v in self.ratings.items()]
         ratings_list.sort(key=lambda x: x[1], reverse= True)
         for item in ratings_list:
-            if item[1] == 1500:
-                continue
-            print(item[0],": ", item[1])
+            #if item[1] == 1500:
+            #    continue
+            print("{} : {:.2f}".format(item[0],item[1]))
 
 class BTTSRating:
     def __init__(self, matches_df, teams_df):

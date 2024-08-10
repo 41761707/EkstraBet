@@ -245,7 +245,7 @@ def main():
     team_id = teams_df.set_index('name')['id'].to_dict()
     print(team_id)
     #current_date = datetime.today().strftime('%Y-%m-%d')+1
-    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here

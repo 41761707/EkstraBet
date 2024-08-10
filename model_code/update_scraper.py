@@ -197,6 +197,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
+    #record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
     if id == -1:
@@ -210,7 +211,8 @@ def main():
     season_id = int(sys.argv[2])
     round_to_d = int(sys.argv[4])
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0' and cast(game_date as date) = current_date - 1".format(league_id, season_id, round_to_d)
+    #query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here

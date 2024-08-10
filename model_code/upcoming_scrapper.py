@@ -7,40 +7,6 @@ import pandas as pd
 import numpy as np
 import db_module
 
-'''def get_team_id(team_name):
-    team_ids = {
-		'Real Salt Lake' : 358,
-		'Minnesota' : 359,
-		'Los Angeles Galaxy' : 360,
-		'Los Angeles FC' : 361,
-		'Austin FC' : 362,
-		'Colorado Rapids' : 363,
-		'Vancouver Whitecaps' : 364,
-		'Houston Dynamo' : 365,
-		'Seattle Sounders' : 366,
-		'Portland Timbers' : 367,
-		'St. Louis City' : 368,
-		'FC Dallas' : 369,
-		'San Jose Earthquakes' : 370,
-		'Sporting Kansas City' : 371,
-		'Inter Miami' : 372,
-		'Cincinnati' : 373,
-		'New York City' : 374,
-		'Columbus Crew' : 375,
-		'New York Red Bulls' : 376,
-		'Toronto FC' : 377,
-		'Charlotte' : 378,
-		'Philadelphia Union' : 379,
-		'DC United' : 380,
-		'Orlando City' : 381,
-		'Nashville SC' : 382,
-		'Atlanta Utd' : 383,
-		'CF Montreal' : 384,
-		'Chicago Fire' : 385,
-		'New England Revolution' : 386
-	}
-    return team_ids[team_name]'''
-
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
 
