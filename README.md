@@ -37,9 +37,13 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 ## Opis przebiegu generowania predykcji oraz zakładów
 1. Uruchom moduł <i> upcoming_scrapper.py </i> z odpowiednimi parametrami. Zostaną pobrane wszystkie mecze danego sezonu dla danej ligi w trakcie trwania podanej rundy.
 2. Po wprowadzeniu meczów do bazy danych (upcoming_scrapper generuje wpisy do bazy danych w formie tekstu, nie robi bezpośrednich wpisów!) wygeneruj predykcje korzystając z modułu <i> main.py </i> uruchamiając go z odpowiednimi parametrami.
+3. Wywołać <i> automate_odds.py </i> z odpowiednimi parametrami - moduł odpowiada za pobranie kursów oraz wygenerowanie zakładów
+4. Po wykonaniu powyższych kroków pod zakładką "Terminarz" dla wybranej kolejki powinny ukazać się predykcje wraz z proponowanymi zakładami
+
+<b> Punkty nieaktulane </b>
+
 3. Pobierz kursy od wybranych bukmacherów korzystając z modułu <i> odds_scraper.py </i>. Pamiętaj o tym, aby nie pobierać kursów ze znacznym wyprzedzeniem
 4. Po wprowadzeniu kursów do bazy danych wygeneruj predykcje oraz zakłady korzystając z modułu <i> bet_module.py </i> (bądź bet_all.py jeśli nie chcesz generować jedynie VB > 0)
-5. Po wykonaniu powyższych kroków pod zakładką "Terminarz" dla wybranej kolejki powinny ukazać się predykcje wraz z proponowanymi zakładami
 
 ## Opis przebiegu aktualizowania meczów
 1. Uruchom moduł <i> update_scrapper.py </i> z odpowiednimi parametrami. Wyniki procesu wprowadź do bazy danych
@@ -53,4 +57,6 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 22.07.2024 - Poprawki w modelu do 1x2
 
 30.07.2024 - Poprawki w generowaniu okna oraz obliczaniu rankingów. Zmiany obejmują istotne mechaniki działania wszystkich modeli
+
+11.08.2024 - Wprowadzenie automatyzacji w pobieraniu kursów przy pomocy jednego modułu - automate_odds.py
 

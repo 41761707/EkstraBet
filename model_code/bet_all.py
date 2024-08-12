@@ -4,12 +4,21 @@ import sys
 import db_module
 import warnings
 
-def generate_predictions(conn, league, season, current_round):
+
+def update_db(queries, conn):
+    for query in queries:
+        #print(query)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        conn.commit()
+
+def generate_predictions(conn, league, season, current_round, to_automate):
     query = "select id from matches where league = {} and season = {} and round = {} and cast(game_date as date) = current_date".format(league, season, current_round)
     #query = "select id from matches where cast(game_date as date) > '2024-07-01' and cast(game_date as date) < '2024-07-23'"
     #print(query)
     matches_id = pd.read_sql(query,conn)
     matches_id_np = matches_id.values.flatten() 
+    inserts = []
     #W pętli dla każdego meczu
     #3. Pobrać wszystkie wpisy z tabeli "predictions" dla powyższych parametrów
     #4. Pobrać wszystkie wpisy z tabeli "odds" dla powyższych parametrów
@@ -135,8 +144,10 @@ def generate_predictions(conn, league, season, current_round):
                 odds = max(guest_win_odds[1:])
                 bookmaker = np.argmax(guest_win_odds[1:]) + 1
             print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
+            inserts.append("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
             if event_id in (1, 2, 3): #and EV > 0:
                 print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
             EV = 0
             #BTTS
             if btts_pred_id == 0:
@@ -154,10 +165,10 @@ def generate_predictions(conn, league, season, current_round):
                 odds = max(btts_yes_odds[1:])
                 bookmaker = np.argmax(btts_yes_odds[1:]) + 1
             print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
-            #print(event_id, " ", EV)
-            #print(EVs)
-            if event_id in (6, 172): #and EV > 0:
+            inserts.append("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
+            if event_id in (6, 172):
                 print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
             #OU
             EV = 0
             if ou_pred_id == 0:
@@ -175,11 +186,14 @@ def generate_predictions(conn, league, season, current_round):
                 odds = max(over_odds[1:])
                 bookmaker = np.argmax(over_odds[1:]) + 1
             print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
+            inserts.append("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
             #print(event_id, " ", EV, " " , EVs)
             if event_id in (8, 12): #and EV > 0:
                 print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
             #Przez wybory modelu rozumiemy największe % dla danego typu zdarzenia (Rezultat, BTTS, OU) - 3 predykcje dla jednego spotkania
-            #6. Do tabeli bets wpisać te, których EV wyszło dodanie i są to pierwsze wybory modelu (podzbiór final_predictions)
+    if to_automate:
+        update_db(inserts, conn)
 
 
 def generate_statistics(conn, league, season, current_round):
@@ -265,7 +279,24 @@ def generate_statistics(conn, league, season, current_round):
     print("Liczba zakładów BTTS: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(btts_no_bets, correct_btts_bets, btts_profit_bets, 100 * correct_btts_bets / btts_no_bets))
     print("Liczba zakładów RESULT: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(result_no_bets, correct_result_bets, result_profit_bets, 100 * correct_result_bets / result_no_bets))
 
+def bet_to_automate(league, season, mode):
+    to_automate = 1
+    warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
+    conn = db_module.db_connect()
+    query = "select round from matches where league = {} and season = {} and cast(game_date as date) = current_date order by game_date limit 1".format(league, season)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    current_round = results[0][0]
+    print("RUNDA: ", current_round)
+    if mode == 0:
+        generate_predictions(conn, league, season, current_round, to_automate)
+    if mode == 1:
+        generate_statistics(conn, league, season, current_round)
+    conn.close()    
+
 def main():
+    to_automate = 0
     warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
     #1. Wybrać dla jakiej ligi, jakiego sezonu i jakiej rundy wygenerować zestawienie
     league = int(sys.argv[1])
@@ -274,8 +305,9 @@ def main():
     mode = int(sys.argv[4])
     #2. Wyciągnąć wszystkie idki meczów spełniających powyższe wymagania
     conn = db_module.db_connect()
+    
     if mode == 0:
-        generate_predictions(conn, league, season, current_round)
+        generate_predictions(conn, league, season, current_round, to_automate)
     if mode == 1:
         generate_statistics(conn, league, season, current_round)
     conn.close()

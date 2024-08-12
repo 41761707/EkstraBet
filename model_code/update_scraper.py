@@ -7,40 +7,6 @@ from selenium.webdriver.common.by import By
 from datetime import datetime
 import db_module
 
-def get_team_id(team_name):
-    '''team_ids = { 'Śląsk Wrocław' : 1,
-                 'Jagiellonia Białystok' : 2,
-                 'Lech Poznań' : 3,
-                 'Raków Częstochowa' : 4,
-                 'Legia Warszawa' : 5,
-                 'Pogoń Szczecin' : 6,
-                 'Górnik Zabrze' : 7,
-                 'Zagłębie Lubin' : 8,
-                 'Piast Gliwice' : 9,
-                 'Radomiak Radom' : 10,
-                 'Stal Mielec' : 11,
-                 'Widzew Łódź' : 12,
-                 'Cracovia' : 13,
-                 'Puszcza Niepołomice' : 14,
-                 'Warta Poznań' : 15,
-                 'Korona Kielce' : 16,
-                 'Ruch Chorzów' : 17,
-                 'ŁKS Łódź' : 18,
-                 'Wisła Płock' : 19,
-                 'Lechia Gdańsk' : 20,
-                 'Miedź Legnica' : 21,
-                 'Bruk-Bet T.' : 22,
-                 'Górnik Łęczna' : 23,
-                 'Wisła Kraków' : 24,
-                 'Podbeskidzie B-B' : 26,
-                 'Arka Gdynia' : 27,
-                 'Zagłębie Sosnowiec' : 28,
-                 'Sandecja Nowy Sącz' : 29,
-				 'GKS Katowice' : 32,
-				 'Motor Lublin' : 318
-                 }
-    return team_ids[team_name]'''
-
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
 
@@ -197,8 +163,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    #record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
-    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
+    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
+    #record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
     if id == -1:
         print("Nie udalo sie znalezc meczu!")
@@ -209,9 +175,14 @@ def main():
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
-    round_to_d = int(sys.argv[4])
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0' and cast(game_date as date) = current_date - 1".format(league_id, season_id, round_to_d)
+    query = "select round from matches where league = {} and season = {} and cast(game_date as date) = current_date order by game_date limit 1".format(league_id, season_id)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    round_to_d = results[0][0]
+    print("RUNDA: ",round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
     #query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()

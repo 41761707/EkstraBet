@@ -57,7 +57,8 @@ class Base:
             self.generate_table()
             st.header("Tabela OU / BTTS")
         with st.expander("Statystyki ligowe"):
-            st.header("Charakterstyki ligi {}".format(self.name))
+            st.header("Charakterstyki ligi: {}".format(self.name))
+            stats_module.league_charachteristics(self.league)
         with st.expander("Statystyki predykcji"):
             st.header("Podsumowanie predykcji wykonanych dla ligi {} w sezonie {}".format(self.name, self.years))
             if self.round > 1:
@@ -486,6 +487,7 @@ class Base:
         btts_outcomes = []
         ou_outcomes = []
         counter = 0
+        #Predykcje - wykresy kołowe
         if len(predicts_df) > 0:
             for _, row in predicts_df.iterrows():
                 counter = counter + 1
@@ -547,6 +549,17 @@ class Base:
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
                 graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+            #Wykresy z podziałem na typ zdarzenia
+            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where (home_team = {} or away_team = {}) and result != '0'".format(key, key)
+            stats_module.generate_statistics(query, 0, 1, self.round, self.no_events, self.conn, self.EV_plus)
+            '''col4, col5, col6 = st.columns(3)
+            with col4:
+                st.subheader("Porównanie predykcji Under vs Over w meczach {}".format(team_name))
+            with col5:
+                st.subheader("Porównanie predykcji NO BTTS vs BTTS w meczach {}".format(team_name))
+            with col6:
+                st.subheader("Porównanie predykcji 1X2 w meczach {}".format(team_name))'''
+
 
 
     def show_teams(self, teams_dict):

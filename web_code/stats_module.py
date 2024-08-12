@@ -188,7 +188,7 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
                                         result_predictions['away_win_pred'] - result_predictions['away_win_correct']])
     with col10:
         if result_bets['result_bets'] > 0:
-            st.header("NO BTTS vs BTTS - porównanie liczby zakładów oraz ich skuteczności")
+            st.header("1x2 - porównanie liczby zakładów oraz ich skuteczności")
             data = {
             'Zdarzenie': ["Gospodarz", "Remis", "Gość"],
             'Wszystkie': [result_bets['home_win_bets'], result_bets['draw_bets'], result_bets['away_win_bets']],
@@ -220,8 +220,6 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
     #    st.header("Zmiana profitu w czasie")
 
 def generate_statistics(query, tax_flag, first_round, last_round, no_events, conn, EV_plus):
-    #query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0'"
-    #query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) = current_date and result != '0'"
     match_stats_df = pd.read_sql(query, conn)
     #TO-DO: Poniższe w oparciu o pole outcome w final_predictions / outcomes
     predictions = 0
@@ -387,3 +385,6 @@ def generate_statistics(query, tax_flag, first_round, last_round, no_events, con
                 pass
     show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
                     first_round, last_round, ou_bets, btts_bets, result_bets, predictions)
+    
+def league_charachteristics(league_id):
+    pass
