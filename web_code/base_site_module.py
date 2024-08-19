@@ -14,13 +14,17 @@ class Base:
     def __init__(self, league, season, name):
         self.league = league
         self.season = season
+        self.round = -1
         self.date = datetime.today().strftime('%Y-%m-%d')
         self.conn = db_module.db_connect()
         query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date - 1 order by game_date limit 1".format(self.league, self.season)
         cursor = self.conn.cursor()
         cursor.execute(query)
         results = cursor.fetchall()
-        self.round = results[0][0]
+        if len(results) > 0:
+            self.round = results[0][0]
+        else:
+            st.subheader("UWAGA: Brak najnowszych spotkań")
         #self.round = current_round
         query = "select years from seasons where id = {}".format(self.season)
         cursor = self.conn.cursor()
@@ -35,7 +39,7 @@ class Base:
         self.update = results[0][0]
         self.name = name
         st.header(name)
-        st.write("Aktualny sezon: {}. Aktulana kolejka: {}. Ostatnia aktualizacja: {}".format(self.years, self.round, self.update))
+        st.write("Aktualny sezon: {}.  \n Aktulana kolejka: {}.  \n Ostatnia aktualizacja: {}".format(self.years, self.round, self.update))
         all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(self.league, self.season)
         all_teams_df = pd.read_sql(all_teams, self.conn)
         self.teams_dict = all_teams_df.set_index('id')['name'].to_dict()
@@ -52,10 +56,17 @@ class Base:
             self.generate_schedule(league, self.round, season)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             self.show_teams(self.teams_dict)
-        with st.expander("Tabela ligowa w sezonie {}".format(self.years)):
-            st.header("Tradycyjna tabela ligowa")
-            self.generate_table()
-            st.header("Tabela OU / BTTS")
+        with st.expander("Tabele ligowe" ):
+            if st.button("W sezonie {}".format(self.years), use_container_width=True): 
+                query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
+                from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
+                where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
+                results_df = pd.read_sql(query, self.conn)
+                st.header("Tradycyjna tabela ligowa")
+                tables_module.generate_traditional_table(self.teams_dict, results_df)
+                st.header("Tabela OU / BTTS")
+                st.subheader("Drużyny prezentowane są w kolejności alfabetycznej")
+                tables_module.generate_ou_btts_table(self.teams_dict, results_df)
         with st.expander("Statystyki ligowe"):
             st.header("Charakterstyki ligi: {}".format(self.name))
             stats_module.league_charachteristics(self.league)
@@ -73,59 +84,11 @@ class Base:
             rounds_str =','.join(map(str, rounds))
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
             stats_module.generate_statistics(query, tax_flag, first_round, last_round, self.no_events, self.conn, self.EV_plus)
+        with st.expander("Statystyki predykcji w sezonie {} - porównania między drużynami".format(self.years)):
+            stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn)
                     
         self.conn.close()
 
-    def increment_stat(self, team, teams_stats, result):
-        position = -1 
-        for i, subarray in enumerate(teams_stats):
-            if subarray[0] == team:
-                position = i
-                break
-        teams_stats[position][-2] += 1 #Liczba meczów
-        teams_stats[position][result + 1] += 1
-        if result == 0:
-            teams_stats[position][-1] += 3
-        elif result == 1:
-            teams_stats[position][-1] += 1
-        else:
-            pass
-    
-    def generate_table(self):
-        teams_stats = [] #key, W, D, L
-        for k in self.teams_dict.values():
-            #Nazwa, zwycięstwa, remisy, porażki, liczba meczów, punkty
-            teams_stats.append([k, 0, 0, 0, 0, 0])
-
-        query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
-                    from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
-                    where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
-        results_df = pd.read_sql(query, self.conn)
-        for _, row in results_df.iterrows():
-            if row.result == '1':
-                self.increment_stat(row.home_team, teams_stats, 0)
-                self.increment_stat(row.away_team, teams_stats, 2)
-            elif row.result == 'X':
-                self.increment_stat(row.home_team, teams_stats, 1)
-                self.increment_stat(row.away_team, teams_stats, 1)
-            else:
-                self.increment_stat(row.home_team, teams_stats, 2)
-                self.increment_stat(row.away_team, teams_stats, 0)
-        sorted_teams_stats = sorted(teams_stats, key=lambda x: x[-1], reverse=True)
-        data = {
-        'Nazwa drużyny': [x[0] for x in sorted_teams_stats],
-        'Liczba meczów' : [x[4] for x in sorted_teams_stats],
-        'Zwycięstwa' : [x[1] for x in sorted_teams_stats],
-        'Remisy' : [x[2] for x in sorted_teams_stats],
-        'Porażki' : [x[3] for x in sorted_teams_stats],
-        'Punkty' : [x[5] for x in sorted_teams_stats]
-        }
-        df = pd.DataFrame(data)
-        df.index = range(1, len(df) + 1)
-        st.table(df)
-        st.write('''Uwaga - prezentowana tabela nie przedstawia podziałów na grupy, które mogą zaistnieć dla niektórych lig. 
-            Zgodnie ze standardowym punktowaniem wyników poniżej zaprezentowano sumaryczne osiągnięcia zespołów biorących udział
-            w danych rozgrywkach na przestrzeni całego sezonu.''')
 
     def single_team_data(self, team_id):
         query = "select name from teams where id = {}".format(team_id)
@@ -491,7 +454,7 @@ class Base:
         if len(predicts_df) > 0:
             for _, row in predicts_df.iterrows():
                 counter = counter + 1
-                if counter * 3 == self.games:
+                if counter== self.games * 3:
                     break
                 if row['event_id'] in (1,2,3):
                     if row['outcome'] == 1:

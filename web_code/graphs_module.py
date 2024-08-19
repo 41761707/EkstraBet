@@ -327,7 +327,7 @@ def winner_bar_chart(opponent, home_team, result, team_name):
     bars = ax.barh(df.index, df['Results'], color=['orangered', 'slategrey', 'lightgreen'])
     ax.grid(False)
     ax.set_yticks(df.index)
-    ax.set_yticklabels([f"{label}" for label in df['Label']])
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
     ax.set_ylabel("")
     ax.set_xlabel("")
     ax.set_title("Rezultaty meczów: {}".format(team_name), loc='left', fontsize=24, color='white')
@@ -362,4 +362,35 @@ def graph_ou(under, over):
     for bar, ppb in zip(bars, df['Ppb']):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
             ha='center', va='bottom', color='black', fontsize=22)
+    st.pyplot(fig)
+
+def team_compare_graph(teams, accs):
+    num_rows = len(teams)
+    teams_accs = zip(teams,accs)
+    average = accs[-1]
+    teams_accs_sorted = sorted(teams_accs, key= lambda x: x[1])
+    data = {
+    'Label': [x[0] for x in teams_accs_sorted],
+    'Results' : [x[1] for x in teams_accs_sorted]
+    }
+    sns.set_theme(style="darkgrid")
+    df = pd.DataFrame(data)
+    # Ustawienia wykresu
+    fig, ax = plt.subplots(figsize=(10, num_rows))
+    bars = ax.barh(
+        df.index,
+        df['Results'],
+        color=['blue' if result == average else 'red' if result < average else 'green' for result in df['Results']])
+    ax.grid(False)
+    ax.set_yticks(df.index)
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
+    ax.set_ylabel("")
+    ax.set_xlabel("")
+    ax.set_title("Porównanie procenta dokładności predykcji", loc='left', fontsize=24, color='white')
+    ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
+    ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
+    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
+    for bar, result in zip(bars, df['Results']):
+        ax.text(bar.get_width() + 5, bar.get_y() + bar.get_height() / 2, f'{int(result)}%', 
+            ha='center', va='center', color='white', fontsize=18)
     st.pyplot(fig)

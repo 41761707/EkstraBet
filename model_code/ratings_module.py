@@ -173,11 +173,11 @@ class WinnerRating:
             if team[1] not in self.teams_dict:
                 self.teams_dict[team[0]] = team[1]
         for index, _ in self.matches_df.iterrows():
-            #if self.ratings[self.matches_df.loc[index, 'home_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 31, 32, 36, 37, 38, 39, 40, 41):
-            #    self.ratings[self.matches_df.loc[index, 'home_team']] = 1200
+            if self.ratings[self.matches_df.loc[index, 'home_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 31, 32, 36, 37, 38, 39, 40, 41):
+                self.ratings[self.matches_df.loc[index, 'home_team']] = 1200
             #    print(self.matches_df.loc[index, 'home_team'])
-            #if self.ratings[self.matches_df.loc[index, 'away_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 31, 32, 36, 37, 38, 39, 40, 41):
-            #    self.ratings[self.matches_df.loc[index, 'away_team']] = 1200
+            if self.ratings[self.matches_df.loc[index, 'away_team']] == 1500 and self.matches_df.loc[index, 'league'] in (8, 13, 14, 20, 21, 26, 30, 31, 32, 36, 37, 38, 39, 40, 41):
+                self.ratings[self.matches_df.loc[index, 'away_team']] = 1200
             #    print(self.matches_df.loc[index, 'away_team'])
             if "{}_goals".format(self.matches_df.loc[index, 'league']) not in self.league_features:
                 self.league_features["{}_goals".format(self.matches_df.loc[index, 'league'])] = 0
@@ -377,9 +377,3 @@ class RatingFactory:
             return WinnerRating(matches_df, teams_df)
         if method == "BTTSRating":
             return BTTSRating(matches_df, teams_df)
-
-# Użycie fabryki do tworzenia instancji różnych metod obliczania rankingu
-#elo_calculator = RatingFactory.create_rating("Elo", <obiekt typu pandas z listą meczów>, <obiekt typu pandas z listą drużyn>)
-#berrar_calculator = RatingFactory.create_rating("Berrar", <obiekt typu pandas z listą meczów>, <obiekt typu pandas z listą drużyn>)
-#gap_calculator = RatingFactory.create_rating("GAP", <obiekt typu pandas z listą meczów>, <obiekt typu pandas z listą drużyn>)
-#pi_calculator = RatingFactory.create_rating("PI", <obiekt typu pandas z listą meczów>, <obiekt typu pandas z listą drużyn>)

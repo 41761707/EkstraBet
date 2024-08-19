@@ -308,7 +308,7 @@ class Model:
             self.model.compile(loss='mse', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals/')
@@ -323,11 +323,11 @@ class Model:
                     layers.Dense(7, activation = 'softmax')])
             cp = ModelCheckpoint('model_goals_ppb/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            #self.model.load_weights('model_goals/model_weights.h5')
+            self.model.load_weights('model_goals_ppb/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals_ppb/')
@@ -347,7 +347,7 @@ class Model:
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_winner/')
@@ -368,7 +368,7 @@ class Model:
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_btts/')
@@ -387,7 +387,7 @@ class Model:
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=15, batch_size = 32, callbacks = [cp, es])
+            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
             self.model = load_model('model_ou/')

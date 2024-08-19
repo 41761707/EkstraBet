@@ -155,7 +155,7 @@
 
 
 --------------------------------- MLS ----------------------------------------
-25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/wyniki
+25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/wyniki/
 25 2 https://www.flashscore.pl/pilka-nozna/usa/mls-2023/wyniki/
 25 3 https://www.flashscore.pl/pilka-nozna/usa/mls-2022/wyniki/
 25 4 https://www.flashscore.pl/pilka-nozna/usa/mls-2021/wyniki/

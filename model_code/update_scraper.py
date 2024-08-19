@@ -55,14 +55,13 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
         'round' : 0,
         'result' : 0,
         'id' : 0}
-    # _row_n1rcj_9 - klasa zawierająca informacje o statystykach meczowych
     # duelParticipant__startTime - czas rozegrania meczu (timestamp)
     # participant__participantName - drużyny biorące udział w meczu
     # detailScore__wrapper - wynik meczu
     driver.get(link)
     time.sleep(2) # Let the user actually see something!
-    # Znajdź wszystkie divy o klasie '_row_1nw75_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1nw75_8")
+    # Znajdź wszystkie divy o klasie '_row_l0d4e_8'
+    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_l0d4e_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -183,13 +182,10 @@ def main():
     round_to_d = results[0][0]
     print("RUNDA: ",round_to_d)
     query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
-    #query = "SELECT * FROM matches where league = {} and season = {} and round = {} and result = '0'".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
-    options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options=options)
-    #Link do strony z wynikami
-    #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
     games = sys.argv[3]
     query = "select country from leagues where id = {}".format(league_id)
     country_df = pd.read_sql(query,conn)
@@ -199,6 +195,7 @@ def main():
     team_id = teams_df.set_index('name')['id'].to_dict()
     print(team_id)
     links = get_match_links(games, driver)
+    inserts = []
     for link in links[:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
         match_data = update_match_data(driver, league_id, season_id, link, match_id, team_id)
@@ -229,6 +226,7 @@ def main():
 `result` = '{result}' \
 WHERE (`id` = '{id}');'''.format(**match_data)
         print(sql)
+        inserts.append(sql)
     conn.close()
 if __name__ == '__main__':
     main()

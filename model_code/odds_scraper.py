@@ -26,8 +26,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, tea
         'home_team' : 0,
         'away_team' : 0,
         'game_date' : 0}
-    # Znajdź wszystkie divy o klasie '_row_1csk6_9'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1csk6_9")
+    # Znajdź wszystkie divy o klasie '_row_l0d4e_8'
+    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_l0d4e_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -206,7 +206,7 @@ def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_i
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
-    for link in links[:len(matches_df)]:
+    for link in links[1:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id)
         if match_id == -1:
             break
