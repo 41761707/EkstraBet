@@ -85,6 +85,8 @@ class GoalsRating:
             self.powers["{}h_def".format(self.matches_df.loc[index, 'away_team'])] = j_h_def
             self.powers["{}a_att".format(self.matches_df.loc[index, 'away_team'])] = j_a_att
             self.powers["{}a_def".format(self.matches_df.loc[index, 'away_team'])] = j_a_def
+
+            #print("GOSPO vs GOSC - GOLE: {} - {}".format(self.last_five_matches[self.matches_df.loc[index, 'home_team']], self.last_five_matches[self.matches_df.loc[index, 'away_team']]))
     def get_data(self):
         return self.matches_df, self.teams_df, self.teams_dict, self.powers, self.ratings, self.last_five_matches
     

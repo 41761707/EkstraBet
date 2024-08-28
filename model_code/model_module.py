@@ -220,8 +220,8 @@ class Model:
 
 
     def divide_set(self):
-        first = int(len(self.indexes) * 0.9)
-        second = int(len(self.indexes) * 0.95)
+        first = int(len(self.indexes) * 0.95)
+        second = int(len(self.indexes) * 0.99)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
@@ -304,15 +304,15 @@ class Model:
                     layers.Dense(1)])
             cp = ModelCheckpoint('model_goals/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_goals/model_weights.h5')
+            self.model.load_weights('model_goals_release/model_weights.h5')
             self.model.compile(loss='mse', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
             self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             #print(self.model.summary())
         else:
-            self.model = load_model('model_goals/')
-            self.model.save_weights('model_goals/model_weights.h5')
+            self.model = load_model('model_goals_release/')
+            self.model.save_weights('model_goals_release/model_weights.h5')
 
     def train_goals_ppb_model(self):
         if self.create_model == 'new':
@@ -321,17 +321,18 @@ class Model:
                     layers.Dense(32, activation = 'relu'),
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(7, activation = 'softmax')])
-            cp = ModelCheckpoint('model_goals_ppb/', save_best_only = True)
+            cp = ModelCheckpoint('model_goals_ppb_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_goals_ppb/model_weights.h5')
+            self.model.load_weights('model_goals_ppb_release/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
             self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
+            self.model.save_weights('model_goals_ppb_release/model_weights.h5')
             #print(self.model.summary())
         else:
-            self.model = load_model('model_goals_ppb/')
-            self.model.save_weights('model_goals_ppb/model_weights.h5')
+            self.model = load_model('model_goals_ppb_release/')
+            self.model.save_weights('model_goals_ppb_release/model_weights.h5')
 
     def train_winner_model(self):
         if self.create_model == 'new':
@@ -340,9 +341,9 @@ class Model:
                     layers.Dense(32, activation = 'relu'),
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(3, activation = 'softmax')])
-            cp = ModelCheckpoint('model_winner/', save_best_only = True)
+            cp = ModelCheckpoint('model_winner_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_winner/model_weights.h5')
+            self.model.load_weights('model_winner_release/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
@@ -350,8 +351,8 @@ class Model:
             self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
-            self.model = load_model('model_winner/')
-            self.model.save_weights('model_winner/model_weights.h5')
+            self.model = load_model('model_winner_release/')
+            self.model.save_weights('model_winner_release/model_weights.h5')
 
     def train_btts_model(self):
         if self.create_model == 'new':
@@ -360,9 +361,9 @@ class Model:
                     layers.Dense(32, activation = 'relu'),
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(2, activation = 'softmax')])
-            cp = ModelCheckpoint('model_btts/', save_best_only = True)
+            cp = ModelCheckpoint('model_btts_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            #self.model.load_weights('model_btts/model_weights.h5')
+            #self.model.load_weights('model_btts_dev/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
             #self.model.compile(loss=self.ranked_probability_score, 
                 optimizer=Adagrad(learning_rate=0.001),
@@ -371,8 +372,8 @@ class Model:
             self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
-            self.model = load_model('model_btts/')
-            self.model.save_weights('model_btts/model_weights.h5')
+            self.model = load_model('model_btts_release/')
+            self.model.save_weights('model_btts_release/model_weights.h5')
 
     def train_ou_model(self):
         if self.create_model == 'new':
@@ -381,7 +382,7 @@ class Model:
                     layers.Dense(32, activation = 'relu'),
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(2, activation = 'softmax')])
-            cp = ModelCheckpoint('model_ou/', save_best_only = True)
+            cp = ModelCheckpoint('model_ou_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             self.model.compile(loss='categorical_crossentropy',  
                 optimizer=Adagrad(learning_rate=0.001),
@@ -390,8 +391,8 @@ class Model:
             self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
             print(self.model.summary())
         else:
-            self.model = load_model('model_ou/')
-            self.model.save_weights('model_ou/model_weights.h5')
+            self.model = load_model('model_ou_release/')
+            self.model.save_weights('model_ou_release/model_weights.h5')
 
     def goals_total_test(self):
         test_predictions = self.model.predict(self.X_test).flatten().astype(int)
@@ -423,6 +424,8 @@ class Model:
             #print("Indeks meczu: {}".format(self.indexes_test[i]))
             #print("Zaobserwowana liczba bramek: {}".format(test_max[i]))
             #print("Przewidywana liczba bramek: {}".format(predict_max[i]))
+            #print("Under: {}".format(test_predictions[i][0] + test_predictions[i][1] + test_predictions[i][2]))
+            #print("Over: {}".format(test_predictions[i][3] + test_predictions[i][4] + test_predictions[i][5] + test_predictions[i][6]))
             if (test_max[i] < 2.5 and predict_max[i] < 2.5) or (test_max[i] > 2.5 and predict_max[i] > 2.5):
                 ou_predictions += 1
         print("Liczba meczów: {}".format(len(self.X_test)))

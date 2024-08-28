@@ -17,7 +17,8 @@ class Base:
         self.round = -1
         self.date = datetime.today().strftime('%Y-%m-%d')
         self.conn = db_module.db_connect()
-        query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date - 1 order by game_date limit 1".format(self.league, self.season)
+        #query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date - 1 order by game_date limit 1".format(self.league, self.season)
+        query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date order by game_date limit 1".format(self.league, self.season)
         cursor = self.conn.cursor()
         cursor.execute(query)
         results = cursor.fetchall()
@@ -290,7 +291,20 @@ class Base:
         with col3:
             graphs_module.graph_exact_goals(goals_no)
         with col4:
-            graphs_module.graph_ou(under_2_5[0][0], over_2_5[0][0])
+            if self.ou_line < 1:
+                graphs_module.graph_ou(round(zero_goals[0][0], 2), 
+                                       round(one_goal[0][0] + two_goals[0][0] + three_goals[0][0] + four_goals[0][0] + five_goals[0][0] + six_plus_goals[0][0], 2), 'OU 0.5')
+            elif self.ou_line < 2:
+                graphs_module.graph_ou(round(zero_goals[0][0] + one_goal[0][0], 2), 
+                                       round(two_goals[0][0] + three_goals[0][0] + four_goals[0][0] + five_goals[0][0] + six_plus_goals[0][0], 2), 'OU 1.5')
+            elif self.ou_line < 3:
+                graphs_module.graph_ou(under_2_5[0][0], over_2_5[0][0], 'OU 2.5')
+            elif self.ou_line < 4:
+                graphs_module.graph_ou(round(zero_goals[0][0] + one_goal[0][0] + two_goals[0][0] + three_goals[0][0], 2), 
+                                       round(four_goals[0][0] + five_goals[0][0] + six_plus_goals[0][0], 2), 'OU 3.5')
+            else:
+                graphs_module.graph_ou(round(zero_goals[0][0] + one_goal[0][0] + two_goals[0][0] + three_goals[0][0] + four_goals[0][0], 2), 
+                                       round(five_goals[0][0] + six_plus_goals[0][0], 2), 'OU 4.5')
         
         st.header("Przewidywana liczba bramek w meczu: {}".format(exact_goals[0][0]))
         bookie_dict = {
@@ -515,13 +529,6 @@ class Base:
             #Wykresy z podziałem na typ zdarzenia
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where (home_team = {} or away_team = {}) and result != '0'".format(key, key)
             stats_module.generate_statistics(query, 0, 1, self.round, self.no_events, self.conn, self.EV_plus)
-            '''col4, col5, col6 = st.columns(3)
-            with col4:
-                st.subheader("Porównanie predykcji Under vs Over w meczach {}".format(team_name))
-            with col5:
-                st.subheader("Porównanie predykcji NO BTTS vs BTTS w meczach {}".format(team_name))
-            with col6:
-                st.subheader("Porównanie predykcji 1X2 w meczach {}".format(team_name))'''
 
 
 

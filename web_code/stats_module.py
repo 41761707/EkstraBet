@@ -325,7 +325,7 @@ def generate_statistics(query, tax_flag, first_round, last_round, no_events, con
                     btts_predictions['correct_btts_pred'] = btts_predictions['correct_btts_pred'] + 1
             else:
                 pass
-
+        
         for _, bet in bets_df.iterrows():
             if EV_plus and bet['EV'] < 0:
                 continue
@@ -452,11 +452,11 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     result_correct.append(int(avgs[0][4]))
     
     ou_acc = [int(x[2] * 100) for x in predictions_ratio]
-    ou_acc.append(int(avgs[0][0]))
+    ou_acc.append(round(float(avgs[0][0]), 2))
     btts_acc = [int(x[3] * 100) for x in predictions_ratio]
-    btts_acc.append(int(avgs[0][1]))
+    btts_acc.append(round(float(avgs[0][1]), 2))
     result_acc = [int(x[1] * 100) for x in predictions_ratio]
-    result_acc.append(int(avgs[0][2]))
+    result_acc.append(round(float(avgs[0][2]), 2))
 
     col1, col2 = st.columns(2)
     with col1:
@@ -489,6 +489,120 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     col5, col6 = st.columns(2)
     with col5:
         st.subheader("Porównanie dokładności predykcji REZULTAT między drużynami")
+        data = {
+        'Drużyna' : teams,
+        'Liczba predykcji' : result_number,
+        'Poprawne' : result_correct,
+        'Skuteczność (%)' : result_acc
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    with col6:
+        graphs_module.team_compare_graph(teams, result_acc)  
+
+
+def aggregate_leagues_acc(season_id, conn):
+    all_leagues = "select distinct id, name from leagues where active = 1".format()
+    all_leagues_df = pd.read_sql(all_leagues, conn)
+    leagues_dict = all_leagues_df.set_index('id')['name'].to_dict()
+    query = "select count(*) from final_predictions"
+    cursor = conn.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    predictions = results[0][0] // 3
+    predictions_ratio = [] #team, result_ratio, ou_ratio, btts_ratio
+    predictions_total = []
+    for k,v in leagues_dict.items():
+        #OU - predykcje per team
+        query = '''select 
+                        count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
+                        count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
+                        count(case when f.event_id in (8, 12) then 1 end) as ou_predictions,
+                        count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) as ou_correct,
+                        count(case when f.event_id in (6, 172) then 1 end) as btts_predictions,
+                        count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) as btts_correct
+                    from final_predictions f
+                        join matches m on f.match_id = m.id
+                        where m.season = {} and m.result != '0'
+                            and m.league = {}'''.format(season_id, k)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        if results[0][0] > 0:
+            predictions_total.append([v, results[0][0], results[0][1], results[0][2], results[0][3], results[0][4], results[0][5]])
+            predictions_ratio.append([v, round(results[0][1] / results[0][0], 2), round(results[0][3] / results[0][2], 2) ,round(results[0][5] / results[0][4], 2)])
+
+    query = ''' select
+                    count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) / count(case when f.event_id in (8, 12) then 1 end) * 100 as ou_avg,
+                    count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) / count(case when f.event_id in (6, 172) then 1 end) * 100 as btts_avg,
+                    count(case when f.event_id in (1, 2, 3) and f.outcome = 1 then 1 end) / count(case when f.event_id in (1, 2, 3) then 1 end) * 100 as result_avg,
+                    count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
+                    count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
+                    count(case when f.event_id in (8, 12) then 1 end) as ou_predictions,
+                    count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) as ou_correct,
+                    count(case when f.event_id in (6, 172) then 1 end) as btts_predictions,
+                    count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) as btts_correct
+                from final_predictions f
+                    join matches m on f.match_id = m.id and m.result != '0'
+                    where m.season = {}'''.format(season_id) 
+    cursor = conn.cursor()
+    cursor.execute(query)
+    avgs = cursor.fetchall()
+    teams = [x[0] for x in predictions_total]
+    teams.append('ŚREDNIA')
+    ou_number = [x[3] for x in predictions_total]
+    ou_number.append(int(avgs[0][5]))
+    ou_correct = [x[4] for x in predictions_total]
+    ou_correct.append(int(avgs[0][6]))
+
+    btts_number = [x[5] for x in predictions_total]
+    btts_number.append(int(avgs[0][7]))
+    btts_correct = [x[6] for x in predictions_total]
+    btts_correct.append(int(avgs[0][8]))
+
+    result_number = [x[1] for x in predictions_total]
+    result_number.append(int(avgs[0][3]))
+    result_correct = [x[2] for x in predictions_total]
+    result_correct.append(int(avgs[0][4]))
+    
+    ou_acc = [int(x[2] * 100) for x in predictions_ratio]
+    ou_acc.append(round(float(avgs[0][0]), 2))
+    btts_acc = [int(x[3] * 100) for x in predictions_ratio]
+    btts_acc.append(round(float(avgs[0][1]), 2))
+    result_acc = [int(x[1] * 100) for x in predictions_ratio]
+    result_acc.append(round(float(avgs[0][2]), 2))
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Porównanie dokładności predykcji OU między ligami")
+        data = {
+        'Drużyna' : teams,
+        'Liczba predykcji' : ou_number,
+        'Poprawne' : ou_correct,
+        'Skuteczność (%)' : ou_acc
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    with col2:
+        graphs_module.team_compare_graph(teams, ou_acc)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.subheader("Porównanie dokładności predykcji BTTS między ligami")
+        data = {
+        'Drużyna' : teams,
+        'Liczba predykcji' : btts_number,
+        'Poprawne' : btts_correct,
+        'Skuteczność (%)' : btts_acc
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    with col4:
+        graphs_module.team_compare_graph(teams, btts_acc)
+
+    col5, col6 = st.columns(2)
+    with col5:
+        st.subheader("Porównanie dokładności predykcji REZULTAT między ligami")
         data = {
         'Drużyna' : teams,
         'Liczba predykcji' : result_number,

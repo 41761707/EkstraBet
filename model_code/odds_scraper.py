@@ -206,7 +206,7 @@ def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_i
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
-    for link in links[1:len(matches_df)]:
+    for link in links[:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id)
         if match_id == -1:
             break

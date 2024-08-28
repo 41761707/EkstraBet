@@ -339,7 +339,7 @@ def winner_bar_chart(opponent, home_team, result, team_name):
             ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)
 
-def graph_ou(under, over):
+def graph_ou(under, over, title):
         # Dane do wykresu
     data = {
     'Label': ["Under 2.5", "Over 2.5"],
@@ -355,7 +355,7 @@ def graph_ou(under, over):
     ax.set_xticklabels([f"{label}" for label in df['Label']], fontsize = 20)
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.set_title("Rozkład prawdopodobieństwa zdarzenia: OU 2.5", loc='left', fontsize=24, color='white')
+    ax.set_title("Rozkład prawdopodobieństwa zdarzenia: {}".format(title), loc='left', fontsize=28, color='white')
     ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
@@ -380,17 +380,17 @@ def team_compare_graph(teams, accs):
     bars = ax.barh(
         df.index,
         df['Results'],
-        color=['blue' if result == average else 'red' if result < average else 'green' for result in df['Results']])
+        color=['deepskyblue' if result == average else 'red' if result < average else 'green' for result in df['Results']])
     ax.grid(False)
     ax.set_yticks(df.index)
     ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
     ax.set_ylabel("")
     ax.set_xlabel("")
-    ax.set_title("Porównanie procenta dokładności predykcji", loc='left', fontsize=24, color='white')
+    ax.set_title("Porównanie procenta dokładności predykcji", loc='left', fontsize=28, color='white')
     ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
     for bar, result in zip(bars, df['Results']):
-        ax.text(bar.get_width() + 5, bar.get_y() + bar.get_height() / 2, f'{int(result)}%', 
-            ha='center', va='center', color='white', fontsize=18)
+        ax.text(bar.get_width() + 10, bar.get_y() + bar.get_height() / 2, f'{float(result)}%', 
+            ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)
