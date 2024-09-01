@@ -57,20 +57,29 @@ class Base:
             self.generate_schedule(league, self.round, season)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             self.show_teams(self.teams_dict)
-        with st.expander("Tabele ligowe" ):
-            if st.button("W sezonie {}".format(self.years), use_container_width=True): 
-                query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
+        query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
                 from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
                 where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
-                results_df = pd.read_sql(query, self.conn)
-                st.header("Tradycyjna tabela ligowa")
-                tables_module.generate_traditional_table(self.teams_dict, results_df)
-                st.header("Tabela OU / BTTS")
-                st.subheader("Drużyny prezentowane są w kolejności alfabetycznej")
-                tables_module.generate_ou_btts_table(self.teams_dict, results_df)
+        results_df = pd.read_sql(query, self.conn)
+        with st.expander("Tabele ligowe" ):
+            if st.button("W sezonie {}".format(self.years), use_container_width=True): 
+                tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
+                with tab1:
+                    st.header("Tradycyjna tabela ligowa")
+                    tables_module.generate_traditional_table(self.teams_dict, results_df, 'traditional')
+                with tab2:
+                    st.header("Tabela domowa")
+                    tables_module.generate_traditional_table(self.teams_dict, results_df, 'home')
+                with tab3:
+                    st.header("Tabela wyjazdowa")
+                    tables_module.generate_traditional_table(self.teams_dict, results_df, 'away')
+                with tab4:
+                    st.header("Tabela OU / BTTS")
+                    st.subheader("Drużyny prezentowane są w kolejności alfabetycznej")
+                    tables_module.generate_ou_btts_table(self.teams_dict, results_df)
         with st.expander("Statystyki ligowe"):
             st.header("Charakterstyki ligi: {}".format(self.name))
-            stats_module.league_charachteristics(self.league)
+            stats_module.league_charachteristics(results_df)
         with st.expander("Statystyki predykcji"):
             st.header("Podsumowanie predykcji wykonanych dla ligi {} w sezonie {}".format(self.name, self.years))
             if self.round > 1:
@@ -86,8 +95,7 @@ class Base:
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
             stats_module.generate_statistics(query, tax_flag, first_round, last_round, self.no_events, self.conn, self.EV_plus)
         with st.expander("Statystyki predykcji w sezonie {} - porównania między drużynami".format(self.years)):
-            stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn)
-                    
+            stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn)           
         self.conn.close()
 
 
@@ -201,6 +209,8 @@ class Base:
         df.index = range(1, len(df) + 1)
         #styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset = ['VB'])
         st.dataframe(df, use_container_width=True, hide_index=True)
+        ''' Aktualnie kod poniżej średnio wygląda
+        
         correct_pred = correct.count('TAK')
         no_bets = bet_placed.count('TAK')
         correct_bet = 0
@@ -214,7 +224,7 @@ class Base:
             st.write("Liczba poprawych zakładów: {}".format(correct_bet))
             st.write("Skuteczność zakładów dla analizowanego meczu: {:.2f}%".format(100 * correct_bet / max(no_bets,1)))
         else:
-            st.write("Dla wybranego meczu nie zawarto żadnych zakładów")
+            st.write("Dla wybranego meczu nie zawarto żadnych zakładów")'''
     
     def generate_h2h(self, match_id):
         # Get teams in the match
@@ -440,7 +450,7 @@ class Base:
         if league_id == 25:
             query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
                     from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
-                    where m.league = {} and m.round = {} and m.season = {} and m.game_date >= DATE_SUB('{}', INTERVAL 4 DAY)
+                    where m.league = {} and m.round = {} and m.season = {} and m.game_date >= DATE_SUB('{}', INTERVAL 2 DAY)
                     order by m.game_date'''.format(league_id, round, season, self.date)
         else:
             query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
@@ -537,20 +547,23 @@ class Base:
         for key, value in teams_dict.items():
             button_label = value
             if st.button(button_label, use_container_width = True):
-                date, opponent, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, result = self.single_team_data(key)
-                col1, col2 = st.columns(2)
-                with col1:
-                    with st.container():
-                        graphs_module.goals_bar_chart(date[:self.games], opponent[:self.games], goals[:self.games], team_name, self.ou_line)
-                with col2:
-                    with st.container():
-                        graphs_module.btts_bar_chart(date[:self.games], opponent[:self.games], btts[:self.games], team_name)
-                col3, col4 = st.columns(2)
-                with col3:
-                    with st.container():
-                        graphs_module.winner_bar_chart(opponent[:self.games], home_team[:self.games] ,result[:self.games], team_name)
-                with col4:
-                    with st.container():
-                        tables_module.matches_list(date[:self.games], home_team[:self.games], home_team_score[:self.games], away_team[:self.games], away_team_score[:self.games], team_name)
-                self.predicts_per_team(team_name, key)
+                tab1, tab2 = st.tabs(["Statystyki drużyny", "Statystyki predykcji"])
+                with tab1:
+                    date, opponent, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, result = self.single_team_data(key)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        with st.container():
+                            graphs_module.goals_bar_chart(date[:self.games], opponent[:self.games], goals[:self.games], team_name, self.ou_line)
+                    with col2:
+                        with st.container():
+                            graphs_module.btts_bar_chart(date[:self.games], opponent[:self.games], btts[:self.games], team_name)
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        with st.container():
+                            graphs_module.winner_bar_chart(opponent[:self.games], home_team[:self.games] ,result[:self.games], team_name)
+                    with col4:
+                        with st.container():
+                            tables_module.matches_list(date[:self.games], home_team[:self.games], home_team_score[:self.games], away_team[:self.games], away_team_score[:self.games], team_name)
+                with tab2:
+                    self.predicts_per_team(team_name, key)
                 

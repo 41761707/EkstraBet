@@ -26,10 +26,10 @@ def main():
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0' and season = 11"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
         if st.button("Statystyki predykcji z ostatniego tygodnia", use_container_width=True):
-            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) >= current_date - 7 and result != '0'"
+            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) and result != '0'"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
         if st.button("Statystyki wczorajszych predykcji", use_container_width=True):
-            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) = current_date - 1 and result != '0'"
+            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) and result != '0'"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
         if st.button("Statystyki dzisiejszych predykcji", use_container_width=True):
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) = current_date and result != '0'"

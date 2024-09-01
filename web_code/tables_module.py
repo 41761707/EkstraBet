@@ -63,21 +63,43 @@ def increment_stat(team, teams_stats, result):
     else:
         pass
 
-def generate_traditional_table(teams_dict, results_df):
+def generate_traditional_table(teams_dict, results_df, type):
     teams_stats = [] #key, M, W, D, L, P
     for k in teams_dict.values():
         #Nazwa, zwycięstwa, remisy, porażki, liczba meczów, punkty
         teams_stats.append([k, 0, 0, 0, 0, 0])
     for _, row in results_df.iterrows():
         if row.result == '1':
-            increment_stat(row.home_team, teams_stats, 0)
-            increment_stat(row.away_team, teams_stats, 2)
+            if type == 'traditional':
+                increment_stat(row.home_team, teams_stats, 0)
+                increment_stat(row.away_team, teams_stats, 2)
+            elif type == 'home':
+                increment_stat(row.home_team, teams_stats, 0)
+            elif type == 'away':
+                increment_stat(row.away_team, teams_stats, 2)
+            else:
+                st.write("Niepoprawny argument funkcji")
         elif row.result == 'X':
-            increment_stat(row.home_team, teams_stats, 1)
-            increment_stat(row.away_team, teams_stats, 1)
+            if type == 'traditional':
+                increment_stat(row.home_team, teams_stats, 1)
+                increment_stat(row.away_team, teams_stats, 1)
+            elif type == 'home':
+                increment_stat(row.home_team, teams_stats, 1)
+            elif type == 'away':
+                increment_stat(row.away_team, teams_stats, 1)
+            else:
+                st.write("Niepoprawny argument funkcji")
         else:
-            increment_stat(row.home_team, teams_stats, 2)
-            increment_stat(row.away_team, teams_stats, 0)
+            if type == 'traditional':
+                increment_stat(row.home_team, teams_stats, 2)
+                increment_stat(row.away_team, teams_stats, 0)
+            elif type == 'home':
+                increment_stat(row.home_team, teams_stats, 2)
+            elif type == 'away':
+                increment_stat(row.away_team, teams_stats, 0)
+            else:
+                st.write("Niepoprawny argument funkcji")
+                
     sorted_teams_stats = sorted(teams_stats, key=lambda x: x[-1], reverse=True)
     data = {
     'Nazwa drużyny': [x[0] for x in sorted_teams_stats],

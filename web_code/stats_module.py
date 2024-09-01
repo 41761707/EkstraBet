@@ -386,8 +386,9 @@ def generate_statistics(query, tax_flag, first_round, last_round, no_events, con
     show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
                     first_round, last_round, ou_bets, btts_bets, result_bets, predictions)
     
-def league_charachteristics(league_id):
+def league_charachteristics(results_df):
     pass
+
 
 def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     query = "select count(*) from final_predictions f join matches m on f.match_id = m.id where m.league = {} and m.season = {} and m.result != '0'".format(league_id, season_id)
@@ -458,47 +459,51 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     result_acc = [int(x[1] * 100) for x in predictions_ratio]
     result_acc.append(round(float(avgs[0][2]), 2))
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Porównanie dokładności predykcji OU między drużynami")
-        data = {
-        'Drużyna' : teams,
-        'Liczba predykcji' : ou_number,
-        'Poprawne' : ou_correct,
-        'Skuteczność (%)' : ou_acc
-        }
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    with col2:
-        graphs_module.team_compare_graph(teams, ou_acc)
+    tab1, tab2, tab3 = st.tabs(["Predykcje OU", "Predykcje BTTS", "Predykcje REZULTAT"])
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Porównanie dokładności predykcji OU między drużynami")
+            data = {
+            'Drużyna' : teams,
+            'Liczba predykcji' : ou_number,
+            'Poprawne' : ou_correct,
+            'Skuteczność (%)' : ou_acc
+            }
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        with col2:
+            graphs_module.team_compare_graph(teams, ou_acc)
+    
+    with tab2:
+        col3, col4 = st.columns(2)
+        with col3:
+            st.subheader("Porównanie dokładności predykcji BTTS między drużynami")
+            data = {
+            'Drużyna' : teams,
+            'Liczba predykcji' : btts_number,
+            'Poprawne' : btts_correct,
+            'Skuteczność (%)' : btts_acc
+            }
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        with col4:
+            graphs_module.team_compare_graph(teams, btts_acc)
 
-    col3, col4 = st.columns(2)
-    with col3:
-        st.subheader("Porównanie dokładności predykcji BTTS między drużynami")
-        data = {
-        'Drużyna' : teams,
-        'Liczba predykcji' : btts_number,
-        'Poprawne' : btts_correct,
-        'Skuteczność (%)' : btts_acc
-        }
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    with col4:
-        graphs_module.team_compare_graph(teams, btts_acc)
-
-    col5, col6 = st.columns(2)
-    with col5:
-        st.subheader("Porównanie dokładności predykcji REZULTAT między drużynami")
-        data = {
-        'Drużyna' : teams,
-        'Liczba predykcji' : result_number,
-        'Poprawne' : result_correct,
-        'Skuteczność (%)' : result_acc
-        }
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    with col6:
-        graphs_module.team_compare_graph(teams, result_acc)  
+    with tab3:
+        col5, col6 = st.columns(2)
+        with col5:
+            st.subheader("Porównanie dokładności predykcji REZULTAT między drużynami")
+            data = {
+            'Drużyna' : teams,
+            'Liczba predykcji' : result_number,
+            'Poprawne' : result_correct,
+            'Skuteczność (%)' : result_acc
+            }
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        with col6:
+            graphs_module.team_compare_graph(teams, result_acc)  
 
 
 def aggregate_leagues_acc(season_id, conn):
@@ -572,44 +577,48 @@ def aggregate_leagues_acc(season_id, conn):
     result_acc = [int(x[1] * 100) for x in predictions_ratio]
     result_acc.append(round(float(avgs[0][2]), 2))
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Porównanie dokładności predykcji OU między ligami")
-        data = {
-        'Drużyna' : teams,
-        'Liczba predykcji' : ou_number,
-        'Poprawne' : ou_correct,
-        'Skuteczność (%)' : ou_acc
-        }
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    with col2:
-        graphs_module.team_compare_graph(teams, ou_acc)
+    tab1, tab2, tab3 = st.tabs(["Predykcje OU", "Predykcje BTTS", "Predykcje REZULTAT"])
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Porównanie dokładności predykcji OU między ligami")
+            data = {
+            'Drużyna' : teams,
+            'Liczba predykcji' : ou_number,
+            'Poprawne' : ou_correct,
+            'Skuteczność (%)' : ou_acc
+            }
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        with col2:
+            graphs_module.team_compare_graph(teams, ou_acc)
 
-    col3, col4 = st.columns(2)
-    with col3:
-        st.subheader("Porównanie dokładności predykcji BTTS między ligami")
-        data = {
-        'Drużyna' : teams,
-        'Liczba predykcji' : btts_number,
-        'Poprawne' : btts_correct,
-        'Skuteczność (%)' : btts_acc
-        }
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    with col4:
-        graphs_module.team_compare_graph(teams, btts_acc)
+    with tab2:
+        col3, col4 = st.columns(2)
+        with col3:
+            st.subheader("Porównanie dokładności predykcji BTTS między ligami")
+            data = {
+            'Drużyna' : teams,
+            'Liczba predykcji' : btts_number,
+            'Poprawne' : btts_correct,
+            'Skuteczność (%)' : btts_acc
+            }
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        with col4:
+            graphs_module.team_compare_graph(teams, btts_acc)
 
-    col5, col6 = st.columns(2)
-    with col5:
-        st.subheader("Porównanie dokładności predykcji REZULTAT między ligami")
-        data = {
-        'Drużyna' : teams,
-        'Liczba predykcji' : result_number,
-        'Poprawne' : result_correct,
-        'Skuteczność (%)' : result_acc
-        }
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    with col6:
-        graphs_module.team_compare_graph(teams, result_acc)  
+    with tab3:
+        col5, col6 = st.columns(2)
+        with col5:
+            st.subheader("Porównanie dokładności predykcji REZULTAT między ligami")
+            data = {
+            'Drużyna' : teams,
+            'Liczba predykcji' : result_number,
+            'Poprawne' : result_correct,
+            'Skuteczność (%)' : result_acc
+            }
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        with col6:
+            graphs_module.team_compare_graph(teams, result_acc)  
