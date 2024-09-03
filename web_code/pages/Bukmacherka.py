@@ -32,10 +32,11 @@ def main():
             st.dataframe(bets_df, use_container_width=True, hide_index=True)
     with st.expander("Proponowane zakłady"):
         if st.button("TOP 5 + Polska (dla Kubona)", use_container_width= True):
-            query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB,
+            query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB, bm.name as BUKMACHER,
                        case when f.event_id in (8,12) then f.confidence - 20 else f.confidence end as PEWNOSC_MODELU
                         from bets b
                             join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
+                            join bookmakers bm on b.bookmaker = bm.id
                             join matches m on b.match_id = m.id
                             join teams t1 on m.home_team = t1.id
                             join teams t2 on m.away_team = t2.id

@@ -160,3 +160,13 @@ def generate_ou_btts_table(teams_dict, results_df):
     df = pd.DataFrame(data)
     df.index = range(1, len(df) + 1)
     st.table(df)
+
+def league_stats(labels, values, values_percentage):
+    data = {
+        'Zdarzenie' : [x for x in reversed(labels)],
+        'Liczba wystąpień' : [x for x in reversed(values)],
+        'Procent wystąpień' : [str(x) + "%" for x in reversed(values_percentage)]
+    } 
+    df = pd.DataFrame(data)
+    df.index = range(1, len(df) + 1)
+    st.table(df)

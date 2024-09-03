@@ -26,6 +26,11 @@ class Base:
             self.round = results[0][0]
         else:
             st.subheader("UWAGA: Brak najnowszych spotkań")
+            query = "select max(round) from matches where league = {} and season = {} and result != '0' order by game_date limit 1".format(self.league, self.season)
+            cursor = self.conn.cursor()
+            cursor.execute(query)
+            results = cursor.fetchall()
+            self.round = results[0][0]
         #self.round = current_round
         query = "select years from seasons where id = {}".format(self.season)
         cursor = self.conn.cursor()
@@ -57,11 +62,11 @@ class Base:
             self.generate_schedule(league, self.round, season)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             self.show_teams(self.teams_dict)
-        query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
+        with st.expander("Tabele ligowe" ):
+            query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
                 from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
                 where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
-        results_df = pd.read_sql(query, self.conn)
-        with st.expander("Tabele ligowe" ):
+            results_df = pd.read_sql(query, self.conn)
             if st.button("W sezonie {}".format(self.years), use_container_width=True): 
                 tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
                 with tab1:
@@ -75,11 +80,23 @@ class Base:
                     tables_module.generate_traditional_table(self.teams_dict, results_df, 'away')
                 with tab4:
                     st.header("Tabela OU / BTTS")
-                    st.subheader("Drużyny prezentowane są w kolejności alfabetycznej")
                     tables_module.generate_ou_btts_table(self.teams_dict, results_df)
+                    st.write("Drużyny prezentowane są w kolejności alfabetycznej")
+        query = ''' select
+                        count(*)
+                    from matches
+                    where league = {}
+                        and season = {}
+                        and result != '0'
+            '''.format(self.league, self.season)
+        cursor = self.conn.cursor()
+        cursor.execute(query)
+        no_games = cursor.fetchall()
+
         with st.expander("Statystyki ligowe"):
             st.header("Charakterstyki ligi: {}".format(self.name))
-            stats_module.league_charachteristics(results_df)
+            st.subheader("Do tej pory rozegrano {} meczów w ramach ligi: {}".format(no_games[0][0], self.name))
+            stats_module.league_charachteristics(self.conn, self.league, self.season, self.teams_dict, no_games[0][0])
         with st.expander("Statystyki predykcji"):
             st.header("Podsumowanie predykcji wykonanych dla ligi {} w sezonie {}".format(self.name, self.years))
             if self.round > 1:

@@ -7,6 +7,7 @@ import seaborn as sns
 from datetime import datetime
 
 import graphs_module
+import tables_module
 
 def show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
                     first_round, last_round, ou_bets, btts_bets, result_bets, predictions):
@@ -386,16 +387,84 @@ def generate_statistics(query, tax_flag, first_round, last_round, no_events, con
     show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
                     first_round, last_round, ou_bets, btts_bets, result_bets, predictions)
     
-def league_charachteristics(results_df):
-    pass
+def league_charachteristics(conn, league_id, season_id, teams_dict, no_games):
+    tab1, tab2, tab3 = st.tabs(["OU", "BTTS", "REZULTAT"])
+    with tab1:
+        st.write("OU")
+        query = ''' select
+                        sum(case when home_team_goals + away_team_goals > 2.5 then 1 else 0 end) as O,
+                        sum(case when home_team_goals + away_team_goals < 2.5 then 1 else 0 end) as U,
+                        avg(home_team_goals + away_team_goals) as A
+                    from matches
+                    where league = {}
+                        and season = {}
+                        and result != '0'
+            '''.format(league_id, season_id)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        labels_table = ['Under 2.5', 'Over 2.5']
+        values = [results[0][1], results[0][0]]
+        values_percentage = [round(results[0][1] * 100 / no_games, 2), round(results[0][0] * 100 / no_games, 2)]
+        title = "Procentowy rozkład OU w lidze"
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Średnia bramek w meczu: {}".format(round(results[0][2], 2)))
+            tables_module.league_stats(labels_table, values , values_percentage)
+        with col2:
+            graphs_module.side_bar_graph(labels_table, values_percentage, title)
+    with tab2:
+        st.write("BTTS")
+        query = ''' select
+                        sum(case when home_team_goals > 0 and away_team_goals > 0 then 1 else 0 end) as BTTS,
+                        sum(case when home_team_goals = 0 or  away_team_goals = 0 then 1 else 0 end) as NO_BTTS
+                    from matches
+                    where league = {}
+                        and season = {}
+                        and result != '0'
+            '''.format(league_id, season_id)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        labels_table = ['NO BTTS', 'BTTS']
+        values = [results[0][1], results[0][0]]
+        values_percentage = [round(results[0][1] * 100 / no_games, 2), round(results[0][0] * 100 / no_games, 2)]
+        title = "Procentowy rozkład BTTS w lidze"
+        col1, col2 = st.columns(2)
+        with col1:
+            tables_module.league_stats(labels_table, values , values_percentage)
+        with col2:
+            graphs_module.side_bar_graph(labels_table, values_percentage, title)
+    with tab3:
+        st.write("REZULTAT")
+        query = ''' select
+                        sum(case when result = '1' then 1 else 0 end) as HOME_WINS,
+                        sum(case when result = 'X' then 1 else 0 end) as DRAWS,
+                        sum(case when result = '2' then 1 else 0 end) as AWAY_WINS
+                    from matches
+                    where league = {}
+                        and season = {}
+                        and result != '0'
+            '''.format(league_id, season_id)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        labels_table = ['Wygrana gościa', 'Remis', 'Wygrana gospodarza']
+        values = [results[0][2], results[0][1], results[0][0]]
+        values_percentage = [round(results[0][2] * 100 / no_games, 2), round(results[0][1] * 100 / no_games, 2), round(results[0][0] * 100 / no_games, 2)]
+        title = "Procentowy rozkład zwycięstw w lidze"
+        col1, col2 = st.columns(2)
+        with col1:
+            tables_module.league_stats(labels_table, values , values_percentage)
+        with col2:
+            graphs_module.side_bar_graph(labels_table, values_percentage, title)
+
+        st.subheader("Zwycięstwa - podział na drużyny")
+        
+
 
 
 def aggregate_team_acc(teams_dict, league_id, season_id, conn):
-    query = "select count(*) from final_predictions f join matches m on f.match_id = m.id where m.league = {} and m.season = {} and m.result != '0'".format(league_id, season_id)
-    cursor = conn.cursor()
-    cursor.execute(query)
-    results = cursor.fetchall()
-    predictions = results[0][0] // 3
     predictions_ratio = [] #team, result_ratio, ou_ratio, btts_ratio
     predictions_total = []
     for k,v in teams_dict.items():

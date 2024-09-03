@@ -394,3 +394,28 @@ def team_compare_graph(teams, accs):
         ax.text(bar.get_width() + 10, bar.get_y() + bar.get_height() / 2, f'{float(result)}%', 
             ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)
+
+
+def side_bar_graph(labels, values, title):
+    data = {
+    'Label': [x for x in labels],
+    'Results' : [x for x in values]
+    }
+    sns.set_theme(style="darkgrid")
+    df = pd.DataFrame(data)
+    # Ustawienia wykresu
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.barh(df.index, df['Results'], color=['orangered', 'slategrey', 'lightgreen'])
+    ax.grid(False)
+    ax.set_yticks(df.index)
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
+    ax.set_ylabel("")
+    ax.set_xlabel("")
+    ax.set_title(title, loc='left', fontsize=30, color='white')
+    ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
+    ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
+    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
+    for bar, result in zip(bars, df['Results']):
+        ax.text(bar.get_width() - 5, bar.get_y() + bar.get_height() / 2, f'{float(result)} %', 
+            ha='center', va='center', color='black', fontsize=22)
+    st.pyplot(fig)
