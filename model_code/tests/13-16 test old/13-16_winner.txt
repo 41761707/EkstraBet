@@ -292,7 +292,3 @@ Gospo: 59.92, Remis: 14.43, Gość: 25.65
 Spotkanie: Vallecano - Osasuna
 Rankingi: 1369.39 - 1486.60
 Gospo: 36.63, Remis: 25.76, Gość: 37.62
-
-Liczba meczów: 4034
-Liczba poprawnych: 1827
-Skuteczność: 0.45290034705007437
