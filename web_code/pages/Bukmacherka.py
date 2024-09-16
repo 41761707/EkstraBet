@@ -33,7 +33,7 @@ def main():
     with st.expander("Proponowane zakłady"):
         if st.button("TOP 5 + Polska (dla Kubona)", use_container_width= True):
             query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB, bm.name as BUKMACHER,
-                       case when f.event_id in (8,12) then f.confidence - 20 else f.confidence end as PEWNOSC_MODELU
+                        f.confidence  as PEWNOSC_MODELU
                         from bets b
                             join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
                             join bookmakers bm on b.bookmaker = bm.id
@@ -51,7 +51,7 @@ def main():
             st.dataframe(bets_df, use_container_width=True, hide_index=True)
         if st.button("Wszystkie ligi", use_container_width= True):
             query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB,
-                        case when f.event_id in (8,12) then f.confidence - 20 else f.confidence end as PEWNOSC_MODELU
+                        f.confidence as PEWNOSC_MODELU
                         from bets b
                             join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
                             join matches m on b.match_id = m.id
@@ -110,6 +110,20 @@ def main():
                             and odds > {}
                             and f.event_id in (1,2,3)
                             order by b.EV desc'''.format(odds_range)
+            bets_df = pd.read_sql(query, conn)
+            bets_df.index = range(1, len(bets_df) + 1)
+            st.dataframe(bets_df, use_container_width=True, hide_index=True)
+        if st.button("System remisy", use_container_width= True):
+            query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, f.confidence as PEWNOSC_MODELU
+                            from final_predictions f
+                            join matches m on f.match_id = m.id
+                            join teams t1 on m.home_team = t1.id
+                            join teams t2 on m.away_team = t2.id
+                            join events e on f.event_id = e.id
+                            join leagues l on m.league = l.id
+                            where cast(m.game_date as date) >= current_date
+                            and f.event_id in (2)
+                            order by m.game_date'''.format(odds_range)
             bets_df = pd.read_sql(query, conn)
             bets_df.index = range(1, len(bets_df) + 1)
             st.dataframe(bets_df, use_container_width=True, hide_index=True)

@@ -1,0 +1,516 @@
+Spotkanie: Kawasaki - Sagan Tosu
+Under: 25.22, Over: 74.78
+Spotkanie: Kobe - C-Osaka
+Under: 40.37, Over: 59.61
+Spotkanie: Yokohama M. - Kyoto
+Under: 8.03, Over: 91.96
+Spotkanie: Gwangju - Pohang
+Under: 14.34, Over: 85.68
+Spotkanie: Ulsan HD - Gangwon
+Under: 25.11, Over: 74.89
+Spotkanie: Kapfenberg - A. Lustenau
+Under: 84.51, Over: 15.50
+Spotkanie: Ried - Voitsberg
+Under: 74.64, Over: 25.35
+Spotkanie: Motor Lublin - Górnik Zabrze
+Under: 75.84, Over: 24.16
+Spotkanie: ŁKS Łódź - Pogoń Siedlce
+Under: 58.91, Over: 41.09
+Spotkanie: Karlsruher - FC Schalke 04
+Under: 32.46, Over: 67.56
+Spotkanie: Munster - Paderborn
+Under: 89.11, Over: 10.89
+Spotkanie: Torreense - Portimonense
+Under: 18.41, Over: 81.58
+Spotkanie: Boluspor - Pendikspor
+Under: 53.02, Over: 46.99
+Spotkanie: Club Brugge U23 - Seraing
+Under: 30.03, Over: 69.96
+Spotkanie: Annecy - Amiens
+Under: 78.94, Over: 21.07
+Spotkanie: Bastia - Troyes
+Under: 73.27, Over: 26.74
+Spotkanie: Clermont - Dunkerque
+Under: 85.53, Over: 14.48
+Spotkanie: Laval - AC Ajaccio
+Under: 72.19, Over: 27.80
+Spotkanie: Lorient - Red Star
+Under: 63.57, Over: 36.44
+Spotkanie: Rodez - Guingamp
+Under: 23.89, Over: 76.12
+Spotkanie: Cambuur - Jong Ajax
+Under: 55.19, Over: 44.80
+Spotkanie: De Graafschap - Helmond
+Under: 3.85, Over: 96.15
+Spotkanie: Den Bosch - Den Haag
+Under: 9.68, Over: 90.33
+Spotkanie: Eindhoven - Dordrecht
+Under: 62.89, Over: 37.11
+Spotkanie: Excelsior - Telstar
+Under: 8.64, Over: 91.36
+Spotkanie: FC Emmen - Roda
+Under: 48.60, Over: 51.39
+Spotkanie: Jong AZ - Vitesse
+Under: 10.25, Over: 89.76
+Spotkanie: Maastricht - FC Volendam
+Under: 11.38, Over: 88.62
+Spotkanie: Oss - Jong PSV
+Under: 3.26, Over: 96.74
+Spotkanie: Venlo - Jong Utrecht
+Under: 35.72, Over: 64.29
+Spotkanie: Cordoba - La Coruna
+Under: 92.45, Over: 7.55
+Spotkanie: Borussia Dortmund - Heidenheim
+Under: 32.63, Over: 67.37
+Spotkanie: GKS Katowice - Widzew Łódź
+Under: 73.94, Over: 26.06
+Spotkanie: Wisła Kraków - Warta Poznań
+Under: 63.60, Over: 36.40
+Spotkanie: Cesena - Modena
+Under: 41.06, Over: 58.93
+Spotkanie: Dender - St. Liege
+Under: 94.52, Over: 5.49
+Spotkanie: St. Etienne - Lille
+Under: 38.09, Over: 61.91
+Spotkanie: Hull - Sheffield Utd
+Under: 65.06, Over: 34.95
+Spotkanie: Betis - Leganes
+Under: 89.08, Over: 10.92
+Spotkanie: Arouca - Sporting
+Under: 9.57, Over: 90.43
+
+
+Spotkanie: Puebla - Queretaro
+Under: 24.74, Over: 75.26
+Spotkanie: Atlas - Pachuca
+Under: 68.29, Over: 31.71
+Spotkanie: Juarez - Mazatlan FC
+Under: 7.00, Over: 93.00
+Spotkanie: Tigres - Atl. San Luis
+Under: 43.73, Over: 56.27
+Spotkanie: Necaxa - U.N.A.M.
+Under: 22.72, Over: 77.28
+Spotkanie: Sapporo - Verdy
+Under: 14.83, Over: 85.18
+Spotkanie: Seoul - Daejeon
+Under: 68.76, Over: 31.25
+Spotkanie: Cheongju Jikji - Seoul E-Land
+Under: 97.58, Over: 2.42
+Spotkanie: Avispa Fukuoka - Machida
+Under: 64.40, Over: 35.59
+Spotkanie: Kashima - Hiroshima
+Under: 45.77, Over: 54.22
+Spotkanie: Vegalta Sendai - Fujieda MYFC
+Under: 79.31, Over: 20.70
+Spotkanie: Shimizu - Renofa Yamaguchi
+Under: 12.13, Over: 87.89
+Spotkanie: Albirex Niigata - Shonan
+Under: 94.91, Over: 5.09
+Spotkanie: G-Osaka - Urawa
+Under: 81.87, Over: 18.12
+Spotkanie: Kashiwa - Iwata
+Under: 36.93, Over: 63.08
+Spotkanie: Tokyo - Nagoya
+Under: 5.68, Over: 94.32
+Spotkanie: Blaublitz - Chiba
+Under: 62.21, Over: 37.80
+Spotkanie: Okayama - Ehime
+Under: 42.95, Over: 57.04
+Spotkanie: Tokushima - Oita
+Under: 79.01, Over: 20.99
+Spotkanie: Yamagata - Kusatsu
+Under: 49.97, Over: 50.01
+Spotkanie: Jeju - Daegu
+Under: 78.22, Over: 21.77
+Spotkanie: Suwon FC - Jeonbuk
+Under: 34.67, Over: 65.34
+Spotkanie: Asan - Ansan Greeners
+Under: 43.41, Over: 56.60
+Spotkanie: Suwon Bluewings - Cheonan City
+Under: 8.73, Over: 91.27
+Spotkanie: Felgueiras - Chaves
+Under: 79.04, Over: 20.96
+Spotkanie: Darmstadt - Eintracht Brunszwik
+Under: 10.98, Over: 89.01
+Spotkanie: Hannover - Kaiserslautern
+Under: 28.46, Over: 71.54
+Spotkanie: Ulm - 1. FC Nürnberg
+Under: 68.16, Over: 31.84
+Spotkanie: Southampton - Manchester Utd
+Under: 27.63, Over: 72.37
+Spotkanie: Leeds - Burnley
+Under: 20.84, Over: 79.16
+Spotkanie: Millwall - Luton
+Under: 32.03, Over: 67.96
+Spotkanie: Oxford Utd - Stoke
+Under: 58.51, Over: 41.49
+Spotkanie: Mallorca - Villarreal
+Under: 55.28, Over: 44.72
+Spotkanie: Bregenz - Lafnitz
+Under: 16.33, Over: 83.66
+Spotkanie: Floridsdorfer AC - Liefering
+Under: 20.25, Over: 79.74
+Spotkanie: Paris FC - Metz
+Under: 15.22, Over: 84.78
+Spotkanie: Stal Stalowa Wola - Wisła Płock
+Under: 23.23, Over: 76.77
+Spotkanie: Lechia Gdańsk - Radomiak Radom
+Under: 3.06, Over: 96.94
+Spotkanie: Academico Viseu - Leiria
+Under: 75.43, Over: 24.56
+Spotkanie: Bandirmaspor - Amedspor
+Under: 93.89, Over: 6.10
+Spotkanie: Yeni Malatyaspor - Corum
+Under: 61.54, Over: 38.46
+Spotkanie: Como - Bologna
+Under: 60.26, Over: 39.75
+Spotkanie: Bari - Mantova
+Under: 97.11, Over: 2.89
+Spotkanie: Brescia - Frosinone
+Under: 58.72, Over: 41.27
+Spotkanie: Cittadella - Catanzaro
+Under: 80.87, Over: 19.13
+Spotkanie: Cremonese - Spezia
+Under: 72.64, Over: 27.36
+Spotkanie: Juve Stabia - Palermo
+Under: 69.53, Over: 30.46
+Spotkanie: B. Moenchengladbach - VfB Stuttgart
+Under: 5.87, Over: 94.14
+Spotkanie: RB Lipsk - 1. FC Union Berlin
+Under: 21.06, Over: 78.96
+Spotkanie: SC Freiburg - Bochum
+Under: 36.30, Over: 63.70
+Spotkanie: TSG Hoffenheim - Bayer Leverkusen
+Under: 1.32, Over: 98.68
+Spotkanie: VfL Wolfsburg - Eintracht Frankfurt
+Under: 31.15, Over: 68.84
+Spotkanie: Brighton - Ipswich
+Under: 30.64, Over: 69.35
+Spotkanie: Crystal Palace - Leicester
+Under: 38.87, Over: 61.12
+Spotkanie: Fulham - West Ham
+Under: 20.98, Over: 79.02
+Spotkanie: Liverpool - Nottingham
+Under: 44.87, Over: 55.13
+Spotkanie: Manchester City - Brentford
+Under: 7.99, Over: 92.00
+Spotkanie: Blackburn - Bristol City
+Under: 10.15, Over: 89.85
+Spotkanie: Derby - Cardiff
+Under: 57.82, Over: 42.17
+Spotkanie: Middlesbrough - Preston
+Under: 94.74, Over: 5.26
+Spotkanie: Plymouth - Sunderland
+Under: 93.76, Over: 6.24
+Spotkanie: Sheffield Wed - QPR
+Under: 7.59, Over: 92.41
+Spotkanie: Swansea - Norwich
+Under: 44.97, Over: 55.03
+Spotkanie: Watford - Coventry
+Under: 33.53, Over: 66.46
+Spotkanie: Cercle Brugge - Genk
+Under: 40.71, Over: 59.28
+Spotkanie: Francs Borains - Lommel SK
+Under: 74.63, Over: 25.37
+Spotkanie: Samsunspor - Konyaspor
+Under: 66.04, Over: 33.95
+Spotkanie: Sivasspor - Gaziantep
+Under: 68.18, Over: 31.82
+Spotkanie: Espanyol - Alaves
+Under: 89.45, Over: 10.56
+Spotkanie: Eibar - Tenerife
+Under: 67.65, Over: 32.35
+Spotkanie: Levante - Eldense
+Under: 93.30, Over: 6.71
+Spotkanie: PSV - Nijmegen
+Under: 0.78, Over: 99.22
+Spotkanie: Twente - Zwolle
+Under: 6.15, Over: 93.86
+Spotkanie: Casa Pia - Moreirense
+Under: 43.05, Over: 56.95
+Spotkanie: Salzburg - A. Klagenfurt
+Under: 2.60, Over: 97.40
+Spotkanie: Wolfsberger - SK Rapid
+Under: 17.42, Over: 82.57
+Spotkanie: Marsylia - Nice
+Under: 2.15, Over: 97.85
+Spotkanie: Polonia Warszawa - Odra Opole
+Under: 70.44, Over: 29.55
+Spotkanie: Cracovia - Pogoń Szczecin
+Under: 10.61, Over: 89.40
+Spotkanie: Istanbulspor - Umraniyespor
+Under: 7.76, Over: 92.24
+Spotkanie: Sakaryaspor - Sanliurfaspor
+Under: 57.61, Over: 42.39
+Spotkanie: Empoli - Juventus
+Under: 60.54, Over: 39.45
+Spotkanie: Kortrijk - Club Brugge
+Under: 88.80, Over: 11.21
+Spotkanie: Aston Villa - Everton
+Under: 14.60, Over: 85.40
+Spotkanie: Sevilla - Getafe
+Under: 94.03, Over: 5.97
+Spotkanie: Malaga - Huesca
+Under: 82.84, Over: 17.14
+Spotkanie: Racing Santander - Gijon
+Under: 54.50, Over: 45.48
+Spotkanie: Kiel - Bayern Monachium
+Under: 38.56, Over: 61.44
+Spotkanie: Groningen - Feyenoord
+Under: 4.49, Over: 95.52
+Spotkanie: Auxerre - Monaco
+Under: 45.65, Over: 54.35
+Spotkanie: AVS - Rio Ave
+Under: 61.02, Over: 38.99
+Spotkanie: Bodrumspor - Basaksehir
+Under: 5.02, Over: 94.98
+Spotkanie: Galatasaray - Rizespor
+Under: 32.59, Over: 67.40
+Spotkanie: BW Linz - LASK
+Under: 50.38, Over: 49.63
+Spotkanie: Stal Rzeszów - Bruk-Bet T.
+Under: 8.35, Over: 91.65
+Spotkanie: Sturm Graz (Am) - Stripfing
+Under: 36.28, Over: 63.72
+Spotkanie: RFC Liege - Anderlecht U23
+Under: 26.52, Over: 73.47
+Spotkanie: RWDM - K. Lierse S.K.
+Under: 53.22, Over: 46.79
+Spotkanie: Breda - Sittard
+Under: 7.87, Over: 92.15
+Spotkanie: Lech Poznań - Jagiellonia Białystok
+Under: 22.02, Over: 77.98
+Spotkanie: 1. FC Koeln - Magdeburg
+Under: 22.89, Over: 77.11
+Spotkanie: Anderlecht - Westerlo
+Under: 27.97, Over: 72.03
+Spotkanie: AC Milan - Venezia
+Under: 51.44, Over: 48.55
+Spotkanie: Bournemouth - Chelsea
+Under: 6.38, Over: 93.61
+Spotkanie: PSG - Brest
+Under: 8.14, Over: 91.86
+Spotkanie: Real Sociedad - Real Madryt
+Under: 54.75, Over: 45.25
+Spotkanie: Alkmaar - Heerenveen
+Under: 52.65, Over: 47.36
+Spotkanie: Benfica - Santa Clara
+Under: 73.71, Over: 26.29
+Spotkanie: Famalicao - Gil Vicente
+Under: 46.45, Over: 53.55
+Spotkanie: Toluca - Tijuana
+Under: 9.97, Over: 90.04
+Spotkanie: Atlanta Utd - Nashville SC
+Under: 33.99, Over: 66.01
+Spotkanie: CF Montreal - Charlotte
+Under: 23.40, Over: 76.61
+Spotkanie: Cincinnati - Columbus Crew
+Under: 28.09, Over: 71.92
+Spotkanie: DC United - New York City
+Under: 8.08, Over: 91.92
+Spotkanie: Inter Miami - Philadelphia Union
+Under: 2.29, Over: 97.71
+Spotkanie: Orlando City - New England Revolution
+Under: 11.33, Over: 88.67
+Spotkanie: Toronto FC - Austin FC
+Under: 98.32, Over: 1.68
+Spotkanie: Chicago Fire - New York Red Bulls
+Under: 39.11, Over: 60.88
+Spotkanie: Houston Dynamo - Real Salt Lake
+Under: 68.61, Over: 31.38
+Spotkanie: St. Louis City - Minnesota
+Under: 2.55, Over: 97.45
+Spotkanie: Club America - Guadalajara
+Under: 47.96, Over: 52.03
+Spotkanie: Colorado Rapids - Portland Timbers
+Under: 2.48, Over: 97.51
+Spotkanie: Los Angeles Galaxy - Los Angeles FC
+Under: 14.55, Over: 85.46
+Spotkanie: Vancouver Whitecaps - San Jose Earthquakes
+Under: 59.73, Over: 40.28
+Spotkanie: Leon - Cruz Azul
+Under: 68.79, Over: 31.21
+Spotkanie: Santos Laguna - Monterrey
+Under: 42.43, Over: 57.57
+Spotkanie: Iwaki - V-Varen Nagasaki
+Under: 13.48, Over: 86.52
+Spotkanie: Gimcheon Sangmu - Incheon
+Under: 75.49, Over: 24.50
+Spotkanie: Gyeongnam - Bucheon
+Under: 15.11, Over: 84.89
+Spotkanie: Jeonnam - Busan
+Under: 43.25, Over: 56.76
+Spotkanie: Horn - First Vienna
+Under: 18.56, Over: 81.44
+Spotkanie: Kagoshima Utd - Kumamoto
+Under: 88.80, Over: 11.21
+Spotkanie: Yokohama FC - Kofu
+Under: 68.68, Over: 31.31
+Spotkanie: Tochigi - Mito
+Under: 44.00, Over: 56.01
+Spotkanie: Gimpo FC - Anyang
+Under: 39.24, Over: 60.76
+Spotkanie: Mafra - Tondela
+Under: 65.69, Over: 34.30
+Spotkanie: Maritimo - Alverca
+Under: 48.43, Over: 51.56
+Spotkanie: Sparta Rotterdam - Go Ahead Eagles
+Under: 95.57, Over: 4.44
+Spotkanie: Piast Gliwice - Puszcza Niepołomice
+Under: 63.05, Over: 36.95
+Spotkanie: Genoa - AS Roma
+Under: 99.55, Over: 0.46
+Spotkanie: Antwerp - Royale Union SG
+Under: 39.99, Over: 60.01
+Spotkanie: Eupen - Waregem
+Under: 88.22, Over: 11.80
+Spotkanie: Furth - Elversberg
+Under: 8.71, Over: 91.30
+Spotkanie: Hamburger SV - Regensburg
+Under: 34.50, Over: 65.50
+Spotkanie: Hertha Berlin - Fortuna Düsseldorf
+Under: 36.86, Over: 63.14
+Spotkanie: Penafiel - FC Porto B
+Under: 18.60, Over: 81.41
+Spotkanie: Celta Vigo - Valladolid
+Under: 11.23, Over: 88.78
+Spotkanie: Mirandes - Albacete
+Under: 88.76, Over: 11.23
+Spotkanie: Grazer - Altach
+Under: 29.26, Over: 70.74
+Spotkanie: Hartberg - Tirol
+Under: 95.34, Over: 4.65
+Spotkanie: Willem II - Waalwijk
+Under: 4.30, Over: 95.71
+Spotkanie: Arka Gdynia - Kotwica Kołobrzeg
+Under: 70.99, Over: 29.02
+Spotkanie: Korona Kielce - Zagłębie Lubin
+Under: 82.55, Over: 17.45
+Spotkanie: Tottenham - Arsenal
+Under: 69.83, Over: 30.17
+Spotkanie: Rennes - Montpellier
+Under: 12.83, Over: 87.17
+Spotkanie: Karagumruk - Ankaragucu
+Under: 43.21, Over: 56.79
+Spotkanie: Atalanta - Fiorentina
+Under: 7.51, Over: 92.49
+Spotkanie: Torino - Lecce
+Under: 52.26, Over: 47.75
+Spotkanie: Carrarese - Sassuolo
+Under: 48.94, Over: 51.07
+Spotkanie: Cosenza - Sampdoria
+Under: 78.27, Over: 21.74
+Spotkanie: Reggiana - Sudtirol
+Under: 56.24, Over: 43.76
+Spotkanie: Salernitana - Pisa
+Under: 25.33, Over: 74.67
+Spotkanie: FC Augsburg - St. Pauli
+Under: 90.39, Over: 9.60
+Spotkanie: Portsmouth - West Brom
+Under: 62.38, Over: 37.62
+Spotkanie: St. Truiden - Leuven
+Under: 9.62, Over: 90.39
+Spotkanie: Beveren - Genk U23
+Under: 17.80, Over: 82.20
+Spotkanie: Kasimpasa - Fenerbahce
+Under: 8.18, Over: 91.81
+Spotkanie: Kayserispor - Eyupspor
+Under: 40.37, Over: 59.64
+Spotkanie: Girona - Barcelona
+Under: 5.24, Over: 94.76
+Spotkanie: R. Oviedo - Cartagena
+Under: 59.13, Over: 40.87
+Spotkanie: FC Porto - Farense
+Under: 46.24, Over: 53.76
+Spotkanie: Benfica B - Oliveirense
+Under: 26.21, Over: 73.78
+Spotkanie: Leixoes - Vizela
+Under: 51.24, Over: 48.76
+Spotkanie: Heracles - Almere City
+Under: 15.94, Over: 84.06
+Spotkanie: Austria Wiedeń - Sturm Graz
+Under: 49.74, Over: 50.26
+Spotkanie: Nantes - Reims
+Under: 56.63, Over: 43.37
+Spotkanie: Strasbourg - Angers
+Under: 36.43, Over: 63.58
+Spotkanie: Toulouse - Le Havre
+Under: 78.37, Over: 21.63
+Spotkanie: Górnik Łęczna - Miedź Legnica
+Under: 48.01, Over: 51.99
+Spotkanie: Wolves - Newcastle
+Under: 5.11, Over: 94.90
+Spotkanie: 1. FSV Mainz 05 - Werder Brema
+Under: 40.90, Over: 59.10
+Spotkanie: Legia Warszawa - Raków Częstochowa
+Under: 6.10, Over: 93.90
+Spotkanie: Genclerbirligi - Erzurumspor
+Under: 89.14, Over: 10.87
+Spotkanie: Kocaelispor - Manisa FK
+Under: 60.69, Over: 39.32
+Spotkanie: Cagliari - Napoli
+Under: 54.93, Over: 45.06
+Spotkanie: Charleroi - Beerschot VA
+Under: 17.74, Over: 82.26
+Spotkanie: Las Palmas - Ath. Bilbao
+Under: 74.49, Over: 25.50
+Spotkanie: Burgos CF - Zaragoza
+Under: 43.66, Over: 56.34
+Spotkanie: Cadiz - Racing Club Ferrol
+Under: 33.59, Over: 66.40
+Spotkanie: Estoril - Nacional
+Under: 58.74, Over: 41.25
+Spotkanie: Alanyaspor - Hatayspor
+Under: 49.20, Over: 50.79
+Spotkanie: Trabzonspor - Besiktas
+Under: 33.93, Over: 66.06
+Spotkanie: Gent - KV Mechelen
+Under: 43.40, Over: 56.61
+Spotkanie: Lens - Lyon
+Under: 40.88, Over: 59.13
+Spotkanie: Monza - Inter
+Under: 57.44, Over: 42.55
+Spotkanie: Atl. Madryt - Valencia
+Under: 80.45, Over: 19.55
+Spotkanie: Elche - Granada
+Under: 27.31, Over: 72.70
+Spotkanie: Braga - Guimaraes
+Under: 85.41, Over: 14.59
+Spotkanie: Seattle Sounders - Sporting Kansas City
+Under: 53.10, Over: 46.91
+Spotkanie: Parma - Udinese
+Under: 61.88, Over: 38.12
+Spotkanie: Śląsk Wrocław - Stal Mielec
+Under: 53.94, Over: 46.06
+Spotkanie: GKS Tychy - Ruch Chorzów
+Under: 75.72, Over: 24.28
+Spotkanie: Znicz Pruszków - Chrobry Głogów
+Under: 43.13, Over: 56.86
+Spotkanie: Feirense - Ferreira
+Under: 75.21, Over: 24.79
+Spotkanie: Antalyaspor - Adana Demirspor
+Under: 2.32, Over: 97.67
+Spotkanie: Adanaspor - Keciorengucu
+Under: 38.48, Over: 61.51
+Spotkanie: Almeria - Castellon
+Under: 69.46, Over: 30.54
+Spotkanie: Grenoble - Caen
+Under: 40.04, Over: 59.96
+Spotkanie: Lazio - Verona
+Under: 34.54, Over: 65.47
+Spotkanie: Vallecano - Osasuna
+Under: 67.55, Over: 32.44
+Spotkanie: Estrela - Boavista
+Under: 85.66, Over: 14.33
+Spotkanie: Lausanne - Lugano
+Under: 9.66, Over: 90.35
+Spotkanie: Lausanne Ouchy - Wil
+Under: 2.46, Over: 97.54
+Spotkanie: Nyonnais - Etoile-Carouge
+Under: 10.92, Over: 89.09
+Spotkanie: Schaffhausen - Xamax
+Under: 34.29, Over: 65.72
+Spotkanie: Thun - Bellinzona
+Under: 4.34, Over: 95.65
+Spotkanie: Vaduz - Aarau
+Under: 15.28, Over: 84.71
