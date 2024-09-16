@@ -60,8 +60,8 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
     # detailScore__wrapper - wynik meczu
     driver.get(link)
     time.sleep(2) # Let the user actually see something!
-    # Znajdź wszystkie divy o klasie '_row_ciop9_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_ciop9_8")
+    # Znajdź wszystkie divy o klasie '_row_1y0py_8'
+    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1y0py_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -145,8 +145,8 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
         'home_team' : 0,
         'away_team' : 0,
         'game_date' : 0}
-    # Znajdź wszystkie divy o klasie '_row_1nw75_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1nw75_8")
+    # Znajdź wszystkie divy o klasie '_row_1y0py_8'
+    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1y0py_8")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -162,6 +162,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
+    #print("{} - {} data: {}".format(match_data['home_team'], match_data['away_team'], match_data['game_date']))
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
     #record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
