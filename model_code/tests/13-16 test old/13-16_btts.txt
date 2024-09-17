@@ -1,0 +1,196 @@
+Spotkanie: Yokohama M. - Kyoto
+Tak: 83.64, Nie: 16.36
+Spotkanie: Kobe - C-Osaka
+Tak: 44.22, Nie: 55.78
+Spotkanie: Kawasaki - Sagan Tosu
+Tak: 58.29, Nie: 41.71
+Spotkanie: Ulsan HD - Gangwon
+Tak: 68.83, Nie: 31.17
+Spotkanie: Gwangju - Pohang
+Tak: 48.87, Nie: 51.13
+Spotkanie: ŁKS Łódź - Pogoń Siedlce
+Tak: 53.80, Nie: 46.20
+Spotkanie: Motor Lublin - Górnik Zabrze
+Tak: 49.46, Nie: 50.54
+Spotkanie: Borussia Dortmund - Heidenheim
+Tak: 78.29, Nie: 21.71
+Spotkanie: Wisła Kraków - Warta Poznań
+Tak: 48.17, Nie: 51.83
+Spotkanie: GKS Katowice - Widzew Łódź
+Tak: 38.86, Nie: 61.14
+Spotkanie: St. Etienne - Lille
+Tak: 48.33, Nie: 51.67
+Spotkanie: Betis - Leganes
+Tak: 28.87, Nie: 71.13
+Spotkanie: Sapporo - Verdy
+Tak: 68.75, Nie: 31.25
+Spotkanie: Cheongju Jikji - Seoul E-Land
+Tak: 45.55, Nie: 54.45
+Spotkanie: Seoul - Daejeon
+Tak: 59.32, Nie: 40.68
+Spotkanie: Avispa Fukuoka - Machida
+Tak: 46.73, Nie: 53.27
+Spotkanie: Vegalta Sendai - Fujieda MYFC
+Tak: 50.80, Nie: 49.20
+Spotkanie: Kashima - Hiroshima
+Tak: 61.52, Nie: 38.48
+Spotkanie: Shimizu - Renofa Yamaguchi
+Tak: 64.46, Nie: 35.54
+Spotkanie: Okayama - Ehime
+Tak: 42.79, Nie: 57.21
+Spotkanie: Tokushima - Oita
+Tak: 40.27, Nie: 59.73
+Spotkanie: Yamagata - Kusatsu
+Tak: 56.54, Nie: 43.46
+Spotkanie: Suwon FC - Jeonbuk
+Tak: 57.21, Nie: 42.79
+Spotkanie: Jeju - Daegu
+Tak: 41.99, Nie: 58.01
+Spotkanie: Asan - Ansan Greeners
+Tak: 65.54, Nie: 34.46
+Spotkanie: Kashiwa - Iwata
+Tak: 43.60, Nie: 56.40
+Spotkanie: Suwon Bluewings - Cheonan City
+Tak: 65.83, Nie: 34.17
+Spotkanie: Blaublitz - Chiba
+Tak: 55.98, Nie: 44.02
+Spotkanie: Albirex Niigata - Shonan
+Tak: 47.26, Nie: 52.74
+Spotkanie: G-Osaka - Urawa
+Tak: 40.90, Nie: 59.10
+Spotkanie: Tokyo - Nagoya
+Tak: 44.65, Nie: 55.35
+Spotkanie: Southampton - Manchester Utd
+Tak: 46.93, Nie: 53.07
+Spotkanie: Mallorca - Villarreal
+Tak: 55.64, Nie: 44.36
+Spotkanie: Stal Stalowa Wola - Wisła Płock
+Tak: 49.18, Nie: 50.82
+Spotkanie: Lechia Gdańsk - Radomiak Radom
+Tak: 57.44, Nie: 42.56
+Spotkanie: Como - Bologna
+Tak: 28.37, Nie: 71.63
+Spotkanie: RB Lipsk - 1. FC Union Berlin
+Tak: 64.15, Nie: 35.85
+Spotkanie: VfL Wolfsburg - Eintracht Frankfurt
+Tak: 58.49, Nie: 41.51
+Spotkanie: SC Freiburg - Bochum
+Tak: 41.50, Nie: 58.50
+Spotkanie: TSG Hoffenheim - Bayer Leverkusen
+Tak: 84.97, Nie: 15.03
+Spotkanie: B. Moenchengladbach - VfB Stuttgart
+Tak: 65.53, Nie: 34.47
+Spotkanie: Brighton - Ipswich
+Tak: 50.37, Nie: 49.63
+Spotkanie: Crystal Palace - Leicester
+Tak: 56.68, Nie: 43.32
+Spotkanie: Fulham - West Ham
+Tak: 57.85, Nie: 42.15
+Spotkanie: Liverpool - Nottingham
+Tak: 67.12, Nie: 32.88
+Spotkanie: Manchester City - Brentford
+Tak: 74.39, Nie: 25.61
+Spotkanie: Espanyol - Alaves
+Tak: 38.09, Nie: 61.91
+Spotkanie: Marsylia - Nice
+Tak: 74.98, Nie: 25.02
+Spotkanie: Polonia Warszawa - Odra Opole
+Tak: 45.14, Nie: 54.86
+Spotkanie: Cracovia - Pogoń Szczecin
+Tak: 68.11, Nie: 31.89
+Spotkanie: Empoli - Juventus
+Tak: 66.31, Nie: 33.69
+Spotkanie: Sevilla - Getafe
+Tak: 32.24, Nie: 67.76
+Spotkanie: Kiel - Bayern Monachium
+Tak: 53.35, Nie: 46.65
+Spotkanie: Aston Villa - Everton
+Tak: 45.06, Nie: 54.94
+Spotkanie: Auxerre - Monaco
+Tak: 57.76, Nie: 42.24
+Spotkanie: Stal Rzeszów - Bruk-Bet T.
+Tak: 79.45, Nie: 20.55
+Spotkanie: Lech Poznań - Jagiellonia Białystok
+Tak: 59.64, Nie: 40.36
+Spotkanie: AC Milan - Venezia
+Tak: 38.73, Nie: 61.27
+Spotkanie: Real Sociedad - Real Madryt
+Tak: 35.23, Nie: 64.77
+Spotkanie: PSG - Brest
+Tak: 79.65, Nie: 20.35
+Spotkanie: Bournemouth - Chelsea
+Tak: 61.80, Nie: 38.20
+Spotkanie: Iwaki - V-Varen Nagasaki
+Tak: 58.90, Nie: 41.10
+Spotkanie: Gyeongnam - Bucheon
+Tak: 48.38, Nie: 51.62
+Spotkanie: Jeonnam - Busan
+Tak: 46.06, Nie: 53.94
+Spotkanie: Gimcheon Sangmu - Incheon
+Tak: 38.64, Nie: 61.36
+Spotkanie: Yokohama FC - Kofu
+Tak: 64.67, Nie: 35.33
+Spotkanie: Kagoshima Utd - Kumamoto
+Tak: 36.75, Nie: 63.25
+Spotkanie: Gimpo FC - Anyang
+Tak: 58.81, Nie: 41.19
+Spotkanie: Tochigi - Mito
+Tak: 46.86, Nie: 53.14
+Spotkanie: Piast Gliwice - Puszcza Niepołomice
+Tak: 48.58, Nie: 51.42
+Spotkanie: Genoa - AS Roma
+Tak: 29.48, Nie: 70.52
+Spotkanie: Celta Vigo - Valladolid
+Tak: 47.61, Nie: 52.39
+Spotkanie: Arka Gdynia - Kotwica Kołobrzeg
+Tak: 52.12, Nie: 47.88
+Spotkanie: Korona Kielce - Zagłębie Lubin
+Tak: 33.23, Nie: 66.77
+Spotkanie: Rennes - Montpellier
+Tak: 40.68, Nie: 59.32
+Spotkanie: Tottenham - Arsenal
+Tak: 55.42, Nie: 44.58
+Spotkanie: Atalanta - Fiorentina
+Tak: 64.10, Nie: 35.90
+Spotkanie: Torino - Lecce
+Tak: 42.09, Nie: 57.91
+Spotkanie: FC Augsburg - St. Pauli
+Tak: 36.75, Nie: 63.25
+Spotkanie: Girona - Barcelona
+Tak: 82.84, Nie: 17.16
+Spotkanie: Toulouse - Le Havre
+Tak: 49.02, Nie: 50.98
+Spotkanie: Górnik Łęczna - Miedź Legnica
+Tak: 66.32, Nie: 33.68
+Spotkanie: Strasbourg - Angers
+Tak: 51.98, Nie: 48.02
+Spotkanie: Nantes - Reims
+Tak: 56.20, Nie: 43.80
+Spotkanie: Legia Warszawa - Raków Częstochowa
+Tak: 61.09, Nie: 38.91
+Spotkanie: Wolves - Newcastle
+Tak: 50.05, Nie: 49.95
+Spotkanie: 1. FSV Mainz 05 - Werder Brema
+Tak: 71.98, Nie: 28.02
+Spotkanie: Cagliari - Napoli
+Tak: 47.45, Nie: 52.55
+Spotkanie: Las Palmas - Ath. Bilbao
+Tak: 39.38, Nie: 60.62
+Spotkanie: Lens - Lyon
+Tak: 49.54, Nie: 50.46
+Spotkanie: Monza - Inter
+Tak: 46.43, Nie: 53.57
+Spotkanie: Atl. Madryt - Valencia
+Tak: 52.21, Nie: 47.79
+Spotkanie: Parma - Udinese
+Tak: 49.99, Nie: 50.01
+Spotkanie: GKS Tychy - Ruch Chorzów
+Tak: 41.66, Nie: 58.34
+Spotkanie: Śląsk Wrocław - Stal Mielec
+Tak: 36.36, Nie: 63.64
+Spotkanie: Znicz Pruszków - Chrobry Głogów
+Tak: 48.55, Nie: 51.45
+Spotkanie: Lazio - Verona
+Tak: 64.23, Nie: 35.77
+Spotkanie: Vallecano - Osasuna
+Tak: 43.74, Nie: 56.26

@@ -214,6 +214,7 @@ class DataPrep:
                                     powers["{}a_def".format(pair[1])],
                                     sum(last_five_matches[pair[0]]) / 5,
                                     sum(last_five_matches[pair[1]]) / 5])
+            print("BTTS: {} - {}".format(last_five_matches[pair[0]], last_five_matches[pair[1]]))
             external_test.append(match_schedule)
         return external_test
     

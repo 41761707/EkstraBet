@@ -220,8 +220,8 @@ class Model:
 
 
     def divide_set(self):
-        first = int(len(self.indexes) * 0.95)
-        second = int(len(self.indexes) * 0.99)
+        first = int(len(self.indexes) * 0.90)
+        second = int(len(self.indexes) * 0.95)
         self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
         self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
         self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
@@ -302,7 +302,7 @@ class Model:
                     layers.Dense(32, activation = 'relu'),
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(1)])
-            cp = ModelCheckpoint('model_goals/', save_best_only = True)
+            cp = ModelCheckpoint('model_goals_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
             self.model.load_weights('model_goals_release/model_weights.h5')
             self.model.compile(loss='mse', 
@@ -322,13 +322,13 @@ class Model:
                     layers.Dense(16, activation = 'relu'),
                     layers.Dense(7, activation = 'softmax')])
             cp = ModelCheckpoint('model_goals_ppb_release/', save_best_only = True)
-            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
+            es = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
             self.model.load_weights('model_goals_ppb_release/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
             self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
-            self.model.save_weights('model_goals_ppb_release/model_weights.h5')
+            self.model.save_weights('model_goals_ppb_correct_calc/model_weights.h5')
             #print(self.model.summary())
         else:
             self.model = load_model('model_goals_ppb_release/')
@@ -363,9 +363,8 @@ class Model:
                     layers.Dense(2, activation = 'softmax')])
             cp = ModelCheckpoint('model_btts_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            #self.model.load_weights('model_btts_dev/model_weights.h5')
+            self.model.load_weights('model_btts_release/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
-            #self.model.compile(loss=self.ranked_probability_score, 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
 
@@ -384,6 +383,7 @@ class Model:
                     layers.Dense(2, activation = 'softmax')])
             cp = ModelCheckpoint('model_ou_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
+            self.model.load_weights('model_ou_release/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy',  
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])
