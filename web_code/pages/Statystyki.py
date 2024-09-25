@@ -55,6 +55,10 @@ def main():
             stats_module.aggregate_leagues_acc(11, conn)
     with st.expander("Charakterystyki ligowe - porównanie"):
         st.write("Charakterystyki ligowe - porównanie")
+    with st.expander("Pewność modelu a poprawność"):
+        st.write("Pewność modelu a poprawność")
+    with st.expander("Kurs wybranego zakładu a poprawość"):
+        st.write("Kurs wybranego zakładu a poprawość")
     conn.close()
 
 if __name__ == '__main__':
