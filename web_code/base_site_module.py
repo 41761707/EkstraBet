@@ -96,7 +96,8 @@ class Base:
         with st.expander("Statystyki ligowe"):
             st.header("Charakterstyki ligi: {}".format(self.name))
             st.subheader("Do tej pory rozegrano {} meczów w ramach ligi: {}".format(no_games[0][0], self.name))
-            stats_module.league_charachteristics(self.conn, self.league, self.season, self.teams_dict, no_games[0][0])
+            if no_games[0][0] > 0:
+                stats_module.league_charachteristics(self.conn, self.league, self.season, self.teams_dict, no_games[0][0])
         with st.expander("Statystyki predykcji"):
             st.header("Podsumowanie predykcji wykonanych dla ligi {} w sezonie {}".format(self.name, self.years))
             if self.round > 1:

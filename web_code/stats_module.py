@@ -522,11 +522,20 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     result_correct.append(int(avgs[0][4]))
     
     ou_acc = [int(x[2] * 100) for x in predictions_ratio]
-    ou_acc.append(round(float(avgs[0][0]), 2))
     btts_acc = [int(x[3] * 100) for x in predictions_ratio]
-    btts_acc.append(round(float(avgs[0][1]), 2))
     result_acc = [int(x[1] * 100) for x in predictions_ratio]
-    result_acc.append(round(float(avgs[0][2]), 2))
+    if avgs[0][0] is None:
+        ou_acc.append(0)
+    else:
+        ou_acc.append(round(float(avgs[0][0]), 2))
+    if avgs[0][1] is None:
+        btts_acc.append(0)
+    else:
+        btts_acc.append(round(float(avgs[0][1]), 2))
+    if avgs[0][2] is None:
+        result_acc.append(0)
+    else:
+        result_acc.append(round(float(avgs[0][2]), 2))
 
     tab1, tab2, tab3 = st.tabs(["Predykcje OU", "Predykcje BTTS", "Predykcje REZULTAT"])
     with tab1:
@@ -542,7 +551,8 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True, hide_index=True)
         with col2:
-            graphs_module.team_compare_graph(teams, ou_acc)
+            if avgs[0][0] is not None:
+                graphs_module.team_compare_graph(teams, ou_acc)
     
     with tab2:
         col3, col4 = st.columns(2)
@@ -557,7 +567,8 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True, hide_index=True)
         with col4:
-            graphs_module.team_compare_graph(teams, btts_acc)
+            if avgs[0][1] is not None:
+                graphs_module.team_compare_graph(teams, btts_acc)
 
     with tab3:
         col5, col6 = st.columns(2)
@@ -572,7 +583,8 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True, hide_index=True)
         with col6:
-            graphs_module.team_compare_graph(teams, result_acc)  
+            if avgs[0][2] is not None:
+                graphs_module.team_compare_graph(teams, result_acc)  
 
 
 def aggregate_leagues_acc(season_id, conn):

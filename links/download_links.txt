@@ -376,3 +376,25 @@
 41 3 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2021-2022/wyniki/
 41 4 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2020-2021/wyniki/
 41 5 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2019-2020/wyniki/
+
+------------------------------------- NHL --------------------------------------
+45 11 https://www.flashscore.pl/hokej/usa/nhl-2024-2025/wyniki/
+45 1 https://www.flashscore.pl/hokej/usa/nhl-2023-2024/wyniki/
+45 2 https://www.flashscore.pl/hokej/usa/nhl-2022-2023/wyniki/
+45 3 https://www.flashscore.pl/hokej/usa/nhl-2021-2022/wyniki/
+45 4 https://www.flashscore.pl/hokej/usa/nhl-2020-2021/wyniki/
+45 5 https://www.flashscore.pl/hokej/usa/nhl-2019-2020/wyniki/
+45 6 https://www.flashscore.pl/hokej/usa/nhl-2018-2019/wyniki/
+45 7 https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/
+45 8 https://www.flashscore.pl/hokej/usa/nhl-2016-2017/wyniki/
+
+------------------------------------- NBA --------------------------------------
+46 11 https://www.flashscore.pl/koszykowka/usa/nba-2024-2025/wyniki/ 
+46 1 https://www.flashscore.pl/koszykowka/usa/nba-2023-2024/wyniki/
+46 2 https://www.flashscore.pl/koszykowka/usa/nba-2022-2023/wyniki/
+46 3 https://www.flashscore.pl/koszykowka/usa/nba-2021-2022/wyniki/
+46 4 https://www.flashscore.pl/koszykowka/usa/nba-2020-2021/wyniki/
+46 5 https://www.flashscore.pl/koszykowka/usa/nba-2019-2020/wyniki/
+46 6 https://www.flashscore.pl/koszykowka/usa/nba-2018-2019/wyniki/
+46 7 https://www.flashscore.pl/koszykowka/usa/nba-2017-2018/wyniki/
+46 8 https://www.flashscore.pl/koszykowka/usa/nba-2016-2017/wyniki/

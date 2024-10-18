@@ -47,8 +47,9 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, tea
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    if int(round) != round_to_d:
-        return -1
+    if league_id != 25:
+        if int(round) != round_to_d:
+            return -1
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
     id = record.iloc[0]['id']
     if id == -1:

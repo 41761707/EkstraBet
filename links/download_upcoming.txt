@@ -105,3 +105,9 @@
 
 ---------------------------------- DYWIZJA 2 -----------------------------------
 41 11 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2024-2025/mecze/ 
+
+------------------------------------- NHL --------------------------------------
+45 11 https://www.flashscore.pl/hokej/usa/nhl-2024-2025/mecze/
+
+------------------------------------- NBA --------------------------------------
+46 11 https://www.flashscore.pl/koszykowka/usa/nba-2024-2025/mecze/
