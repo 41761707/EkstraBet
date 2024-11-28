@@ -703,3 +703,7 @@ def aggregate_leagues_acc(season_id, conn):
             st.dataframe(df, use_container_width=True, hide_index=True)
         with col6:
             graphs_module.team_compare_graph(teams, result_acc)  
+
+
+
+

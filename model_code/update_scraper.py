@@ -23,6 +23,13 @@ def get_match_links(games, driver):
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}/#/szczegoly-meczu/statystyki-meczu/0'.format(id))
     return links
+
+def update_db(queries, conn):
+    print("HALKO")
+    for query in queries:
+        cursor = conn.cursor() #DO POPRAWKI NATYCHMIAST
+        cursor.execute(query)
+        conn.commit()
                 
 
 def update_match_data(driver, league_id, season_id, link, match_id, team_id):
@@ -61,7 +68,7 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
     driver.get(link)
     time.sleep(2) # Let the user actually see something!
     # Znajdź wszystkie divy o klasie '_row_18zuy_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_18zuy_8")
+    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -146,7 +153,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
         'away_team' : 0,
         'game_date' : 0}
     # Znajdź wszystkie divy o klasie '_row_1y0py_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_1y0py_8")
+    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -182,7 +189,7 @@ def main():
     results = cursor.fetchall()
     round_to_d = results[0][0]
     print("RUNDA: ",round_to_d)
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date - 1".format(league_id, season_id, round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date - 1 ".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -228,6 +235,7 @@ def main():
 WHERE (`id` = '{id}');'''.format(**match_data)
         print(sql)
         inserts.append(sql)
+    update_db(inserts, conn)
     conn.close()
 if __name__ == '__main__':
     main()

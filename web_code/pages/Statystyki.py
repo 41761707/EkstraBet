@@ -32,6 +32,9 @@ def main():
         if st.button("Statystyki predykcji, sezon 2024/25", use_container_width=True):
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where result != '0' and season = 11"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
+        if st.button("Statystyki predykcji z ostatniego miesiąca", use_container_width=True):
+            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) and result != '0'"
+            stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
         if st.button("Statystyki predykcji z ostatniego tygodnia", use_container_width=True):
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) and result != '0'"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
@@ -53,6 +56,11 @@ def main():
             stats_module.aggregate_leagues_acc(1, conn)
         if st.button("Sezon 2024/25", use_container_width= True):
             stats_module.aggregate_leagues_acc(11, conn)
+    '''with st.expander("Profit z zakładów - porównanie między ligami"):
+        if st.button("Profit, sezon 2023/24", use_container_width= True):
+            stats_module.aggregate_leagues_profit(1, conn)
+        if st.button("Profit, sezon 2024/25", use_container_width= True):
+            stats_module.aggregate_leagues_profit(11, conn)'''
     with st.expander("Charakterystyki ligowe - porównanie"):
         st.write("Charakterystyki ligowe - porównanie")
     with st.expander("Pewność modelu a poprawność"):

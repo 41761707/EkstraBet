@@ -18,7 +18,7 @@ class Base:
         self.date = datetime.today().strftime('%Y-%m-%d')
         self.conn = db_module.db_connect()
         #query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date - 1 order by game_date limit 1".format(self.league, self.season)
-        query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date order by game_date limit 1".format(self.league, self.season)
+        query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date order by game_date desc limit 1".format(self.league, self.season)
         cursor = self.conn.cursor()
         cursor.execute(query)
         results = cursor.fetchall()
@@ -26,7 +26,7 @@ class Base:
             self.round = results[0][0]
         else:
             st.subheader("UWAGA: Brak najnowszych spotkań")
-            query = "select max(round) from matches where league = {} and season = {} and result != '0' order by game_date limit 1".format(self.league, self.season)
+            query = "select round from matches where league = {} and season = {} and result != '0' order by game_date desc limit 1".format(self.league, self.season)
             cursor = self.conn.cursor()
             cursor.execute(query)
             results = cursor.fetchall()
@@ -55,10 +55,18 @@ class Base:
         self.games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
         self.ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
         self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
-        if self.round > 1 and self.league != 25 : #durne MLS
-            with st.expander("Terminarz, poprzednia kolejka numer: {}".format(self.round-1)):
+        if self.round > 1:
+            if self.round >= 900:
+                prev_round, round_name = self.get_special_round(self.round, 1)
+            else:
+                round_name = self.round - 1
+            with st.expander("Terminarz, poprzednia kolejka numer: {}".format(round_name)):
                 self.generate_schedule(league, self.round-1, season)
-        with st.expander("Terminarz, aktualna kolejka numer: {}".format(self.round)):
+        if self.round >= 900:
+            _, round_name = self.get_special_round(self.round, 0)
+        else:
+            round_name = self.round
+        with st.expander("Terminarz, aktualna kolejka numer: {}".format(round_name)):
             self.generate_schedule(league, self.round, season)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             self.show_teams(self.teams_dict)
@@ -116,6 +124,80 @@ class Base:
             stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn)           
         self.conn.close()
 
+    def get_special_round(self, round, is_prev):
+        special_round_names = {
+            900 : '1/64 finału, mecz numer 1',
+            901 : '1/64 finału, mecz numer 2',
+            902 : '1/64 finału, mecz numer 3',
+            903 : '1/64 finału, mecz numer 4',
+            904 : '1/64 finału, mecz numer 5',
+            905 : '1/64 finału, mecz numer 6',
+            906 : '1/64 finału, mecz numer 7',
+            910 : '1/32 finału, mecz numer 1',
+            911 : '1/32 finału, mecz numer 2',
+            912 : '1/32 finału, mecz numer 3',
+            913 : '1/32 finału, mecz numer 4',
+            914 : '1/32 finału, mecz numer 5',
+            915 : '1/32 finału, mecz numer 6',
+            916 : '1/32 finału, mecz numer 7',
+            920 : '1/16 finału, mecz numer 1',
+            921 : '1/16 finału, mecz numer 2',
+            922 : '1/16 finału, mecz numer 3',
+            923 : '1/16 finału, mecz numer 4',
+            924 : '1/16 finału, mecz numer 5',
+            925 : '1/16 finału, mecz numer 6',
+            926 : '1/16 finału, mecz numer 7',
+            930 : '1/8 finału, mecz numer 1',
+            931 : '1/8 finału, mecz numer 2',
+            932 : '1/8 finału, mecz numer 3',
+            933 : '1/8 finału, mecz numer 4',
+            934 : '1/8 finału, mecz numer 5',
+            935 : '1/8 finału, mecz numer 6',
+            936 : '1/8 finału, mecz numer 7',
+            940 : '1/4 finału, mecz numer 1',
+            941 : '1/4 finału, mecz numer 2',
+            942 : '1/4 finału, mecz numer 3',
+            943 : '1/4 finału, mecz numer 4',
+            944 : '1/4 finału, mecz numer 5',
+            945 : '1/4 finału, mecz numer 6',
+            946 : '1/4 finału, mecz numer 7',
+            950 : '1/2 finału, mecz numer 1',
+            951 : '1/2 finału, mecz numer 2',
+            952 : '1/2 finału, mecz numer 3',
+            953 : '1/2 finału, mecz numer 4',
+            954 : '1/2 finału, mecz numer 5',
+            955 : '1/2 finału, mecz numer 6',
+            956 : '1/2 finału, mecz numer 7',
+            960 : 'Finał, mecz numer 1',
+            961 : 'Finał, mecz numer 2',
+            962 : 'Finał, mecz numer 3',
+            963 : 'Finał, mecz numer 4',
+            964 : 'Finał, mecz numer 5',
+            965 : 'Finał, mecz numer 6',
+            966 : 'Finał, mecz numer 7',
+        }
+        if is_prev:
+            keys = sorted(special_round_names.keys())
+            current_index = keys.index(round)
+            if current_index > 0:
+                return keys[current_index - 1], special_round_names[keys[current_index - 1]]
+            else:
+                return 1, 1
+        return 1, special_round_names[round]
+    
+    def get_previous_record(special_round_names, current_key):
+        keys = sorted(special_round_names.keys())
+        
+        # Znajdź indeks bieżącego klucza
+        current_index = keys.index(current_key)
+        
+        # Sprawdź, czy jest pierwszy w grupie
+        if current_index > 0:
+            # Zwróć poprzedni klucz
+            return keys[current_index - 1], special_round_names[keys[current_index - 1]]
+        else:
+            # Obsłuż przypadek, gdy klucz jest pierwszym w słowniku
+            return None, None  # Nie ma poprzedniego rekordu
 
     def single_team_data(self, team_id):
         query = "select name from teams where id = {}".format(team_id)
@@ -465,7 +547,7 @@ class Base:
 
 
     def generate_schedule(self, league_id, round, season):
-        if league_id == 25:
+        if league_id == 250: #25: #MLS
             query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
                     from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
                     where m.league = {} and m.round = {} and m.season = {} and m.game_date >= DATE_SUB('{}', INTERVAL 2 DAY)

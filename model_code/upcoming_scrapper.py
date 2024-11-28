@@ -14,6 +14,13 @@ def parse_match_date(match_date):
 
     return date_formatted
 
+def update_db(queries, conn):
+    print("HALKO")
+    for query in queries:
+        cursor = conn.cursor() #DO POPRAWKI NATYCHMIAST
+        cursor.execute(query)
+        conn.commit()
+
 def get_match_links(games, driver):
     links = []
     driver.get(games)
@@ -65,7 +72,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     driver.get(link)
     time.sleep(3) # Let the user actually see something!
     # Znajdź wszystkie divy o klasie '_row_18zuy_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_18zuy_8")
+    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -91,8 +98,13 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    if int(round) != round_to_d:
-        return -1
+    #if round_to_d == 0:
+    #    round_to_d = int(round)
+    if league_id != 25:
+        if int(round) != int(round_to_d):
+            return -1
+    else:
+        round = 10
     match_data['round'] = round
     return match_data
 
@@ -117,9 +129,11 @@ def main():
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
     driver = webdriver.Chrome(options=options)
     links = get_match_links(games, driver)
-    conn.close()
-    for link in links:
+    inserts = []
+    for link in links[:]:
         match_data = get_match_data(driver, league_id, season_id, link, round_to_d, team_id)
+        if round_to_d == 0:
+            round_to_d = match_data['round']
         if match_data == -1:
             break
         sql = '''INSERT INTO matches (league, \
@@ -181,5 +195,8 @@ VALUES ({league}, \
 {round}, \
 '{result}');'''.format(**match_data)
         print(sql)
+        inserts.append(sql)
+    update_db(inserts, conn)
+    conn.close()
 if __name__ == '__main__':
     main()

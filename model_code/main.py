@@ -19,13 +19,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2024-09-12' and league in (29, 38) and result != '0' order by game_date"
+    query = "SELECT * FROM matches where game_date < '2024-11-29' and league in (19) and result != '0' order by game_date"
     matches_df = pd.read_sql(query, conn)
-    query = "SELECT id, name FROM teams where country = 23"
+    query = "SELECT id, name FROM teams where country = 16"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where game_date >= '2024-09-12' and league in (29, 38) and home_team not in (845, 852, 853, 857) and away_team not in (845, 852, 853, 857) order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where cast(game_date as date) = '2024-11-29' and league in (19) order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     conn.close()
     return matches_df, teams_df, upcoming_df
@@ -379,7 +379,6 @@ def main():
             predict_model.test_btts_model()
 
         schedule = generate_schedule(upcoming_df)
-        #print(schedule)
         if model_type == 'winner':
             predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, ratings, upcoming_df, pretty_print)
         if model_type == 'goals_ppb':
@@ -390,8 +389,123 @@ def main():
             predict_chosen_matches_goals_ou(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
         if model_type == 'btts':
             predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-        #Mock testing
-        #predict_whole_season(data, schedule, predict_model, my_rating, ratings, matches_df, teams_dict, upcoming_df)
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
+'''
+def main():
+    model_type = sys.argv[1]
+    model_mode = sys.argv[2]
+    pretty_print = sys.argv[4]
+
+    matches_df, teams_df, upcoming_df = get_values()
+    rating_factory = ratings_module.RatingFactory()
+
+    # Stworzenie ratingu w zależności od modelu
+    rating_mapping = {
+        'goals_total': 'GoalsRating',
+        'goals_ppb': 'GoalsRating',
+        'goals_ou': 'GoalsRating',
+        'winner': 'WinnerRating',
+        'btts': 'BTTSRating'
+    }
+    
+    my_rating = rating_factory.create_rating(rating_mapping[model_type], matches_df, teams_df)
+    my_rating.rating_wrapper()
+    
+    matches_df, _, teams_dict, powers, ratings, last_five_matches = my_rating.get_data()
+
+    data = dataprep_module.DataPrep(matches_df, teams_df, upcoming_df)
+    
+    # Testowanie dokładności, jeśli podano odpowiedni argument
+    if sys.argv[3] != '-1':
+        accuracy_test_mapping = {
+            'goals_total': accuracy_test_goals,
+            'winner': accuracy_test_winner,
+            'btts': accuracy_test_btts
+        }
+        accuracy_test = accuracy_test_mapping.get(model_type)
+        if accuracy_test:
+            accuracy_test(matches_df, teams_dict, teams_df, upcoming_df, int(sys.argv[3]))
+    else:
+        # Trenowanie i testowanie modelu
+        predict_model = prepare_and_train_model(model_type, data, matches_df, model_mode)
+
+        # Generowanie harmonogramu
+        schedule = generate_schedule(upcoming_df)
+        
+        # Wybór funkcji do przewidywania meczów na podstawie modelu
+        prediction_mapping = {
+            'winner': predict_chosen_matches_winner,
+            'goals_ppb': predict_chosen_matches_goals_ppb,
+            'goals_total': predict_chosen_matches_goals,
+            'goals_ou': predict_chosen_matches_goals_ou,
+            'btts': predict_chosen_matches_btts
+        }
+        
+        predict_function = prediction_mapping.get(model_type)
+        if predict_function:
+            predict_function(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
+
+
+def prepare_and_train_model(model_type, data, matches_df, model_mode):
+    # Przygotowanie danych do trenowania w zależności od typu modelu
+    data_prep_functions = {
+        'goals_total': data.prepare_predict_goals,
+        'goals_ppb': data.prepare_predict_goals_ppb,
+        'goals_ou': data.prepare_predict_ou,
+        'winner': data.prepare_predict_winner,
+        'btts': data.prepare_predict_btts
+    }
+    prepare_data = data_prep_functions.get(model_type)
+    prepare_data()
+
+    _, _, _, model_columns_df = data.get_data()
+
+    # Tworzenie i trenowanie modelu
+    model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
+    model.create_window()
+    
+    window_mapping = {
+        'goals_total': 1,
+        'goals_ppb': 7,
+        'goals_ou': 2,
+        'winner': 3,
+        'btts': 2
+    }
+    model.window_to_numpy(window_mapping[model_type])
+    
+    model.divide_set()
+    
+    train_function_mapping = {
+        'goals_total': model.train_goals_total_model,
+        'goals_ppb': model.train_goals_ppb_model,
+        'goals_ou': model.train_ou_model,
+        'winner': model.train_winner_model,
+        'btts': model.train_btts_model
+    }
+    
+    train_function = train_function_mapping.get(model_type)
+    if train_function:
+        train_function()
+    
+    test_function_mapping = {
+        'goals_total': model.goals_total_test,
+        'goals_ppb': model.goals_ppb_test,
+        'goals_ou': model.test_btts_model,
+        'winner': model.test_winner_model,
+        'btts': model.test_btts_model
+    }
+    
+    test_function = test_function_mapping.get(model_type)
+    if test_function:
+        test_function()
+    
+    return model
+    '''

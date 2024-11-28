@@ -59,7 +59,7 @@ def main():
 
     with st.expander("Poprzednie zakłady"):
         generate_button("Wczorajsze zakłady", conn, -1,
-                        " where cast(m.game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by b.EV desc".format(odds_range))
+                        " where cast(m.game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) and order by f.confidence desc".format(odds_range))
     
     with st.expander("Proponowane zakłady"):
         generate_button("TOP 5 + Polska (dla Kubona)", conn, 1, 

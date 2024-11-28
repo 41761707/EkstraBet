@@ -1,113 +1,150 @@
------------------------- PKO BP EKSTRAKLASA --------------------------------
-1 11 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2024-2025/mecze/
-
--------------------------- BETCLIC 1 LIGA ----------------------------------
-21 11 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2024-2025/mecze/
-
 -------------------------- PREMIER LEAGUE ----------------------------------
 2 11 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2024-2025/mecze/
+
 
 --------------------------- CHAMPIONSHIP -----------------------------------
 8 11 https://www.flashscore.pl/pilka-nozna/anglia/championship-2024-2025/mecze/
 
------------------------------ LIGUE 1 --------------------------------------
-3 11 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2024-2025/mecze/
-
------------------------------ LIGUE 2 --------------------------------------
-13 11 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2024-2025/mecze/
-
----------------------------- BUNDESLIGA ------------------------------------
-4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/mecze/
-
--------------------------- 2. BUNDESLIGA -----------------------------------
-20 11 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2024-2025/mecze/
-
------------------------------- SERIE A --------------------------------------
-5 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2024-2025/mecze/
-
------------------------------- SERIE B --------------------------------------
-26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/mecze/
-
------------------------------- LA LIGA --------------------------------------
-6 11 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga-2024-2025/mecze/
-
------------------------------- LA LIGA2 -------------------------------------
-14 11 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga2-2024-2025/mecze/
-
------------------------------- K1 LEAGUE -------------------------------------
-15 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2024/mecze/
-
------------------------------- K2 LEAGUE -------------------------------------
-30 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2024/mecze/
-
---------------------------------- MLS ----------------------------------------
-25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/mecze/
-
--------------------------------- J1 LEAGUE ------------------------------------
-17 1 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2024/mecze/
-
--------------------------------- J2 LEAGUE -----------------------------------
-32 1 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2024/mecze/
-
------------------------------- LIGA PROFESIONAL ------------------------------
-33 1 https://www.flashscore.pl/pilka-nozna/argentyna/liga-profesional-2024/mecze/
-
------------------------------- SERIE A BRASIL --------------------------------
-34 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-2024/mecze/
-
------------------------------- SERIE B BRASIL --------------------------------
-35 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2024/mecze/
-
------------------------------- LIGA PORTUGAL ---------------------------------
-7 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2024-2025/mecze/
-
------------------------------ LIGA PORTUGAL 2 --------------------------------
-36 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2024-2025/mecze/
 
 ------------------------------- A-LEAGUE -------------------------------------
 10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/mecze/
 
+
 ---------------------------- BUNDESLIGA AUSTRIA ------------------------------
 29 11 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2024-2025/mecze/
+
 
 ------------------------------ 2. LIGA AUSTRIA --------------------------------
 38 11 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2024-2025/mecze/
 
+
 ------------------------------ JUPILER LEAGUE ---------------------------------
 11 11 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2024-2025/mecze/
+
 
 -------------------------- CHALLENGER PRO LEAGUE ------------------------------
 37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/mecze/
 
----------------------------- SWISS SUPER LEAGUE -------------------------------
-23 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2024-2025/mecze/
-
------------------------------ CHALLENGE LEAGUE --------------------------------
-39 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2024-2025/mecze/
-
--------------------------------- EREDIVISIE -----------------------------------
-16 11 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2024-2025/mecze/
-
------------------------------- EERSTE DIVISIE ---------------------------------
-31 11 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2024-2025/mecze/
-
------------------------------------ SUPER LIG ---------------------------------
-24 11 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2024-2025/mecze/
-
------------------------------------- 1.LIG ------------------------------------
-40 11 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2024-2025/mecze/
-
----------------------------------- LIGA MX -------------------------------------
-19 11 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2024-2025/mecze/
 
 -------------------------------- CHANCE LIGA -----------------------------------
 12 11 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2024-2025/mecze/
 
+
 ---------------------------------- DYWIZJA 2 -----------------------------------
 41 11 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2024-2025/mecze/ 
 
+
+----------------------------- LIGUE 1 --------------------------------------
+3 11 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2024-2025/mecze/
+
+
+----------------------------- LIGUE 2 --------------------------------------
+13 11 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2024-2025/mecze/
+
+
+------------------------------ LA LIGA --------------------------------------
+6 11 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga-2024-2025/mecze/
+
+
+------------------------------ LA LIGA2 -------------------------------------
+14 11 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga2-2024-2025/mecze/
+
+
+-------------------------------- EREDIVISIE -----------------------------------
+16 11 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2024-2025/mecze/
+
+
+------------------------------ EERSTE DIVISIE ---------------------------------
+31 11 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2024-2025/mecze/
+
+
+-------------------------------- J1 LEAGUE ------------------------------------
+17 1 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2024/mecze/
+
+
+-------------------------------- J2 LEAGUE -----------------------------------
+32 1 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2024/mecze/
+
+
+------------------------------ K1 LEAGUE -------------------------------------
+15 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2024/mecze/
+
+
+------------------------------ K2 LEAGUE -------------------------------------
+30 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2024/mecze/
+
+
+---------------------------------- LIGA MX -------------------------------------
+19 11 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2024-2025/mecze/
+
+
+---------------------------- BUNDESLIGA ------------------------------------
+4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/mecze/
+
+
+-------------------------- 2. BUNDESLIGA -----------------------------------
+20 11 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2024-2025/mecze/
+
+
+------------------------ PKO BP EKSTRAKLASA --------------------------------
+1 11 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2024-2025/mecze/
+
+
+-------------------------- BETCLIC 1 LIGA ----------------------------------
+21 11 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2024-2025/mecze/
+
+
+------------------------------ LIGA PORTUGAL ---------------------------------
+7 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2024-2025/mecze/
+
+
+----------------------------- LIGA PORTUGAL 2 --------------------------------
+36 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2024-2025/mecze/
+
+
+---------------------------- SWISS SUPER LEAGUE -------------------------------
+23 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2024-2025/mecze/
+
+
+----------------------------- CHALLENGE LEAGUE --------------------------------
+39 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2024-2025/mecze/
+
+
+----------------------------------- SUPER LIG ---------------------------------
+24 11 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2024-2025/mecze/
+
+
+------------------------------------ 1.LIG ------------------------------------
+40 11 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2024-2025/mecze/
+
+
+--------------------------------- MLS ----------------------------------------
+25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/mecze/
+
+
+------------------------------ SERIE A --------------------------------------
+5 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2024-2025/mecze/
+
+
+------------------------------ SERIE B --------------------------------------
+26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/mecze/
+
+
+------------------------------ LIGA PROFESIONAL ------------------------------
+33 1 https://www.flashscore.pl/pilka-nozna/argentyna/liga-profesional-2024/mecze/
+
+
+------------------------------ SERIE A BRASIL --------------------------------
+34 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-2024/mecze/
+
+
+------------------------------ SERIE B BRASIL --------------------------------
+35 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2024/mecze/
+
+
 ------------------------------------- NHL --------------------------------------
 45 11 https://www.flashscore.pl/hokej/usa/nhl-2024-2025/mecze/
+
 
 ------------------------------------- NBA --------------------------------------
 46 11 https://www.flashscore.pl/koszykowka/usa/nba-2024-2025/mecze/

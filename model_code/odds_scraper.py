@@ -27,7 +27,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, tea
         'away_team' : 0,
         'game_date' : 0}
     # Znajdź wszystkie divy o klasie '_row_18zuy_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "_row_18zuy_8")
+    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
@@ -195,7 +195,7 @@ def get_correct_score_odds(id, link, driver):
 
 def update_db(queries, conn):
     for query in queries:
-        cursor = conn.cursor()
+        cursor = conn.cursor() #DO POPRAWKI NATYCHMIAST
         cursor.execute(query)
         conn.commit()
 

@@ -1,26 +1,3 @@
------------------------- PKO BP EKSTRAKLASA --------------------------------
-1 11 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2024-2025/wyniki/
-1 1 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/
-1 2 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2022-2023/wyniki/
-1 3 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2021-2022/wyniki/
-1 4 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2020-2021/wyniki/
-1 5 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2019-2020/wyniki/
-1 6 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2018-2019/wyniki/
-1 7 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2017-2018/wyniki/
-1 8 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2016-2017/wyniki/
-
-
--------------------------- BETCLIC 1 LIGA ----------------------------------
-21 11 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2024-2025/wyniki/
-21 1 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2023-2024/wyniki/
-21 2 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2022-2023/wyniki/
-21 3 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2021-2022/wyniki/
-21 4 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2020-2021/wyniki/
-21 5 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2019-2020/wyniki/
-21 6 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2018-2019/wyniki/
-21 7 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2017-2018/wyniki/
-
-
 -------------------------- PREMIER LEAGUE ----------------------------------
 2 11 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2024-2025/wyniki/
 2 1 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2023-2024/wyniki/
@@ -45,6 +22,82 @@
 8 8 https://www.flashscore.pl/pilka-nozna/anglia/championship-2016-2017/wyniki/
 
 
+------------------------------- A-LEAGUE -------------------------------------
+10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/wyniki/
+10 1 https://www.flashscore.pl/pilka-nozna/australia/a-league-2023-2024/wyniki/
+10 2 https://www.flashscore.pl/pilka-nozna/australia/a-league-2022-2023/wyniki/
+10 3 https://www.flashscore.pl/pilka-nozna/australia/a-league-2021-2022/wyniki/
+10 4 https://www.flashscore.pl/pilka-nozna/australia/a-league-2020-2021/wyniki/
+10 5 https://www.flashscore.pl/pilka-nozna/australia/a-league-2019-2020/wyniki/
+10 6 https://www.flashscore.pl/pilka-nozna/australia/a-league-2018-2019/wyniki/
+10 7 https://www.flashscore.pl/pilka-nozna/australia/a-league-2017-2018/wyniki/
+10 8 https://www.flashscore.pl/pilka-nozna/australia/a-league-2016-2017/wyniki/
+
+
+---------------------------- BUNDESLIGA AUSTRIA ------------------------------
+29 11 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2024-2025/wyniki/
+29 1 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2023-2024/wyniki/
+29 2 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2022-2023/wyniki/
+29 3 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2021-2022/wyniki/
+29 4 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2020-2021/wyniki/
+29 5 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2019-2020/wyniki/
+29 6 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2018-2019/wyniki/
+29 7 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2017-2018/wyniki/
+29 8 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2016-2017/wyniki/
+
+
+------------------------------ 2. LIGA AUSTRIA --------------------------------
+38 11 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2024-2025/wyniki/
+38 1 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2023-2024/wyniki/
+38 2 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2022-2023/wyniki/
+38 3 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2021-2022/wyniki/
+38 4 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2020-2021/wyniki/
+38 5 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2019-2020/wyniki/
+38 6 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2018-2019/wyniki/
+38 7 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2017-2018/wyniki/
+38 8 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2016-2017/wyniki/
+
+
+------------------------------ JUPILER LEAGUE ---------------------------------
+11 11 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2024-2025/wyniki/
+11 1 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2023-2024/wyniki/
+11 2 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2022-2023/wyniki/ 
+11 3 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2021-2022/wyniki/ 
+11 4 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2020-2021/wyniki/ 
+11 5 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2019-2020/wyniki/ 
+11 6 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2018-2019/wyniki/ 
+11 7 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2017-2018/wyniki/ 
+11 8 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2016-2017/wyniki/ 
+
+
+-------------------------- CHALLENGER PRO LEAGUE ------------------------------
+37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/wyniki/
+37 1 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2023-2024/wyniki/
+37 2 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2022-2023/wyniki/ 
+37 3 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2021-2022/wyniki/
+
+
+-------------------------------- CHANCE LIGA -----------------------------------
+12 11 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2024-2025/wyniki/
+12 1 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2023-2024/wyniki/
+12 2 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2022-2023/wyniki/
+12 3 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2021-2022/wyniki/
+12 4 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2020-2021/wyniki/
+12 5 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2019-2020/wyniki/
+12 6 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2018-2019/wyniki/
+12 7 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2017-2018/wyniki/
+12 8 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2016-2017/wyniki/
+
+
+---------------------------------- DYWIZJA 2 -----------------------------------
+41 11 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2024-2025/wyniki/
+41 1 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2023-2024/wyniki/
+41 2 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2022-2023/wyniki/
+41 3 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2021-2022/wyniki/
+41 4 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2020-2021/wyniki/
+41 5 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2019-2020/wyniki/
+
+
 ----------------------------- LIGUE 1 --------------------------------------
 3 11 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2024-2025/wyniki/ 
 3 1 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2023-2024/wyniki/ 
@@ -65,54 +118,6 @@
 13 4 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2020-2021/wyniki/
 13 5 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2019-2020/wyniki/
 13 6 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2018-2019/wyniki/
-
-
----------------------------- BUNDESLIGA ------------------------------------
-4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki/
-4 1 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2023-2024/wyniki/
-4 2 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2022-2023/wyniki/
-4 3 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2021-2022/wyniki/
-4 4 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2020-2021/wyniki/
-4 5 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2019-2020/wyniki/
-4 6 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2018-2019/wyniki/
-4 7 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2017-2018/wyniki/
-4 8 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2016-2017/wyniki/
-
-
--------------------------- 2. BUNDESLIGA -----------------------------------
-20 11 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2024-2025/wyniki/
-20 1 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2023-2024/wyniki/
-20 2 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2022-2023/wyniki/
-20 3 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2021-2022/wyniki/
-20 4 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2020-2021/wyniki/
-20 5 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2019-2020/wyniki/
-20 6 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2018-2019/wyniki/
-20 7 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2017-2018/wyniki/
-20 8 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2016-2017/wyniki/
-
-
------------------------------- SERIE A --------------------------------------
-5 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2024-2025/wyniki/
-5 1 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2023-2024/wyniki/
-5 2 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2022-2023/wyniki/
-5 3 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2021-2022/wyniki/
-5 4 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2020-2021/wyniki/
-5 5 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2019-2020/wyniki/
-5 6 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2018-2019/wyniki/
-5 7 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2017-2018/wyniki/
-5 8 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2016-2017/wyniki/
-
-
------------------------------- SERIE B --------------------------------------
-26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/wyniki/
-26 1 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2023-2024/wyniki/
-26 2 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2022-2023/wyniki/
-26 3 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2021-2022/wyniki/
-26 4 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2020-2021/wyniki/
-26 5 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2019-2020/wyniki/
-26 6 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2018-2019/wyniki/
-26 7 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2017-2018/wyniki/
-26 8 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2016-2017/wyniki/
 
 
 ------------------------------ LA LIGA --------------------------------------
@@ -139,31 +144,28 @@
 14 8 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga2-2016-2017/wyniki/
 
 
------------------------------- K1 LEAGUE -------------------------------------
-15 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2024/wyniki/
-15 2 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2023/wyniki/
-15 3 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2022/wyniki/
-15 4 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2021/wyniki/
-15 5 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2020/wyniki/
-15 6 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2019/wyniki/
+-------------------------------- EREDIVISIE -----------------------------------
+16 11 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2024-2025/wyniki/
+16 1 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2023-2024/wyniki/
+16 2 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2022-2023/wyniki/
+16 3 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2021-2022/wyniki/
+16 4 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2020-2021/wyniki/
+16 5 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2019-2020/wyniki/
+16 6 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2018-2019/wyniki/
+16 7 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2017-2018/wyniki/
+16 8 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2016-2017/wyniki/
 
 
------------------------------- K2 LEAGUE -------------------------------------
-30 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2024/wyniki/
-30 2 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2023/wyniki/
-30 3 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2022/wyniki/
-
-
---------------------------------- MLS ----------------------------------------
-25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/wyniki/
-25 2 https://www.flashscore.pl/pilka-nozna/usa/mls-2023/wyniki/
-25 3 https://www.flashscore.pl/pilka-nozna/usa/mls-2022/wyniki/
-25 4 https://www.flashscore.pl/pilka-nozna/usa/mls-2021/wyniki/
-25 5 https://www.flashscore.pl/pilka-nozna/usa/mls-2020/wyniki/
-25 6 https://www.flashscore.pl/pilka-nozna/usa/mls-2019/wyniki/
-25 7 https://www.flashscore.pl/pilka-nozna/usa/mls-2018/wyniki/
-25 8 https://www.flashscore.pl/pilka-nozna/usa/mls-2017/wyniki/
-25 9 https://www.flashscore.pl/pilka-nozna/usa/mls-2016/wyniki/
+------------------------------ EERSTE DIVISIE ---------------------------------
+31 11 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2024-2025/wyniki/
+31 1 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2023-2024/wyniki/
+31 2 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2022-2023/wyniki/
+31 3 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2021-2022/wyniki/
+31 4 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2020-2021/wyniki/
+31 5 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2019-2020/wyniki/
+31 6 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2018-2019/wyniki/
+31 7 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2017-2018/wyniki/
+31 8 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2016-2017/wyniki/
 
 
 -------------------------------- J1 LEAGUE ------------------------------------
@@ -182,6 +184,181 @@
 32 2 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2023/wyniki/
 32 3 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2022/wyniki/
 32 4 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2021/wyniki/
+
+
+------------------------------ K1 LEAGUE -------------------------------------
+15 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2024/wyniki/
+15 2 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2023/wyniki/
+15 3 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2022/wyniki/
+15 4 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2021/wyniki/
+15 5 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2020/wyniki/
+15 6 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2019/wyniki/
+
+
+------------------------------ K2 LEAGUE -------------------------------------
+30 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2024/wyniki/
+30 2 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2023/wyniki/
+30 3 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2022/wyniki/
+
+
+---------------------------------- LIGA MX -------------------------------------
+19 11 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2024-2025/wyniki/
+19 1 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2023-2024/wyniki/
+19 2 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2022-2023/wyniki/
+19 3 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2021-2022/wyniki/
+19 4 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2020-2021/wyniki/
+19 5 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2019-2020/wyniki/
+19 6 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2018-2019/wyniki/
+19 7 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2017-2018/wyniki/
+19 8 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2016-2017/wyniki/
+
+
+---------------------------- BUNDESLIGA ------------------------------------
+4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki/
+4 1 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2023-2024/wyniki/
+4 2 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2022-2023/wyniki/
+4 3 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2021-2022/wyniki/
+4 4 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2020-2021/wyniki/
+4 5 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2019-2020/wyniki/
+4 6 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2018-2019/wyniki/
+4 7 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2017-2018/wyniki/
+4 8 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2016-2017/wyniki/
+
+
+-------------------------- 2. BUNDESLIGA -----------------------------------
+20 11 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2024-2025/wyniki/
+20 1 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2023-2024/wyniki/
+20 2 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2022-2023/wyniki/
+20 3 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2021-2022/wyniki/
+20 4 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2020-2021/wyniki/
+20 5 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2019-2020/wyniki/
+20 6 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2018-2019/wyniki/
+20 7 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2017-2018/wyniki/
+20 8 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2016-2017/wyniki/
+
+
+------------------------ PKO BP EKSTRAKLASA --------------------------------
+1 11 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2024-2025/wyniki/
+1 1 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/
+1 2 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2022-2023/wyniki/
+1 3 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2021-2022/wyniki/
+1 4 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2020-2021/wyniki/
+1 5 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2019-2020/wyniki/
+1 6 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2018-2019/wyniki/
+1 7 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2017-2018/wyniki/
+1 8 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2016-2017/wyniki/
+
+
+-------------------------- BETCLIC 1 LIGA ----------------------------------
+21 11 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2024-2025/wyniki/
+21 1 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2023-2024/wyniki/
+21 2 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2022-2023/wyniki/
+21 3 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2021-2022/wyniki/
+21 4 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2020-2021/wyniki/
+21 5 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2019-2020/wyniki/
+21 6 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2018-2019/wyniki/
+21 7 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2017-2018/wyniki/
+
+
+------------------------------ LIGA PORTUGAL ---------------------------------
+7 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2024-2025/wyniki/
+7 1 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2023-2024/wyniki/
+7 2 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2022-2023/wyniki/
+7 3 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2021-2022/wyniki/
+7 4 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2020-2021/wyniki/
+7 5 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2019-2020/wyniki/
+7 6 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2018-2019/wyniki/
+7 7 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2017-2018/wyniki/
+7 8 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2016-2017/wyniki/
+
+
+----------------------------- LIGA PORTUGAL 2 --------------------------------
+36 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2024-2025/wyniki/
+36 1 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2023-2024/wyniki/
+36 2 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2022-2023/wyniki/
+36 3 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2021-2022/wyniki/
+36 4 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2020-2021/wyniki/
+36 5 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2019-2020/wyniki/
+
+
+---------------------------- SWISS SUPER LEAGUE -------------------------------
+23 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2024-2025/wyniki/
+23 1 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2023-2024/wyniki/
+23 2 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2022-2023/wyniki/
+23 3 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2021-2022/wyniki/
+23 4 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2020-2021/wyniki/
+23 5 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2019-2020/wyniki/
+23 6 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2018-2019/wyniki/
+23 7 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2017-2018/wyniki/
+23 8 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2016-2017/wyniki/
+
+
+----------------------------- CHALLENGE LEAGUE --------------------------------
+39 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2024-2025/wyniki/
+39 1 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2023-2024/wyniki/
+39 2 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2022-2023/wyniki/
+39 3 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2021-2022/wyniki/
+39 4 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2020-2021/wyniki/
+39 5 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2019-2020/wyniki/
+
+
+----------------------------------- SUPER LIG ---------------------------------
+24 11 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2024-2025/wyniki/
+24 1 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2023-2024/wyniki/
+24 2 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2022-2023/wyniki/
+24 3 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2021-2022/wyniki/
+24 4 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2020-2021/wyniki/
+24 5 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2019-2020/wyniki/
+24 6 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2018-2019/wyniki/
+24 7 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2017-2018/wyniki/
+24 8 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2016-2017/wyniki/
+
+
+------------------------------------ 1.LIG ------------------------------------
+40 11 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2024-2025/wyniki/
+40 1 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2023-2024/wyniki/
+40 2 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2022-2023/wyniki/
+40 3 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2021-2022/wyniki/
+40 4 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2020-2021/wyniki/
+40 5 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2019-2020/wyniki/
+40 6 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2018-2019/wyniki/
+40 7 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2017-2018/wyniki/
+
+
+--------------------------------- MLS ----------------------------------------
+25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/wyniki/
+25 2 https://www.flashscore.pl/pilka-nozna/usa/mls-2023/wyniki/
+25 3 https://www.flashscore.pl/pilka-nozna/usa/mls-2022/wyniki/
+25 4 https://www.flashscore.pl/pilka-nozna/usa/mls-2021/wyniki/
+25 5 https://www.flashscore.pl/pilka-nozna/usa/mls-2020/wyniki/
+25 6 https://www.flashscore.pl/pilka-nozna/usa/mls-2019/wyniki/
+25 7 https://www.flashscore.pl/pilka-nozna/usa/mls-2018/wyniki/
+25 8 https://www.flashscore.pl/pilka-nozna/usa/mls-2017/wyniki/
+25 9 https://www.flashscore.pl/pilka-nozna/usa/mls-2016/wyniki/
+
+
+------------------------------ SERIE A --------------------------------------
+5 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2024-2025/wyniki/
+5 1 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2023-2024/wyniki/
+5 2 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2022-2023/wyniki/
+5 3 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2021-2022/wyniki/
+5 4 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2020-2021/wyniki/
+5 5 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2019-2020/wyniki/
+5 6 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2018-2019/wyniki/
+5 7 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2017-2018/wyniki/
+5 8 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2016-2017/wyniki/
+
+
+------------------------------ SERIE B --------------------------------------
+26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/wyniki/
+26 1 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2023-2024/wyniki/
+26 2 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2022-2023/wyniki/
+26 3 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2021-2022/wyniki/
+26 4 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2020-2021/wyniki/
+26 5 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2019-2020/wyniki/
+26 6 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2018-2019/wyniki/
+26 7 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2017-2018/wyniki/
+26 8 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2016-2017/wyniki/
 
 
 ------------------------------ LIGA PROFESIONAL ------------------------------
@@ -213,169 +390,6 @@
 35 4 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2021/wyniki/
 35 5 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2020/wyniki/
 
-
------------------------------- LIGA PORTUGAL ---------------------------------
-7 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2024-2025/wyniki/
-7 1 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2023-2024/wyniki/
-7 2 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2022-2023/wyniki/
-7 3 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2021-2022/wyniki/
-7 4 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2020-2021/wyniki/
-7 5 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2019-2020/wyniki/
-7 6 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2018-2019/wyniki/
-7 7 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2017-2018/wyniki/
-7 8 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2016-2017/wyniki/
-
-
------------------------------ LIGA PORTUGAL 2 --------------------------------
-36 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2024-2025/wyniki/
-36 1 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2023-2024/wyniki/
-36 2 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2022-2023/wyniki/
-36 3 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2021-2022/wyniki/
-36 4 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2020-2021/wyniki/
-36 5 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2019-2020/wyniki/
-
-
-------------------------------- A-LEAGUE -------------------------------------
-10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/wyniki/
-10 1 https://www.flashscore.pl/pilka-nozna/australia/a-league-2023-2024/wyniki/
-10 2 https://www.flashscore.pl/pilka-nozna/australia/a-league-2022-2023/wyniki/
-10 3 https://www.flashscore.pl/pilka-nozna/australia/a-league-2021-2022/wyniki/
-10 4 https://www.flashscore.pl/pilka-nozna/australia/a-league-2020-2021/wyniki/
-10 5 https://www.flashscore.pl/pilka-nozna/australia/a-league-2019-2020/wyniki/
-10 6 https://www.flashscore.pl/pilka-nozna/australia/a-league-2018-2019/wyniki/
-10 7 https://www.flashscore.pl/pilka-nozna/australia/a-league-2017-2018/wyniki/
-10 8 https://www.flashscore.pl/pilka-nozna/australia/a-league-2016-2017/wyniki/
-
----------------------------- BUNDESLIGA AUSTRIA ------------------------------
-29 11 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2024-2025/wyniki/
-29 1 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2023-2024/wyniki/
-29 2 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2022-2023/wyniki/
-29 3 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2021-2022/wyniki/
-29 4 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2020-2021/wyniki/
-29 5 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2019-2020/wyniki/
-29 6 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2018-2019/wyniki/
-29 7 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2017-2018/wyniki/
-29 8 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2016-2017/wyniki/
-
------------------------------- 2. LIGA AUSTRIA --------------------------------
-38 11 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2024-2025/wyniki/
-38 1 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2023-2024/wyniki/
-38 2 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2022-2023/wyniki/
-38 3 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2021-2022/wyniki/
-38 4 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2020-2021/wyniki/
-38 5 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2019-2020/wyniki/
-38 6 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2018-2019/wyniki/
-38 7 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2017-2018/wyniki/
-38 8 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2016-2017/wyniki/
-
------------------------------- JUPILER LEAGUE ---------------------------------
-11 11 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2024-2025/wyniki/
-11 1 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2023-2024/wyniki/
-11 2 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2022-2023/wyniki/ 
-11 3 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2021-2022/wyniki/ 
-11 4 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2020-2021/wyniki/ 
-11 5 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2019-2020/wyniki/ 
-11 6 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2018-2019/wyniki/ 
-11 7 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2017-2018/wyniki/ 
-11 8 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2016-2017/wyniki/ 
-
--------------------------- CHALLENGER PRO LEAGUE ------------------------------
-37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/wyniki/
-37 1 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2023-2024/wyniki/
-37 2 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2022-2023/wyniki/ 
-37 3 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2021-2022/wyniki/
-
----------------------------- SWISS SUPER LEAGUE -------------------------------
-23 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2024-2025/wyniki/
-23 1 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2023-2024/wyniki/
-23 2 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2022-2023/wyniki/
-23 3 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2021-2022/wyniki/
-23 4 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2020-2021/wyniki/
-23 5 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2019-2020/wyniki/
-23 6 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2018-2019/wyniki/
-23 7 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2017-2018/wyniki/
-23 8 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2016-2017/wyniki/
-
------------------------------ CHALLENGE LEAGUE --------------------------------
-39 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2024-2025/wyniki/
-39 1 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2023-2024/wyniki/
-39 2 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2022-2023/wyniki/
-39 3 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2021-2022/wyniki/
-39 4 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2020-2021/wyniki/
-39 5 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2019-2020/wyniki/
-
--------------------------------- EREDIVISIE -----------------------------------
-16 11 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2024-2025/wyniki/
-16 1 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2023-2024/wyniki/
-16 2 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2022-2023/wyniki/
-16 3 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2021-2022/wyniki/
-16 4 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2020-2021/wyniki/
-16 5 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2019-2020/wyniki/
-16 6 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2018-2019/wyniki/
-16 7 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2017-2018/wyniki/
-16 8 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2016-2017/wyniki/
-
------------------------------- EERSTE DIVISIE ---------------------------------
-31 11 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2024-2025/wyniki/
-31 1 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2023-2024/wyniki/
-31 2 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2022-2023/wyniki/
-31 3 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2021-2022/wyniki/
-31 4 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2020-2021/wyniki/
-31 5 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2019-2020/wyniki/
-31 6 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2018-2019/wyniki/
-31 7 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2017-2018/wyniki/
-31 8 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2016-2017/wyniki/
-
------------------------------------ SUPER LIG ---------------------------------
-24 11 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2024-2025/wyniki/
-24 1 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2023-2024/wyniki/
-24 2 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2022-2023/wyniki/
-24 3 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2021-2022/wyniki/
-24 4 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2020-2021/wyniki/
-24 5 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2019-2020/wyniki/
-24 6 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2018-2019/wyniki/
-24 7 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2017-2018/wyniki/
-24 8 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2016-2017/wyniki/
-
------------------------------------- 1.LIG ------------------------------------
-40 11 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2024-2025/wyniki/
-40 1 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2023-2024/wyniki/
-40 2 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2022-2023/wyniki/
-40 3 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2021-2022/wyniki/
-40 4 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2020-2021/wyniki/
-40 5 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2019-2020/wyniki/
-40 6 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2018-2019/wyniki/
-40 7 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2017-2018/wyniki/
-
----------------------------------- LIGA MX -------------------------------------
-19 11 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2024-2025/wyniki/
-19 1 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2023-2024/wyniki/
-19 2 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2022-2023/wyniki/
-19 3 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2021-2022/wyniki/
-19 4 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2020-2021/wyniki/
-19 5 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2019-2020/wyniki/
-19 6 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2018-2019/wyniki/
-19 7 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2017-2018/wyniki/
-19 8 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2016-2017/wyniki/
-
--------------------------------- CHANCE LIGA -----------------------------------
-12 11 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2024-2025/wyniki/
-12 1 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2023-2024/wyniki/
-12 2 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2022-2023/wyniki/
-12 3 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2021-2022/wyniki/
-12 4 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2020-2021/wyniki/
-12 5 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2019-2020/wyniki/
-12 6 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2018-2019/wyniki/
-12 7 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2017-2018/wyniki/
-12 8 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2016-2017/wyniki/
-
----------------------------------- DYWIZJA 2 -----------------------------------
-41 11 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2024-2025/wyniki/
-41 1 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2023-2024/wyniki/
-41 2 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2022-2023/wyniki/
-41 3 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2021-2022/wyniki/
-41 4 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2020-2021/wyniki/
-41 5 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2019-2020/wyniki/
 
 ------------------------------------- NHL --------------------------------------
 45 11 https://www.flashscore.pl/hokej/usa/nhl-2024-2025/wyniki/
