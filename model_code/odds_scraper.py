@@ -232,6 +232,9 @@ def odds_to_automate(league_id, season_id, games):
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
+    if len(results) == 0:
+        print("BRAK SPOTKAŃ")
+        return
     round_to_d = results[0][0]
     print("RUNDA: ", round_to_d)
     query = "select country from leagues where id = {}".format(league_id)
@@ -244,6 +247,9 @@ def odds_to_automate(league_id, season_id, games):
     #current_date = datetime.today().strftime('%Y-%m-%d')+1
     query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
+    if len(matches_df) == 0:
+        print("BRAK SPOTKAŃ")
+        return
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options=options)

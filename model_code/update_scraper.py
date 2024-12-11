@@ -59,7 +59,6 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
         'away_team_yc' : 0,
         'home_team_rc' : 0,
         'away_team_rc' : 0,
-        'round' : 0,
         'result' : 0,
         'id' : 0}
     # duelParticipant__startTime - czas rozegrania meczu (timestamp)
@@ -94,7 +93,6 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
     #match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     #match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    match_data['round'] = round
     score = match_info[5].split('\n')
     home_goals = int(score[0])
     away_goals = int(score[2])
@@ -177,24 +175,25 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
         print("Nie udalo sie znalezc meczu!")
     return id
 
-def main():
-    #WYWOŁANIE
-    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
-    league_id = int(sys.argv[1])
-    season_id = int(sys.argv[2])
+def to_automate(league_id, season_id, games):
     conn = db_module.db_connect()
-    query = "select round from matches where league = {} and season = {} and cast(game_date as date) = current_date - 1 order by game_date limit 1".format(league_id, season_id)
+    query = "select round from matches where league = {} and season = {} and cast(game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by game_date limit 1".format(league_id, season_id)
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
+    if len(results) == 0:
+        print("BRAK SPOTKAŃ")
+        return
     round_to_d = results[0][0]
     print("RUNDA: ",round_to_d)
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date - 1 ".format(league_id, season_id, round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) ".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
+    if len(matches_df) == 0:
+        print("BRAK SPOTKAŃ")
+        return
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging'])
     driver = webdriver.Chrome(options=options)
-    games = sys.argv[3]
     query = "select country from leagues where id = {}".format(league_id)
     country_df = pd.read_sql(query,conn)
     country = country_df.values.flatten() 
@@ -230,12 +229,19 @@ def main():
 `away_team_yc` = '{away_team_yc}', \
 `home_team_rc` = '{home_team_rc}', \
 `away_team_rc` = '{away_team_rc}', \
-`round` = '{round}', \
 `result` = '{result}' \
 WHERE (`id` = '{id}');'''.format(**match_data)
         print(sql)
         inserts.append(sql)
     update_db(inserts, conn)
-    conn.close()
+    conn.close()    
+
+def main():
+    #WYWOŁANIE
+    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
+    league_id = int(sys.argv[1])
+    season_id = int(sys.argv[2])
+    games = sys.argv[3]
+    to_automate(league_id, season_id, games)
 if __name__ == '__main__':
     main()

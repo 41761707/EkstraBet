@@ -98,8 +98,8 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    #if round_to_d == 0:
-    #    round_to_d = int(round)
+    if round_to_d == 0:
+        round_to_d = int(round)
     if league_id != 25:
         if int(round) != int(round_to_d):
             return -1
@@ -108,16 +108,15 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     match_data['round'] = round
     return match_data
 
-def main():
-    #WYWOŁANIE
-    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze> <numer rundy>
+def to_automate(league_id, season_id, games, round_to_d):
     conn = db_module.db_connect()
-    #Link do strony z wynikami
-    #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
-    league_id = int(sys.argv[1])
-    season_id = int(sys.argv[2])
-    round_to_d = int(sys.argv[4])
-    games = sys.argv[3]
+    query = "select id from matches where league = {} and season = {} and cast(game_date as date) > current_date order by game_date limit 1".format(league_id, season_id)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    if len(results) > 0:
+        print("BLOKADA DODAWANIA NOWYCH SPOTKAŃ GDY W BAZIE ZNAJDUJĄ SIĘ MECZE Z DATĄ PÓŹNIEJSZĄ NIŻ DATA URUCHOMIENIA SKRYPTU")
+        return
     query = "select country from leagues where id = {}".format(league_id)
     country_df = pd.read_sql(query,conn)
     country = country_df.values.flatten() 
@@ -198,5 +197,16 @@ VALUES ({league}, \
         inserts.append(sql)
     update_db(inserts, conn)
     conn.close()
+def main():
+    #WYWOŁANIE
+    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze> <numer rundy>
+    #Link do strony z wynikami
+    #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
+    league_id = int(sys.argv[1])
+    season_id = int(sys.argv[2])
+    round_to_d = int(sys.argv[4])
+    games = sys.argv[3]
+    to_automate(league_id, season_id, games, round_to_d)
+    
 if __name__ == '__main__':
     main()
