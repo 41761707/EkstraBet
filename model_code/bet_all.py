@@ -287,6 +287,9 @@ def bet_to_automate(league, season, mode):
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
+    if len(results) == 0:
+        print("BRAK SPOTKAŃ")
+        return
     current_round = results[0][0]
     print("RUNDA: ", current_round)
     if mode == 0:
