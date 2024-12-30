@@ -4,6 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from datetime import datetime
 import pandas as pd
+import re
 
 import db_module
 
@@ -20,12 +21,17 @@ class Game:
         round_str = ""
         for div in round_div:
             round_info = div.text.strip()
-            round_str = round_info.split("-")[-1].strip()
+            round_str = round_info.split(" - ")[-1].strip()
         if round_str == 'USA: NHL':
             return 100
+        if round_str == 'All Stars' or round_str == 'Przedsezonowy':
+            return -1
         for div in game_div:
             game_info = div.text.strip()
-            game_str = game_info.split(".")[0]
+            game_str = "0"
+            match = re.search(r"(\d+\s+runda)", game_info)
+            if match:
+                game_str = match.group(1)
             round_str = round_str + ", " + game_str
         return self.get_special_round(round_str)
     
@@ -95,7 +101,7 @@ class Game:
     def get_match_links(self, games, driver):
         links = []
         driver.get(games)
-        time.sleep(2) #Dla hokeja trzeba troche poczekac
+        time.sleep(30) #Dla hokeja trzeba troche poczekac
         game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
         for element in game_divs:
             id = element.get_attribute('id').split('_')[2]
@@ -111,6 +117,8 @@ class Game:
         round_div = self.driver.find_elements(By.CLASS_NAME, "tournamentHeader__country")
         game_div = self.driver.find_elements(By.CLASS_NAME, "infoBox__info")
         match_data['round'] = self.extract_round(round_div, game_div)
+        if match_data['round'] == -1:
+            return -1, -1
         time_divs = self.driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
         team_divs = self.driver.find_elements(By.CLASS_NAME, "participant__participantName")
         score_divs = self.driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
@@ -132,7 +140,7 @@ class Game:
             if extra_time == 'PO RZUTACH KARNYCH':
                 ot_flag = 2
             match_info.append(extra_time)
-        print(match_info)
+        #print(match_info)
         match_data['league'] = self.league_id #id ligi
         match_data['season'] = self.season_id #id sezonu
         match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
@@ -168,14 +176,15 @@ class Game:
             'penalty-2-min': 183,
             'whistle-ico': 184,
             'penalty-5-min': 185,
-            'penalty-10-min-misconduct': 186
+            'penalty-10-min-misconduct': 186,
+            'warning' : 187,
+            'substitution' : 188,
+            'penalty-10-min' : 189, 
         }
         return event_mapping.get(event, 0)  # Domyślna wartość to 0, jeśli event nie istnieje
 
     
     def get_player_id(self, common_name, flash_id = None): 
-        if flash_id is not None:
-            print(flash_id)
         player_id = -1
         cursor = self.conn.cursor()
         try:
@@ -184,7 +193,13 @@ class Game:
             cursor.execute(query_count, (common_name,))
             count = cursor.fetchone()[0]
             if count == 0:
-                print('BRAK GRACZA')
+                flash_player_id = "SELECT id FROM players where external_flash_id = %s"
+                cursor.execute(flash_player_id, (flash_id,))
+                result = cursor.fetchone()
+                if result:
+                    player_id = result[0]
+                else:
+                    print(f'BRAK GRACZA O PODANYM COMMON_NAME. Common name: {common_name}, flash_id: {flash_id}')
             elif count == 1:
                 # 2. Jeśli jest dokładnie jeden gracz, pobierz jego id
                 query_single = "SELECT id FROM players WHERE common_name = %s"
@@ -203,7 +218,7 @@ class Game:
                 if result:
                     player_id = result[0]
                 else:
-                    print('BRAK GRACZA O PODANYM external_flash_id')
+                    print(f'BRAK GRACZA O PODANYM external_flash_id. Common name: {common_name}, flash_id: {flash_id}')
         except Exception as e:
             print(f"Wystąpił błąd: {e}")
         finally:
@@ -214,9 +229,21 @@ class Game:
         pass
 
     def get_player_team_id(self, shortcut):
+        #TLUMACZENIA Z FLASHSCORE
+        if shortcut == 'NAS':
+            shortcut = 'NSH'
+        if shortcut == 'WIN':
+            shortcut = 'WPG'
+        if shortcut == 'LOS':
+            shortcut = 'LAK'
+        if shortcut == 'MON':
+            shortcut = 'MTL'
+        
         return self.shortcuts[shortcut]
 
-    def get_match_events(self, home_team, away_team):
+    def get_match_events(self, link, match_id, home_team, away_team):
+        self.driver.get(link)
+        time.sleep(2)
         match_events_lists = []
         game_log = self.driver.find_element(By.CLASS_NAME, "smv__verticalSections.section")
         game_events_divs = game_log.find_elements(By.XPATH, "./*")
@@ -239,6 +266,7 @@ class Game:
                     'en_flag' : 0,
                     'description' : 0
                 }
+                match_events['match_id'] = match_id
                 description_str = ""
                 match_events['period'] = current_period
                 if "smv__homeParticipant" in div.get_attribute("class"):
@@ -250,7 +278,9 @@ class Game:
                 match_events['event_time'] = time_box.text
                 try:
                     main_player = incident.find_element(By.TAG_NAME, "a")
-                    match_events['player_id'] = self.get_player_id(main_player.text)
+                    flash_id_link = main_player.get_attribute('href')
+                    flash_id = flash_id_link.split('/')[-2]
+                    match_events['player_id'] = self.get_player_id(main_player.text, flash_id)
                 except:
                     match_events['player_id'] = 0
                 try:
@@ -281,15 +311,16 @@ class Game:
                 except:
                     pass
                 match_events['description'] = description_str
-                
+                if match_events['player_id'] == 0 and match_events['event_id'] == 183:
+                    match_events['player_id'] = 2002 #Definicja gracza w bazie
                 match_events_lists.append(match_events)
         return match_events_lists
 
     def get_match_stats_add(self, link, match_data, match_stats_add, ot_flag, ot_winner):
         stats = []
         self.driver.get(link)
-        print("MATCH_STATS_ADD")
-        time.sleep(5)
+        #print("MATCH_STATS_ADD")
+        time.sleep(2)
         if ot_flag == 1:
             match_stats_add["OT"] = 1
             match_stats_add["OTwinner"] = ot_winner
@@ -352,11 +383,15 @@ class Game:
             if(stat[1] == "Gole do p. bramki"):
                 match_stats_add["home_team_en"] = stat[0]
                 match_stats_add["away_team_en"] = stat[2]
+        if match_data['home_team_sc'] == 0:
+            match_data['home_team_sc'] = match_data['home_team_sog']
+        if match_data['away_team_sc'] == 0:
+            match_data['away_team_sc'] = match_data['away_team_sog']        
 
     def get_match_boxscore(self, link, match_id):
         boxscore = []
         self.driver.get(link)
-        time.sleep(5)
+        time.sleep(2)
         #ui-table playerStatsTable
         columns_player = [
             'match_id',
@@ -370,7 +405,7 @@ class Game:
             'sog',
             'hits',
             'blocked',
-            'to',
+            'turnovers',
             'steals',
             'faceoff',
             'faceoff_won',
@@ -397,7 +432,7 @@ class Game:
             current_player_info.append(match_id) #MATCH_ID
             divs = player.find_elements(By.XPATH, "./*")
             for div in divs:
-                stat = div.text.strip()
+                stat = div.text.strip().replace('%','')
                 if current_column == 0: #COMMON NAME GRACZA
                     flash_id_div = player.find_element(By.TAG_NAME, 'a')
                     flash_id_link = flash_id_div.get_attribute('href')
@@ -412,11 +447,46 @@ class Game:
                 current_column = current_column + 1
                 #print(current_player_info)
             #Drobna poprawka dla strzałów
+        
             if len(current_player_info) == 8:
                 saves_stat = current_player_info[6].split('-')
                 current_player_info[6] = saves_stat[0]
                 current_player_info.append(saves_stat[1])
                 player_stats = dict(zip(columns_goaltender, current_player_info))
+            #Obejscie dla zawodnikow dla starych danych (brak wzowien)
+            elif len(current_player_info) == 15:
+                current_player_info.insert(-2, 0)
+                current_player_info.insert(-2, 0)
+                player_stats = dict(zip(columns_player, current_player_info))
+            #Obejscie dla bramkarzy dla starych danych (info o obronach w even i pp/pk)
+            elif len(current_player_info) == 10:
+                saves_stat = current_player_info[8].split('-')
+                current_player_info[8] = saves_stat[0]
+                current_player_info.append(saves_stat[1])
+                goaltender_stats = [current_player_info[0], 
+                                    current_player_info[1], 
+                                    current_player_info[2], 
+                                    current_player_info[3], 
+                                    current_player_info[4], 
+                                    '60:00', 
+                                    current_player_info[8],
+                                    current_player_info[9],
+                                    current_player_info[10]]
+                player_stats = dict(zip(columns_goaltender, goaltender_stats))                
+            elif len(current_player_info) == 11:
+                saves_stat = current_player_info[9].split('-')
+                current_player_info[9] = saves_stat[0]
+                current_player_info.append(saves_stat[1])
+                goaltender_stats = [current_player_info[0], 
+                                    current_player_info[1], 
+                                    current_player_info[2], 
+                                    current_player_info[3], 
+                                    current_player_info[4], 
+                                    current_player_info[5], 
+                                    current_player_info[9],
+                                    current_player_info[10],
+                                    current_player_info[11]]
+                player_stats = dict(zip(columns_goaltender, goaltender_stats))
             else:
                 player_stats = dict(zip(columns_player, current_player_info))
             boxscore.append(player_stats)
@@ -424,7 +494,7 @@ class Game:
     
     def get_match_roster(self, link, match_id, home_team, away_team):
         self.driver.get(link)
-        time.sleep(5)
+        time.sleep(2)
         columns_roster = [
             'match_id',
             'player_id',
@@ -436,7 +506,7 @@ class Game:
         match_roster = []
         current_index = -1
         current_line = 1
-        positions = ['D', 'D', 'LW', 'C', 'RW']
+        positions = ['D', 'D', 'RW', 'C', 'LW']
         lineup_div = self.driver.find_element(By.CLASS_NAME, 'lf__lineUp')
         sections = lineup_div.find_elements(By.CLASS_NAME, 'section')[:4]
         for section in sections:
@@ -524,7 +594,8 @@ class Game:
             'home_team_fouls' : 0,
             'away_team_fouls' : 0,
             'round' : 0,
-            'result' : 0}
+            'result' : 0,
+            'sport_id' : 2}
         match_stats_add = {
             'match_id' : 0,
             'OT': 0,
@@ -558,31 +629,61 @@ class Game:
         }
         match_events = []
         match_boxscore = []
+        match_rosters = []
         #1. 
         #TUTAJ MATCH_DATA BEZ STATYSTYK, SAM OPIS KTO Z KIM KIEDY
         ot_flag, ot_winner = self.get_match_info("{}szczegoly-meczu".format(link), team_id, match_data)
-        #3. TA SAMA PODSTRONA TO IDZIEMY ZA CIOSEM
-        match_events = self.get_match_events(match_data['home_team'], match_data['away_team'])
-        match_stats_add['match_id'] = self.insert_match()
+        if ot_flag == -1 and ot_winner == -1:
+            return -1, -1, -1, -1, -1
         #2. 
         self.get_match_stats_add("{}statystyki-meczu/0".format(link), match_data, match_stats_add, ot_flag, ot_winner)
+        match_stats_add['match_id'] = self.insert_match_data(match_data)
+        print(f"#AKTUALNE ID MECZU: {match_stats_add['match_id']}")
+        self.insert_procedure(match_stats_add, "hockey_matches_add")
+
+        #3. 
+        match_events = self.get_match_events("{}szczegoly-meczu".format(link), match_stats_add['match_id'], match_data['home_team'], match_data['away_team'])
 
         #4. 
         match_boxscore = self.get_match_boxscore("{}player-statistics/0".format(link), match_stats_add['match_id'])
 
         #5. 
         match_rosters = self.get_match_roster("{}sklady/0".format(link), match_stats_add['match_id'], match_data['home_team'], match_data['away_team'])
+        self.insert_match_details(match_events, match_boxscore, match_rosters)
 
-        self.human_print(match_data, match_stats_add, match_events, match_boxscore, match_rosters)
+        #self.human_print(match_data, match_stats_add, match_events, match_boxscore, match_rosters)
+        print(f"#Import meczu o ID {match_stats_add['match_id']} zakończony sukcesem")
+        return match_data, match_stats_add, match_events, match_boxscore, match_rosters
 
-    
+    def insert_match_details(self, match_events, match_boxscore, match_rosters):
+        for element in match_events:
+            self.insert_procedure(element, "hockey_match_events")
+        for element in match_boxscore:
+            self.insert_procedure(element, "hockey_match_player_stats")
+        for element in match_rosters:
+            self.insert_procedure(element, "hockey_match_rosters")
 
-    def update_db(self, queries, conn):
-        print("HALKO")
-        for query in queries:
-            cursor = conn.cursor() #DO POPRAWKI NATYCHMIAST
-            cursor.execute(query)
-            conn.commit()
+    def insert_procedure(self, data, tablename):
+        columns = ', '.join(data.keys())
+        placeholders = ', '.join(['%s'] * len(data)) 
+        values = ', '.join([str(f"'{value}'") for value in data.values()])    
+        query = f"INSERT INTO {tablename} ({columns}) VALUES ({placeholders});"
+        #print(query)
+        debug_query = f"INSERT INTO {tablename} ({columns}) VALUES ({values});"
+        print(debug_query)
+        cursor = self.conn.cursor()
+        cursor.execute(query, tuple(data.values()))
+        self.conn.commit()
+        cursor.close()
+
+    #FUNKCJE DO INSERTOWANIA
+    def insert_match_data(self, match_data):
+        self.insert_procedure(match_data, "matches")
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT LAST_INSERT_ID();")
+        match_id = cursor.fetchone()[0]
+        cursor.close()
+        return match_id
 
 def get_shortcuts(conn, country):
     query = "select shortcut, id from teams where country = {} and sport_id = 2".format(country)
@@ -602,6 +703,8 @@ def main():
     season_id = int(sys.argv[2])
     games = sys.argv[3]
     one_link = sys.argv[4]
+    skip = int(sys.argv[5])
+    no_to_download = int(sys.argv[6])
     query = "select country from leagues where id = {}".format(league_id)
     country_df = pd.read_sql(query,conn)
     country = country_df.values.flatten() 
@@ -609,18 +712,18 @@ def main():
     teams_df = pd.read_sql(query, conn)
     team_id = teams_df.set_index('name')['id'].to_dict()
     shortcuts = get_shortcuts(conn, country[0])
-    print(team_id)
-    inserts = []
     game_data = Game(driver, league_id, season_id, shortcuts, conn)
     if one_link == '-1':
-        links = Game.get_match_links(games, driver)
-        for link in links:
-            game_data.get_match_data(link, team_id)
-            #inserts.append(sql)
-            break
+        links = game_data.get_match_links(games, driver)
+        if no_to_download == '-1':
+            no_to_download = len(links)
+        for link in links[skip:no_to_download]:
+            match_data, _, _, _, _ = game_data.get_match_data(link, team_id)
+            if match_data == -1:
+                print("# ALL STAR ALBO PRZEDSEZONOWA - POMIJAMY")
+            #break
     else:
         game_data.get_match_data(one_link, team_id)
-    #update_db(inserts, conn)
     conn.close() 
 if __name__ == '__main__':
     main()
