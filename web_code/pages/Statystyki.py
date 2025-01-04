@@ -56,11 +56,11 @@ def main():
             stats_module.aggregate_leagues_acc(1, conn)
         if st.button("Sezon 2024/25", use_container_width= True):
             stats_module.aggregate_leagues_acc(11, conn)
-    '''with st.expander("Profit z zakładów - porównanie między ligami"):
+    with st.expander("Profit z zakładów - porównanie między ligami"):
         if st.button("Profit, sezon 2023/24", use_container_width= True):
             stats_module.aggregate_leagues_profit(1, conn)
         if st.button("Profit, sezon 2024/25", use_container_width= True):
-            stats_module.aggregate_leagues_profit(11, conn)'''
+            stats_module.aggregate_leagues_profit(11, conn)
     with st.expander("Charakterystyki ligowe - porównanie"):
         st.write("Charakterystyki ligowe - porównanie")
     with st.expander("Pewność modelu a poprawność"):

@@ -599,7 +599,6 @@ def aggregate_leagues_acc(season_id, conn):
     predictions_ratio = [] #team, result_ratio, ou_ratio, btts_ratio
     predictions_total = []
     for k,v in leagues_dict.items():
-        #OU - predykcje per team
         query = '''select 
                         count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
                         count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
@@ -703,6 +702,73 @@ def aggregate_leagues_acc(season_id, conn):
             st.dataframe(df, use_container_width=True, hide_index=True)
         with col6:
             graphs_module.team_compare_graph(teams, result_acc)  
+
+
+def aggregate_leagues_profit(season_id, conn):
+    all_leagues = "select distinct id, name from leagues where active = 1".format()
+    all_leagues_df = pd.read_sql(all_leagues, conn)
+    leagues_dict = all_leagues_df.set_index('id')['name'].to_dict()
+    bets_ratio = [] #team, result_ratio, ou_ratio, btts_ratio
+    bets_total = []
+    bets_profit = []
+    for k,v in leagues_dict.items():
+        query = '''select 
+                        count(case when b.event_id in (1, 2, 3) then 1 end) as result_bets,
+                        count(case when b.event_id in (1, 2, 3) and b.outcome = 1 then 1 end) as results_correct,
+                        count(case when b.event_id in (8, 12) then 1 end) as ou_bets,
+                        count(case when b.event_id in (8, 12) and b.outcome = 1 then 1 end) as ou_correct,
+                        count(case when b.event_id in (6, 172) then 1 end) as btts_bets,
+                        count(case when b.event_id in (6, 172) and b.outcome = 1 then 1 end) as btts_correct,
+                        sum(case 
+							when b.event_id IN (1, 2, 3) AND b.outcome = 1 THEN b.odds - 1
+							when b.event_id IN (1, 2, 3) AND b.outcome = 0 THEN -1
+							else 0 end ) as result_profit,
+                        sum(case 
+							when b.event_id IN (8, 12) AND b.outcome = 1 THEN b.odds - 1
+							when b.event_id IN (8, 12) AND b.outcome = 0 THEN -1
+							else 0 end ) as ou_profit,
+                        sum(case 
+							when b.event_id IN (6, 172) AND b.outcome = 1 THEN b.odds - 1
+							when b.event_id IN (6, 172) AND b.outcome = 0 THEN -1
+							else 0 end ) as btts_profit  
+                    from bets b
+                        join matches m on b.match_id = m.id
+                        where m.season = {} and m.result != '0'
+                            and m.league = {}'''.format(season_id, k)
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        if results[0][0] > 0:
+            bets_total.append([v, results[0][0], results[0][1], results[0][2], results[0][3], results[0][4], results[0][5]])
+            bets_ratio.append([v, round(results[0][1] / results[0][0], 2), round(results[0][3] / results[0][2], 2) ,round(results[0][5] / results[0][4], 2)])
+            bets_profit.append([v, round(results[0][6], 2), round(results[0][7], 2), round(results[0][8], 2)])
+    st.write(bets_profit)
+    query = ''' select
+                    sum(case 
+                        when b.event_id IN (8, 12) AND b.outcome = 1 THEN b.odds - 1
+                        when b.event_id IN (8, 12) AND b.outcome = 0 THEN -1
+                        else 0 end ) as ou_profit,
+                    sum(case 
+                        when b.event_id IN (6, 172) AND b.outcome = 1 THEN b.odds - 1
+                        when b.event_id IN (6, 172) AND b.outcome = 0 THEN -1
+                        else 0 end ) as btts_profit,
+                    sum(case 
+                        when b.event_id IN (1, 2, 3) AND b.outcome = 1 THEN b.odds - 1
+                        when b.event_id IN (1, 2, 3) AND b.outcome = 0 THEN -1
+                        else 0 end ) as result_profit,
+                        count(case when b.event_id in (1, 2, 3) then 1 end) as result_bets,
+                        count(case when b.event_id in (1, 2, 3) and b.outcome = 1 then 1 end) as results_correct,
+                        count(case when b.event_id in (8, 12) then 1 end) as ou_bets,
+                        count(case when b.event_id in (8, 12) and b.outcome = 1 then 1 end) as ou_correct,
+                        count(case when b.event_id in (6, 172) then 1 end) as btts_bets,
+                        count(case when b.event_id in (6, 172) and b.outcome = 1 then 1 end) as btts_correct
+                from bets b
+                    join matches m on b.match_id = m.id
+                    where m.season = {} and m.result != '0' '''.format(season_id) 
+    cursor = conn.cursor()
+    cursor.execute(query)
+    all_bets = cursor.fetchall()
+    st.write(all_bets)
 
 
 
