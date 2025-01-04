@@ -64,7 +64,8 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
         'home_team_rc' : 0,
         'away_team_rc' : 0,
         'round' : 0,
-        'result' : 0}
+        'result' : 0,
+        'sport_id' : 1}
     # _row_n1rcj_9 - klasa zawierająca informacje o statystykach meczowych
     # duelParticipant__startTime - czas rozegrania meczu (timestamp)
     # participant__participantName - drużyny biorące udział w meczu
@@ -110,7 +111,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
 
 def to_automate(league_id, season_id, games, round_to_d):
     conn = db_module.db_connect()
-    query = "select id from matches where league = {} and season = {} and cast(game_date as date) > current_date order by game_date limit 1".format(league_id, season_id)
+    query = "select id from matches where league = {} and season = {} and cast(game_date as date) >= current_date order by game_date limit 1".format(league_id, season_id)
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
@@ -163,7 +164,8 @@ away_team_yc, \
 home_team_rc, \
 away_team_rc, \
 round, \
-result)  \
+result, \
+sport_id)  \
 VALUES ({league}, \
 {season}, \
 {home_team}, \
@@ -192,7 +194,8 @@ VALUES ({league}, \
 {home_team_rc}, \
 {away_team_rc}, \
 {round}, \
-'{result}');'''.format(**match_data)
+'{result}', \
+{sport_id});'''.format(**match_data)
         print(sql)
         inserts.append(sql)
     update_db(inserts, conn)

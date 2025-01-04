@@ -1,0 +1,3 @@
+Liczba meczów: 4214
+Liczba poprawnych: 2210
+Skuteczność: 0.5244423350735643
