@@ -16,6 +16,20 @@ class Game:
         self.season_id = season_id
         self.conn = conn
         self.shortcuts = shortcuts
+
+    def check_if_in_db(self, home_team, away_team, game_date):
+        cursor = self.conn.cursor()
+        query = """
+            SELECT m.id 
+            FROM matches m 
+            WHERE m.home_team = %s AND m.away_team = %s AND m.game_date = %s
+        """
+
+        cursor.execute(query, (home_team, away_team, game_date))
+        result = cursor.fetchone()
+        cursor.close()
+        return result[0] if result else -1
+        
         
     def extract_round(self, round_div, game_div):
         round_str = ""
@@ -146,6 +160,10 @@ class Game:
         match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
         match_data['away_team'] = team_id[match_info[3]]
         match_data['game_date'] = self.parse_match_date(match_info[0])
+        check_id = self.check_if_in_db(match_data['home_team'], match_data['away_team'], match_data['game_date'])
+        if check_id != -1:
+            print(f"#Ten mecz znajduje się już w bazie danych!, ID:{check_id}")
+            return -1, -1
         score = match_info[5].split('\n')
         home_goals = int(score[0])
         away_goals = int(score[2])
@@ -311,7 +329,7 @@ class Game:
                 except:
                     pass
                 match_events['description'] = description_str
-                if match_events['player_id'] == 0 and match_events['event_id'] == 183:
+                if match_events['player_id'] == 0 and (match_events['event_id'] == 183 or match_events['event_id'] == 186):
                     match_events['player_id'] = 2002 #Definicja gracza w bazie
                 match_events_lists.append(match_events)
         return match_events_lists
@@ -453,12 +471,41 @@ class Game:
                 current_player_info[6] = saves_stat[0]
                 current_player_info.append(saves_stat[1])
                 player_stats = dict(zip(columns_goaltender, current_player_info))
+            #Tragiczny kod, ale to tylko dla starych meczow, potem usuwam
             #Obejscie dla zawodnikow dla starych danych (brak wzowien)
             elif len(current_player_info) == 15:
                 current_player_info.insert(-2, 0)
                 current_player_info.insert(-2, 0)
                 player_stats = dict(zip(columns_player, current_player_info))
             #Obejscie dla bramkarzy dla starych danych (info o obronach w even i pp/pk)
+            elif len(current_player_info) == 7:
+                saves_stat = current_player_info[5].split('-')
+                current_player_info[5] = saves_stat[0]
+                current_player_info.append(saves_stat[1])
+                goaltender_stats = [current_player_info[0], 
+                                    current_player_info[1], 
+                                    current_player_info[2], 
+                                    current_player_info[3], 
+                                    current_player_info[4], 
+                                    '60:00', 
+                                    current_player_info[5],
+                                    current_player_info[6],
+                                    current_player_info[7]]
+                player_stats = dict(zip(columns_goaltender, goaltender_stats))  
+            elif len(current_player_info) == 9:
+                saves_stat = current_player_info[7].split('-')
+                current_player_info[7] = saves_stat[0]
+                current_player_info.append(saves_stat[1])
+                goaltender_stats = [current_player_info[0], 
+                                    current_player_info[1], 
+                                    current_player_info[2], 
+                                    current_player_info[3], 
+                                    current_player_info[4], 
+                                    '60:00', 
+                                    current_player_info[7],
+                                    current_player_info[8],
+                                    current_player_info[9]]
+                player_stats = dict(zip(columns_goaltender, goaltender_stats))  
             elif len(current_player_info) == 10:
                 saves_stat = current_player_info[8].split('-')
                 current_player_info[8] = saves_stat[0]
