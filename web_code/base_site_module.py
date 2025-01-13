@@ -51,10 +51,15 @@ class Base:
         self.teams_dict = all_teams_df.set_index('id')['name'].to_dict()
         #TO-DO: Przedstawianie historycznych predykcji
         st.subheader("Konfiguracja prezentowanych danych")
-        self.EV_plus = st.checkbox("Uwzględnij tylko wartościowe zakłady (VB > 0)")
-        self.games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
-        self.ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
-        self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            self.EV_plus = st.checkbox("Uwzględnij tylko wartościowe zakłady (VB > 0)")
+        with col2:
+            self.games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
+        with col3:
+            self.ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
+        with col4:
+            self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
         if self.round > 1:
             if self.round >= 900:
                 prev_round, round_name = self.get_special_round(self.round, 1)

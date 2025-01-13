@@ -41,7 +41,7 @@ def get_parlays_for_gambler(current_gambler_id, conn):
             join teams t2 on m.away_team = t2.id
             join leagues l on l.id = m.league
             join sports s on m.sport_id = s.id
-            where gp.parlay_outcome is not null and gp.gambler_id = {current_gambler_id}
+            where gp.gambler_id = {current_gambler_id}
             order by gp.id asc'''
     return pd.read_sql(query, conn)
 
