@@ -13,100 +13,128 @@ import stats_module
 class Base:
     def __init__(self, league, season, name):
         self.league = league
-        self.season = season
+        self.season = -1
         self.round = -1
+        self.rounds_list = []
+        self.season_list = []
+        self.date_from = ''
+        self.date_to = ''
+        self.name = ''
+        self.no_events = 3 #BTTS, OU, REZULTAT
+        self.EV_plus = 0
+        self.teams_dict = {}
         self.date = datetime.today().strftime('%Y-%m-%d')
         self.conn = db_module.db_connect()
-        #query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date - 1 order by game_date limit 1".format(self.league, self.season)
-        query = "select round from matches where league = {} and season = {} and cast(game_date as date) >= current_date order by game_date desc limit 1".format(self.league, self.season)
-        cursor = self.conn.cursor()
-        cursor.execute(query)
-        results = cursor.fetchall()
-        if len(results) > 0:
-            self.round = results[0][0]
-        else:
-            st.subheader("UWAGA: Brak najnowszych spotkań")
-            query = "select round from matches where league = {} and season = {} and result != '0' order by game_date desc limit 1".format(self.league, self.season)
-            cursor = self.conn.cursor()
-            cursor.execute(query)
-            results = cursor.fetchall()
-            self.round = results[0][0]
-        #self.round = current_round
-        query = "select years from seasons where id = {}".format(self.season)
-        cursor = self.conn.cursor()
-        cursor.execute(query)
-        results = cursor.fetchall()
-        self.years = results[0][0]
-        self.no_events = 3 #OU, BTTS, REZULTAT
-        query = "select last_update from leagues where id = {}".format(self.league)
+        self.set_config()
+        self.get_teams()
+        self.get_schedule()    
+        self.get_league_tables()
+        self.get_league_stats()          
+        self.conn.close()
+
+    def set_config(self):
+        query = "select last_update, name from leagues where id = {}".format(self.league)
         cursor = self.conn.cursor()
         cursor.execute(query)
         results = cursor.fetchall()
         self.update = results[0][0]
-        self.name = name
-        st.header(name)
-        st.write("Aktualny sezon: {}.  \n Aktulana kolejka: {}.  \n Ostatnia aktualizacja: {}".format(self.years, self.round, self.update))
+        self.name = results[0][1]
+        cursor.close()
+        st.header(self.name)
+        st.write("Ostatnia aktualizacja: {}".format(self.update))
+        st.subheader("Konfiguracja prezentowanych danych")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            self.games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
+        with col2:
+            self.ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
+        with col3:
+            self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
+        
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            season_query = f"SELECT distinct m.season, s.years from matches m join seasons s on m.season = s.id where m.league = {self.league} order by s.years desc"
+            cursor = self.conn.cursor()
+            cursor.execute(season_query)
+            seasons_dict = {years: season_id for season_id, years in cursor.fetchall()}
+            self.seasons_list = [season for season in seasons_dict.keys()]
+            self.years = st.selectbox("Sezon", self.seasons_list)
+            self.season = seasons_dict[self.years]
+            cursor.close()
+        with col5:
+            rounds_query = f"select round, game_date from matches where league = {self.league} and season = {self.season} order by game_date desc"
+            cursor = self.conn.cursor()
+            cursor.execute(rounds_query)
+            rounds_tmp = [x[0] for x in cursor.fetchall()]
+            for item in rounds_tmp:
+                if item not in self.rounds_list:
+                    self.rounds_list.append(item)
+            self.round = st.selectbox("Kolejka", self.rounds_list)
+            cursor.close()
+        with col6:
+            self.date_range = st.date_input(
+                            "Wybierz zakres dat (jeszcze nie działa!)",
+                            value=(pd.to_datetime('2024-01-01'), pd.to_datetime('2024-01-31')),
+                            min_value=pd.to_datetime('2000-01-01'),
+                            max_value=pd.to_datetime('2030-12-31'),
+                            format="YYYY-MM-DD")
+
+    def get_teams(self):
         all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(self.league, self.season)
         all_teams_df = pd.read_sql(all_teams, self.conn)
         self.teams_dict = all_teams_df.set_index('id')['name'].to_dict()
-        #TO-DO: Przedstawianie historycznych predykcji
-        st.subheader("Konfiguracja prezentowanych danych")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            self.EV_plus = st.checkbox("Uwzględnij tylko wartościowe zakłady (VB > 0)")
-        with col2:
-            self.games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
-        with col3:
-            self.ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
-        with col4:
-            self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
+
+    def get_schedule(self):
         if self.round > 1:
-            if self.round >= 900:
-                prev_round, round_name = self.get_special_round(self.round, 1)
+            if self.round >= 100:
+                round_name = self.get_special_round(self.round)
             else:
                 round_name = self.round - 1
             with st.expander("Terminarz, poprzednia kolejka numer: {}".format(round_name)):
-                self.generate_schedule(league, self.round-1, season)
-        if self.round >= 900:
-            _, round_name = self.get_special_round(self.round, 0)
+                self.generate_schedule(self.round-1)
+        if self.round >= 100:
+            round_name = self.get_special_round(self.round)
         else:
             round_name = self.round
         with st.expander("Terminarz, aktualna kolejka numer: {}".format(round_name)):
-            self.generate_schedule(league, self.round, season)
+            self.generate_schedule(self.round)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             self.show_teams(self.teams_dict)
+
+    def get_league_tables(self):
         with st.expander("Tabele ligowe" ):
             query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
                 from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
                 where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
             results_df = pd.read_sql(query, self.conn)
-            if st.button("W sezonie {}".format(self.years), use_container_width=True): 
-                tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
-                with tab1:
-                    st.header("Tradycyjna tabela ligowa")
-                    tables_module.generate_traditional_table(self.teams_dict, results_df, 'traditional')
-                with tab2:
-                    st.header("Tabela domowa")
-                    tables_module.generate_traditional_table(self.teams_dict, results_df, 'home')
-                with tab3:
-                    st.header("Tabela wyjazdowa")
-                    tables_module.generate_traditional_table(self.teams_dict, results_df, 'away')
-                with tab4:
-                    st.header("Tabela OU / BTTS")
-                    tables_module.generate_ou_btts_table(self.teams_dict, results_df)
-                    st.write("Drużyny prezentowane są w kolejności alfabetycznej")
-        query = ''' select
+            tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
+            with tab1:
+                st.header("Tradycyjna tabela ligowa")
+                tables_module.generate_traditional_table(self.teams_dict, results_df, 'traditional')
+            with tab2:
+                st.header("Tabela domowa")
+                tables_module.generate_traditional_table(self.teams_dict, results_df, 'home')
+            with tab3:
+                st.header("Tabela wyjazdowa")
+                tables_module.generate_traditional_table(self.teams_dict, results_df, 'away')
+            with tab4:
+                st.header("Tabela OU / BTTS")
+                tables_module.generate_ou_btts_table(self.teams_dict, results_df)
+                st.write("Drużyny prezentowane są w kolejności alfabetycznej")
+
+    def get_league_stats(self):     
+        with st.expander("Statystyki ligowe"):
+            query = ''' select
                         count(*)
                     from matches
                     where league = {}
                         and season = {}
                         and result != '0'
             '''.format(self.league, self.season)
-        cursor = self.conn.cursor()
-        cursor.execute(query)
-        no_games = cursor.fetchall()
-
-        with st.expander("Statystyki ligowe"):
+            cursor = self.conn.cursor()
+            cursor.execute(query)
+            no_games = cursor.fetchall()
+            cursor.close()
             st.header("Charakterstyki ligi: {}".format(self.name))
             st.subheader("Do tej pory rozegrano {} meczów w ramach ligi: {}".format(no_games[0][0], self.name))
             if no_games[0][0] > 0:
@@ -123,13 +151,12 @@ class Base:
             tax_flag = st.checkbox("Uwzględnij podatek 12%")
             rounds = list(range(first_round, last_round + 1))
             rounds_str =','.join(map(str, rounds))
-            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(league, season, rounds_str)
+            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(self.league, self.season, rounds_str)
             stats_module.generate_statistics(query, tax_flag, first_round, last_round, self.no_events, self.conn, self.EV_plus)
         with st.expander("Statystyki predykcji w sezonie {} - porównania między drużynami".format(self.years)):
-            stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn)           
-        self.conn.close()
+            stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn) 
 
-    def get_special_round(self, round, is_prev):
+    def get_special_round(self, round):
         special_round_names = {
             900 : '1/64 finału, mecz numer 1',
             901 : '1/64 finału, mecz numer 2',
@@ -180,74 +207,42 @@ class Base:
             964 : 'Finał, mecz numer 5',
             965 : 'Finał, mecz numer 6',
             966 : 'Finał, mecz numer 7',
+            100 : 'Brak podziału na kolejki'
         }
-        if is_prev:
-            keys = sorted(special_round_names.keys())
-            current_index = keys.index(round)
-            if current_index > 0:
-                return keys[current_index - 1], special_round_names[keys[current_index - 1]]
-            else:
-                return 1, 1
-        return 1, special_round_names[round]
-    
-    def get_previous_record(special_round_names, current_key):
-        keys = sorted(special_round_names.keys())
-        
-        # Znajdź indeks bieżącego klucza
-        current_index = keys.index(current_key)
-        
-        # Sprawdź, czy jest pierwszy w grupie
-        if current_index > 0:
-            # Zwróć poprzedni klucz
-            return keys[current_index - 1], special_round_names[keys[current_index - 1]]
-        else:
-            # Obsłuż przypadek, gdy klucz jest pierwszym w słowniku
-            return None, None  # Nie ma poprzedniego rekordu
+        return special_round_names[round]
 
     def single_team_data(self, team_id):
-        query = "select name from teams where id = {}".format(team_id)
+        query = f"SELECT name FROM teams WHERE id = {team_id}"
         team_name_df = pd.read_sql(query, self.conn)
-        if not team_name_df.empty:
-            team_name = team_name_df.loc[0, 'name']
-        query = '''select m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result
-                    from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
-                    where cast(m.game_date as date) <= '{}' and (m.home_team = {} or m.away_team = {}) and m.result <> '0'
-                    order by m.game_date desc'''.format(self.date, team_id, team_id)
+        team_name = team_name_df.loc[0, 'name'] if not team_name_df.empty else None
+
+        query = f'''
+            SELECT 
+                m.home_team AS home_id, t1.name AS home, 
+                m.away_team AS guest_id, t2.name AS guest, 
+                m.game_date AS date, m.home_team_goals AS home_goals, 
+                m.away_team_goals AS away_goals, m.result AS result
+            FROM matches m 
+            JOIN teams t1 ON t1.id = m.home_team 
+            JOIN teams t2 ON t2.id = m.away_team 
+            WHERE CAST(m.game_date AS date) <= '{self.date}' 
+            AND (m.home_team = {team_id} OR m.away_team = {team_id}) 
+            AND m.result <> '0'
+            ORDER BY m.game_date DESC 
+            LIMIT {self.games}
+        '''
         data = pd.read_sql(query, self.conn)
-        date = []
-        opponent = []
-        goals = []
-        btts = []
-        home_team = []
-        home_team_score = []
-        away_team = []
-        away_team_score = []
-        results = []
-        for _, row in data.iterrows():
-            #O/U
-            if int(row.home_goals) + int(row.away_goals) == 0:
-                goals.append(0.4)
-            else:
-                goals.append(int(row.home_goals) + int(row.away_goals))
-            #BTTS
-            if int(row.home_goals) > 0 and int(row.away_goals) > 0:
-                btts.append(1)
-            else:
-                btts.append(-1)
-            #DATE
-            date.append(row.date.strftime('%d.%m.%y'))
-            #HOME AND AWAY
-            home_team.append(row.home)
-            home_team_score.append(row.home_goals)
-            away_team.append(row.guest)
-            away_team_score.append(row.away_goals)
-            #OPPONENT
-            if row.home_id == team_id:
-                opponent.append(row.guest)
-            else:
-                opponent.append(row.home)
-            #RESULTS
-            results.append(row.result)
+
+        date = [row.date.strftime('%d.%m.%y') for _, row in data.iterrows()]
+        opponent = [row.guest if row.home_id == team_id else row.home for _, row in data.iterrows()]
+        goals = [0.4 if int(row.home_goals) + int(row.away_goals) == 0 else int(row.home_goals) + int(row.away_goals) for _, row in data.iterrows()]
+        btts = [1 if int(row.home_goals) > 0 and int(row.away_goals) > 0 else -1 for _, row in data.iterrows()]
+        home_team = [row.home for _, row in data.iterrows()]
+        home_team_score = [row.home_goals for _, row in data.iterrows()]
+        away_team = [row.guest for _, row in data.iterrows()]
+        away_team_score = [row.away_goals for _, row in data.iterrows()]
+        results = [row.result for _, row in data.iterrows()]
+
         return date, opponent, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, results
 
     def match_pred_summary(self, id, result, home_goals, away_goals):
@@ -314,22 +309,6 @@ class Base:
         df.index = range(1, len(df) + 1)
         #styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset = ['VB'])
         st.dataframe(df, use_container_width=True, hide_index=True)
-        ''' Aktualnie kod poniżej średnio wygląda
-        
-        correct_pred = correct.count('TAK')
-        no_bets = bet_placed.count('TAK')
-        correct_bet = 0
-        for i in range(len(correct)):
-            if correct[i] == 'TAK' and bet_placed[i] == 'TAK':
-                correct_bet = correct_bet + 1
-        st.write("Liczba poprawnych predykcji: {}".format(correct_pred))
-        st.write("Skuteczność predykcji dla analizowanego meczu: {:.2f}%".format(100 * correct_pred/len(predicts)))
-        if no_bets > 0:
-            st.write("Liczba zawartych zakładów: {}".format(no_bets))
-            st.write("Liczba poprawych zakładów: {}".format(correct_bet))
-            st.write("Skuteczność zakładów dla analizowanego meczu: {:.2f}%".format(100 * correct_bet / max(no_bets,1)))
-        else:
-            st.write("Dla wybranego meczu nie zawarto żadnych zakładów")'''
     
     def generate_h2h(self, match_id):
         # Get teams in the match
@@ -551,17 +530,11 @@ class Base:
 
 
 
-    def generate_schedule(self, league_id, round, season):
-        if league_id == 250: #25: #MLS
-            query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
-                    from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
-                    where m.league = {} and m.round = {} and m.season = {} and m.game_date >= DATE_SUB('{}', INTERVAL 2 DAY)
-                    order by m.game_date'''.format(league_id, round, season, self.date)
-        else:
-            query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
+    def generate_schedule(self, round):
+        query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
                     from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
                     where m.league = {} and m.round = {} and m.season = {} 
-                    order by m.game_date'''.format(league_id, round, season)
+                    order by m.game_date'''.format(self.league, round, self.season)
         schedule_df = pd.read_sql(query,self.conn)
         for index, row in schedule_df.iterrows():
             button_label = "{} - {}".format(row.home, row.guest)
@@ -570,7 +543,14 @@ class Base:
             else:
                 button_label = button_label + ", data: {}".format(row.date.strftime('%d.%m.%y %H:%M'))
             if st.button(button_label, use_container_width=True):
-                self.show_predictions(row.h_g, row.a_g, row.id, row.result)
+                if row.result != '0':
+                    tab1, tab2 = st.tabs(["Predykcje", "Statystyki pomeczowe"])
+                    with tab1:
+                        self.show_predictions(row.h_g, row.a_g, row.id, row.result)
+                    with tab2:
+                        st.write("Statystyki pomeczowe")
+                else:
+                    self.show_predictions(row.h_g, row.a_g, row.id, row.result)
 
     def predicts_per_team(self, team_name, key):
         query = "select event_id, outcome from final_predictions f join matches m on m.id = f.match_id where (m.home_team = {} or m.away_team = {}) and m.result != '0' order by m.game_date desc".format(key, key)
@@ -583,7 +563,7 @@ class Base:
         if len(predicts_df) > 0:
             for _, row in predicts_df.iterrows():
                 counter = counter + 1
-                if counter== self.games * 3:
+                if counter == self.games * 3 + 1:
                     break
                 if row['event_id'] in (1,2,3):
                     if row['outcome'] == 1:
@@ -658,17 +638,17 @@ class Base:
                     col1, col2 = st.columns(2)
                     with col1:
                         with st.container():
-                            graphs_module.goals_bar_chart(date[:self.games], opponent[:self.games], goals[:self.games], team_name, self.ou_line)
+                            graphs_module.goals_bar_chart(date, opponent, goals, team_name, self.ou_line)
                     with col2:
                         with st.container():
-                            graphs_module.btts_bar_chart(date[:self.games], opponent[:self.games], btts[:self.games], team_name)
+                            graphs_module.btts_bar_chart(date, opponent, btts, team_name)
                     col3, col4 = st.columns(2)
                     with col3:
                         with st.container():
-                            graphs_module.winner_bar_chart(opponent[:self.games], home_team[:self.games] ,result[:self.games], team_name)
+                            graphs_module.winner_bar_chart(opponent, home_team ,result, team_name)
                     with col4:
                         with st.container():
-                            tables_module.matches_list(date[:self.games], home_team[:self.games], home_team_score[:self.games], away_team[:self.games], away_team_score[:self.games], team_name)
+                            tables_module.matches_list(date, home_team, home_team_score, away_team, away_team_score, team_name)
                 with tab2:
                     self.predicts_per_team(team_name, key)
                 

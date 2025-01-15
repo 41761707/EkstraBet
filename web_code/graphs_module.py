@@ -107,6 +107,13 @@ def highlight_cells_profit(val):
     color = 'background-color: lightgreen; color : black' if float(val) > 0.0 else 'background-color: lightcoral'
     return color
 
+def highlight_cells_plus_minus(val):
+    color = ''
+    if val > 0:
+        color = 'background-color: lightgreen; color : black'
+    elif val < 0:
+        color = 'background-color: lightcoral; color : black'
+    return color
 def goals_bar_chart(date, opponent, goals, team_name, ou_line):
     data = {
     'Date': [x[:-3] for x in reversed(date)],
