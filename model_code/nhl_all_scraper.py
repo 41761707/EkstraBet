@@ -501,7 +501,7 @@ class Game:
                                     current_player_info[2], 
                                     current_player_info[3], 
                                     current_player_info[4], 
-                                    '60:00', 
+                                    '00:60:00', 
                                     current_player_info[7],
                                     current_player_info[8],
                                     current_player_info[9]]
@@ -515,7 +515,7 @@ class Game:
                                     current_player_info[2], 
                                     current_player_info[3], 
                                     current_player_info[4], 
-                                    '60:00', 
+                                    '00:60:00', 
                                     current_player_info[8],
                                     current_player_info[9],
                                     current_player_info[10]]
