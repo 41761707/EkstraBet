@@ -32,6 +32,10 @@ def main():
         st.write("Krótki opis w jakim kierunku planowany jest rozwój strony")
     with st.expander("Kontakt"):
         st.write("Dane kontaktowe, github, mail etc.")
+    with st.expander("Notatka odnośnie danych"):
+        st.write("Wszystkie dane wykorzystane w serwisie pochodzą ze stron o charakterze kronikarskim. Wykorzystywane są jedynie do celów edukacyjnych-badawczych i nie mają na celu naruszenia praw autorskich.")
+        st.write("Przedstawione zakłady wykonywane są głównie hipotetycznie w celu sprawdzenia osiągnięć modelów. Przybliżają jedynie potencjalne wyniki meczów i nie stanowią oferty w rozumieniu prawa.")
+        st.write("Dane odnośnie spotkań meczowych pochodzą z serwisu www.flashscore.pl, natomiast dane o zawodnikach hokejowych zostały pobrane bezpośrednio z NHL API (https://api-web.nhle.com/)")
 
 
 

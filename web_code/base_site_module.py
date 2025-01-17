@@ -17,8 +17,6 @@ class Base:
         self.round = -1
         self.rounds_list = []
         self.season_list = []
-        self.date_from = ''
-        self.date_to = ''
         self.name = ''
         self.no_events = 3 #BTTS, OU, REZULTAT
         self.EV_plus = 0
@@ -66,6 +64,7 @@ class Base:
             cursor = self.conn.cursor()
             cursor.execute(rounds_query)
             rounds_tmp = [x[0] for x in cursor.fetchall()]
+            rounds_tmp.append(0)
             for item in rounds_tmp:
                 if item not in self.rounds_list:
                     self.rounds_list.append(item)
@@ -73,11 +72,12 @@ class Base:
             cursor.close()
         with col6:
             self.date_range = st.date_input(
-                            "Wybierz zakres dat (jeszcze nie działa!)",
-                            value=(pd.to_datetime('2024-01-01'), pd.to_datetime('2024-01-31')),
+                            "Zakres dat (działa tylko, gdy kolejka = 0)",
+                            value=(pd.to_datetime('2025-01-01'), pd.to_datetime('2025-01-31')),
                             min_value=pd.to_datetime('2000-01-01'),
                             max_value=pd.to_datetime('2030-12-31'),
                             format="YYYY-MM-DD")
+            #isinstance(self.date_range, tuple) and len(self.date_range) == 2
 
     def get_teams(self):
         all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(self.league, self.season)
@@ -91,13 +91,18 @@ class Base:
             else:
                 round_name = self.round - 1
             with st.expander("Terminarz, poprzednia kolejka numer: {}".format(round_name)):
-                self.generate_schedule(self.round-1)
+                self.generate_schedule(self.round-1, self.date_range)
+
         if self.round >= 100:
             round_name = self.get_special_round(self.round)
         else:
             round_name = self.round
-        with st.expander("Terminarz, aktualna kolejka numer: {}".format(round_name)):
-            self.generate_schedule(self.round)
+        if self.round == 0:
+            with st.expander("Terminarz, mecze dla dat: {} - {}".format(self.date_range[0], self.date_range[1])):
+                self.generate_schedule(self.round, self.date_range)
+        else:
+            with st.expander("Terminarz, aktualna kolejka numer: {}".format(round_name)):
+                self.generate_schedule(self.round, self.date_range)
         with st.expander("Zespoły w sezonie {}".format(self.years)):
             self.show_teams(self.teams_dict)
 
@@ -530,11 +535,18 @@ class Base:
 
 
 
-    def generate_schedule(self, round):
-        query = '''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
-                    from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
-                    where m.league = {} and m.round = {} and m.season = {} 
-                    order by m.game_date'''.format(self.league, round, self.season)
+    def generate_schedule(self, round, date_range):
+        print(round)
+        query = f'''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
+                        from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
+                        where m.league = {self.league} and m.season = {self.season}'''
+        if round == 0:
+            start_date, end_date = date_range
+            query = query + f" and m.game_date between '{start_date}' and '{end_date}'"
+        else:
+            query = query + f" and m.round = {round}"
+        query = query + ' order by m.game_date'
+
         schedule_df = pd.read_sql(query,self.conn)
         for index, row in schedule_df.iterrows():
             button_label = "{} - {}".format(row.home, row.guest)
