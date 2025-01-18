@@ -10,7 +10,7 @@ def generate_site(conn):
     st.subheader("Konfiguracja prezentowanych danych")
     query = "select id, gambler_name, parlays_played, parlays_won, balance, active from gamblers where active = 1 order by id"
     gamblers_df = pd.read_sql(query, conn)
-    gamblers_dict = generate_dicts(gamblers_df)
+    gamblers_dict = gamblers_df.set_index('gambler_name')['id'].to_dict()
     col1, col2 = st.columns(2)
     chosen_gambler, unit_size = 0, 0
     with col1:
@@ -20,10 +20,8 @@ def generate_site(conn):
     with col2:
         unit_size = st.number_input("Rozmiar unita", min_value = 1, value = 1)
     gambler_info(gamblers_df, gamblers_dict[chosen_gambler], unit_size, conn)
-    add_parlay(chosen_gambler)
+    add_parlay(chosen_gambler, conn)
 
-def generate_dicts(df):
-    return df.set_index('gambler_name')['id'].to_dict()
 
 def get_parlays_for_gambler(current_gambler_id, conn):
     query = f'''
@@ -216,9 +214,36 @@ def parlay_info(parlays_df, unit_size):
     with st.expander("Kupony wybranego gracza"):
         show_parlays(parlays_df, unit_size)
 
-def add_parlay(chosen_gambler):
+def add_parlay(chosen_gambler, conn):
     with st.expander(f"Dodaj kupon dla gracza: {chosen_gambler}"):
-        st.write("Do implementacji")
+        query = "select distinct id, name from leagues where active = 1 order by name"
+        leagues_df = pd.read_sql(query, conn)
+        leagues_dict = leagues_df.set_index('name')['id'].to_dict()
+        chosen_league = st.selectbox("Wybierz ligę", [k for k in leagues_dict.keys()], placeholder="Wybierz ligę z listy")
+        st.write(chosen_league)
+        query = f"select distinct m.season, s.years from matches m join seasons s on m.season = s.id where m.league = {leagues_dict[chosen_league]} order by s.years desc "
+        seasons_df = pd.read_sql(query, conn)
+        seasons_dict = seasons_df.set_index('years')['season'].to_dict()
+        chosen_season = st.selectbox("Wybierz sezon", [k for k in seasons_dict.keys()], placeholder="Wybierz sezon z listy")
+        st.write(chosen_season)
+        query = f"select round, game_date from matches where league = {leagues_dict[chosen_league]} and season = {seasons_dict[chosen_season]} order by game_date desc"
+        rounds_df = pd.read_sql(query, conn)
+        rounds_list = rounds_df['round'].unique().tolist()
+        chosen_round = st.selectbox("Wybierz kolejkę", rounds_list, placeholder="Wybierz kolejkę z listy")
+        query = f'''select t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB, f.confidence as PEWNOSC_MODELU
+                    from bets b
+                        join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
+                        join matches m on b.match_id = m.id
+                        join teams t1 on m.home_team = t1.id
+                        join teams t2 on m.away_team = t2.id
+                        join events e on b.event_id = e.id
+                        join leagues l on m.league = l.id
+                        where m.league = {leagues_dict[chosen_league]} and m.season = {seasons_dict[chosen_season]} and m.round = {chosen_round}
+                        order by m.game_date desc''' 
+        bets_df = pd.read_sql(query, conn)
+        #bets_df['button'] = bets_df.apply(lambda x: st.checkbox("Dodaj zakład"), axis=1)
+        bets_df.index = range(1, len(bets_df) + 1)
+        st.dataframe(bets_df, use_container_width=True, hide_index=True)
 
 def main():
     conn = db_module.db_connect()
