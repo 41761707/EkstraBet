@@ -110,7 +110,7 @@ class Base:
         with st.expander("Tabele ligowe" ):
             query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
                 from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
-                where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
+                where league = {} and season = {} and result != '0' and round < 900 '''.format(self.league, self.season)
             results_df = pd.read_sql(query, self.conn)
             tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
             with tab1:
@@ -233,6 +233,7 @@ class Base:
             WHERE CAST(m.game_date AS date) <= '{self.date}' 
             AND (m.home_team = {team_id} OR m.away_team = {team_id}) 
             AND m.result <> '0'
+            AND m.season = {self.season}
             ORDER BY m.game_date DESC 
             LIMIT {self.games}
         '''

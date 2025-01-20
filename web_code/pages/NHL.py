@@ -141,11 +141,11 @@ class HockeySite:
                             (lineup_pd['Drużyna'] == team_id) & (lineup_pd['Linia'] == i)
                         ].drop(columns=['Linia', 'Drużyna'])
                         st.dataframe(lineup, hide_index=True)
+                st.plotly_chart(hockey_rink.draw_hockey_rink())
         
         col1, col2 = st.columns(2)
         display_lineup(home_team, home_team_id, col1)
         display_lineup(away_team, away_team_id, col2)
-        st.plotly_chart(hockey_rink.draw_hockey_rink())
 
 
     
