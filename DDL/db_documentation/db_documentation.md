@@ -164,7 +164,7 @@ Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie now
 | *TEAM_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *teams*  | NULL |
 | *PLAYER_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *players*  | NULL |
 | PERIOD | INT | {1,2,3,4,5} | Tercja, w której zdarzenie miało miejsce. Jeśli PERIOD = 4 to zdarzenie miało miejsce w dogrywce, jeśli 5 - w rzutach karnych| NULL |
-| EVENT_TIME| TIMESTAMP (MM:SS:(MS)(MS)) | <20:00:00 | Czas w tercji, w którym zdarzenie miało miejsce. W karnych rundy konwertowane są na czas w następujący sposób: 1 runda karnych -> 00:00:01, 2 runda karnych -> 00:00:02, etc. | NULL |
+| EVENT_TIME| VARCHAR(9) | <20:00:00 | Czas w tercji, w którym zdarzenie miało miejsce. W karnych rundy konwertowane są na czas w następujący sposób: 1 runda karnych -> 00:00:01, 2 runda karnych -> 00:00:02, etc. | NULL |
 | PP_FLAG | INT | {0,1} | Czy gol padł w przewadze? (1 - tak, 0 - nie) | NULL |
 | EN_FLAG | INT | {0,1} | Czy gol padł do pustej bramki? (1 - tak, 0 - nie) | NULL |
 | DESCRPTION | VARCHAR(100) | STRING | Opis zdarzenia (np. kto asystował) | NULL |
@@ -191,10 +191,10 @@ Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie now
 | FACEOFF_WON | INT | >=0 | Liczba wznowień wygranych przez zawodnika | NULL |
 | FACEOFF_ACC | FLOAT | [0,100]"%" | Skuteczność wznowień | NULL |
 | HITS | INT | >=0 | Liczba legalnych uderzeń wykonanych przez gracza | NULL |
-| TOI | INT |  >=0 | Czas spędzony przez gracza na lodzie (TOI = Time On Ice) | NULL |
+| TOI | VARCHAR(9) |  >=0 | Czas spędzony przez gracza na lodzie (TOI = Time On Ice) | NULL |
 | SHOTS_AGAINST | INT | >=0 | Liczba strzałów oddanych przez przeciwników na bramkę danego zawodnika  (TYLKO BRAMKARZE) | NULL |
 | SHOTS_SAVED | INT | >=0 |  Liczba obronionych strzałów (TYLKO BRAMKARZE) | NULL |
-| SAVES)ACC | INT | >=0 | Skuteczność obron (TYLKO BRAMKARZE) | NULL |
+| SAVES_ACC | INT | >=0 | Skuteczność obron (TYLKO BRAMKARZE) | NULL |
 
 Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.py**
 

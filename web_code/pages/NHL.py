@@ -141,7 +141,7 @@ class HockeySite:
                             (lineup_pd['Drużyna'] == team_id) & (lineup_pd['Linia'] == i)
                         ].drop(columns=['Linia', 'Drużyna'])
                         st.dataframe(lineup, hide_index=True)
-                st.plotly_chart(hockey_rink.draw_hockey_rink())
+                        st.plotly_chart(hockey_rink.draw_hockey_rink(lineup, team_name.replace(" ", "_")))
         
         col1, col2 = st.columns(2)
         display_lineup(home_team, home_team_id, col1)
@@ -254,3 +254,57 @@ if __name__ == '__main__':
     conn = db_module.db_connect()
     nhl = HockeySite(conn, "NHL")
     nhl.generate_site()
+
+
+
+
+'''
+# Dane statystyczne dla drużyn
+data = {
+    "Czas gry (min)": [10, 20, 30, 40, 50, 60],
+    "San Jose Sharks": {
+        "Bramki": [0, 1, 1, 1, 1, 1],
+        "Strzały na bramkę": [5, 10, 15, 20, 25, 33],
+        "Minuty kar": [0, 2, 2, 4, 4, 4],
+    },
+    "Edmonton Oilers": {
+        "Bramki": [0, 1, 2, 3, 4, 4],
+        "Strzały na bramkę": [3, 6, 9, 12, 18, 21],
+        "Minuty kar": [0, 0, 2, 4, 6, 8],
+    },
+}
+
+# Funkcja do wizualizacji dynamicznych danych
+def dynamic_dashboard():
+    st.title("Dynamiczny Dashboard Statystyk Hokejowych")
+
+    # Ustawienia widżetów
+    selected_stat = st.selectbox(
+        "Wybierz statystykę do wyświetlenia",
+        ["Bramki", "Strzały na bramkę", "Minuty kar"],
+    )
+
+    # Przygotowanie przestrzeni dla wykresu
+    chart_placeholder = st.empty()
+
+    # Symulacja animacji meczu
+    for i in range(len(data["Czas gry (min)"])):
+        czas = data["Czas gry (min)"][i]
+        sharks_stat = data["San Jose Sharks"][selected_stat][i]
+        oilers_stat = data["Edmonton Oilers"][selected_stat][i]
+
+        # Tworzenie wykresu
+        chart_data = pd.DataFrame({
+            "San Jose Sharks": [sharks_stat],
+            "Edmonton Oilers": [oilers_stat],
+        }, index=[f"{czas} min"])
+
+        # Wyświetlenie wykresu
+        chart_placeholder.bar_chart(chart_data)
+
+        # Symulacja odświeżania danych
+        time.sleep(1)
+
+# Wywołanie funkcji
+dynamic_dashboard()
+'''

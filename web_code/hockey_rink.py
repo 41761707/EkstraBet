@@ -23,9 +23,9 @@ def generate_half_circle(x_center, y_center, radius, direction="right"):
 
     return circle
 
-def draw_hockey_rink():
+def draw_hockey_rink(lineup, team_name):
     fig = go.Figure()
-    team_shirt = Image.open("./pages/shirts/Boston_Bruins.jpg")
+    team_shirt = Image.open(f"./pages/shirts/{team_name}.jpg")
     # Boisko
     fig.add_shape(type="rect", x0=0, y0=0, x1=40, y1=60,
                   line=dict(color="white", width=5),
@@ -68,116 +68,45 @@ def draw_hockey_rink():
     #Bramki 
     fig.add_trace(generate_half_circle(20, 5, 2.5, direction="right"))
     fig.add_trace(generate_half_circle(20, 55, 2.5, direction="left"))
-    # Punkty bramkowe
-    '''for x, y in [(18, 15), (18, 45), (88, 15), (88, 45)]:
-        fig.add_shape(type="circle", x0=x-0.25, y0=y-0.25, x1=x+0.25, y1=y+0.25,
-                      fillcolor="red", line=dict(color="red"))
 
-    # Bramki
-    fig.add_shape(type="rect", x0=0, y0=23.5, x1=2, y1=36.5,
-                  line=dict(color="red", width=5), fillcolor="white")
-    fig.add_shape(type="rect", x0=104, y0=23.5, x1=106, y1=36.5,
-                  line=dict(color="red", width=5), fillcolor="white")'''
+    #Zawodnicy
+    positions = {
+        "forwards": {
+            "players": lineup[lineup["Pozycja"].isin(["RW", "C", "LW"])],
+            "x": [33, 20, 7],
+            "y": 45
+        },
+        "defensemen": {
+            "players": lineup[lineup["Pozycja"] == "D"],
+            "x": [13.5, 26.5],
+            "y": 25
+        },
+        "goalie": {
+            "players": lineup[lineup["Pozycja"] == "G"],
+            "x": [20],
+            "y": 11
+        }
+    }
 
-    # Dodanie koszulek zawodników
-    fig.add_layout_image(
-        source=team_shirt,
-        x=7, y=45,  # Pozycja na boisku (x, y)
-        xref="x", yref="y",
-        sizex=10, sizey=10,  # Rozmiar koszulki
-        xanchor="center", yanchor="middle",
-        layer="above",
-    )
-    fig.add_annotation(
-        text="Marchand B.",  # Tekst na koszulce
-        x=7, y=38,  # Position below the image
-        xref="x", yref="y",
-        showarrow=False,
-        font=dict(size=15, color="black"),
-        xanchor="center"
-    )
-    fig.add_layout_image(
-        source=team_shirt,
-        x=20, y=45,  # Pozycja na boisku (x, y)
-        xref="x", yref="y",
-        sizex=10, sizey=10,  # Rozmiar koszulki
-        xanchor="center", yanchor="middle",
-        layer="above",
-    )
-    fig.add_annotation(
-        text="Bergeron P.",  # Tekst na koszulce
-        x=20, y=38,  # Position below the image
-        xref="x", yref="y",
-        showarrow=False,
-        font=dict(size=15, color="black"),
-        xanchor="center"
-    )
-    fig.add_layout_image(
-        source=team_shirt,
-        x=33, y=45,  # Pozycja na boisku (x, y)
-        xref="x", yref="y",
-        sizex=10, sizey=10,  # Rozmiar koszulki
-        xanchor="center", yanchor="middle",
-        layer="above",
-    )
-    fig.add_annotation(
-        text="Pastrnak D.",  # Tekst na koszulce
-        x=33, y=38,  # Position below the image
-        xref="x", yref="y",
-        showarrow=False,
-        font=dict(size=15, color="black"),
-        xanchor="center"
-    )
+    for _, data in positions.items():
+        for i, (_, player) in enumerate(data["players"].iterrows()):
+            fig.add_layout_image(
+                source=team_shirt,
+                x=data["x"][i], y=data["y"],  # Pozycja na boisku (x, y)
+                xref="x", yref="y",
+                sizex=10, sizey=10,  # Rozmiar koszulki
+                xanchor="center", yanchor="middle",
+                layer="above",
+            )
+            fig.add_annotation(
+                text=f'{player.Zawodnik}',  # Tekst na koszulce
+                x=data["x"][i], y=data["y"] - 8,  # Pozycja poniżej obrazu
+                xref="x", yref="y",
+                showarrow=False,
+                font=dict(size=15, color="black"),
+                xanchor="center"
+            )
 
-    fig.add_layout_image(
-        source=team_shirt,
-        x=13.5, y=25,  # Pozycja na boisku (x, y)
-        xref="x", yref="y",
-        sizex=10, sizey=10,  # Rozmiar koszulki
-        xanchor="center", yanchor="middle",
-        layer="above",
-    )
-    fig.add_annotation(
-        text="Carlo B.",  # Tekst na koszulce
-        x=13.5, y=17,  # Position below the image
-        xref="x", yref="y",
-        showarrow=False,
-        font=dict(size=15, color="black"),
-        xanchor="center"
-    )    
-    fig.add_layout_image(
-        source=team_shirt,
-        x=26.5, y=25,  # Pozycja na boisku (x, y)
-        xref="x", yref="y",
-        sizex=10, sizey=10,  # Rozmiar koszulki
-        xanchor="center", yanchor="middle",
-        layer="above",
-    )
-    fig.add_annotation(
-        text="Chara Z.",  # Tekst na koszulce
-        x=26.5, y=17,  # Position below the image
-        xref="x", yref="y",
-        showarrow=False,
-        font=dict(size=15, color="black"),
-        xanchor="center"
-    )    
-
-    fig.add_layout_image(
-        source=team_shirt,
-        x=20, y=11,  # Pozycja na boisku (x, y)
-        xref="x", yref="y",
-        sizex=10, sizey=10,  # Rozmiar koszulki
-        xanchor="center", yanchor="middle",
-        layer="above",
-    )
-    fig.add_annotation(
-        text="Rask T.",  # Tekst na koszulce
-        x=20, y=3,  # Position below the image
-        xref="x", yref="y",
-        showarrow=False,
-        font=dict(size=15, color="black"),
-        xanchor="center"
-    )   
 
     # Ustawienia osi
     fig.update_xaxes(range=[0, 40], showgrid=False, zeroline=False, visible=False)

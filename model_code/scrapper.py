@@ -3,51 +3,9 @@ import sys
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from datetime import datetime
-
-def get_team_id(team_name):
-    team_ids = {
-		'Sparta Praga' : 621,
-		'Slavia Praga' : 622,
-		'FC Viktoria Pilzno' : 623,
-		'Banik Ostrava' : 624,
-		'Mlada Bolesław' : 625,
-		'Slovacko' : 626,
-		'Liberec' : 627,
-		'Sigma Ołomuniec' : 628,
-		'Hradec Kralove' : 629,
-		'Teplice' : 630,
-		'Bohemians' : 631,
-		'Jablonec' : 632,
-		'Pardubice' : 633,
-		'Karwina' : 634,
-		'Zlin' : 635,
-		'Czeskie Budziejowice' : 636,
-		'Brno' : 637,
-		'Przybram' : 638,
-		'Opawa' : 639,
-		'Dukla Praga' : 640,
-		'Jihlava' : 641,
-		'Sigma Ołomuniec B' : 642,
-		'Taborsko' : 643,
-		'Vyskov' : 644,
-		'Chrudim' : 645,
-		'Vlasim' : 646,
-		'Zizkov' : 647,
-		'Lisen' : 648,
-		'Sparta Praga B' : 649,
-		'Prostejov' : 650,
-		'Varnsdorf' : 651,
-		'Kromeriz' : 652,
-		'Slavia Praga B' : 653,
-		'Trzyniec' : 654,
-		'Usti n. L.' : 655,
-		'Blansko' : 656,
-		'Vysehrad' : 657,
-		'Sokolov' : 658,
-		'Vitkovice' : 659,
-        'Ostrava B' : 860
-	}
-    return team_ids[team_name]
+import pandas as pd
+import numpy as np
+import db_module
 
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
@@ -67,7 +25,7 @@ def get_match_links(games, driver):
     return links
                 
 
-def get_match_data(driver, league_id, season_id, link):
+def get_match_data(driver, league_id, season_id, link, team_id):
     stats = []
     match_info = []
     match_data = {
@@ -99,7 +57,8 @@ def get_match_data(driver, league_id, season_id, link):
         'home_team_rc' : 0,
         'away_team_rc' : 0,
         'round' : 0,
-        'result' : 0}
+        'result' : 0,
+        'sport_id' : 1}
     # _row_n1rcj_9 - klasa zawierająca informacje o statystykach meczowych
     # duelParticipant__startTime - czas rozegrania meczu (timestamp)
     # participant__participantName - drużyny biorące udział w meczu
@@ -130,8 +89,8 @@ def get_match_data(driver, league_id, season_id, link):
     #print(match_info)
     match_data['league'] = league_id #id ligi
     match_data['season'] = season_id #id sezonu
-    match_data['home_team'] = get_team_id(match_info[1]) #nazwa gospodarzy
-    match_data['away_team'] = get_team_id(match_info[3])
+    match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
+    match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     match_data['round'] = round
     score = match_info[5].split('\n')
@@ -183,6 +142,7 @@ def main():
     #WYWOŁANIE
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
     options = webdriver.ChromeOptions()
+    conn = db_module.db_connect()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
     driver = webdriver.Chrome(options=options)
     #Link do strony z wynikami
@@ -190,9 +150,16 @@ def main():
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     games = sys.argv[3]
+    query = "select country from leagues where id = {}".format(league_id)
+    country_df = pd.read_sql(query,conn)
+    country = country_df.values.flatten() 
+    query = "select name, id from teams where country = {}".format(country[0])
+    teams_df = pd.read_sql(query, conn)
+    team_id = teams_df.set_index('name')['id'].to_dict()
+    print(team_id)
     links = get_match_links(games, driver)
-    for link in links:
-        match_data = get_match_data(driver, league_id, season_id, link)
+    for link in links[:]:
+        match_data = get_match_data(driver, league_id, season_id, link, team_id)
         sql = '''INSERT INTO matches (league, \
 season, \
 home_team, \
@@ -221,7 +188,8 @@ away_team_yc, \
 home_team_rc, \
 away_team_rc, \
 round, \
-result)  \
+result, \
+sport_id)  \
 VALUES ({league}, \
 {season}, \
 {home_team}, \
@@ -250,7 +218,8 @@ VALUES ({league}, \
 {home_team_rc}, \
 {away_team_rc}, \
 {round}, \
-'{result}');'''.format(**match_data)
+'{result}', \
+{sport_id});'''.format(**match_data)
         print(sql)
 if __name__ == '__main__':
     main()

@@ -6,6 +6,10 @@
 8 11 https://www.flashscore.pl/pilka-nozna/anglia/championship-2024-2025/mecze/
 
 
+-------------------------- TORNEO BETANO -------------------------------------
+33 11 https://www.flashscore.pl/pilka-nozna/argentyna/torneo-betano-2025/mecze/
+
+
 ------------------------------- A-LEAGUE -------------------------------------
 10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/mecze/
 
@@ -24,6 +28,10 @@
 
 -------------------------- CHALLENGER PRO LEAGUE ------------------------------
 37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/mecze/
+
+
+------------------------------ SERIE A BRASIL --------------------------------
+34 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2024/mecze/
 
 
 -------------------------------- CHANCE LIGA -----------------------------------
@@ -128,14 +136,6 @@
 
 ------------------------------ SERIE B --------------------------------------
 26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/mecze/
-
-
------------------------------- LIGA PROFESIONAL ------------------------------
-33 1 https://www.flashscore.pl/pilka-nozna/argentyna/liga-profesional-2024/mecze/
-
-
------------------------------- SERIE A BRASIL --------------------------------
-34 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-2024/mecze/
 
 
 ------------------------------ SERIE B BRASIL --------------------------------

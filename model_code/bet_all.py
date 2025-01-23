@@ -13,8 +13,8 @@ def update_db(queries, conn):
         conn.commit()
 
 def generate_predictions(conn, league, season, current_round, to_automate):
-    query = "select id from matches where league = {} and season = {} and round = {} and cast(game_date as date) = current_date".format(league, season, current_round)
-    #query = "select id from matches where cast(game_date as date) > '2024-07-01' and cast(game_date as date) < '2024-07-23'"
+    #query = "select id from matches where league = {} and season = {} and round = {} and cast(game_date as date) = current_date".format(league, season, current_round)
+    query = "select id from matches where league = {} and season = {} and cast(game_date as date) = current_date".format(league, season)
     #print(query)
     matches_id = pd.read_sql(query,conn)
     matches_id_np = matches_id.values.flatten() 
