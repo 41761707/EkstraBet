@@ -258,7 +258,7 @@ class Base:
         predicts = [""] * 3
         outcomes = [""] * 3
         correct = ["NIE"] * 3
-        bet_placed = ["NIE"] * 3
+        bet_placed = ["NIE"] * 3 # NA RAZIE USUNIETO Z PREZENTACJI W TABELI
         ou = 1 if home_goals + away_goals > 2.5 else 0
         btts = 1 if home_goals > 0 and away_goals > 0 else 0
         outcomes[0] = 'Poniżej 2.5 gola' if ou == 0 else 'Powyżej 2.5 gola'
@@ -308,8 +308,7 @@ class Base:
         'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
         'Predykcja' : [x for x in predicts],
         'Obserwacja' : [x for x in outcomes],
-        'Czy przewidywanie poprawne?' : [x for x in correct],
-        'Czy postawiono?' : [x for x in bet_placed]
+        'Czy przewidywanie poprawne?' : [x for x in correct]
         }
         df = pd.DataFrame(data)
         df.index = range(1, len(df) + 1)

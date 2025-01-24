@@ -2,7 +2,7 @@ import time
 import sys
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import pandas as pd
 import numpy as np
 import db_module
@@ -100,12 +100,22 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     if round_to_d == 0:
-        round_to_d = int(round)
+        try:
+            round_to_d = int(round)
+        except ValueError as e:
+            print(f"Błąd w pobieraniu rundy: {e}")
     if league_id != 25:
         if int(round) != int(round_to_d):
             return -1
     else:
-        round = 10
+        round = 100
+        today = date.today()
+        max_date = today + timedelta(days=7)
+        game_date_obj = datetime.strptime(match_data['game_date'], "%Y-%m-%d %H:%M").date()
+        
+        if game_date_obj > max_date:
+            return -1
+        
     match_data['round'] = round
     return match_data
 
@@ -132,10 +142,10 @@ def to_automate(league_id, season_id, games, round_to_d):
     inserts = []
     for link in links[:]:
         match_data = get_match_data(driver, league_id, season_id, link, round_to_d, team_id)
-        if round_to_d == 0:
-            round_to_d = match_data['round']
         if match_data == -1:
             break
+        if round_to_d == 0:
+            round_to_d = match_data['round']
         sql = '''INSERT INTO matches (league, \
 season, \
 home_team, \

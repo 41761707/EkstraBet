@@ -473,4 +473,3 @@ class Model:
         #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
         #     print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
         #    print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
-

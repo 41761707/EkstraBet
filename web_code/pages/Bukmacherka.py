@@ -18,7 +18,7 @@ def generate_dicts(query, conn):
 
 def generate_button(button_name, conn, type, where_clause):
     if type == -1: #Już zrealizowane
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB, f.confidence as PEWNOSC_MODELU,
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, f.confidence as "PEWNOSC MODELU",
                     case when f.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
                             from bets b
                                 join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
@@ -28,7 +28,7 @@ def generate_button(button_name, conn, type, where_clause):
                                 join events e on b.event_id = e.id
                                 join leagues l on m.league = l.id'''
     else: #1 - przyszłe
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB, f.confidence as PEWNOSC_MODELU
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, f.confidence as "PEWNOSC MODELU"
                     from bets b
                         join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
                         join matches m on b.match_id = m.id
@@ -81,8 +81,8 @@ def main():
                 st.subheader("Nie wybrano żadnych zdarzeń")
             else:
                 if from_now:
-                    query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB,
-                                f.confidence as PEWNOSC_MODELU
+                    query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB,
+                                f.confidence as "PEWNOSC MODELU"
                                 from bets b
                                     join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
                                     join matches m on b.match_id = m.id
@@ -96,8 +96,8 @@ def main():
                                 and e.id in ({})
                                 order by m.game_date'''.format(odds_range, ",".join([str(leagues_dict[v]) for v in chosen_leagues]), ",".join([str(events_dict[v]) for v in chosen_events]))
                 else:
-                    query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as DATA_SPOTKANIA, b.odds as KURS, b.EV as VB,
-                                f.confidence as PEWNOSC_MODELU
+                    query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB,
+                                f.confidence as "PEWNOSC MODELU"
                                 from bets b
                                     join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
                                     join matches m on b.match_id = m.id

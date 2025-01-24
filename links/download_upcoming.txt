@@ -30,8 +30,12 @@
 37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/mecze/
 
 
------------------------------- SERIE A BRASIL --------------------------------
-34 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2024/mecze/
+-------------------------- SERIE A BETANO (BRASIL) ----------------------------
+34 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2024/mecze/
+
+
+------------------------------ SERIE B BRASIL --------------------------------
+35 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2025/mecze/
 
 
 -------------------------------- CHANCE LIGA -----------------------------------
@@ -136,10 +140,6 @@
 
 ------------------------------ SERIE B --------------------------------------
 26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/mecze/
-
-
------------------------------- SERIE B BRASIL --------------------------------
-35 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2024/mecze/
 
 
 ------------------------------------- NHL --------------------------------------
