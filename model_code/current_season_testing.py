@@ -1,1 +1,0 @@
-#Okodzić dokładne sprawdzenie jakby wyglądały % predykcji dla tego sezonu dla nowego modelu
