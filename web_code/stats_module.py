@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
+import plotly.express as px
 
 import graphs_module
 import tables_module
@@ -214,11 +215,6 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
                                         [result_bets['home_win_bets'] - result_bets['home_win_correct'], 
                                         result_bets['draw_bets'] - result_bets['draw_correct'], 
                                         result_bets['away_win_bets'] - result_bets['away_win_correct']])
-    #col11, col12 = st.columns(2)
-    #with col11:
-    #    st.header("Profit z zakładów - kolejka po kolejce")
-    #with col12:
-    #    st.header("Zmiana profitu w czasie")
 
 def generate_statistics(query, tax_flag, first_round, last_round, no_events, conn, EV_plus):
     match_stats_df = pd.read_sql(query, conn)
@@ -462,7 +458,37 @@ def league_charachteristics(conn, league_id, season_id, teams_dict, no_games):
         st.subheader("Zwycięstwa - podział na drużyny")
         
 
+def aggreate_acc_graph(title, teams, predictions, corrects, acc):
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader(title)
+        data = {
+        'Drużyna' : teams,
+        'Liczba predykcji' : predictions,
+        'Poprawne' : corrects,
+        'Skuteczność (%)' : acc
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    with col2:
+        if acc is not None:
+            graphs_module.team_compare_graph(teams, acc)
 
+def aggreate_acc_profit(title, args):
+    col1, col2 = st.columns(2)
+    teams = [arg[0] for arg in args]
+    profit = [arg[1] for arg in args]
+    with col1:
+        st.subheader(title)
+        data = {
+        'Drużyna' : teams,
+        'Profit [u]' : profit
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    with col2:
+        if args[1] is not None:
+            graphs_module.team_compare_graph(teams, profit, type = 'profit')
 
 def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     predictions_ratio = [] #team, result_ratio, ou_ratio, btts_ratio
@@ -539,52 +565,12 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
 
     tab1, tab2, tab3 = st.tabs(["Predykcje OU", "Predykcje BTTS", "Predykcje REZULTAT"])
     with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Porównanie dokładności predykcji OU między drużynami")
-            data = {
-            'Drużyna' : teams,
-            'Liczba predykcji' : ou_number,
-            'Poprawne' : ou_correct,
-            'Skuteczność (%)' : ou_acc
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        with col2:
-            if avgs[0][0] is not None:
-                graphs_module.team_compare_graph(teams, ou_acc)
-    
+        aggreate_acc_graph("Porównanie dokładności predykcji OU między drużynami", teams, ou_number, ou_correct, ou_acc)
     with tab2:
-        col3, col4 = st.columns(2)
-        with col3:
-            st.subheader("Porównanie dokładności predykcji BTTS między drużynami")
-            data = {
-            'Drużyna' : teams,
-            'Liczba predykcji' : btts_number,
-            'Poprawne' : btts_correct,
-            'Skuteczność (%)' : btts_acc
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        with col4:
-            if avgs[0][1] is not None:
-                graphs_module.team_compare_graph(teams, btts_acc)
+        aggreate_acc_graph("Porównanie dokładności predykcji BTTS między drużynami", teams, btts_number, btts_correct, btts_acc)
 
     with tab3:
-        col5, col6 = st.columns(2)
-        with col5:
-            st.subheader("Porównanie dokładności predykcji REZULTAT między drużynami")
-            data = {
-            'Drużyna' : teams,
-            'Liczba predykcji' : result_number,
-            'Poprawne' : result_correct,
-            'Skuteczność (%)' : result_acc
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        with col6:
-            if avgs[0][2] is not None:
-                graphs_module.team_compare_graph(teams, result_acc)  
+        aggreate_acc_graph("Porównanie dokładności predykcji REZULTAT między drużynami", teams, result_number, result_correct, result_acc)
 
 
 def aggregate_leagues_acc(season_id, conn):
@@ -659,49 +645,13 @@ def aggregate_leagues_acc(season_id, conn):
 
     tab1, tab2, tab3 = st.tabs(["Predykcje OU", "Predykcje BTTS", "Predykcje REZULTAT"])
     with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Porównanie dokładności predykcji OU między ligami")
-            data = {
-            'Drużyna' : teams,
-            'Liczba predykcji' : ou_number,
-            'Poprawne' : ou_correct,
-            'Skuteczność (%)' : ou_acc
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        with col2:
-            graphs_module.team_compare_graph(teams, ou_acc)
+        aggreate_acc_graph("Porównanie dokładności predykcji OU między ligami", teams, ou_number, ou_correct, ou_acc)
 
     with tab2:
-        col3, col4 = st.columns(2)
-        with col3:
-            st.subheader("Porównanie dokładności predykcji BTTS między ligami")
-            data = {
-            'Drużyna' : teams,
-            'Liczba predykcji' : btts_number,
-            'Poprawne' : btts_correct,
-            'Skuteczność (%)' : btts_acc
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        with col4:
-            graphs_module.team_compare_graph(teams, btts_acc)
+        aggreate_acc_graph("Porównanie dokładności predykcji BTTS między ligami", teams, btts_number, btts_correct, btts_acc)
 
     with tab3:
-        col5, col6 = st.columns(2)
-        with col5:
-            st.subheader("Porównanie dokładności predykcji REZULTAT między ligami")
-            data = {
-            'Drużyna' : teams,
-            'Liczba predykcji' : result_number,
-            'Poprawne' : result_correct,
-            'Skuteczność (%)' : result_acc
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        with col6:
-            graphs_module.team_compare_graph(teams, result_acc)  
+        aggreate_acc_graph("Porównanie dokładności predykcji REZULTAT między ligami", teams, result_number, result_correct, result_acc)
 
 
 def aggregate_leagues_profit(season_id, conn):
@@ -742,8 +692,12 @@ def aggregate_leagues_profit(season_id, conn):
             bets_total.append([v, results[0][0], results[0][1], results[0][2], results[0][3], results[0][4], results[0][5]])
             bets_ratio.append([v, round(results[0][1] / results[0][0], 2), round(results[0][3] / results[0][2], 2) ,round(results[0][5] / results[0][4], 2)])
             bets_profit.append([v, round(results[0][6], 2), round(results[0][7], 2), round(results[0][8], 2)])
-    st.write(bets_profit)
     query = ''' select
+                    'SUMA' as league_name,
+                    sum(case 
+                        when b.event_id IN (1, 2, 3) AND b.outcome = 1 THEN b.odds - 1
+                        when b.event_id IN (1, 2, 3) AND b.outcome = 0 THEN -1
+                        else 0 end ) as result_profit,
                     sum(case 
                         when b.event_id IN (8, 12) AND b.outcome = 1 THEN b.odds - 1
                         when b.event_id IN (8, 12) AND b.outcome = 0 THEN -1
@@ -752,10 +706,6 @@ def aggregate_leagues_profit(season_id, conn):
                         when b.event_id IN (6, 172) AND b.outcome = 1 THEN b.odds - 1
                         when b.event_id IN (6, 172) AND b.outcome = 0 THEN -1
                         else 0 end ) as btts_profit,
-                    sum(case 
-                        when b.event_id IN (1, 2, 3) AND b.outcome = 1 THEN b.odds - 1
-                        when b.event_id IN (1, 2, 3) AND b.outcome = 0 THEN -1
-                        else 0 end ) as result_profit,
                         count(case when b.event_id in (1, 2, 3) then 1 end) as result_bets,
                         count(case when b.event_id in (1, 2, 3) and b.outcome = 1 then 1 end) as results_correct,
                         count(case when b.event_id in (8, 12) then 1 end) as ou_bets,
@@ -768,7 +718,28 @@ def aggregate_leagues_profit(season_id, conn):
     cursor = conn.cursor()
     cursor.execute(query)
     all_bets = cursor.fetchall()
-    st.write(all_bets)
+    #bets_profit.append([all_bets[0][0], round(all_bets[0][1], 2), round(all_bets[0][2], 2), round(all_bets[0][3], 2)])
+    result_to_graph = []
+    ou_to_graph = []
+    btts_to_graph = []
+    for element in bets_profit:
+        result_to_graph.append([element[0], element[1]])
+        ou_to_graph.append([element[0], element[2]])
+        btts_to_graph.append([element[0], element[3]])
+
+    result_to_graph.sort(key=lambda x: x[1], reverse=True)
+    ou_to_graph.sort(key=lambda x: x[1], reverse=True)
+    btts_to_graph.sort(key=lambda x: x[1], reverse=True)
+    
+    tab1, tab2, tab3 = st.tabs(["Profit z zakładów OU", "Profit z zakładów BTTS", "Profit z zakładów REZULTAT"])
+
+    with tab1:
+        aggreate_acc_profit("Porównanie profitu z zakładów OU między ligami", ou_to_graph)
+    with tab2:
+        aggreate_acc_profit("Porównanie profitu z zakładów BTTS między ligami", btts_to_graph) 
+    with tab3:
+        aggreate_acc_profit("Porównanie profitu z zakładów REZULTAT między ligami", result_to_graph)
+
 
 
 

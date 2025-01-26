@@ -107,7 +107,7 @@ class HockeySite:
         with tab2:
             self.match_lineups(row.id, row.home_team, row.home_team_id, row.away_team, row.away_team_id)
         with tab3:
-            self.match_events(row.id)
+            self.match_events(row.id, row.home_team, row.away_team)
         with tab4:
             self.match_stats(row, row.home_team_id, row.away_team_id)
         with tab5:
@@ -149,7 +149,7 @@ class HockeySite:
 
 
     
-    def match_events(self, match_id):
+    def match_events(self, match_id, home_team, away_team):
         events_query = f'''select 
             t.name as Druzyna, p.common_name as Zawodnik, e.name as Zdarzenie, hme.period as Tercja, hme.event_time as Czas, hme.description as Opis
                 from hockey_match_events hme 
@@ -161,61 +161,109 @@ class HockeySite:
                 order by m.id, hme.period, hme.event_time
         '''
         events_pd = pd.read_sql(events_query, self.conn)
-        st.subheader("Tercja 1")
-        events_pd_1 = events_pd[events_pd['Tercja'] == 1].drop(columns=['Tercja'])
-        st.dataframe(events_pd_1, hide_index=True)
-        st.subheader("Tercja 2")
-        events_pd_2 = events_pd[events_pd['Tercja'] == 2].drop(columns=['Tercja'])
-        st.dataframe(events_pd_2, hide_index=True)
-        st.subheader("Tercja 3")
-        events_pd_3 = events_pd[events_pd['Tercja'] == 3].drop(columns=['Tercja'])
-        st.dataframe(events_pd_3, hide_index=True)
-        events_pd_ot = events_pd[events_pd['Tercja'] == 4].drop(columns=['Tercja'])
-        if len(events_pd_ot) > 0:
-            st.subheader("Dogrywka")
-            st.dataframe(events_pd_ot, hide_index=True)
-        events_pd_so = events_pd[events_pd['Tercja'] == 5].drop(columns=['Tercja'])
-        if len(events_pd_so) > 0:
-            st.subheader("Rzuty karne")
-            st.dataframe(events_pd_so, hide_index=True)
+        for i in range(1, 6):
+            events_pd_i = events_pd[events_pd['Tercja'] == i].drop(columns=['Tercja'])
+            if len(events_pd_i) > 0:
+                if i == 4:
+                    st.header("Dogrywka")
+                elif i == 5:
+                    st.header("Rzuty karne")
+                else:
+                    st.header("Tercja {}".format(i))
+                home_team_col, away_team_col = st.columns(2)    
+                for _, row in events_pd_i.iterrows():
+                    if row['Druzyna'] == home_team:
+                        self.generate_event_entry(row, home_team_col, is_empty=False)
+                        self.generate_event_entry(None, away_team_col, is_empty=True)
+                    else:
+                        self.generate_event_entry(None, home_team_col, is_empty=True)
+                        self.generate_event_entry(row, away_team_col, is_empty=False)
 
-    def generate_event_entry(self, event_row):
-        pass
+    def generate_event_entry(self, event_row, team_col, is_empty):
+        if is_empty:
+            team_col.write("<div style='height: 120px;'></div>", unsafe_allow_html=True)
+        else:
+            team_col.markdown(
+                f"""
+                <div style="
+                    background-color: #f9f9f9;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 10px;
+                    margin-bottom: 10px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    text-align: center;
+                ">
+                    <h4 style="margin: 0; color: #333;">{event_row['Czas']} ({event_row['Zdarzenie']})</h4>
+                    <p style="margin: 5px 0; color: #555;">{event_row['Zawodnik']} ({event_row['Opis']})</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
     def match_stats(self, match_row, home_team_id, away_team_id):
         col1, col2, col3 = st.columns(3)
         match_row_dict = match_row.to_dict()
-        centered_style = """
-        <div style="text-align: center; margin:5px;">{}</div>
-        """
-        stat_name = {
-            'team' : 'Nazwa drużyny',
-            'goals': 'Bramki',
-            'team_sog' : 'Strzały na bramkę',
-            'team_fk' : 'Minuty kar', 
-            'team_fouls' : 'Liczba kar',
-            'team_pp_goals' : 'Liczba bramek w przewadze (PP)',
-            'team_sh_goals' : "Liczba bramek w osłabieniu (SH)",
-            'team_shots_acc' : "Skuteczność strzałów (%)",
-            'team_saves' : "Liczba obron",
-            'team_saves_acc' : 'Skuteczność obron (%)',
-            'team_pp_acc' : 'Skuteczność gier w przewadze (%)',
-            'team_pk_acc' : 'Skuteczność gier w osłabieniu (%)',
-            'team_faceoffs' : 'Liczba wygranych wznowień',
-            'team_faceoffs_acc' : 'Skuteczność wznowień (%)',
-            'team_hits' : 'Liczba uderzeń',
-            'team_to' : 'Liczba strat',
-            'team_en' : 'Liczba bramek strzelonych na pustą bramkę'
 
+        # Stylizacja HTML dla kart z danymi
+        card_style = """
+        <div style="
+            background-color: {bg_color};
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        ">
+            <div style="font-size: 24px; font-weight: bold; color: #333;">{value}</div>
+            <div style="font-size: 16px; color: #777;">{label}</div>
+        </div>
+        """
+        
+        # Mapowanie nazw statystyk
+        stat_name = {
+            'team': 'Nazwa drużyny',
+            'goals': 'Bramki',
+            'team_sog': 'Strzały na bramkę',
+            'team_fk': 'Minuty kar',
+            'team_fouls': 'Liczba kar',
+            'team_pp_goals': 'Liczba bramek w przewadze (PP)',
+            'team_sh_goals': "Liczba bramek w osłabieniu (SH)",
+            'team_shots_acc': "Skuteczność strzałów (%)",
+            'team_saves': "Liczba obron",
+            'team_saves_acc': 'Skuteczność obron (%)',
+            'team_pp_acc': 'Skuteczność gier w przewadze (%)',
+            'team_pk_acc': 'Skuteczność gier w osłabieniu (%)',
+            'team_faceoffs': 'Liczba wygranych wznowień',
+            'team_faceoffs_acc': 'Skuteczność wznowień (%)',
+            'team_hits': 'Liczba uderzeń',
+            'team_to': 'Liczba strat',
+            'team_en': 'Liczba bramek strzelonych na pustą bramkę'
         }
+
+        # Iteracja przez statystyki i renderowanie
         for key, value in match_row_dict.items():
             if key in ('home_team_id', 'away_team_id'):
                 continue
             if 'home' in key:
-                col1.markdown(centered_style.format(value), unsafe_allow_html=True)
-                col2.markdown(centered_style.format(stat_name[key.replace('home_', '')]), unsafe_allow_html=True)
+                col1.markdown(
+                    card_style.format(
+                        value=value,
+                        label=stat_name[key.replace('home_', '')],
+                        bg_color="#e3f2fd"  # Jasnoniebieskie tło dla drużyny gospodarzy
+                    ),
+                    unsafe_allow_html=True
+                )
             elif 'away' in key:
-                col3.markdown(centered_style.format(value), unsafe_allow_html=True)
+                col3.markdown(
+                    card_style.format(
+                        value=value,
+                        label=stat_name[key.replace('away_', '')],
+                        bg_color="#ffebee"  # Jasnoczerwone tło dla drużyny gości
+                    ),
+                    unsafe_allow_html=True
+                )
 
     def match_boxscore(self, match_id):
         st.write(f"Boxscore dla meczu {match_id}")
@@ -254,57 +302,3 @@ if __name__ == '__main__':
     conn = db_module.db_connect()
     nhl = HockeySite(conn, "NHL")
     nhl.generate_site()
-
-
-
-
-'''
-# Dane statystyczne dla drużyn
-data = {
-    "Czas gry (min)": [10, 20, 30, 40, 50, 60],
-    "San Jose Sharks": {
-        "Bramki": [0, 1, 1, 1, 1, 1],
-        "Strzały na bramkę": [5, 10, 15, 20, 25, 33],
-        "Minuty kar": [0, 2, 2, 4, 4, 4],
-    },
-    "Edmonton Oilers": {
-        "Bramki": [0, 1, 2, 3, 4, 4],
-        "Strzały na bramkę": [3, 6, 9, 12, 18, 21],
-        "Minuty kar": [0, 0, 2, 4, 6, 8],
-    },
-}
-
-# Funkcja do wizualizacji dynamicznych danych
-def dynamic_dashboard():
-    st.title("Dynamiczny Dashboard Statystyk Hokejowych")
-
-    # Ustawienia widżetów
-    selected_stat = st.selectbox(
-        "Wybierz statystykę do wyświetlenia",
-        ["Bramki", "Strzały na bramkę", "Minuty kar"],
-    )
-
-    # Przygotowanie przestrzeni dla wykresu
-    chart_placeholder = st.empty()
-
-    # Symulacja animacji meczu
-    for i in range(len(data["Czas gry (min)"])):
-        czas = data["Czas gry (min)"][i]
-        sharks_stat = data["San Jose Sharks"][selected_stat][i]
-        oilers_stat = data["Edmonton Oilers"][selected_stat][i]
-
-        # Tworzenie wykresu
-        chart_data = pd.DataFrame({
-            "San Jose Sharks": [sharks_stat],
-            "Edmonton Oilers": [oilers_stat],
-        }, index=[f"{czas} min"])
-
-        # Wyświetlenie wykresu
-        chart_placeholder.bar_chart(chart_data)
-
-        # Symulacja odświeżania danych
-        time.sleep(1)
-
-# Wywołanie funkcji
-dynamic_dashboard()
-'''

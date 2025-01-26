@@ -63,7 +63,7 @@ def main():
     
     with st.expander("Proponowane zakłady"):
         generate_button("TOP 5 + Polska (dla Kubona)", conn, 1, 
-                        " where cast(m.game_date as date) = current_date and league in (1, 21, 2, 3, 4, 5, 6) order by b.EV desc".format(odds_range))
+                        " where cast(m.game_date as date) = current_date and league in (1, 21, 2, 3, 4, 5, 6) and b.event_id in (1,2,3) order by b.EV desc".format(odds_range))
         generate_button("Wszystkie ligi", conn, 1, 
                         " where cast(m.game_date as date) = current_date order by f.confidence desc".format(odds_range))
         generate_button("Tylko OU", conn, 1, 
@@ -80,37 +80,37 @@ def main():
             elif len(chosen_events) == 0:
                 st.subheader("Nie wybrano żadnych zdarzeń")
             else:
-                if from_now:
-                    query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB,
-                                f.confidence as "PEWNOSC MODELU"
-                                from bets b
-                                    join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
-                                    join matches m on b.match_id = m.id
-                                    join teams t1 on m.home_team = t1.id
-                                    join teams t2 on m.away_team = t2.id
-                                    join events e on b.event_id = e.id
-                                    join leagues l on m.league = l.id
-                                where m.game_date >= current_timestamp
-                                and b.odds >= {}
-                                and m.league in ({})
-                                and e.id in ({})
-                                order by m.game_date'''.format(odds_range, ",".join([str(leagues_dict[v]) for v in chosen_leagues]), ",".join([str(events_dict[v]) for v in chosen_events]))
-                else:
-                    query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB,
-                                f.confidence as "PEWNOSC MODELU"
-                                from bets b
-                                    join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
-                                    join matches m on b.match_id = m.id
-                                    join teams t1 on m.home_team = t1.id
-                                    join teams t2 on m.away_team = t2.id
-                                    join events e on b.event_id = e.id
-                                    join leagues l on m.league = l.id
-                                where cast(m.game_date as date) = current_date
-                                and b.odds >= {}
-                                and m.league in ({})
-                                and e.id in ({})
-                                order by m.game_date'''.format(odds_range, ",".join([str(leagues_dict[v]) for v in chosen_leagues]), ",".join([str(events_dict[v]) for v in chosen_events]))
-                bets_df = pd.read_sql(query, conn)
+                base_query = '''SELECT 
+                    l.name AS LIGA,
+                    t1.name AS GOSPODARZ,
+                    t2.name AS GOŚĆ,
+                    e.name AS ZDARZENIE,
+                    m.game_date AS "DATA SPOTKANIA",
+                    b.odds AS KURS,
+                    b.EV AS VB,
+                    f.confidence AS "PEWNOSC MODELU"
+                FROM bets b
+                JOIN final_predictions f ON (b.match_id = f.match_id AND b.event_id = f.event_id)
+                JOIN matches m ON b.match_id = m.id
+                JOIN teams t1 ON m.home_team = t1.id
+                JOIN teams t2 ON m.away_team = t2.id
+                JOIN events e ON b.event_id = e.id
+                JOIN leagues l ON m.league = l.id
+                WHERE '''
+
+                date_condition = '''m.game_date >= current_timestamp''' if from_now else '''CAST(m.game_date AS DATE) = current_date'''
+                
+                full_query = f'''
+                    {base_query}
+                    {date_condition}
+                    AND b.odds >= {odds_range}
+                    AND m.league IN ({",".join(str(leagues_dict[v]) for v in chosen_leagues)})
+                    AND e.id IN ({",".join(str(events_dict[v]) for v in chosen_events)})
+                    ORDER BY m.game_date
+                '''
+
+                # Wykonanie zapytania i wyświetlenie wyników
+                bets_df = pd.read_sql(full_query, conn)
                 bets_df.index = range(1, len(bets_df) + 1)
                 st.dataframe(bets_df, use_container_width=True, hide_index=True)
     conn.close()

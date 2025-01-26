@@ -371,10 +371,10 @@ def graph_ou(under, over, title):
             ha='center', va='bottom', color='black', fontsize=22)
     st.pyplot(fig)
 
-def team_compare_graph(teams, accs):
+def team_compare_graph(teams, accs, type = 'acc'):
     num_rows = len(teams)
     teams_accs = zip(teams,accs)
-    average = accs[-1]
+    average = 0
     teams_accs_sorted = sorted(teams_accs, key= lambda x: x[1])
     data = {
     'Label': [x[0] for x in teams_accs_sorted],
@@ -398,8 +398,12 @@ def team_compare_graph(teams, accs):
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
     for bar, result in zip(bars, df['Results']):
-        ax.text(bar.get_width() + 10, bar.get_y() + bar.get_height() / 2, f'{float(result)}%', 
+        if type == 'profit':
+            ax.text(bar.get_width() + 5, bar.get_y() + bar.get_height() / 2, f'{float(result)} u', 
             ha='center', va='center', color='white', fontsize=22)
+        else:  
+            ax.text(bar.get_width() + 10, bar.get_y() + bar.get_height() / 2, f'{float(result)}%', 
+                ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)
 
 

@@ -77,7 +77,6 @@ class Base:
                             min_value=pd.to_datetime('2000-01-01'),
                             max_value=pd.to_datetime('2030-12-31'),
                             format="YYYY-MM-DD")
-            #isinstance(self.date_range, tuple) and len(self.date_range) == 2
 
     def get_teams(self):
         all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(self.league, self.season)
@@ -258,7 +257,6 @@ class Base:
         predicts = [""] * 3
         outcomes = [""] * 3
         correct = ["NIE"] * 3
-        bet_placed = ["NIE"] * 3 # NA RAZIE USUNIETO Z PREZENTACJI W TABELI
         ou = 1 if home_goals + away_goals > 2.5 else 0
         btts = 1 if home_goals > 0 and away_goals > 0 else 0
         outcomes[0] = 'Poniżej 2.5 gola' if ou == 0 else 'Powyżej 2.5 gola'
@@ -282,27 +280,6 @@ class Base:
                 predicts[1] = row['name']
                 if (btts == 0 and row['event_id'] == 172) or (btts == 1 and row['event_id'] == 6):
                     correct[1] = 'TAK'
-        query = "select event_id as event_id, EV as EV from bets b where match_id = {}".format(id)
-        final_bets_df = pd.read_sql(query, self.conn)
-        for _, row in final_bets_df.iterrows():
-            if row['event_id'] in (1,2,3):  
-                if self.EV_plus:
-                    if row['EV'] > 0:
-                        bet_placed[2] = 'TAK'
-                else:
-                    bet_placed[2] = 'TAK'
-            if row['event_id'] in (8,12):
-                if self.EV_plus:
-                    if row['EV'] > 0:
-                        bet_placed[0] = 'TAK'
-                else:
-                    bet_placed[0] = 'TAK'
-            if row['event_id'] in (6, 172):
-                if self.EV_plus:
-                    if row['EV'] > 0:
-                        bet_placed[1] = 'TAK'
-                else:
-                    bet_placed[1] = 'TAK'
         final_predictions_df = pd.read_sql(query, self.conn)
         data = {
         'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
@@ -312,7 +289,6 @@ class Base:
         }
         df = pd.DataFrame(data)
         df.index = range(1, len(df) + 1)
-        #styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset = ['VB'])
         st.dataframe(df, use_container_width=True, hide_index=True)
     
     def generate_h2h(self, match_id):
@@ -487,7 +463,6 @@ class Base:
             df.index = range(1, len(df) + 1)
             st.dataframe(df, use_container_width=True, hide_index=True)
 
-        #TO-DO: Zestawienie H2H
         if self.h2h > 0:
             self.generate_h2h(id)
         st.header("Proponowane zakłady na mecz przez model: ")

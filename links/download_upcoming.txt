@@ -71,19 +71,19 @@
 
 
 -------------------------------- J1 LEAGUE ------------------------------------
-17 1 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2024/mecze/
+17 11 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2025/mecze/
 
 
 -------------------------------- J2 LEAGUE -----------------------------------
-32 1 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2024/mecze/
+32 11 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2025/mecze/
 
 
 ------------------------------ K1 LEAGUE -------------------------------------
-15 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2024/mecze/
+15 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2025/mecze/
 
 
 ------------------------------ K2 LEAGUE -------------------------------------
-30 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2024/mecze/
+30 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2025/mecze/
 
 
 ---------------------------------- LIGA MX -------------------------------------
@@ -131,7 +131,7 @@
 
 
 --------------------------------- MLS ----------------------------------------
-25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/mecze/
+25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/mecze/
 
 
 ------------------------------ SERIE A --------------------------------------

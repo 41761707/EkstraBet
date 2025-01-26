@@ -23,6 +23,7 @@
 
 
 -------------------------- TORNEO BETANO -------------------------------------
+33 11 https://www.flashscore.pl/pilka-nozna/argentyna/torneo-betano-2025/wyniki/
 33 1 https://www.flashscore.pl/pilka-nozna/argentyna/torneo-betano-2024/wyniki/
 33 2 https://www.flashscore.pl/pilka-nozna/argentyna/torneo-betano-2023/wyniki/
 33 3 https://www.flashscore.pl/pilka-nozna/argentyna/torneo-betano-2022/wyniki/
@@ -89,6 +90,7 @@
 
 
 -------------------------- SERIE A BETANO (BRASIL) ----------------------------
+34 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2025/wyniki/
 34 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2024/wyniki/
 34 2 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2023/wyniki/
 34 3 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2022/wyniki/
@@ -100,6 +102,7 @@
 
 
 ------------------------------ SERIE B BRASIL --------------------------------
+35 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2025/wyniki/
 35 1 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2024/wyniki/
 35 2 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2023/wyniki/
 35 3 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2022/wyniki/
@@ -199,6 +202,7 @@
 
 
 -------------------------------- J1 LEAGUE ------------------------------------
+17 11 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2025/wyniki/
 17 1 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2024/wyniki/
 17 2 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2023/wyniki/
 17 3 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2022/wyniki/
@@ -210,6 +214,7 @@
 
 
 -------------------------------- J2 LEAGUE -----------------------------------
+32 11 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2025/wyniki/
 32 1 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2024/wyniki/
 32 2 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2023/wyniki/
 32 3 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2022/wyniki/
@@ -217,6 +222,7 @@
 
 
 ------------------------------ K1 LEAGUE -------------------------------------
+15 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2025/wyniki/
 15 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2024/wyniki/
 15 2 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2023/wyniki/
 15 3 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2022/wyniki/
@@ -226,6 +232,7 @@
 
 
 ------------------------------ K2 LEAGUE -------------------------------------
+30 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2025/wyniki/
 30 1 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2024/wyniki/
 30 2 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2023/wyniki/
 30 3 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2022/wyniki/
@@ -356,6 +363,7 @@
 
 
 --------------------------------- MLS ----------------------------------------
+25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/wyniki/
 25 1 https://www.flashscore.pl/pilka-nozna/usa/mls-2024/wyniki/
 25 2 https://www.flashscore.pl/pilka-nozna/usa/mls-2023/wyniki/
 25 3 https://www.flashscore.pl/pilka-nozna/usa/mls-2022/wyniki/
