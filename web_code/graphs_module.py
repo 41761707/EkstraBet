@@ -374,7 +374,7 @@ def graph_ou(under, over, title):
 def team_compare_graph(teams, accs, type = 'acc'):
     num_rows = len(teams)
     teams_accs = zip(teams,accs)
-    average = 0
+    average = accs[-1]
     teams_accs_sorted = sorted(teams_accs, key= lambda x: x[1])
     data = {
     'Label': [x[0] for x in teams_accs_sorted],

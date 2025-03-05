@@ -63,7 +63,7 @@ def main():
     
     with st.expander("Proponowane zakłady"):
         generate_button("TOP 5 + Polska (dla Kubona)", conn, 1, 
-                        " where cast(m.game_date as date) = current_date and league in (1, 21, 2, 3, 4, 5, 6) and b.event_id in (1,2,3) order by b.EV desc".format(odds_range))
+                        " where cast(m.game_date as date) = current_date and league in (1, 21, 2, 3, 4, 5, 6) order by b.EV desc".format(odds_range))
         generate_button("Wszystkie ligi", conn, 1, 
                         " where cast(m.game_date as date) = current_date order by f.confidence desc".format(odds_range))
         generate_button("Tylko OU", conn, 1, 

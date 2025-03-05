@@ -247,16 +247,15 @@ class Game:
         pass
 
     def get_player_team_id(self, shortcut):
-        #TLUMACZENIA Z FLASHSCORE
-        if shortcut == 'NAS':
-            shortcut = 'NSH'
-        if shortcut == 'WIN':
-            shortcut = 'WPG'
-        if shortcut == 'LOS':
-            shortcut = 'LAK'
-        if shortcut == 'MON':
-            shortcut = 'MTL'
+        # TLUMACZENIA Z FLASHSCORE
+        translations = {
+            'NAS': 'NSH',
+            'WIN': 'WPG',
+            'LOS': 'LAK',
+            'MON': 'MTL'
+        }
         
+        shortcut = translations.get(shortcut, shortcut)
         return self.shortcuts[shortcut]
 
     def get_match_events(self, link, match_id, home_team, away_team):
@@ -267,7 +266,7 @@ class Game:
         game_events_divs = game_log.find_elements(By.XPATH, "./*")
         current_period = 0
         for div in game_events_divs:
-            if "smv__incidentsHeader section__title" in div.get_attribute("class"):
+            if "wclHeaderSection--summary" in div.get_attribute("class"):
                 # Jeśli napotkamy nowy nagłówek, zapisujemy aktualny licznik i resetujemy
                 #PERIOD 4 = DOGRYWKA
                 #PERIOD 5 = KARNE
@@ -471,6 +470,26 @@ class Game:
                 current_player_info[6] = saves_stat[0]
                 current_player_info.append(saves_stat[1])
                 player_stats = dict(zip(columns_goaltender, current_player_info))
+                '''player_stats = [
+                    current_player_info[0],
+                    current_player_info[1],
+                    current_player_info[2],
+                    current_player_info[3],
+                    current_player_info[4],
+                    current_player_info[5],
+                    current_player_info[6],
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1]
+                player_stats = dict(zip(columns_player, current_player_info))'''
             #Tragiczny kod, ale to tylko dla starych meczow, potem usuwam
             #Obejscie dla zawodnikow dla starych danych (brak wzowien)
             elif len(current_player_info) == 15:
@@ -566,6 +585,10 @@ class Game:
                 flash_id_div = player.find_element(By.TAG_NAME, 'a')
                 flash_id_link = flash_id_div.get_attribute('href')
                 flash_id = flash_id_link.split('/')[-1]
+                if len(player_info) < 2:
+                    player_info.insert(0, '00')
+                if len(flash_id) < 2:
+                    flash_id = flash_id.insert(0, '00')
                 player_id = self.get_player_id(player_info[1], flash_id)
                 position = []
                 if current_index < 0:
@@ -583,6 +606,10 @@ class Game:
                 flash_id_div = player.find_element(By.TAG_NAME, 'a')
                 flash_id_link = flash_id_div.get_attribute('href')
                 flash_id = flash_id_link.split('/')[-1]
+                if len(player_info) < 2:
+                    player_info.insert(0, '00')
+                if len(flash_id) < 2:
+                    flash_id = flash_id.insert(0, '00')
                 player_id = self.get_player_id(player_info[1], flash_id)
                 position = []
                 if current_index < 0:
@@ -741,6 +768,8 @@ def get_shortcuts(conn, country):
 def main():
     #WYWOŁANIE
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
+    #Pobranie jednego meczu (konkretnego): python .\nhl_all_scraper.py 45 7 https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/ https://www.flashscore.pl/mecz/jJMVfMb8/#/szczegoly-meczu/ 0 0
+    #Pobranie wielu meczów: 
     conn = db_module.db_connect()
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here

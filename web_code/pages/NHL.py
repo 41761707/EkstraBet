@@ -161,6 +161,7 @@ class HockeySite:
                 order by m.id, hme.period, hme.event_time
         '''
         events_pd = pd.read_sql(events_query, self.conn)
+        st.write(events_pd)
         for i in range(1, 6):
             events_pd_i = events_pd[events_pd['Tercja'] == i].drop(columns=['Tercja'])
             if len(events_pd_i) > 0:
@@ -277,7 +278,6 @@ class HockeySite:
             join teams t on t.id = box.team_id
             where m.id = {match_id} and p.position = 'G' ''' 
         boxscore_goaltenders_pd = pd.read_sql(boxscore_goaltenders, self.conn)
-        boxscore_goaltenders_pd['TOI'] = boxscore_goaltenders_pd['TOI'].str.slice(0, -3)
         boxscore_goaltenders_pd.index = range(1, len(boxscore_goaltenders_pd) + 1)
         boxscore_goaltenders_pd['Skuteczność Obron(%)'] = boxscore_goaltenders_pd['Skuteczność Obron(%)'].apply(lambda x: f"{x:.2f}")
         st.table(boxscore_goaltenders_pd)
@@ -291,7 +291,6 @@ class HockeySite:
             join teams t on t.id = box.team_id
             where m.id = {match_id} and p.position <> 'G' ''' 
         boxscore_pd = pd.read_sql(boxscore_others, self.conn)
-        boxscore_pd['TOI'] = boxscore_pd['TOI'].str.slice(0, -3)
         boxscore_pd.index = range(1, len(boxscore_pd) + 1)
         players_styled = boxscore_pd.style.applymap(graphs_module.highlight_cells_plus_minus, subset = ["+/-"])
         st.table(players_styled)

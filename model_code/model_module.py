@@ -343,7 +343,7 @@ class Model:
                     layers.Dense(3, activation = 'softmax')])
             cp = ModelCheckpoint('model_winner_release/', save_best_only = True)
             es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_winner_release/model_weights.h5')
+            #self.model.load_weights('model_winner_release/model_weights.h5')
             self.model.compile(loss='categorical_crossentropy', 
                 optimizer=Adagrad(learning_rate=0.001),
                 metrics=['accuracy'])

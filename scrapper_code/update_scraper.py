@@ -72,10 +72,6 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
     score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
-    round_divs = driver.find_elements(By.CLASS_NAME, "tournamentHeader__country")
-    for div in round_divs:
-        round_info = div.text.strip()
-        round = round_info.split(" ")[-1]
 
     # Dodaj zawartość divów do listy danych
     for div in stat_divs:
@@ -87,11 +83,6 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
     for div in score_divs:
         match_info.append(div.text.strip())
 
-    #print(match_info)
-    #match_data['league'] = league_id #id ligi
-    #match_data['season'] = season_id #id sezonu
-    #match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
-    #match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     score = match_info[5].split('\n')
     home_goals = int(score[0])
@@ -170,14 +161,17 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     #print("{} - {} data: {}".format(match_data['home_team'], match_data['away_team'], match_data['game_date']))
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
     #record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
-    id = record.iloc[0]['id']
-    if id == -1:
-        print("Nie udalo sie znalezc meczu!")
+    #id = record.iloc[0]['id']
+    if not record.empty:
+        id = record.iloc[0]['id']
+    else:
+        id = -1
+        print("#Nie udalo sie znalezc meczu!")
     return id
 
 def to_automate(league_id, season_id, games):
     conn = db_module.db_connect()
-    query = "select round from matches where league = {} and season = {} and cast(game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by game_date limit 1".format(league_id, season_id)
+    query = "select round from matches where league = {} and season = {} and cast(game_date as date) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by game_date limit 1".format(league_id, season_id)
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
@@ -186,7 +180,7 @@ def to_automate(league_id, season_id, games):
         return
     round_to_d = results[0][0]
     print("RUNDA: ",round_to_d)
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) ".format(league_id, season_id, round_to_d)
+    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY) ".format(league_id, season_id, round_to_d)
     matches_df = pd.read_sql(query, conn)
     if len(matches_df) == 0:
         print("BRAK SPOTKAŃ")
@@ -203,10 +197,12 @@ def to_automate(league_id, season_id, games):
     print(team_id)
     links = get_match_links(games, driver)
     inserts = []
-    for link in links[:len(matches_df)]:
+    no_matches = len(matches_df)
+    for link in links[:]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
         match_data = update_match_data(driver, league_id, season_id, link, match_id, team_id)
-        sql = '''UPDATE `ekstrabet`.`matches` SET  `game_date` = '{game_date}', \
+        if match_data['id'] != -1:
+            sql = '''UPDATE `ekstrabet`.`matches` SET  `game_date` = '{game_date}', \
 `home_team_goals` = '{home_team_goals}', \
 `away_team_goals` = '{away_team_goals}', \
 `home_team_xg` = '{home_team_xg}', \
@@ -231,8 +227,11 @@ def to_automate(league_id, season_id, games):
 `away_team_rc` = '{away_team_rc}', \
 `result` = '{result}' \
 WHERE (`id` = '{id}');'''.format(**match_data)
-        print(sql)
-        inserts.append(sql)
+            print(sql)
+            inserts.append(sql)
+            no_matches = no_matches - 1
+            if no_matches == 0:
+                break
     update_db(inserts, conn)
     conn.close()    
 
