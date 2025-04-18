@@ -78,7 +78,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
     score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
-    round_divs = driver.find_elements(By.CLASS_NAME, "tournamentHeader__country")
+    round_divs = driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_0pkdl")
     for div in round_divs:
         round_info = div.text.strip()
         round = round_info.split(" ")[-1]

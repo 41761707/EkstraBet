@@ -36,7 +36,7 @@ class Game:
         for div in round_div:
             round_info = div.text.strip()
             round_str = round_info.split(" - ")[-1].strip()
-        if round_str == 'USA: NHL':
+        if round_str == 'NHL':
             return 100
         if round_str == 'All Stars' or round_str == 'Przedsezonowy':
             return -1
@@ -115,7 +115,7 @@ class Game:
     def get_match_links(self, games, driver):
         links = []
         driver.get(games)
-        time.sleep(30) #Dla hokeja trzeba troche poczekac
+        time.sleep(60) #Dla hokeja trzeba troche poczekac
         game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
         for element in game_divs:
             id = element.get_attribute('id').split('_')[2]
@@ -128,7 +128,7 @@ class Game:
         ot_winner = 0 #0 - brak dogrywki, 1- gospo win, 2 - goście win
         self.driver.get(link)
         time.sleep(2)
-        round_div = self.driver.find_elements(By.CLASS_NAME, "tournamentHeader__country")
+        round_div = self.driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_0pkdl")
         game_div = self.driver.find_elements(By.CLASS_NAME, "infoBox__info")
         match_data['round'] = self.extract_round(round_div, game_div)
         if match_data['round'] == -1:
@@ -328,7 +328,7 @@ class Game:
                 except:
                     pass
                 match_events['description'] = description_str
-                if match_events['player_id'] == 0 and (match_events['event_id'] == 183 or match_events['event_id'] == 186):
+                if match_events['player_id'] == 0 and (match_events['event_id'] in [183, 186, 184]):
                     match_events['player_id'] = 2002 #Definicja gracza w bazie
                 match_events_lists.append(match_events)
         return match_events_lists
@@ -364,27 +364,27 @@ class Game:
             if(stat[1] == "Kary"):
                 match_data["home_team_fouls"] = stat[0]
                 match_data["away_team_fouls"] = stat[2]
-            if(stat[1] == "Skuteczność %"):
+            if(stat[2] == "Skuteczność %"):
                 match_stats_add["home_team_shots_acc"] = stat[0].split("%")[0]
-                match_stats_add["away_team_shots_acc"] = stat[2].split("%")[0]
+                match_stats_add["away_team_shots_acc"] = stat[3].split("%")[0]
             if(stat[1] == "Strzały obronione"):
                 match_stats_add["home_team_saves"] = stat[0]
                 match_stats_add["away_team_saves"] = stat[2]
-            if(stat[1] == "Strzały obr. %"):
+            if(stat[2] == "Strzały obr. %"):
                 match_stats_add["home_team_saves_acc"] = stat[0].split("%")[0]
-                match_stats_add["away_team_saves_acc"] = stat[2].split("%")[0]  
+                match_stats_add["away_team_saves_acc"] = stat[3].split("%")[0]  
             if(stat[1] == "Gole w przewadze"):
                 match_stats_add["home_team_pp_goals"] = stat[0]             
                 match_stats_add["away_team_pp_goals"] = stat[2] 
             if(stat[1] == "Gole w osłabieniu"):
                 match_stats_add["home_team_sh_goals"] = stat[0]
                 match_stats_add["away_team_sh_goals"] = stat[2]
-            if(stat[1] == "Gole w przewadze %"):
+            if(stat[2] == "Gole w przewadze %"):
                 match_stats_add["home_team_pp_acc"] = stat[0].split("%")[0]
-                match_stats_add["away_team_pp_acc"] = stat[2].split("%")[0]
-            if(stat[1] == "Obr. w osłabieniu %"):
+                match_stats_add["away_team_pp_acc"] = stat[3].split("%")[0]
+            if(stat[2] == "Obr. w osłabieniu %"):
                 match_stats_add["home_team_pk_acc"] = stat[0].split("%")[0]
-                match_stats_add["away_team_pk_acc"] = stat[2].split("%")[0]
+                match_stats_add["away_team_pk_acc"] = stat[3].split("%")[0]
             if(stat[1] == "Gra ciałem"):
                 match_stats_add["home_team_hits"] = stat[0]
                 match_stats_add["away_team_hits"] = stat[2]
@@ -458,13 +458,12 @@ class Game:
                 elif current_column == 1: #KLUB
                     current_player_info.append(self.get_player_team_id(stat))
                 else:
-                    #print(stat)
                     stat = "0" if stat == "-" else stat
                     current_player_info.append(stat)
                 current_column = current_column + 1
                 #print(current_player_info)
             #Drobna poprawka dla strzałów
-        
+            print(current_player_info)
             if len(current_player_info) == 8:
                 saves_stat = current_player_info[6].split('-')
                 current_player_info[6] = saves_stat[0]
@@ -623,6 +622,75 @@ class Game:
             current_line = current_line + 1
         
         return match_roster
+    
+        '''
+        odkomentowac dla meczow, ktore nie maja skladu z podzialem na linie
+        def get_match_roster(self, link, match_id, home_team, away_team):
+        self.driver.get(link)
+        time.sleep(2)
+        columns_roster = [
+            'match_id',
+            'player_id',
+            'team_id',
+            'position',
+            'line',
+            'number'
+        ]
+        match_roster = []
+        current_index = -1
+        current_line = 1
+        positions = ['D', 'D', 'RW', 'C', 'LW']
+        lineup_div = self.driver.find_element(By.CLASS_NAME, 'lf__lineUp')
+        sections = [lineup_div.find_elements(By.CLASS_NAME, 'section')[0]]
+        for section in sections:
+            current_player_info = []
+            sides = section.find_elements(By.CLASS_NAME, 'lf__side')  
+            #home_team = [player.text for player in sides[0].find_elements(By.CLASS_NAME, 'lf__participantNew') if player.text.strip()]
+            #away_team = [player.text for player in sides[1].find_elements(By.CLASS_NAME, 'lf__participantNew') if player.text.strip()]  
+            for player in sides[0].find_elements(By.CLASS_NAME, 'lf__participantNew'):
+                player_info = player.text.strip().split('\n')
+                flash_id_div = player.find_element(By.TAG_NAME, 'a')
+                flash_id_link = flash_id_div.get_attribute('href')
+                flash_id = flash_id_link.split('/')[-1]
+                if len(player_info) < 2:
+                    player_info.insert(0, '00')
+                if len(flash_id) < 2:
+                    flash_id = flash_id.insert(0, '00')
+                player_id = self.get_player_id(player_info[1], flash_id)
+                position = []
+                if current_index < 0:
+                    position = 'NN'
+                else:
+                    position = positions[current_index]
+                current_player_info = [match_id, player_id, home_team, position, current_line, player_info[0]]
+                #current_index = current_index + 1
+                match_roster.append(dict(zip(columns_roster, current_player_info)))
+
+            current_index = -1 if current_line == 1 else 0
+
+            for player in sides[1].find_elements(By.CLASS_NAME, 'lf__participantNew'):
+                player_info = player.text.strip().split('\n')
+                flash_id_div = player.find_element(By.TAG_NAME, 'a')
+                flash_id_link = flash_id_div.get_attribute('href')
+                flash_id = flash_id_link.split('/')[-1]
+                if len(player_info) < 2:
+                    player_info.insert(0, '00')
+                if len(flash_id) < 2:
+                    flash_id = flash_id.insert(0, '00')
+                player_id = self.get_player_id(player_info[1], flash_id)
+                position = []
+                if current_index < 0:
+                    position = 'NN'
+                else:
+                    position = positions[current_index]
+                current_player_info = [match_id, player_id, away_team, position, current_line, player_info[0]]
+                #current_index = current_index + 1
+                match_roster.append(dict(zip(columns_roster, current_player_info)))
+            current_index = 0
+            current_line = current_line + 1
+        
+        return match_roster
+    '''
 
     def human_print(self, match_data, match_stats_add, match_events, match_boxscore, match_rosters):
         #Pretty print do logów, na razie jako słowniki, potem jako inserty

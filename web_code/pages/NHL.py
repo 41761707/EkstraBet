@@ -6,25 +6,58 @@ import db_module
 import pandas as pd
 import graphs_module
 import tables_module
-import hockey_rink
+import statistics
+from pages.nhl_funcs import nhl_schedule_package
 
 class HockeySite:
-    def __init__(self, conn, name):
-        self.conn = conn
-        self.name = name
-        self.league = 45 #NHL
-        self.seasons = {}
-        self.selected_season = 0
-        self.matches = ""
-        self.date_range = ""
-        self.teams_dict = {}
-        self.ou_line = 5.5
+    def __init__(self, conn, name, league):
+        self.conn = conn #połączenie z bazą danych
+        self.name = name #nazwa ligi
+        self.league = league #id ligi
+        self.seasons = {} #wszystkie sezony, z których posiadamy mecze w bazie w ramach danej ligi
+        self.selected_season = 0 #sezon wybrany przez użytkownika (w formie 2019/20)
+        self.season = 0 #id sezonu wybranego przez użytkownika
+        self.matches = "" #info o wszystkich meczach w danym sezonie (pobierane jednorazowo aby później usprawnić filtrowanie - nie trzeba za każdym razem pobierać z bazy danych)
+        self.date_range = "" #zakres dat do filtrowania meczów
+        self.teams_dict = {} #słownik drużyn w danym sezonie
+        self.current_team_info = [] #statystyki aktualnie wybranej drużyny
+        self.current_team_player_stats = [] #statystyki zawodników aktualnie wybranej drużyny
+        self.h2h = 0 #liczba meczów H2H do wyświetlenia
+        self.lookback_games = 10  # liczba ostatnich meczów branych pod uwagę w analizie
+        #self.ou_line = 5.5/6.5 #linia over/under dla NHL
         st.header(name)
+
+    def get_matches(self):
+        query = f'''SELECT m.id as id, cast(m.game_date as date) as game_date, m.round as round, 
+                        t1.name as home_team, t1.id as home_team_id, t2.name as away_team, t2.id as away_team_id, m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result,
+                        ad.OT as OT, ad.SO as SO, ad.OTwinner as OTwinner, ad.SOwinner as SOwinner,
+                        m.home_team_sog, m.away_team_sog, m.home_team_fk, m.away_team_fk, 
+                        m.home_team_fouls, m.away_team_fouls, 
+                        ad.home_team_pp_goals, ad.away_team_pp_goals,
+                        ad.home_team_sh_goals, ad.away_team_sh_goals,
+                        ad.home_team_shots_acc, ad.away_team_shots_acc,
+                        ad.home_team_saves, ad.away_team_saves,
+                        ad.home_team_saves_acc, ad.away_team_saves_acc,
+                        ad.home_team_pp_acc, ad.away_team_pp_acc,
+                        ad.home_team_pk_acc, ad.away_team_pk_acc,
+                        ad.home_team_faceoffs, ad.away_team_faceoffs,
+                        ad.home_team_faceoffs_acc, ad.away_team_faceoffs_acc,
+                        ad.home_team_hits, ad.away_team_hits,
+                        ad.home_team_to, ad.away_team_to,
+                        ad.home_team_en, ad.away_team_en
+                    FROM matches m 
+                    join hockey_matches_add ad on m.id = ad.match_id
+                    join teams t1 on m.home_team = t1.id
+                    join teams t2 on m.away_team = t2.id
+                    where m.league = {self.league} and m.season = {self.seasons[self.selected_season]}
+                    order by m.game_date desc'''
+        self.matches = pd.read_sql(query, self.conn)
     
     def generate_site(self):
-        cursor = self.conn.cursor() 
-        seasons_query = "SELECT id, years from SEASONS order by years desc"
         self.generate_config()
+        self.generate_schedule_tab()
+        self.generate_teams_tab()
+        self.generate_table_tab()
 
     def generate_config(self):
         st.subheader("Konfiguracja strony")
@@ -36,54 +69,29 @@ class HockeySite:
             self.seasons = {years: season_id for season_id, years in cursor.fetchall()}
             seasons_list = [season for season in self.seasons.keys()]
             self.selected_season = st.selectbox("Sezon", seasons_list, key='selected_season')
+            self.season = self.seasons[self.selected_season]
         with col2:
-            st.write("TU RUNDY")
+            st.write("TU RUNDY") #Chodzi o to czy sezon zasadniczy czy playoff
         with col3:
             self.date_range = st.date_input(
                                         "Wybierz zakres dat",
-                                        value=(pd.to_datetime('2017-01-01'), pd.to_datetime('2017-01-31')),
+                                        value=(pd.to_datetime('today'), pd.to_datetime('today') + pd.Timedelta(days=7)),
                                         min_value=pd.to_datetime('2016-01-01'),
                                         max_value=pd.to_datetime('2030-12-31'),
                                         format="YYYY-MM-DD")
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            self.lookback_games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)  # liczba ostatnich meczów branych pod uwagę w analizie = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
+        with col5:
+            self.ou_line = st.slider("Linia Over/Under", 4.0, 8.0, 5.5, 0.5)
+        with col6:
+            self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
         cursor.close()
-        self.get_matches()
-    
-    def get_matches(self):
-        if isinstance(self.date_range, tuple) and len(self.date_range) == 2:
-            start_date, end_date = self.date_range
-            query = f'''SELECT m.id as id, m.game_date as game_date, m.round as round, 
-                            t1.name as home_team, t1.id as home_team_id, t2.name as away_team, t2.id as away_team_id, m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result,
-                            ad.OT as OT, ad.SO as SO, ad.OTwinner as OTwinner, ad.SOwinner as SOwinner,
-                            m.home_team_sog, m.away_team_sog, m.home_team_fk, m.away_team_fk, 
-                            m.home_team_fouls, m.away_team_fouls, 
-                            ad.home_team_pp_goals, ad.away_team_pp_goals,
-                            ad.home_team_sh_goals, ad.away_team_sh_goals,
-                            ad.home_team_shots_acc, ad.away_team_shots_acc,
-                            ad.home_team_saves, ad.away_team_saves,
-                            ad.home_team_saves_acc, ad.away_team_saves_acc,
-                            ad.home_team_pp_acc, ad.away_team_pp_acc,
-                            ad.home_team_pk_acc, ad.away_team_pk_acc,
-                            ad.home_team_faceoffs, ad.away_team_faceoffs,
-                            ad.home_team_faceoffs_acc, ad.away_team_faceoffs_acc,
-                            ad.home_team_hits, ad.away_team_hits,
-                            ad.home_team_to, ad.away_team_to,
-                            ad.home_team_en, ad.away_team_en
-                        FROM matches m 
-                        join hockey_matches_add ad on m.id = ad.match_id
-                        join teams t1 on m.home_team = t1.id
-                        join teams t2 on m.away_team = t2.id
-                        where m.league = {self.league} and m.season = {self.seasons[self.selected_season]} and cast(m.game_date as date) between '{start_date}' and '{end_date}'
-                        order by m.game_date desc'''
-            print(query)
-            self.matches = pd.read_sql(query, self.conn)
-            if len(self.matches) > 0:
-                with st.expander('Mecze dla zadanej konfiguracji: '):
-                    self.generate_schedule()
-            else:
-                st.write("Brak meczów dla wprowadzonej konfiguracji")
 
-    def generate_schedule(self):
-        for _, row in self.matches.iterrows():
+        self.get_matches()
+
+    def matches_buttons(self, filtered_matches):
+        for _, row in filtered_matches.iterrows():
             button_label = "{} - {}, data: {}".format(row.home_team, row.away_team, row.game_date.strftime('%d.%m.%y %H:%M'))
             if row.result != '0':
                 if row.OTwinner == 1:
@@ -99,205 +107,102 @@ class HockeySite:
 
             if st.button(button_label, use_container_width=True):
                 self.match_details(row)
+
+    def generate_schedule_tab(self):
+        filtered_matches = self.matches[(self.matches['game_date'] >= self.date_range[0]) & (self.matches['game_date'] <= self.date_range[1])]
+        if len(filtered_matches) > 0:
+            with st.expander('Mecze dla zadanej konfiguracji: '):
+                self.matches_buttons(filtered_matches)
+        else:
+            st.write("Brak meczów dla wprowadzonej konfiguracji")
     
     def match_details(self, row):
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["Meczowe predykcje", "Składy", "Przebieg meczu", "Statystyki pomeczowe", "Boxscore - statystyki zawodników"])
         with tab1:
-            self.match_predictions(row.id)
+            nhl_schedule_package.match_predictions(row.id)
         with tab2:
-            self.match_lineups(row.id, row.home_team, row.home_team_id, row.away_team, row.away_team_id)
+            nhl_schedule_package.match_lineups(row.id, row.home_team, row.home_team_id, row.away_team, row.away_team_id, self.conn)
         with tab3:
-            self.match_events(row.id, row.home_team, row.away_team)
+            nhl_schedule_package.match_events(row.id, row.home_team, self.conn)
         with tab4:
-            self.match_stats(row, row.home_team_id, row.away_team_id)
+            nhl_schedule_package.match_stats(row)
         with tab5:
-            self.match_boxscore(row.id)
+            nhl_schedule_package.match_boxscore(row.id, self.conn)
 
-    def match_predictions(self, match_id):
-        st.write("Tutaj będą predykcje meczowe")
-
-    def match_lineups(self, match_id, home_team, home_team_id, away_team, away_team_id):
-        lineup_query = f'''SELECT 
-            t.id AS Drużyna, 
-            p.common_name AS Zawodnik, 
-            line.position AS Pozycja, 
-            line.number AS Numer, 
-            line.line AS Linia
-        FROM hockey_match_rosters line
-        JOIN players p ON line.player_id = p.id
-        JOIN matches m ON m.id = line.match_id
-        JOIN teams t ON t.id = line.team_id
-        WHERE m.id = {match_id}'''
+    def generate_teams_tab(self):
+        self.teams_dict = nhl_schedule_package.get_teams(self.league, self.season, self.conn)
+        with st.expander("Zespoły w sezonie {}".format(self.selected_season)):
+            st.header("Drużyny grające w {} w sezonie {}:".format(self.name, self.selected_season))
+            for key, value in self.teams_dict.items():
+                button_label = value
+                if st.button(button_label, use_container_width = True):
+                    tab1, tab2, tab3 = st.tabs(["Statystyki drużyny", "Statystyki zawodników", "Statystyki predykcji"])
+                    self.current_team_info = nhl_schedule_package.get_team_info(key, self.lookback_games, self.matches)
+                    with tab1:
+                        self.current_team_stats(key, value)
+                    with tab2:
+                        current_team_player_stats = nhl_schedule_package.get_team_players_stats(key, self.season, self.conn)
+                        st.write(current_team_player_stats)
+    
+    def current_team_stats(self, team_id, team_name):
+        df = pd.DataFrame(self.current_team_info)
         
-        lineup_pd = pd.read_sql(lineup_query, self.conn)
-        
-        def display_lineup(team_name, team_id, column):
-            with column:
-                tabs = st.tabs([f"{i} linia" for i in ["Pierwsza", "Druga", "Trzecia", "Czwarta"]])
-                for i, tab in enumerate(tabs, start=1):
-                    with tab:
-                        st.subheader(team_name)
-                        lineup = lineup_pd[
-                            (lineup_pd['Drużyna'] == team_id) & (lineup_pd['Linia'] == i)
-                        ].drop(columns=['Linia', 'Drużyna'])
-                        st.dataframe(lineup, hide_index=True)
-                        st.plotly_chart(hockey_rink.draw_hockey_rink(lineup, team_name.replace(" ", "_")))
-        
+        date = df['match_date'].tolist()
+        opponent = df['opponent_shortcut'].tolist()
+        home_team = df['team_name'].tolist()
+        away_team = df['opponent_name'].tolist()
+        home_team_score = df['team_goals'].tolist()
+        away_team_score = df['opponent_goals'].tolist()
+        home_team_sog = df['team_sog'].tolist()
+        away_team_sog = df['opponent_sog'].tolist()
+        goals = df.apply(lambda x: x['team_goals'] + x['opponent_goals'], axis=1).tolist()
+        results = df['result'].tolist()
         col1, col2 = st.columns(2)
-        display_lineup(home_team, home_team_id, col1)
-        display_lineup(away_team, away_team_id, col2)
+        with col1:
+            with st.container():
+                graphs_module.goals_bar_chart(date, opponent, goals, team_name, self.ou_line)
+        with col2:
+            with st.container():
+                graphs_module.goals_bar_chart(date, opponent, home_team_sog, team_name, statistics.mean(home_team_sog))
+        col3, col4 = st.columns(2)
+        with col3:
+            with st.container():
+                graphs_module.winner_bar_chart_v2(results, team_name)
+        with col4:
+            with st.container():
+                tables_module.matches_list(date, home_team, home_team_score, away_team, away_team_score, team_name)
 
+    def generate_table_tab(self):
+        with st.expander("Tabele ligowe"):
+            tab1, tab2, tab3, tab4 = st.tabs(["Tabele sezonu zasadniczego", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU"])
+            with tab1:
+                team_ids = {team_id: [0] * 10 for team_id in self.teams_dict}
+                nhl_schedule_package.league_table(self.matches[self.matches['round'] == 100], team_ids, 2, 0, 2, 1)
+                table_data = {
+                    "Drużyna" : [self.teams_dict[team_id] for team_id in team_ids.keys()],
+                    "Mecze" : [team_stats[0] for team_stats in team_ids.values()],
+                    "Wygrane" : [team_stats[1] for team_stats in team_ids.values()],
+                    "Przegrane" : [team_stats[3] for team_stats in team_ids.values()],
+                    "WPD" : [team_stats[8] for team_stats in team_ids.values()],
+                    "PPD" : [team_stats[9] for team_stats in team_ids.values()],
+                    "Bramki" : [f"{team_stats[4]}:{team_stats[5]}" for team_stats in team_ids.values()],
+                    "Różnica bramek" : [team_stats[6] for team_stats in team_ids.values()],
+                    "Punkty" : [team_stats[7] for team_stats in team_ids.values()],
+                }
+                table_df = pd.DataFrame(table_data)
+                table_df = table_df.sort_values(by='Punkty', ascending=False)
+                table_df = table_df.reset_index(drop=True)
+                table_df.index += 1
+                table_df.index.name = "Miejsce"
+                st.write(table_df, use_container_width=True)
+                st.write("Legenda: WPD - wygrane po dogrywce, PPD - przegrane po dogrywce")
 
-    
-    def match_events(self, match_id, home_team, away_team):
-        events_query = f'''select 
-            t.name as Druzyna, p.common_name as Zawodnik, e.name as Zdarzenie, hme.period as Tercja, hme.event_time as Czas, hme.description as Opis
-                from hockey_match_events hme 
-                join players p on hme.player_id = p.id
-                join events e on e.id = hme.event_id
-                join matches m on m.id = hme.match_id
-                join teams t on t.id = hme.team_id
-                where m.id = {match_id}
-                order by m.id, hme.period, hme.event_time
-        '''
-        events_pd = pd.read_sql(events_query, self.conn)
-        st.write(events_pd)
-        for i in range(1, 6):
-            events_pd_i = events_pd[events_pd['Tercja'] == i].drop(columns=['Tercja'])
-            if len(events_pd_i) > 0:
-                if i == 4:
-                    st.header("Dogrywka")
-                elif i == 5:
-                    st.header("Rzuty karne")
-                else:
-                    st.header("Tercja {}".format(i))
-                home_team_col, away_team_col = st.columns(2)    
-                for _, row in events_pd_i.iterrows():
-                    if row['Druzyna'] == home_team:
-                        self.generate_event_entry(row, home_team_col, is_empty=False)
-                        self.generate_event_entry(None, away_team_col, is_empty=True)
-                    else:
-                        self.generate_event_entry(None, home_team_col, is_empty=True)
-                        self.generate_event_entry(row, away_team_col, is_empty=False)
-
-    def generate_event_entry(self, event_row, team_col, is_empty):
-        if is_empty:
-            team_col.write("<div style='height: 120px;'></div>", unsafe_allow_html=True)
-        else:
-            team_col.markdown(
-                f"""
-                <div style="
-                    background-color: #f9f9f9;
-                    border: 1px solid #ddd;
-                    border-radius: 8px;
-                    padding: 10px;
-                    margin-bottom: 10px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                    text-align: center;
-                ">
-                    <h4 style="margin: 0; color: #333;">{event_row['Czas']} ({event_row['Zdarzenie']})</h4>
-                    <p style="margin: 5px 0; color: #555;">{event_row['Zawodnik']} ({event_row['Opis']})</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-    def match_stats(self, match_row, home_team_id, away_team_id):
-        col1, col2, col3 = st.columns(3)
-        match_row_dict = match_row.to_dict()
-
-        # Stylizacja HTML dla kart z danymi
-        card_style = """
-        <div style="
-            background-color: {bg_color};
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 5px 0;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        ">
-            <div style="font-size: 24px; font-weight: bold; color: #333;">{value}</div>
-            <div style="font-size: 16px; color: #777;">{label}</div>
-        </div>
-        """
-        
-        # Mapowanie nazw statystyk
-        stat_name = {
-            'team': 'Nazwa drużyny',
-            'goals': 'Bramki',
-            'team_sog': 'Strzały na bramkę',
-            'team_fk': 'Minuty kar',
-            'team_fouls': 'Liczba kar',
-            'team_pp_goals': 'Liczba bramek w przewadze (PP)',
-            'team_sh_goals': "Liczba bramek w osłabieniu (SH)",
-            'team_shots_acc': "Skuteczność strzałów (%)",
-            'team_saves': "Liczba obron",
-            'team_saves_acc': 'Skuteczność obron (%)',
-            'team_pp_acc': 'Skuteczność gier w przewadze (%)',
-            'team_pk_acc': 'Skuteczność gier w osłabieniu (%)',
-            'team_faceoffs': 'Liczba wygranych wznowień',
-            'team_faceoffs_acc': 'Skuteczność wznowień (%)',
-            'team_hits': 'Liczba uderzeń',
-            'team_to': 'Liczba strat',
-            'team_en': 'Liczba bramek strzelonych na pustą bramkę'
-        }
-
-        # Iteracja przez statystyki i renderowanie
-        for key, value in match_row_dict.items():
-            if key in ('home_team_id', 'away_team_id'):
-                continue
-            if 'home' in key:
-                col1.markdown(
-                    card_style.format(
-                        value=value,
-                        label=stat_name[key.replace('home_', '')],
-                        bg_color="#e3f2fd"  # Jasnoniebieskie tło dla drużyny gospodarzy
-                    ),
-                    unsafe_allow_html=True
-                )
-            elif 'away' in key:
-                col3.markdown(
-                    card_style.format(
-                        value=value,
-                        label=stat_name[key.replace('away_', '')],
-                        bg_color="#ffebee"  # Jasnoczerwone tło dla drużyny gości
-                    ),
-                    unsafe_allow_html=True
-                )
-
-    def match_boxscore(self, match_id):
-        st.write(f"Boxscore dla meczu {match_id}")
-        st.subheader("Bramkarze")
-        boxscore_goaltenders = f'''select 
-                t.name as Drużyna, p.common_name as Zawodnik, box.points as Punkty, box.penalty_minutes as "Kary(MIN)", box.toi as TOI, 
-                box.shots_against as Strzały, box.shots_saved as Obronione, box.saves_acc as "Skuteczność Obron(%)"
-            from hockey_match_player_stats box 
-            join players p on box.player_id = p.id
-            join matches m on m.id = box.match_id
-            join teams t on t.id = box.team_id
-            where m.id = {match_id} and p.position = 'G' ''' 
-        boxscore_goaltenders_pd = pd.read_sql(boxscore_goaltenders, self.conn)
-        boxscore_goaltenders_pd.index = range(1, len(boxscore_goaltenders_pd) + 1)
-        boxscore_goaltenders_pd['Skuteczność Obron(%)'] = boxscore_goaltenders_pd['Skuteczność Obron(%)'].apply(lambda x: f"{x:.2f}")
-        st.table(boxscore_goaltenders_pd)
-        st.subheader("Zawodnicy pola")
-        boxscore_others = f'''select 
-                t.name as Drużyna, p.common_name as Zawodnik, box.goals as Bramki, box.assists as Asysty, box.points as Punkty, box.plus_minus as "+/-",
-                box.penalty_minutes as "Kary(MIN)", box.sog as SOG, box.toi as TOI
-            from hockey_match_player_stats box 
-            join players p on box.player_id = p.id
-            join matches m on m.id = box.match_id
-            join teams t on t.id = box.team_id
-            where m.id = {match_id} and p.position <> 'G' ''' 
-        boxscore_pd = pd.read_sql(boxscore_others, self.conn)
-        boxscore_pd.index = range(1, len(boxscore_pd) + 1)
-        players_styled = boxscore_pd.style.applymap(graphs_module.highlight_cells_plus_minus, subset = ["+/-"])
-        st.table(players_styled)
-        st.write("Tutaj będą statystyki zawodników")
-    
 
 if __name__ == '__main__':
     conn = db_module.db_connect()
-    nhl = HockeySite(conn, "NHL")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id from leagues where name = 'NHL'")
+    league_id = cursor.fetchone()[0]
+    nhl = HockeySite(conn, "NHL", league_id)
+    cursor.close()
     nhl.generate_site()

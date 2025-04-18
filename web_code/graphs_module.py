@@ -116,8 +116,8 @@ def highlight_cells_plus_minus(val):
     return color
 def goals_bar_chart(date, opponent, goals, team_name, ou_line):
     data = {
-    'Date': [x[:-3] for x in reversed(date)],
-    'Opponent': [x[:3] for x in reversed(opponent)],
+    'Date': [x for x in reversed(date)],
+    'Opponent': [x for x in reversed(opponent)],
     'Goals': [x for x in reversed(goals)],
     }
     df = pd.DataFrame(data)
@@ -429,4 +429,32 @@ def side_bar_graph(labels, values, title):
     for bar, result in zip(bars, df['Results']):
         ax.text(bar.get_width() - 5, bar.get_y() + bar.get_height() / 2, f'{float(result)} %', 
             ha='center', va='center', color='black', fontsize=22)
+    st.pyplot(fig)
+
+
+def winner_bar_chart_v2(results, team_name):
+    wins = results.count('W')
+    draws = results.count('X')
+    loses = results.count('L')
+    data = {
+    'Label': ["Porażki", "Remisy", "Wygrane"],
+    'Results' : [loses, draws, wins]
+    }
+    sns.set_theme(style="darkgrid")
+    df = pd.DataFrame(data)
+    # Ustawienia wykresu
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.barh(df.index, df['Results'], color=['orangered', 'slategrey', 'lightgreen'])
+    ax.grid(False)
+    ax.set_yticks(df.index)
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
+    ax.set_ylabel("")
+    ax.set_xlabel("")
+    ax.set_title("Rezultaty meczów: {}".format(team_name), loc='left', fontsize=24, color='white')
+    ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
+    ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
+    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
+    for bar, result in zip(bars, df['Results']):
+        ax.text(bar.get_width() + 0.15, bar.get_y() + bar.get_height() / 2, f'{int(result)}', 
+            ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)

@@ -98,13 +98,13 @@ def update_match_data(driver, league_id, season_id, link, match_id, team_id):
         match_data['result'] = '2'
     for element in stats:
         stat = element.split('\n')
-        if(stat[1] == 'Oczekiwane bramki (xG)'):
+        if(stat[1] == 'Oczekiwane gole (xG)'):
             match_data['home_team_xg'] = stat[0]
             match_data['away_team_xg'] = stat[2]
         elif(stat[1] == 'Posiadanie piłki'):
             match_data['home_team_bp'] = int(stat[0][:-1])
             match_data['away_team_bp'] = int(stat[2][:-1])
-        elif(stat[1] == 'Sytuacje bramkowe'):
+        elif(stat[1] == 'Strzały łącznie'):
             match_data['home_team_sc'] = int(stat[0])
             match_data['away_team_sc'] = int(stat[2])
         elif(stat[1] == 'Strzały na bramkę'):

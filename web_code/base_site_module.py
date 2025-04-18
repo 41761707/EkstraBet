@@ -224,7 +224,7 @@ class Base:
             SELECT 
                 m.home_team AS home_id, t1.name AS home, 
                 m.away_team AS guest_id, t2.name AS guest, 
-                m.game_date AS date, m.home_team_goals AS home_goals, 
+                date_format(cast(m.game_date as date), '%d.%m') AS date, m.home_team_goals AS home_goals, 
                 m.away_team_goals AS away_goals, m.result AS result
             FROM matches m 
             JOIN teams t1 ON t1.id = m.home_team 
@@ -238,7 +238,7 @@ class Base:
         '''
         data = pd.read_sql(query, self.conn)
 
-        date = [row.date.strftime('%d.%m.%y') for _, row in data.iterrows()]
+        date = [row.date for _, row in data.iterrows()]
         opponent = [row.guest if row.home_id == team_id else row.home for _, row in data.iterrows()]
         goals = [0.4 if int(row.home_goals) + int(row.away_goals) == 0 else int(row.home_goals) + int(row.away_goals) for _, row in data.iterrows()]
         btts = [1 if int(row.home_goals) > 0 and int(row.away_goals) > 0 else -1 for _, row in data.iterrows()]

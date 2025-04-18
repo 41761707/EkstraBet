@@ -7,6 +7,19 @@ import pandas as pd
 import numpy as np
 import db_module
 
+def check_if_in_db(home_team, away_team, game_date, conn):
+        cursor = conn.cursor()
+        query = """
+            SELECT m.id 
+            FROM matches m 
+            WHERE m.home_team = %s AND m.away_team = %s AND m.game_date = %s
+        """
+
+        cursor.execute(query, (home_team, away_team, game_date))
+        result = cursor.fetchone()
+        cursor.close()
+        return result[0] if result else -1
+
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
 
@@ -25,7 +38,7 @@ def get_match_links(games, driver):
     return links
                 
 
-def get_match_data(driver, league_id, season_id, link, team_id):
+def get_match_data(driver, league_id, season_id, link, team_id, conn):
     stats = []
     match_info = []
     match_data = {
@@ -71,7 +84,8 @@ def get_match_data(driver, league_id, season_id, link, team_id):
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
     score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
-    round_divs = driver.find_elements(By.CLASS_NAME, "tournamentHeader__country")
+    round_divs = driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_0pkdl")
+    round = 0
     for div in round_divs:
         round_info = div.text.strip()
         round = round_info.split(" ")[-1]
@@ -93,6 +107,10 @@ def get_match_data(driver, league_id, season_id, link, team_id):
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
     match_data['round'] = round
+    check_id = check_if_in_db(match_data['home_team'], match_data['away_team'], match_data['game_date'], conn)
+    if check_id != -1:
+        print(f"#Ten mecz znajduje się już w bazie danych!, ID:{check_id}")
+        return check_id
     score = match_info[5].split('\n')
     home_goals = int(score[0])
     away_goals = int(score[2])
@@ -106,13 +124,13 @@ def get_match_data(driver, league_id, season_id, link, team_id):
         match_data['result'] = '2'
     for element in stats:
         stat = element.split('\n')
-        if(stat[1] == 'Oczekiwane bramki (xG)'):
+        if(stat[1] == 'Oczekiwane gole (xG)'):
             match_data['home_team_xg'] = stat[0]
             match_data['away_team_xg'] = stat[2]
         elif(stat[1] == 'Posiadanie piłki'):
             match_data['home_team_bp'] = int(stat[0][:-1])
             match_data['away_team_bp'] = int(stat[2][:-1])
-        elif(stat[1] == 'Sytuacje bramkowe'):
+        elif(stat[1] == 'Strzały łącznie'):
             match_data['home_team_sc'] = int(stat[0])
             match_data['away_team_sc'] = int(stat[2])
         elif(stat[1] == 'Strzały na bramkę'):
@@ -159,7 +177,9 @@ def main():
     print(team_id)
     links = get_match_links(games, driver)
     for link in links[:]:
-        match_data = get_match_data(driver, league_id, season_id, link, team_id)
+        match_data = get_match_data(driver, league_id, season_id, link, team_id, conn)
+        if match_data == -1:
+            return
         sql = '''INSERT INTO matches (league, \
 season, \
 home_team, \
