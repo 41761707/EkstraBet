@@ -23,7 +23,10 @@ class HockeySite:
         self.current_team_info = [] #statystyki aktualnie wybranej drużyny
         self.current_team_player_stats = [] #statystyki zawodników aktualnie wybranej drużyny
         self.h2h = 0 #liczba meczów H2H do wyświetlenia
+        self.rounds_dict = {'100' : 'Sezon zasadniczy', '200': 'Playoffy'}
+        self.selected_round = 100 #Faza sezonu (100 - sezon zasadniczy, 200 - playoffy)
         self.lookback_games = 10  # liczba ostatnich meczów branych pod uwagę w analizie
+        self.date_filter = True #czy filtrujemy po dacie
         #self.ou_line = 5.5/6.5 #linia over/under dla NHL
         st.header(name)
 
@@ -61,6 +64,7 @@ class HockeySite:
 
     def generate_config(self):
         st.subheader("Konfiguracja strony")
+        self.date_filter = st.checkbox("Filtruj po dacie", value=True, key='regular_season')
         col1, col2, col3 = st.columns(3)
         cursor = self.conn.cursor()
         with col1:
@@ -71,14 +75,17 @@ class HockeySite:
             self.selected_season = st.selectbox("Sezon", seasons_list, key='selected_season')
             self.season = self.seasons[self.selected_season]
         with col2:
-            st.write("TU RUNDY") #Chodzi o to czy sezon zasadniczy czy playoff
+            self.selected_round = int(st.selectbox("Faza sezonu", list(self.rounds_dict.keys()), format_func=lambda x: self.rounds_dict[x], key='selected_round'))
         with col3:
-            self.date_range = st.date_input(
-                                        "Wybierz zakres dat",
-                                        value=(pd.to_datetime('today'), pd.to_datetime('today') + pd.Timedelta(days=7)),
-                                        min_value=pd.to_datetime('2016-01-01'),
-                                        max_value=pd.to_datetime('2030-12-31'),
-                                        format="YYYY-MM-DD")
+            if self.date_filter:
+                self.date_range = st.date_input(
+                                            "Wybierz zakres dat",
+                                            value=(pd.to_datetime('today'), pd.to_datetime('today') + pd.Timedelta(days=7)),
+                                            min_value=pd.to_datetime('2016-01-01'),
+                                            max_value=pd.to_datetime('2030-12-31'),
+                                            format="YYYY-MM-DD")
+            else:
+                self.date_range = []
         col4, col5, col6 = st.columns(3)
         with col4:
             self.lookback_games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)  # liczba ostatnich meczów branych pod uwagę w analizie = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
@@ -109,7 +116,14 @@ class HockeySite:
                 self.match_details(row)
 
     def generate_schedule_tab(self):
-        filtered_matches = self.matches[(self.matches['game_date'] >= self.date_range[0]) & (self.matches['game_date'] <= self.date_range[1])]
+        filtered_matches = self.matches[:]
+        if self.selected_round == 100:
+            filtered_matches = filtered_matches[filtered_matches['round'] == 100]
+        elif self.selected_round == 200:
+            filtered_matches = filtered_matches[filtered_matches['round'] != 100]            
+        if len(self.date_range) == 2:
+            if self.date_filter:
+                filtered_matches = filtered_matches[(filtered_matches['game_date'] >= self.date_range[0]) & (filtered_matches['game_date'] <= self.date_range[1])]
         if len(filtered_matches) > 0:
             with st.expander('Mecze dla zadanej konfiguracji: '):
                 self.matches_buttons(filtered_matches)
@@ -125,6 +139,10 @@ class HockeySite:
         with tab3:
             nhl_schedule_package.match_events(row.id, row.home_team, self.conn)
         with tab4:
+            if row.OTwinner == 1:
+                row.home_goals = row.home_goals + 1
+            elif row.OTwinner == 2:
+                row.away_goals = row.away_goals + 1
             nhl_schedule_package.match_stats(row)
         with tab5:
             nhl_schedule_package.match_boxscore(row.id, self.conn)
@@ -136,11 +154,13 @@ class HockeySite:
             for key, value in self.teams_dict.items():
                 button_label = value
                 if st.button(button_label, use_container_width = True):
-                    tab1, tab2, tab3 = st.tabs(["Statystyki drużyny", "Statystyki zawodników", "Statystyki predykcji"])
+                    tab1, tab2, tab3 = st.tabs(["Statystyki drużyny", "Skład", "Statystyki zawodników", "Statystyki predykcji"])
                     self.current_team_info = nhl_schedule_package.get_team_info(key, self.lookback_games, self.matches)
                     with tab1:
                         self.current_team_stats(key, value)
                     with tab2:
+                        nhl_schedule_package.get_team_roster(key, value, self.conn)
+                    with tab3:
                         current_team_player_stats = nhl_schedule_package.get_team_players_stats(key, self.season, self.conn)
                         st.write(current_team_player_stats)
     
@@ -171,31 +191,51 @@ class HockeySite:
         with col4:
             with st.container():
                 tables_module.matches_list(date, home_team, home_team_score, away_team, away_team_score, team_name)
+    
+    def create_table(self, matches, scope):
+        team_ids = {team_id: [0] * 10 for team_id in self.teams_dict}
+        nhl_schedule_package.league_table(matches, team_ids, 2, 0, 2, 1, scope)
+        table_data = {
+            "Drużyna": [self.teams_dict[team_id] for team_id in team_ids.keys()],
+            "Mecze": [team_stats[0] for team_stats in team_ids.values()],
+            "Wygrane": [team_stats[1] for team_stats in team_ids.values()],
+            "Przegrane": [team_stats[3] for team_stats in team_ids.values()],
+            "WPD": [team_stats[8] for team_stats in team_ids.values()],
+            "PPD": [team_stats[9] for team_stats in team_ids.values()],
+            "Bramki": [f"{team_stats[4]}:{team_stats[5]}" for team_stats in team_ids.values()],
+            "Różnica bramek": [team_stats[6] for team_stats in team_ids.values()],
+            "Punkty": [team_stats[7] for team_stats in team_ids.values()],
+        }
+        table_df = pd.DataFrame(table_data)
+        table_df = table_df.sort_values(by='Punkty', ascending=False)
+        table_df = table_df.reset_index(drop=True)
+        table_df.index += 1
+        table_df.index.name = "Miejsce"
+        return table_df
 
     def generate_table_tab(self):
+
         with st.expander("Tabele ligowe"):
-            tab1, tab2, tab3, tab4 = st.tabs(["Tabele sezonu zasadniczego", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU"])
+            regular_season_matches = self.matches[self.matches['round'] == 100]  
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "Tabele sezonu zasadniczego", 
+                "Tabela domowa", 
+                "Tabela wyjazdowa", 
+                "Tabela OU"])
             with tab1:
-                team_ids = {team_id: [0] * 10 for team_id in self.teams_dict}
-                nhl_schedule_package.league_table(self.matches[self.matches['round'] == 100], team_ids, 2, 0, 2, 1)
-                table_data = {
-                    "Drużyna" : [self.teams_dict[team_id] for team_id in team_ids.keys()],
-                    "Mecze" : [team_stats[0] for team_stats in team_ids.values()],
-                    "Wygrane" : [team_stats[1] for team_stats in team_ids.values()],
-                    "Przegrane" : [team_stats[3] for team_stats in team_ids.values()],
-                    "WPD" : [team_stats[8] for team_stats in team_ids.values()],
-                    "PPD" : [team_stats[9] for team_stats in team_ids.values()],
-                    "Bramki" : [f"{team_stats[4]}:{team_stats[5]}" for team_stats in team_ids.values()],
-                    "Różnica bramek" : [team_stats[6] for team_stats in team_ids.values()],
-                    "Punkty" : [team_stats[7] for team_stats in team_ids.values()],
-                }
-                table_df = pd.DataFrame(table_data)
-                table_df = table_df.sort_values(by='Punkty', ascending=False)
-                table_df = table_df.reset_index(drop=True)
-                table_df.index += 1
-                table_df.index.name = "Miejsce"
-                st.write(table_df, use_container_width=True)
-                st.write("Legenda: WPD - wygrane po dogrywce, PPD - przegrane po dogrywce")
+                st.dataframe(
+                    self.create_table(regular_season_matches, 'all'),
+                    use_container_width=True)
+            with tab2:
+                st.dataframe(
+                    self.create_table(regular_season_matches, 'home'),
+                    use_container_width=True)
+            with tab3:
+                st.dataframe(
+                    self.create_table(regular_season_matches, 'away'),
+                    use_container_width=True)
+            
+            st.write("Legenda: WPD - wygrane po dogrywce, PPD - przegrane po dogrywce")
 
 
 if __name__ == '__main__':

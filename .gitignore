@@ -4,4 +4,12 @@
 /model_code/__pycache__/
 /web_code/__pycache__/
 /scrapper_code/__pycache__/
-
+/web_code/nhl_funcs/__pycache__/
+/EkstraBetEnv/
+/model_eb_36/logs/
+/model_eb_36/__pycache__
+/model_eb_36/.cursor
+/model_eb_36/model_btts_dev
+/model_eb_36/model_goals_dev
+/model_eb_36/model_winner_dev
+/model_eb_36/model_dev

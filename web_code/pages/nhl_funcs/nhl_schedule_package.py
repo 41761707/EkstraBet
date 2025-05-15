@@ -343,10 +343,12 @@ def get_team_info(team_id, lookback, matches_df):
     
     return team_info_parsed
 
-def league_table(matches, team_ids, winner_gain, draw_gain, ot_gain_winner, ot_gain_loser):
-    #team_ids zawiera słownik drużyn, w którym każda drużyna zawiera listę 
-    #[liczba meczów, wygrane, remisy (dla hokeja tez robimy), przegrane, bramki zdobyte, bramki stracone, różnica bramek, punkty
-    #+ w hokeju liczba wygranych po OT/SO, liczba przegranych po OT/SO]
+def league_table(matches, team_ids, winner_gain, draw_gain, ot_gain_winner, ot_gain_loser, scope='all'):
+    # team_ids zawiera słownik drużyn, w którym każda drużyna zawiera listę 
+    # [liczba meczów, wygrane, remisy (dla hokeja tez robimy), przegrane, bramki zdobyte, bramki stracone, różnica bramek, punkty
+    # + w hokeju liczba wygranych po OT/SO, liczba przegranych po OT/SO]
+    # scope: 'all' - wszystkie mecze, 'home' - tylko domowe, 'away' - tylko wyjazdowe
+    
     for _, row in matches.iterrows():
         home_team_id = row['home_team_id']
         away_team_id = row['away_team_id']
@@ -355,48 +357,69 @@ def league_table(matches, team_ids, winner_gain, draw_gain, ot_gain_winner, ot_g
         overtime_winner = row['OTwinner']
         shootout_winner = row['SOwinner']
 
-        # Update matches played
-        team_ids[home_team_id][0] += 1
-        team_ids[away_team_id][0] += 1
+        # Sprawdzamy zakres meczów do uwzględnienia
+        process_home = (scope == 'all' or scope == 'home')
+        process_away = (scope == 'all' or scope == 'away')
 
-        # Update goals scored and conceded
-        team_ids[home_team_id][4] += home_goals
-        team_ids[home_team_id][5] += away_goals
-        team_ids[away_team_id][4] += away_goals
-        team_ids[away_team_id][5] += home_goals
+        # Aktualizacja meczów rozegranych
+        if process_home:
+            team_ids[home_team_id][0] += 1
+        if process_away:
+            team_ids[away_team_id][0] += 1
 
-        # Determine match result
+        # Aktualizacja bramek zdobytych i straconych
+        if process_home:
+            team_ids[home_team_id][4] += home_goals
+            team_ids[home_team_id][5] += away_goals
+        if process_away:
+            team_ids[away_team_id][4] += away_goals
+            team_ids[away_team_id][5] += home_goals
+
+        # Określenie wyniku meczu
         if home_goals > away_goals:
-            team_ids[home_team_id][1] += 1  # Home team wins
-            team_ids[away_team_id][3] += 1  # Away team loses
-            team_ids[home_team_id][7] += winner_gain
+            if process_home:
+                team_ids[home_team_id][1] += 1  # Home team wins
+                team_ids[home_team_id][7] += winner_gain
+            if process_away:
+                team_ids[away_team_id][3] += 1  # Away team loses
         elif home_goals < away_goals:
-            team_ids[away_team_id][1] += 1  # Away team wins
-            team_ids[home_team_id][3] += 1  # Home team loses
-            team_ids[away_team_id][7] += winner_gain
+            if process_home:
+                team_ids[home_team_id][3] += 1  # Home team loses
+            if process_away:
+                team_ids[away_team_id][1] += 1  # Away team wins
+                team_ids[away_team_id][7] += winner_gain
         else:
-            team_ids[home_team_id][2] += 1  # Draw
-            team_ids[away_team_id][2] += 1  # Draw
-            team_ids[home_team_id][7] += draw_gain
-            team_ids[away_team_id][7] += draw_gain
+            if process_home:
+                team_ids[home_team_id][2] += 1  # Draw
+                team_ids[home_team_id][7] += draw_gain
+            if process_away:
+                team_ids[away_team_id][2] += 1  # Draw
+                team_ids[away_team_id][7] += draw_gain
+            
             if overtime_winner == 1 or shootout_winner == 1:
-                team_ids[home_team_id][8] += 1  # OT/SO win
-                team_ids[away_team_id][9] += 1  # OT/SO loss
-                team_ids[home_team_id][7] += ot_gain_winner
-                team_ids[away_team_id][7] += ot_gain_loser
-                team_ids[home_team_id][4] += 1 # Extra goal for OT/SO win
-                team_ids[away_team_id][5] += 1 # Extra goal for OT/SO loss
+                if process_home:
+                    team_ids[home_team_id][8] += 1  # OT/SO win
+                    team_ids[home_team_id][7] += ot_gain_winner
+                    team_ids[home_team_id][4] += 1  # Extra goal for OT/SO win
+                if process_away:
+                    team_ids[away_team_id][9] += 1  # OT/SO loss
+                    team_ids[away_team_id][7] += ot_gain_loser
+                    team_ids[away_team_id][5] += 1  # Extra goal for OT/SO loss
             elif overtime_winner == 2 or shootout_winner == 2:
-                team_ids[away_team_id][8] += 1
-                team_ids[home_team_id][9] += 1
-                team_ids[away_team_id][7] += ot_gain_winner
-                team_ids[home_team_id][7] += ot_gain_loser
-                team_ids[away_team_id][4] += 1 # Extra goal for OT/SO win
-                team_ids[home_team_id][5] += 1 # Extra goal for OT/SO loss
+                if process_home:
+                    team_ids[home_team_id][9] += 1
+                    team_ids[home_team_id][7] += ot_gain_loser
+                    team_ids[home_team_id][5] += 1  # Extra goal for OT/SO loss
+                if process_away:
+                    team_ids[away_team_id][8] += 1
+                    team_ids[away_team_id][7] += ot_gain_winner
+                    team_ids[away_team_id][4] += 1  # Extra goal for OT/SO win
         
-        # Update goal difference
-        team_ids[home_team_id][6] = team_ids[home_team_id][4] - team_ids[home_team_id][5]
-        team_ids[away_team_id][6] = team_ids[away_team_id][4] - team_ids[away_team_id][5]
+        # Aktualizacja różnicy bramek
+        if process_home:
+            team_ids[home_team_id][6] = team_ids[home_team_id][4] - team_ids[home_team_id][5]
+        if process_away:
+            team_ids[away_team_id][6] = team_ids[away_team_id][4] - team_ids[away_team_id][5]
 
 def get_team_players_stats(key, season, conn):
     """

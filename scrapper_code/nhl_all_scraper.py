@@ -115,7 +115,7 @@ class Game:
     def get_match_links(self, games, driver):
         links = []
         driver.get(games)
-        time.sleep(60) #Dla hokeja trzeba troche poczekac
+        time.sleep(50) #Dla hokeja trzeba troche poczekac
         game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
         for element in game_divs:
             id = element.get_attribute('id').split('_')[2]
@@ -201,7 +201,32 @@ class Game:
         }
         return event_mapping.get(event, 0)  # Domyślna wartość to 0, jeśli event nie istnieje
 
-    
+    def add_player(self, common_name, flash_id):
+        """
+        Adds a new player to the database with the given common name and flash ID.
+        
+        Args:
+            common_name (str): Player's common name
+            flash_id (str): Player's external flash ID from FlashScore
+            
+        Returns:
+            int: ID of the newly inserted player, or -1 if insertion failed
+        """
+        query = "INSERT INTO players(common_name, external_flash_id) VALUES (%s, %s)"
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(query, (common_name, flash_id))
+            self.conn.commit()
+            cursor.execute("SELECT LAST_INSERT_ID()")
+            print(f"Gracz dodany do bazy danych: {common_name}, flash_id: {flash_id}")
+            player_id = cursor.fetchone()[0]
+            return player_id
+        except Exception as e:
+            print(f"Error adding player to database: {e}")
+            return -1
+        finally:
+            cursor.close()
+
     def get_player_id(self, common_name, flash_id = None): 
         player_id = -1
         cursor = self.conn.cursor()
@@ -217,7 +242,9 @@ class Game:
                 if result:
                     player_id = result[0]
                 else:
+                    player_id = self.add_player(common_name, flash_id)
                     print(f'BRAK GRACZA O PODANYM COMMON_NAME. Common name: {common_name}, flash_id: {flash_id}')
+                    print(f'#Dodano gracza do bazy danych: {common_name}')
             elif count == 1:
                 # 2. Jeśli jest dokładnie jeden gracz, pobierz jego id
                 query_single = "SELECT id FROM players WHERE common_name = %s"
@@ -236,7 +263,7 @@ class Game:
                 if result:
                     player_id = result[0]
                 else:
-                    print(f'BRAK GRACZA O PODANYM external_flash_id. Common name: {common_name}, flash_id: {flash_id}')
+                    print(f'#BRAK GRACZA O PODANYM external_flash_id. Common name: {common_name}, flash_id: {flash_id}')
         except Exception as e:
             print(f"Wystąpił błąd: {e}")
         finally:
@@ -427,8 +454,7 @@ class Game:
             'faceoff',
             'faceoff_won',
             'faceoff_acc',
-            'toi',
-            'shots_acc'
+            'toi'
         ]
         columns_goaltender = [
             'match_id',
@@ -463,11 +489,11 @@ class Game:
                 current_column = current_column + 1
                 #print(current_player_info)
             #Drobna poprawka dla strzałów
-            print(current_player_info)
             if len(current_player_info) == 8:
                 saves_stat = current_player_info[6].split('-')
                 current_player_info[6] = saves_stat[0]
-                current_player_info.append(saves_stat[1])
+                if len(saves_stat) > 1:
+                    current_player_info.append(saves_stat[1])
                 player_stats = dict(zip(columns_goaltender, current_player_info))
                 '''player_stats = [
                     current_player_info[0],
@@ -494,6 +520,12 @@ class Game:
             elif len(current_player_info) == 15:
                 current_player_info.insert(-2, 0)
                 current_player_info.insert(-2, 0)
+                player_stats = dict(zip(columns_player, current_player_info))
+            elif len(current_player_info) == 16:
+                faceoff_won = 0
+                if int(current_player_info[-2]) != 0:
+                    faceoff_won = round((100 * int(current_player_info[-3])) / int(current_player_info[-2]))
+                current_player_info.insert(-3, faceoff_won)
                 player_stats = dict(zip(columns_player, current_player_info))
             #Obejscie dla bramkarzy dla starych danych (info o obronach w even i pp/pk)
             elif len(current_player_info) == 7:
@@ -541,7 +573,10 @@ class Game:
             elif len(current_player_info) == 11:
                 saves_stat = current_player_info[9].split('-')
                 current_player_info[9] = saves_stat[0]
-                current_player_info.append(saves_stat[1])
+                if len(saves_stat) > 1:
+                    current_player_info.append(saves_stat[1])
+                else:
+                    current_player_info.append(0)
                 goaltender_stats = [current_player_info[0], 
                                     current_player_info[1], 
                                     current_player_info[2], 

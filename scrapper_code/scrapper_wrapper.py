@@ -3,6 +3,15 @@ import argparse
 import automate_odds
 import upcoming_scrapper
 import update_scraper
+import scrapper
+
+def launch_historic(links):
+    for link in links:
+        current = link + 'wyniki/'
+        print(current)
+        args = current.split()
+        print(args)
+        scrapper.to_automate(int(args[0]), int(args[1]), args[2])
 
 def launch_upcoming(links):
     for link in links:
@@ -55,16 +64,17 @@ def main():
         #'31 11 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2024-2025/',
         #'32 11 https://www.flashscore.pl/pilka-nozna/japonia/j2-league-2025/',
         #'33 11 https://www.flashscore.pl/pilka-nozna/argentyna/torneo-betano-2025/',
-        '34 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2025/',
-        '36 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2024-2025/',
-        '37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/',
-        '38 11 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2024-2025/',
-        '39 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2024-2025/',
-        '40 11 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2024-2025/',
+        #'34 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-a-betano-2025/',
+        #'35 11 https://www.flashscore.pl/pilka-nozna/brazylia/serie-b-2025/',
+        #'36 11 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2024-2025/',
+        #'37 11 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2024-2025/',
+        #'38 11 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2024-2025/',
+        #'39 11 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2024-2025/',
+        #'40 11 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2024-2025/',
         #'41 11 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2024-2025/'
     ]
     parser = argparse.ArgumentParser(description="Automatyzacja scrapowania danych.")
-    parser.add_argument('mode', choices=['update', 'upcoming', 'odds'], help='Tryb uruchomienia programu')
+    parser.add_argument('mode', choices=['update', 'upcoming', 'odds', 'historic'], help='Tryb uruchomienia programu')
     args = parser.parse_args()
 
     if args.mode == 'update':
@@ -73,6 +83,7 @@ def main():
         launch_upcoming(links)
     elif args.mode == 'odds':
         launch_odds(links)
-
+    elif args.mode == 'historic':
+        launch_historic(links)
 if __name__ == '__main__':
     main()

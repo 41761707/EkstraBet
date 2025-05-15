@@ -6,14 +6,31 @@ import warnings
 
 
 def update_db(queries, conn):
-    for query in queries:
-        #print(query)
-        cursor = conn.cursor()
-        cursor.execute(query)
-        conn.commit()
+    """Wykonuje listę zapytań SQL w transakcji. Zatwierdza zmiany tylko, jeśli wszystkie zapytania się powiodą.
+    
+    Argumenty:
+        queries (list): Lista zapytań SQL do wykonania.
+        conn: Połączenie do bazy danych (np. z psycopg2/sqlite3).
+    
+    Zwraca:
+        bool: True, jeśli wszystkie zapytania wykonano pomyślnie, False w przeciwnym przypadku.
+    """
+    cursor = conn.cursor()
+    try:
+        for query in queries:
+            cursor.execute(query)
+        conn.commit() 
+        return True
+    except Exception as error:
+        conn.rollback()
+        print(f"Błąd bazy danych: {error}, cofnięto całe wgranie zmian.") 
+        return False
+    finally:
+        cursor.close() 
 
 def generate_predictions(conn, league, season, current_round, to_automate):
-    #query = "select id from matches where league = {} and season = {} and round = {} and cast(game_date as date) = current_date".format(league, season, current_round)
+    #Pobieramy wszystkie mecze w danym dniu dla danej ligi i sezonu (sezon trochę zbyteczny tutaj chyba)
+    #W argumentach jest jeszcze current_round, jakbyśmy chcieli hurtowo generować dla wszystkich meczów w danej kolejce
     query = "select id from matches where league = {} and season = {} and cast(game_date as date) = current_date".format(league, season)
     #print(query)
     matches_id = pd.read_sql(query,conn)
@@ -195,90 +212,6 @@ def generate_predictions(conn, league, season, current_round, to_automate):
     if to_automate:
         update_db(inserts, conn)
 
-
-def generate_statistics(conn, league, season, current_round):
-    query = 'select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round = {}'.format(league, season, current_round)
-    match_stats_df = pd.read_sql(query, conn)
-    correct_ou_pred = 0
-    correct_ou_bets = 0
-    ou_no_bets = 0
-    ou_profit_bets = 0
-    correct_btts_pred = 0
-    correct_btts_bets = 0
-    btts_no_bets = 0
-    btts_profit_bets = 0
-    correct_result_pred = 0
-    correct_result_bets = 0
-    result_no_bets = 0
-    result_profit_bets = 0
-
-    for index, row in match_stats_df.iterrows():
-        if row['result'] == '0':
-            continue
-        id = row['id']
-        query = 'select event_id from final_predictions where match_id = {}'.format(id)
-        predictions_df = pd.read_sql(query, conn)
-        query = 'select event_id, odds, bookmaker from bets where match_id = {}'.format(id)
-        bets_df = pd.read_sql(query, conn)
-        for index, predict in predictions_df.iterrows():
-            if predict['event_id'] == 8 and row['total'] > 2.5:
-                correct_ou_pred = correct_ou_pred + 1
-            elif predict['event_id'] == 12 and row['total'] < 2.5:
-                correct_ou_pred = correct_ou_pred + 1
-            elif predict['event_id'] == 1 and row['result'] == '1':
-                correct_result_pred = correct_result_pred + 1
-            elif predict['event_id'] == 2 and row['result'] == 'X':
-                correct_result_pred = correct_result_pred + 1
-            elif predict['event_id'] == 3 and row['result'] == '2':
-                correct_result_pred = correct_result_pred + 1
-            elif predict['event_id'] == 6 and (row['home_goals'] >0 and row['away_goals'] > 0 ):
-                correct_btts_pred = correct_btts_pred + 1
-            elif predict['event_id'] == 172 and not (row['home_goals'] > 0 and row['away_goals'] > 0):
-                correct_btts_pred = correct_btts_pred + 1
-            else:
-                pass
-
-        for index, bet in bets_df.iterrows():
-            if bet['event_id'] in (8,12):
-                    ou_no_bets = ou_no_bets + 1
-                    ou_profit_bets = ou_profit_bets - 1
-            if bet['event_id'] in (1,2,3):
-                    result_no_bets = result_no_bets + 1
-                    result_profit_bets = result_profit_bets - 1
-            if bet['event_id'] in (6,172):
-                    btts_no_bets = btts_no_bets + 1
-                    btts_profit_bets = btts_profit_bets - 1
-
-            if bet['event_id'] == 8 and row['total'] > 2.5:
-                correct_ou_bets = correct_ou_bets + 1
-                ou_profit_bets = ou_profit_bets + bet['odds']
-            elif bet['event_id'] == 12 and row['total'] < 2.5:
-                correct_ou_bets = correct_ou_bets + 1
-                ou_profit_bets = ou_profit_bets + bet['odds']
-            elif bet['event_id'] == 1 and row['result'] == '1':
-                correct_result_bets = correct_result_bets + 1
-                result_profit_bets = result_profit_bets + bet['odds']
-            elif bet['event_id'] == 2 and row['result'] == 'X':
-                correct_result_bets = correct_result_bets + 1
-                result_profit_bets = result_profit_bets + bet['odds']
-            elif bet['event_id'] == 3 and row['result'] == '2':
-                correct_result_bets = correct_result_bets + 1
-                result_profit_bets = result_profit_bets + bet['odds']
-            elif bet['event_id'] == 6 and (row['home_goals'] >0 and row['away_goals'] > 0 ):
-                correct_btts_bets = correct_btts_bets + 1
-                btts_profit_bets = btts_profit_bets + bet['odds']
-            elif bet['event_id'] == 172 and not (row['home_goals'] > 0 and row['away_goals'] > 0):
-                correct_btts_bets = correct_btts_bets + 1
-                btts_profit_bets = btts_profit_bets + bet['odds']
-            else:
-                pass
-    print("Liczba przewidywań OU: {}, liczba poprawnych: {:.2f}, skuteczność: {:.2f}%".format(len(match_stats_df), correct_ou_pred, 100 * correct_ou_pred / len(match_stats_df)))
-    print("Liczba przewidywań BTTS: {}, liczba poprawnych: {:.2f}, skuteczność: {:.2f}%".format(len(match_stats_df), correct_btts_pred, 100 * correct_btts_pred / len(match_stats_df)))
-    print("Liczba przewidywań RESULT: {}, liczba poprawnych: {:.2f}, skuteczność: {:.2f}%".format(len(match_stats_df), correct_result_pred, 100 * correct_result_pred / len(match_stats_df)))
-    print("Liczba zakładów OU: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(ou_no_bets, correct_ou_bets, ou_profit_bets, 100 * correct_ou_bets / ou_no_bets))
-    print("Liczba zakładów BTTS: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(btts_no_bets, correct_btts_bets, btts_profit_bets, 100 * correct_btts_bets / btts_no_bets))
-    print("Liczba zakładów RESULT: {}, liczba poprawnych: {}, profit: {:.2f}, skuteczność: {:.2f}%".format(result_no_bets, correct_result_bets, result_profit_bets, 100 * correct_result_bets / result_no_bets))
-
 def bet_to_automate(league, season, mode):
     to_automate = 1
     warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
@@ -294,8 +227,6 @@ def bet_to_automate(league, season, mode):
     print("RUNDA: ", current_round)
     if mode == 0:
         generate_predictions(conn, league, season, current_round, to_automate)
-    if mode == 1:
-        generate_statistics(conn, league, season, current_round)
     conn.close()    
 
 def main():

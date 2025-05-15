@@ -211,7 +211,13 @@ class Base:
             964 : 'Finał, mecz numer 5',
             965 : 'Finał, mecz numer 6',
             966 : 'Finał, mecz numer 7',
-            100 : 'Brak podziału na kolejki'
+            100 : 'Brak podziału na kolejki',
+            1001 : "Baraż o utrzymanie, 1/4 finału, mecz numer 1",
+            1002 : "Baraż o utrzymanie, 1/4 finału, mecz numer 2",
+            1003 : 'Baraż o utrzymanie, 1/2 finału, mecz numer 1',
+            1004 : 'Baraż o utrzymanie, 1/2 finału, mecz numer 2',
+            1005 : "Baraż o utrzymanie, finał, mecz numer 1",
+            1006 : "Baraż o utrzymanie, finał, mecz numer 2",
         }
         return special_round_names[round]
 
@@ -524,11 +530,9 @@ class Base:
 
         schedule_df = pd.read_sql(query,self.conn)
         for index, row in schedule_df.iterrows():
-            button_label = "{} - {}".format(row.home, row.guest)
+            button_label = "{} - {}, data: {}".format(row.home, row.guest,row.date.strftime('%d.%m.%y %H:%M'))
             if row.result != '0':
                 button_label = button_label + ", wynik spotkania: {} - {}".format(row.h_g, row.a_g)
-            else:
-                button_label = button_label + ", data: {}".format(row.date.strftime('%d.%m.%y %H:%M'))
             if st.button(button_label, use_container_width=True):
                 if row.result != '0':
                     tab1, tab2 = st.tabs(["Predykcje", "Statystyki pomeczowe"])

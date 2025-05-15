@@ -110,7 +110,7 @@ def get_match_data(driver, league_id, season_id, link, team_id, conn):
     check_id = check_if_in_db(match_data['home_team'], match_data['away_team'], match_data['game_date'], conn)
     if check_id != -1:
         print(f"#Ten mecz znajduje się już w bazie danych!, ID:{check_id}")
-        return check_id
+        return -1
     score = match_info[5].split('\n')
     home_goals = int(score[0])
     away_goals = int(score[2])
@@ -156,7 +156,8 @@ def get_match_data(driver, league_id, season_id, link, team_id, conn):
             match_data['away_team_rc'] = int(stat[2])
     return match_data
 
-def main():
+#def main():
+def to_automate(league_id, season_id, games):
     #WYWOŁANIE
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
     options = webdriver.ChromeOptions()
@@ -165,9 +166,9 @@ def main():
     driver = webdriver.Chrome(options=options)
     #Link do strony z wynikami
     #games = 'https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2016-2017/wyniki/'
-    league_id = int(sys.argv[1])
-    season_id = int(sys.argv[2])
-    games = sys.argv[3]
+    #league_id = int(sys.argv[1])
+    #season_id = int(sys.argv[2])
+    #games = sys.argv[3]
     query = "select country from leagues where id = {}".format(league_id)
     country_df = pd.read_sql(query,conn)
     country = country_df.values.flatten() 

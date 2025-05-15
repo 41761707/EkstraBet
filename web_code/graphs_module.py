@@ -114,11 +114,14 @@ def highlight_cells_plus_minus(val):
     elif val < 0:
         color = 'background-color: lightcoral; color : black'
     return color
-def goals_bar_chart(date, opponent, goals, team_name, ou_line):
+
+def goals_bar_chart(date, opponent, goals, team_name, ou_line, title="Bramki w meczach"):
+    # Modify goals values - if goal is 0, set it to 0.3 for better visualization
+    goals_graph = [0.3 if int(g) == 0 else g for g in goals]
     data = {
     'Date': [x for x in reversed(date)],
     'Opponent': [x for x in reversed(opponent)],
-    'Goals': [x for x in reversed(goals)],
+    'Goals': [x for x in reversed(goals_graph)],
     }
     df = pd.DataFrame(data)
 
@@ -128,16 +131,17 @@ def goals_bar_chart(date, opponent, goals, team_name, ou_line):
     # Tworzenie wykresu goals
     fig, ax = plt.subplots(figsize=(10, 6))
     bars = ax.bar(df.index, df['Goals'], color='gray')
-    avg_goals = df['Goals'].mean()
-    hit_rate = (df['Goals'] > ou_line).mean() * 100
+    avg_goals = goals.mean()
+    hit_rate = (goals > ou_line).mean() * 100
     # Ustawienia osi
     ax.grid(False)
     ax.axhline(y=ou_line, color='white', linestyle='--', linewidth=2)
     ax.set_xticks(df.index)
     ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
+    ax.set_yticks(np.arange(0, df['Goals'].max() + 0.5, 0.5))
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.set_title("Bramki w meczach: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(team_name, avg_goals, ou_line, hit_rate), loc='left', fontsize=24, color='white')
+    ax.set_title("{}: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(title, team_name, avg_goals, ou_line, hit_rate), loc='left', fontsize=24, color='white')
     ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
@@ -148,7 +152,7 @@ def goals_bar_chart(date, opponent, goals, team_name, ou_line):
             bar.set_color('green')
         else:
             bar.set_color('red')
-        ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 0.4, 0.5), f'{int(goals)}', 
+        ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 0.4, 0.2), f'{int(goals)}', 
             ha='center', va='bottom', color='white', fontsize=16)
 
     # Wyświetlenie wykresu

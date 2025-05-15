@@ -141,7 +141,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
         'home_team' : 0,
         'away_team' : 0,
         'game_date' : 0}
-    # Znajdź wszystkie divy o klasie '_row_1y0py_8'
+    # Znajdź wszystkie divy o klasie 'wcl-row_OFViZ'
     stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
@@ -158,10 +158,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    #print("{} - {} data: {}".format(match_data['home_team'], match_data['away_team'], match_data['game_date']))
     record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
-    #record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
-    #id = record.iloc[0]['id']
     if not record.empty:
         id = record.iloc[0]['id']
     else:
@@ -169,7 +166,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
         print("#Nie udalo sie znalezc meczu!")
     return id
 
-def to_automate(league_id, season_id, games):
+def to_automate(league_id, season_id, games, one_link = 0):
     conn = db_module.db_connect()
     query = "select round from matches where league = {} and season = {} and cast(game_date as date) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by game_date limit 1".format(league_id, season_id)
     cursor = conn.cursor()
@@ -195,7 +192,10 @@ def to_automate(league_id, season_id, games):
     teams_df = pd.read_sql(query, conn)
     team_id = teams_df.set_index('name')['id'].to_dict()
     print(team_id)
-    links = get_match_links(games, driver)
+    if one_link == 1:
+        links = [games]
+    else:
+        links = get_match_links(games, driver)
     inserts = []
     no_matches = len(matches_df)
     for link in links[:]:
@@ -237,10 +237,12 @@ WHERE (`id` = '{id}');'''.format(**match_data)
 
 def main():
     #WYWOŁANIE
-    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
+    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze> <czy pobrac tylko jeden mecz z linka>
     league_id = int(sys.argv[1])
     season_id = int(sys.argv[2])
     games = sys.argv[3]
-    to_automate(league_id, season_id, games)
+    one_link = int(sys.argv[4])
+    to_automate(league_id, season_id, games, one_link)
+
 if __name__ == '__main__':
     main()

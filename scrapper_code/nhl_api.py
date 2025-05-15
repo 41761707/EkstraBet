@@ -23,7 +23,7 @@ def main():
     #get_boxscore = "https://api-web.nhle.com/v1/gamecenter/2023020204/boxscore" #stats per player
     #get_story = "https://api-web.nhle.com/v1/wsc/game-story/2023020204"
 
-    data = get_data_from_api("https://api-web.nhle.com/v1/wsc/game-story/2023020204")
+    data = get_data_from_api("https://api-web.nhle.com/v1/player/8484314/landing")
     
     if data:
         #for element in data:

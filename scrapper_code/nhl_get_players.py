@@ -38,7 +38,7 @@ def insert_roster(cursor, api_call, club, countries_dict, teams_dict, year_id):
             'position' : '',
             'external_id': 0
             }
-            if player['id'] in external_ids:
+            if str(player['id']) in external_ids:
                 #JEŚLI ZMIENIŁA SIĘ DRUŻYNA TO AKTUALIZUJEMY, JESLI NIE TO SKIP
                 #if old_team != new_team
                 #SELECT ID, OLD TEAM FROM PLAYERS
@@ -102,10 +102,10 @@ VALUES ("{first_name}", \
 
 def get_players(conn, year_id):
     with conn.cursor() as cursor:
-        #query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('VGK', 'SEA', 'UTA') order by shortcut" #tylko dla 20162017
-        #query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('SEA', 'UTA')" #do 20202021 wlacznie
-        #query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('UTA')" #do 20232024 wlacznie
-        query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('ARI')"
+        #query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('VGK', 'SEA', 'UTA', 'KAR') order by shortcut" #tylko dla 20162017
+        #query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('SEA', 'UTA', 'KAR')" #do 20202021 wlacznie
+        #query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('UTA', 'KAR')" #do 20232024 wlacznie
+        query = "SELECT id, shortcut FROM teams WHERE sport_id = 2 and shortcut not in ('ARI', 'KAR')"
         cursor.execute(query)
         result = cursor.fetchall()
         teams_dict = {row[0]: row[1] for row in result} 
