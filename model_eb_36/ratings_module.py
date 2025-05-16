@@ -83,6 +83,28 @@ class RatingFactory:
                     pass
                 else:
                     raise ValueError(f"Nieznany typ rankingu btts: {rating_type}")
+        elif method == "exact":
+            for rating_type in rating_types:
+                if rating_type == "elo":
+                    ratings.append(elo_rating.EloRating(matches_df, 
+                                                        teams_df, 
+                                                        first_tier_leagues, 
+                                                        second_tier_leagues, 
+                                                        inital_rating, 
+                                                        second_tier_coef))
+                elif rating_type == "gap":
+                    ratings.append(gap_rating.GapRating(matches_df, 
+                                                              teams_df, 
+                                                              first_tier_leagues, 
+                                                              second_tier_leagues, 
+                                                              inital_rating, 
+                                                              second_tier_coef))
+                    pass
+                elif rating_type == "berrar":
+                    #ratings.append(BerrarGoalsRating(matches_df, teams_df, first_tier_leagues, second_tier_leagues))
+                    pass
+                else:
+                    raise ValueError(f"Nieznany typ rankingu btts: {rating_type}")
         else:
             raise ValueError(f"Nieznany typ ratingu: {method}")
             

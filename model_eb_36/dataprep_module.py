@@ -83,7 +83,7 @@ class DataPrep:
     def get_upcoming_data(self):
         if self.leagues == []:
             query = f"""
-                SELECT id, home_team, away_team, league, season, result
+                SELECT id, home_team, game_date, away_team, league, round, season, result
                 FROM matches 
                 WHERE cast(game_date as date) >= '{self.input_date}'
                 AND sport_id = {self.sport_id}
@@ -91,7 +91,7 @@ class DataPrep:
         """
         else:
             query = f"""
-                SELECT id, home_team, away_team, league, season, result
+                SELECT id, home_team, away_team, game_date, round, league, season, result
                 FROM matches 
                 WHERE cast(game_date as date) >= '{self.input_date}'
                 AND league IN ({self.leagues_str})

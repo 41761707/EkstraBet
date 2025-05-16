@@ -104,6 +104,33 @@ class ModelModule:
             metrics=['accuracy', Precision(), Recall()]
         )
 
+    def create_exact_model(self):
+        # Wejścia
+        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
+        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
+
+        # Ulepszone warstwy LSTM dla każdej sekwencji
+        lstm_home = LSTM(512, activation='tanh', return_sequences=True)(input_home_seq)
+        lstm_home = LSTM(256)(lstm_home)
+        
+        lstm_away = LSTM(512, activation='tanh', return_sequences=True)(input_away_seq)
+        lstm_away = LSTM(256)(lstm_away)
+        # Połączenie sekwencji
+        combined = Concatenate()([lstm_home, lstm_away])
+        # Rozszerzone warstwy gęste z regularyzacją
+        dense1 = Dense(1024, activation='relu', kernel_regularizer=l2(0.01))(combined)
+        dense2 = Dense(512, activation='relu', kernel_regularizer=l2(0.01))(dense1)
+        dense3 = Dense(256, activation='relu', kernel_regularizer=l2(0.01))(dense2)
+        output = Dense(100, activation='softmax')(dense3)
+
+        # Kompilacja modelu z dostosowanymi parametrami
+        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
+        self.model.compile(
+            loss='categorical_crossentropy',
+            optimizer=Adagrad(learning_rate=0.0001),
+            metrics=['accuracy', Precision(), Recall()]
+        )
+
     def train_model(self):
         (X_home_train, X_away_train, y_train) = self.train_data
         (X_home_val, X_away_val, y_val) = self.val_data
@@ -157,13 +184,15 @@ class ModelModule:
         # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
         y_true = np.argmax(y_val, axis=1)  # Jeśli y_val jest w formie one-hot
 
+        for i in range(len(y_pred)):
+            print(f"MECZ {i}: Y_PRED: {y_pred[i]}, Y_TRUE: {y_true[i]}")
         # Obliczenie confusion matrix
         cm = confusion_matrix(y_true, y_pred)
         print(classification_report(y_true, y_pred))
 
         # Wizualizacja macierzy błędów
         plt.figure(figsize=(6,5))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1,2], yticklabels=[0,1,2])
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[x for x in range(len(y_true))], yticklabels=[x for x in range(len(y_pred))])
 
         plt.xlabel("Przewidywane")
         plt.ylabel("Prawdziwe")

@@ -14,5 +14,9 @@ class WinnerRatingStrategy(ABC):
         pass
 
     @abstractmethod
+    def calculate_match_rating(self):
+        pass
+
+    @abstractmethod
     def get_data(self):
         pass

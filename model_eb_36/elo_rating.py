@@ -13,18 +13,26 @@ class EloRating(winner_rating.WinnerRatingStrategy):
 
     def calculate_rating(self):
         for index, row in self.matches_df.iterrows():
-            home_team_elo = self.get_elo(row['home_team'], row['league'])
-            away_team_elo = self.get_elo(row['away_team'], row['league'])
+                new_elo = self.calculate_match_rating(row)
+                self.matches_df.at[index, 'home_team_elo'] = new_elo['home_team_elo']
+                self.matches_df.at[index, 'away_team_elo'] = new_elo['away_team_elo']
 
-            self.matches_df.at[index, 'home_team_elo'] = home_team_elo
-            self.matches_df.at[index, 'away_team_elo'] = away_team_elo
-            self.update_elo(home_team_elo,
-                            away_team_elo,
-                            row['home_team'], 
-                            row['away_team'], 
-                            row['home_team_goals'],
-                            row['away_team_goals'], 
-                            row['result'])
+    def calculate_match_rating(self, match):
+        home_team_elo = self.get_elo(match['home_team'], match['league'])
+        away_team_elo = self.get_elo(match['away_team'], match['league'])
+
+        #print(match)
+        self.update_elo(home_team_elo,
+                        away_team_elo,
+                        match['home_team'], 
+                        match['away_team'], 
+                        match['home_team_goals'],
+                        match['away_team_goals'], 
+                        match['result'])
+        return {
+            'home_team_elo' : self.elo_dict[match['home_team']], 
+            'away_team_elo' : self.elo_dict[match['away_team']]
+        }
 
     def evaluate_const(self, goal_diff):
         constant = 64
