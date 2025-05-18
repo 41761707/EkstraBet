@@ -2,49 +2,68 @@ import numpy as np
 import sys
 from datetime import date, timedelta
 
-#Moduły
+# Moduły
 import dataprep_module
 import ratings_module
 import model_module
 import process_data
 import prediction_module
-## @package main
-# Moduł main zawiera funkcje i procedury odpowiedzialne za interakcję z użytkownikiem 
-# oraz inicjalizację jak i poprawny przepływ działania programu.
+
+# @package main
 
 
-def generate_schedule(df):
-    schedule = []
-    for _, row in df.iterrows():
-        schedule.append([row['home_team'], row['away_team']])
-    return schedule
+def get_matches(leagues, sport_id, country, rating_config, model_type, match_attributes):
+    """
+    Główna funkcja pobierająca i przetwarzająca dane meczowe, obliczająca ratingi drużyn
 
-def get_matches(leagues, sport_id, country, rating_config, model_type):
+    Args:
+        leagues (list): Lista lig do analizy
+        sport_id (int): ID sportu (np. 1 - piłka nożna)
+        country (int): ID kraju
+        rating_config (dict): Konfiguracja ratingu zawierająca parametry obliczeń
+        model_type (str): Typ modelu do tworzenia ratingu
+
+    Returns:
+        tuple: Krotka zawierająca:
+            - matches_df (DataFrame): Dane historycznych meczów z obliczonymi ratingami
+            - teams_df (DataFrame): Informacje o drużynach
+            - upcoming_df (DataFrame): Nadchodzące mecze do predykcji
+
+    Proces:
+        1. Pobiera dane meczowe i drużynowe z bazy danych
+        2. Tworzy ratingi drużyn na podstawie konfiguracji
+        3. Oblicza wartości ratingów dla różnych modeli
+        4. Łączy wszystkie obliczone ratingi w jeden DataFrame
+        5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
+    """
+
     initial_rating = 1500
     second_tier_coef = 0.8
-    input_date = date.today() - timedelta(days=7)
+    input_date = date.today() - timedelta(days=2)
     data = dataprep_module.DataPrep(input_date, leagues, sport_id, country)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()
     # Tworzenie ratingu
-    rating_factory = ratings_module.RatingFactory.create_rating(model_type,
-                                                        rating_config[model_type]['rating_type'],  
-                                                        matches_df=matches_df.copy(), 
-                                                        teams_df=teams_df,
-                                                        first_tier_leagues=first_tier_leagues,
-                                                        second_tier_leagues=second_tier_leagues,
-                                                        initial_rating=initial_rating,
-                                                        second_tier_coef=second_tier_coef)
+    rating_factory = ratings_module.RatingFactory.create_rating(rating_config[model_type]['rating_type'],
+                                                                matches_df=matches_df.copy(),
+                                                                teams_df=teams_df,
+                                                                first_tier_leagues=first_tier_leagues,
+                                                                second_tier_leagues=second_tier_leagues,
+                                                                initial_rating=initial_rating,
+                                                                second_tier_coef=second_tier_coef,
+                                                                match_attributes=match_attributes)
 
     # Tworzymy kopię oryginalnego DataFrame
     merged_matches_df = matches_df.copy()
     for rating in rating_factory:
         rating.calculate_rating()
+        rating.print_rating()
         temp_matches_df, _ = rating.get_data()
-        
+
         # Znajdujemy nowe kolumny dodane przez aktualny rating
-        new_columns = [col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
-        
+        new_columns = [
+            col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
+
         # Dodajemy nowe kolumny do głównego DataFrame
         for col in new_columns:
             merged_matches_df[col] = temp_matches_df[col]
@@ -55,23 +74,52 @@ def get_matches(leagues, sport_id, country, rating_config, model_type):
 
     return matches_df, teams_df, upcoming_df
 
-def prepare_predictions(model_type, leagues, sport_id, country, load_weights, 
-                      feature_columns, rating_config, window_size):
+
+def prepare_training(model_type, leagues, sport_id, country, load_weights,
+                     feature_columns, rating_config, window_size, match_attributes):
     """
-    Główna funkcja przygotowująca predykcje dla wybranego typu (winner/goals)
+    Główna funkcja przygotowująca dane treningowe i model predykcyjny dla wybranego typu meczu
+
+    Args:
+        model_type (str): Typ modelu do trenowania (winner/goals/btts/exact)
+        leagues (list): Lista lig do uwzględnienia w analizie
+        sport_id (int): ID sportu (np. 1 - piłka nożna)
+        country (int): ID kraju
+        load_weights (str): Flaga określająca czy ładować wagi pretrenowanego modelu ('1' - tak)
+        feature_columns (list): Lista kolumn z cechami używanymi w modelu
+        rating_config (dict): Konfiguracja ratingu drużyn
+        window_size (int): Rozmiar okna czasowego dla danych sekwencyjnych
+
+    Returns:
+        tuple: Krotka zawierająca:
+            - model: Wytrenowany lub załadowany model predykcyjny
+            - history: Historia trenowania modelu (None jeśli załadowano wagi)
+            - training_info: Informacje o danych treningowych
+
+    Proces:
+        1. Pobiera dane meczowe z funkcji get_matches()
+        2. Przetwarza dane do formatu odpowiedniego dla modelu
+        3. Analizuje rozkład danych treningowych i walidacyjnych
+        4. Inicjalizuje i buduje odpowiedni model w zależności od typu
+        5. Trenuje model lub ładuje pretrenowane wagi
+        6. Zwraca gotowy model wraz z dodatkowymi informacjami
     """
-    matches_df, teams_df, _ = get_matches(leagues, sport_id, country, rating_config, model_type)
-    processor = process_data.ProcessData(matches_df, teams_df, model_type, feature_columns, window_size)
+
+    matches_df, teams_df, _ = get_matches(
+        leagues, sport_id, country, rating_config, model_type, match_attributes)
+    processor = process_data.ProcessData(
+        matches_df, teams_df, model_type, feature_columns, window_size)
     train_data, val_data, training_info = processor.process_train_data()
-    
+
     analyze_result_distribution(train_data, model_type, "Training Data")
     analyze_result_distribution(val_data, model_type, "Validation Data")
-    
+
     # Wyświetlanie informacji o danych treningowych
     print_training_data_info(train_data, val_data, training_info, 3)
-    
+
     # Model i predykcje
-    model = model_module.ModelModule(train_data, val_data, len(feature_columns), model_type, window_size)
+    model = model_module.ModelModule(train_data, val_data, len(
+        feature_columns), model_type, window_size)
     if load_weights == '1':
         model.load_predict_model(rating_config[model_type]['model_path'])
     else:
@@ -85,8 +133,10 @@ def prepare_predictions(model_type, leagues, sport_id, country, load_weights,
             model.create_exact_model()
     history = model.train_model()
 
+
 def print_training_data_info(train_data, val_data, training_info, no_prints):
     """Pomocnicza funkcja do wyświetlania informacji o danych treningowych"""
+
     print("\n=== TRAINING DATA ===")
     print(f"Shape of sequences: {train_data[0].shape}")
     print(f"Number of samples: {len(train_data[0])}")
@@ -101,7 +151,7 @@ def print_training_data_info(train_data, val_data, training_info, no_prints):
         print(train_data[2][i])
         print("\n MATCH_ID")
         print(training_info[0][i])
-    
+
     print("\n=== VALIDATION DATA ===")
     print(f"Shape of sequences: {val_data[0].shape}")
     print(f"Number of samples: {len(val_data[0])}")
@@ -117,25 +167,26 @@ def print_training_data_info(train_data, val_data, training_info, no_prints):
         print("\n MATCH_ID")
         print(training_info[1][i])
 
+
 def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
     """
-    Analyzes and prints the distribution of results in the dataset
-    
+    Analizuje i wypisuje rozkład danych w podanym zbiorze danych
+
     Args:
-        data_tuple: Tuple containing (X_home_seq, X_away_seq, y) where y contains one-hot encoded results
-        dataset_name: Name of the dataset for printing purposes
+        data_tuple: Dane zawierające krotkę (X_home_seq, X_away_seq, y), gdzie y jest one-hotem
+        dataset_name: Nazwa zbioru danych, wykorzystywane głównie przy wypisywaniu informacji
     """
     _, _, y = data_tuple
     # Convert one-hot encoded back to labels
     results = np.argmax(y, axis=1)
-    
+
     # Count occurrences
     unique, counts = np.unique(results, return_counts=True)
     total = len(results)
-    
+
     print(f"\n=== {dataset_name} Distribution ===")
     print(f"Total samples: {total}")
-    
+
     # Create a mapping for better readability
     if model_type == 'winner':
         result_mapping = {0: "Draw", 1: "Home Win", 2: "Away Win"}
@@ -145,36 +196,61 @@ def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
         result_mapping = {0: "No BTTS", 1: "BTTS"}
     else:
         return
-    
+
     for result, count in zip(unique, counts):
         percentage = (count / total) * 100
         print(f"{result_mapping[result]}: {count} ({percentage:.2f}%)")
 
 
-##
-# Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
+def prepare_predictions(model_type, leagues, sport_id, country, rating_config, feature_columns, window_size):
+    """
+    Główna funkcja przygotowująca predykcje dla nadchodzących meczów
+
+    Args:
+        model_type (str): Typ modelu (winner/goals/btts/exact)
+        leagues (list): Lista lig
+        sport_id (int): ID sportu
+        country (int): ID kraju
+        rating_config (dict): Konfiguracja ratingu
+        feature_columns (list): Lista kolumn z cechami
+        window_size (int): Rozmiar okna dla sekwencji
+    """
+    matches_df, teams_df, upcoming_df = get_matches(
+        leagues, sport_id, country, rating_config, model_type) #pobierz mecze
+    model = model_module.ModelModule([], [], [], [], []) #utwórz model
+    predict_matches = prediction_module.PredictMatch(
+        matches_df, upcoming_df, teams_df, feature_columns, model, model_type, window_size) #utwórz instancję klasy do przewidywania
+    model.load_predict_model(rating_config[model_type]['model_path']) #wczytaj model
+    predict_matches.predict_next_game(model, upcoming_df) #zacznij przewidywać
+
+
 def main():
-    model_type = sys.argv[1] #[winner, goals]
-    model_mode = sys.argv[2] #[train, predict]
-    load_weights = sys.argv[3] #[1, 0]
-    leagues = []
+    '''
+        Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
+    '''
+
+    model_type = sys.argv[1]  # [winner, goals]
+    model_mode = sys.argv[2]  # [train, predict]
+    load_weights = sys.argv[3]  # [1, 0]
+    leagues = [1, 21]
     sport_id = 1
     country = -1
     window_size = 5
     feature_columns = []
-    rating_types = ['elo' if model_type == 'winner' or model_type == 'exact' else 'gap']
-    
+    rating_types = ['elo' if model_type ==
+                    'winner' or model_type == 'exact' else 'gap']
+
     # Definiowanie kolumn dla każdego typu ratingu
     elo_columns = ['home_team_elo', 'away_team_elo']
     gap_columns = [
-        'home_home_att_power', 
-        'home_home_def_power', 
-        'away_away_att_power',
-        'away_away_def_power',
+        #'home_home_att_power',
+        #'home_home_def_power',
+        #'away_away_att_power',
+        #'away_away_def_power',
         'home_goals_avg',
         'away_goals_avg'
     ]
-    
+
     # Dynamiczne tworzenie feature_columns na podstawie rating_types
     feature_columns = []
     if 'elo' in rating_types:
@@ -189,18 +265,28 @@ def main():
         'btts': {'rating_type': rating_types, 'model_path': 'model_btts_dev/best_model.h5'},
         'exact': {'rating_type': rating_types, 'model_path': 'model_exact_dev/best_model.h5'}
     }
+
+    match_attributes = [
+        {
+            'name': 'goals',
+            'calculator': lambda match: int(match['home_team_goals'] + match['away_team_goals'])
+        },
+        #{
+        #    'name': 'btts',
+        #    'calculator': lambda match: 1 if match['home_team_goals'] > 0 and match['away_team_goals'] > 0 else 0
+        #},
+        #{
+        #    'name': 'chances',
+        #    'calculator': lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])
+        #}
+    ]
     if model_mode == 'train':
-        prepare_predictions(model_type, leagues, sport_id, 
-                                    country, load_weights, feature_columns, rating_config, window_size)
+        prepare_training(model_type, leagues, sport_id,
+                         country, load_weights, feature_columns, rating_config, window_size, match_attributes)
     elif model_mode == 'predict':
-        #Zaimplementowac moduł z przewidywaniem
-        matches_df, teams_df, upcoming_df = get_matches(leagues, sport_id, country, rating_config, model_type)
-        print(matches_df)
-        print(teams_df)
-        print(upcoming_df)
-        processor = process_data.ProcessData(matches_df, teams_df, model_type, feature_columns, window_size)
-        model = model_module.ModelModule([], [], [], [], [])
-        model.load_predict_model(rating_config[model_type]['model_path'])
-        processor.predict_games(model, upcoming_df)
+        prepare_predictions(model_type, leagues, sport_id,
+                            country, rating_config, feature_columns, window_size)
+
+
 if __name__ == '__main__':
     main()

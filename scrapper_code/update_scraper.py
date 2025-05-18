@@ -25,11 +25,13 @@ def get_match_links(games, driver):
     return links
 
 def update_db(queries, conn):
-    print("HALKO")
-    for query in queries:
-        cursor = conn.cursor() #DO POPRAWKI NATYCHMIAST
-        cursor.execute(query)
-        conn.commit()
+    cursor = conn.cursor()
+    try:
+        for query in queries:
+            cursor.execute(query)
+            conn.commit()
+    finally:
+        cursor.close()
                 
 
 def update_match_data(driver, league_id, season_id, link, match_id, team_id):

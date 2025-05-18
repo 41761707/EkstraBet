@@ -32,7 +32,7 @@ def launch_odds(links):
     for current in links:
         print(current)
         args = current.split()
-        automate_odds.to_automate(int(args[0]), int(args[1]), args[2])
+        automate_odds.to_automate(int(args[0]), int(args[1]), args[2], 'daily')
 
 def main():
     links = [  

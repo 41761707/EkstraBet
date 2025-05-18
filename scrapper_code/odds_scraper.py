@@ -15,7 +15,7 @@ def parse_match_date(match_date):
 
     return date_formatted
 
-def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id):
+def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     id = -1
     driver.get(link)
     time.sleep(2)
@@ -47,7 +47,7 @@ def get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, tea
     match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
     match_data['away_team'] = team_id[match_info[3]]
     match_data['game_date'] = parse_match_date(match_info[0])
-    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team'])]
+    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
     id = record.iloc[0]['id']
     if id == -1:
         print("Nie udalo sie znalezc meczu!")
@@ -86,9 +86,9 @@ def get_1x2_odds(id, link, driver):
     for i in range(len(book_divs)):
         text = book_divs[i].text.strip()
         text_tab = text.split('\n')
-        text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 1, text_tab[0])
-        text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 2, text_tab[1])
-        text_3 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 3, text_tab[2])
+        text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 1, text_tab[0])
+        text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 2, text_tab[1])
+        text_3 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 3, text_tab[2])
         print(text_1)
         print(text_2)
         print(text_3)
@@ -132,8 +132,8 @@ def get_over_under_odds(id, link, driver):
         text_tab = text.split('\n')
         #print(text_tab)
         if text_tab[0] == '2.5':
-            text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 8, text_tab[1])
-            text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 12, text_tab[2])
+            text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 8, text_tab[1])
+            text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 12, text_tab[2])
             print(text_1)
             print(text_2)
             inserts.append(text_1)
@@ -173,22 +173,13 @@ def get_btts_odds(id, link, driver):
         text = book_divs[i].text.strip()
         text_tab = text.split('\n')
         #print(text_tab)
-        text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 6, text_tab[0])
-        text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {});".format(id, bookie_dict[bookies[i]], 172, text_tab[1])
+        text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 6, text_tab[0])
+        text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(id, bookie_dict[bookies[i]], 172, text_tab[1])
         print(text_1)
         print(text_2)
         inserts.append(text_1)
         inserts.append(text_2)
     return inserts
-
-def get_handi_odds(id, link, driver):
-    pass
-
-def get_double_chance_odds(id, link, driver):
-    pass
-
-def get_correct_score_odds(id, link, driver):
-    pass
 
 def update_db(queries, conn):
     for query in queries:
@@ -196,7 +187,7 @@ def update_db(queries, conn):
         cursor.execute(query)
         conn.commit()
 
-def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_id, conn, to_automate):
+def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_automate, skip = 0):
     driver.get(games)
     time.sleep(5)
     game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
@@ -204,8 +195,8 @@ def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_i
     for element in game_divs:
         id = element.get_attribute('id').split('_')[2]
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
-    for link in links[:len(matches_df)]:
-        match_id = get_match_id(link, driver, matches_df, league_id, season_id, round_to_d, team_id)
+    for link in links[skip:len(matches_df)]:
+        match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
         if match_id == -1:
             break
         result_inserts = get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
@@ -216,68 +207,74 @@ def get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_i
             update_db(result_inserts, conn)
             update_db(ou_inserts, conn)
             update_db(btts_inserts, conn)
-        #get_handi_odds(match_id, 'https://www.flashscore.pl/mecz/{}/#/zestawienie-kursow/handicap-azjat/koniec-meczu'.format(id), driver)
-        #get_double_chance_odds(match_id, 'https://www.flashscore.pl/mecz/{}/#/zestawienie-kursow/podwojna-szansa/koniec-meczu'.format(id), driver)
-        #get_correct_score_odds(match_id,'https://www.flashscore.pl/mecz/KGgchU8S/#/zestawienie-kursow/correct-score/koniec-meczu'.format(id), driver)
 
+def get_daily_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate):
+    #TO-DO: Dokładny test tego komponentu
+    matches_df = matches_df[matches_df['game_date'].dt.date == datetime.today().date()]
+    get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_automate)
 
-def odds_to_automate(league_id, season_id, games):
-    #WYWOŁANIE
+def get_historical_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate, skip):
+    get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_automate, skip) 
+
+def get_given_match_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate):
+    match_id = get_match_id(games, driver, matches_df, league_id, season_id, team_id)
+    if match_id == -1:
+        print("Brak meczu w bazie danych")
+        return 
+    result_inserts = get_1x2_odds(match_id, "{}{}".format(games,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
+    ou_inserts = get_over_under_odds(match_id, "{}{}".format(games,'/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver)
+    btts_inserts = get_btts_odds(match_id, "{}{}".format(games,'#/zestawienie-kursow/obie-druzyny-strzela/koniec-meczu'), driver)
+    if to_automate:
+        print("HALKO")
+        update_db(result_inserts, conn)
+        update_db(ou_inserts, conn)
+        update_db(btts_inserts, conn)
+
+def odds_to_automate(league_id, season_id, games, mode, skip = 0):
+    #Inicjalizacja parametrów
     to_automate = 1
-    conn = db_module.db_connect()
-    query = "select round from matches where league = {} and season = {} and cast(game_date as date) = current_date order by game_date limit 1".format(league_id, season_id)
-    cursor = conn.cursor()
-    cursor.execute(query)
-    results = cursor.fetchall()
-    if len(results) == 0:
-        print("BRAK SPOTKAŃ")
-        return
-    round_to_d = results[0][0]
-    print("RUNDA: ", round_to_d)
-    query = "select country from leagues where id = {}".format(league_id)
-    country_df = pd.read_sql(query,conn)
-    country = country_df.values.flatten() 
-    query = "select name, id from teams where country = {}".format(country[0])
-    teams_df = pd.read_sql(query, conn)
-    team_id = teams_df.set_index('name')['id'].to_dict()
-    print(team_id)
-    #current_date = datetime.today().strftime('%Y-%m-%d')+1
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
-    matches_df = pd.read_sql(query, conn)
-    if len(matches_df) == 0:
-        print("BRAK SPOTKAŃ")
-        return
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    driver = webdriver.Chrome(options=options)
-    get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_id, conn, to_automate)
-    conn.close()
-
-def main():
-    #WYWOŁANIE
-    to_automate = 0
-    conn = db_module.db_connect()
-    league_id = int(sys.argv[1])
-    season_id = int(sys.argv[2])
-    round_to_d = int(sys.argv[4])
-    query = "select country from leagues where id = {}".format(league_id)
-    country_df = pd.read_sql(query,conn)
-    country = country_df.values.flatten() 
-    query = "select name, id from teams where country = {}".format(country[0])
-    teams_df = pd.read_sql(query, conn)
-    team_id = teams_df.set_index('name')['id'].to_dict()
-    print(team_id)
-    #current_date = datetime.today().strftime('%Y-%m-%d')+1
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) = current_date".format(league_id, season_id, round_to_d)
-    matches_df = pd.read_sql(query, conn)
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
     driver = webdriver.Chrome(options=options)
-    #Link do strony z wynikami
-    #games = 'https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/'
-    games = sys.argv[3]
-    #games = 'https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2023-2024/wyniki/'
-    get_data(games, driver, matches_df, league_id, season_id, round_to_d, team_id, conn, to_automate)
+    conn = db_module.db_connect()
+    query = f"SELECT * FROM matches where league = {league_id} and season = {season_id}"
+    matches_df = pd.read_sql(query, conn)
+    query = "select country from leagues where id = {}".format(league_id)
+    country_df = pd.read_sql(query,conn)
+    country = country_df.values.flatten() 
+    query = "select name, id from teams where country = {}".format(country[0])
+    teams_df = pd.read_sql(query, conn)
+    team_id = teams_df.set_index('name')['id'].to_dict()
+    print(team_id)
+    if mode == 'historical':
+        get_historical_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate, skip)
+    elif mode == 'match':
+        get_given_match_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate)
+    elif mode == 'daily':
+        get_daily_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate)
+    else:
+        print("Nieobsługiwany typ wywołania procedury (mode: historical / match / daily)")
     conn.close()
+
+def main():
+    #Przykłady wywołania
+    # python odds_scraper.py <id ligi> <id sezonu> <link do meczu/meczów> <typ: daily/historical/match> <liczba meczow do pominiecia (dla historical)
+    # python .\odds_scraper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/ daily
+    # python .\odds_scraper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki historical
+    # python .\odds_scraper.py 19 11 https://www.flashscore.pl/mecz/pilka-nozna/W4853zVH/  match
+    league_id = int(sys.argv[1])
+    season_id = int(sys.argv[2])
+    games = sys.argv[3]
+    mode = sys.argv[4]
+    skip = 0  # wartość domyślna
+    if len(sys.argv) > 5:
+        try:
+            skip = int(sys.argv[5])
+        except (ValueError, IndexError):
+            skip = 0 
+            print("Ostrzeżenie: Nieprawidłowa wartość skip, ustawiam 0")
+    odds_to_automate(league_id, season_id, games, mode, skip)
+
+
 if __name__ == '__main__':
     main()

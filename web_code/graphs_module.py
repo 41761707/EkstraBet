@@ -375,40 +375,100 @@ def graph_ou(under, over, title):
             ha='center', va='bottom', color='black', fontsize=22)
     st.pyplot(fig)
 
-def team_compare_graph(teams, accs, type = 'acc'):
-    num_rows = len(teams)
-    teams_accs = zip(teams,accs)
-    average = accs[-1]
-    teams_accs_sorted = sorted(teams_accs, key= lambda x: x[1])
-    data = {
-    'Label': [x[0] for x in teams_accs_sorted],
-    'Results' : [x[1] for x in teams_accs_sorted]
-    }
-    sns.set_theme(style="darkgrid")
-    df = pd.DataFrame(data)
-    # Ustawienia wykresu
-    fig, ax = plt.subplots(figsize=(10, num_rows))
-    bars = ax.barh(
-        df.index,
-        df['Results'],
-        color=['deepskyblue' if result == average else 'red' if result < average else 'green' for result in df['Results']])
-    ax.grid(False)
-    ax.set_yticks(df.index)
-    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
-    ax.set_ylabel("")
-    ax.set_xlabel("")
-    ax.set_title("Porównanie procenta dokładności predykcji", loc='left', fontsize=28, color='white')
-    ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
-    ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
-    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-    for bar, result in zip(bars, df['Results']):
-        if type == 'profit':
-            ax.text(bar.get_width() + 5, bar.get_y() + bar.get_height() / 2, f'{float(result)} u', 
-            ha='center', va='center', color='white', fontsize=22)
-        else:  
-            ax.text(bar.get_width() + 10, bar.get_y() + bar.get_height() / 2, f'{float(result)}%', 
-                ha='center', va='center', color='white', fontsize=22)
-    st.pyplot(fig)
+def team_compare_graph(teams, accs, type='acc'):
+    """
+    Generuje poziomy wykres słupkowy porównujący dokładność predykcji lub zysk dla drużyn.
+    
+    Args:
+        teams (list): Lista nazw drużyn (ostatni element to średnia)
+        accs (list): Lista wartości dokładności/zysku odpowiadających drużynom
+        type (str): Typ danych ('acc' dla dokładności, 'profit' dla zysku)
+    
+    Returns:
+        None (wyświetla wykres przy użyciu st.pyplot)
+    
+    Raises:
+        ValueError: Jeśli dane wejściowe są puste lub niepoprawne
+    """
+    # Walidacja danych wejściowych
+    if not teams or not accs:
+        st.warning("Brak danych do wygenerowania wykresu.")
+        return
+        
+    if len(teams) != len(accs):
+        st.error("Liczba drużyn i wartości dokładności nie zgadza się.")
+        return
+        
+    if len(teams) == 0 or len(accs) == 0:
+        st.warning("Brak danych do wygenerowania wykresu.")
+        return
+
+    try:
+        num_rows = len(teams)
+        # Ogranicz wysokość wykresu dla dużej liczby drużyn
+        max_height = min(num_rows * 0.8, 50)  # Maksymalna wysokość 50 cali
+        fig_height = min(10 + num_rows * 0.2, max_height)
+        
+        teams_accs = zip(teams, accs)
+        average = accs[-1]
+        teams_accs_sorted = sorted(teams_accs, key=lambda x: x[1])
+        
+        data = {
+            'Label': [x[0] for x in teams_accs_sorted],
+            'Results': [x[1] for x in teams_accs_sorted]
+        }
+        
+        sns.set_theme(style="darkgrid")
+        df = pd.DataFrame(data)
+        
+        # Utwórz wykres z zabezpieczeniem przed zbyt dużym rozmiarem
+        fig, ax = plt.subplots(figsize=(10, fig_height))
+        
+        # Generuj kolory słupków
+        colors = []
+        for result in df['Results']:
+            if result == average:
+                colors.append('deepskyblue')
+            elif result < average:
+                colors.append('red')
+            else:
+                colors.append('green')
+                
+        bars = ax.barh(df.index, df['Results'], color=colors)
+        
+        # Konfiguracja wyglądu wykresu
+        ax.grid(False)
+        ax.set_yticks(df.index)
+        ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize=min(20, 200/num_rows))
+        ax.set_ylabel("")
+        ax.set_xlabel("")
+        
+        title_fontsize = min(28, 300/num_rows)
+        ax.set_title("Porównanie procenta dokładności predykcji" if type == 'acc' else "Porównanie zysku", 
+                    loc='left', fontsize=title_fontsize, color='white')
+        
+        ax.tick_params(colors='white', which='both')
+        ax.set_facecolor('#291F1E')
+        fig.patch.set_facecolor('black')
+        
+        # Dodawanie wartości na słupkach
+        for bar, result in zip(bars, df['Results']):
+            offset = max(df['Results']) * 0.05  # Dynamiczne przesunięcie tekstu
+            if type == 'profit':
+                ax.text(bar.get_width() + offset, bar.get_y() + bar.get_height()/2, 
+                       f'{float(result):.2f} u', ha='center', va='center', 
+                       color='white', fontsize=min(22, 200/num_rows))
+            else:  
+                ax.text(bar.get_width() + offset, bar.get_y() + bar.get_height()/2, 
+                       f'{float(result):.2f}%', ha='center', va='center', 
+                       color='white', fontsize=min(22, 200/num_rows))
+        
+        # Automatyczne dostosowanie layoutu
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+    except Exception as e:
+        st.error(f"Wystąpił błąd podczas generowania wykresu: {str(e)}")
 
 
 def side_bar_graph(labels, values, title):

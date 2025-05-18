@@ -4,11 +4,11 @@ import sys
 import odds_scraper
 import bet_all
 
-def to_automate(league, season, games):
-    odds_scraper.odds_to_automate(league, season, games)
+def to_automate(league, season, games, mode):
+    odds_scraper.odds_to_automate(league, season, games, mode)
     print("Pobieranie kursów ukończone")
-    bet_all.bet_to_automate(league, season, 0)
-    print("Generowanie zakładów zakończone")
+    #bet_all.bet_to_automate(league, season, 0)
+    #print("Generowanie zakładów zakończone")
 
 def main():
     league = int(sys.argv[1])

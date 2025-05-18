@@ -1,4 +1,4 @@
-from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, Concatenate, Flatten, Dropout, Bidirectional
+from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, Concatenate, Flatten, Dropout, Bidirectional, LeakyReLU, BatchNormalization
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
@@ -22,6 +22,10 @@ class ModelModule:
         self.window_size = window_size
         self.model = None
 
+    #UWAGA: NA TEN MOMENT JEST SPECJALNIE TAK BRZYDKO 
+    #ŻE KAŻDY MODEL MA OSOBNĄ FUNKCJĘ I 90% KODU SIĘ POWTARZA
+    #BO NA ŚLEPO TESTUJĘ CO BĘDZIE DOBRZE
+    #GDY JUŻ ODPOWIEDNIE ARCHITEKTURY ZOSTANĄ USTAWIONE POMYŚLIMY NAD LEPSZYM OKODZENIEM
     def create_winner_model(self):
         # Wejścia
         input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
@@ -63,9 +67,19 @@ class ModelModule:
         # Połączenie sekwencji
         combined = Concatenate()([lstm_home, lstm_away])
         # Rozszerzone warstwy gęste z regularyzacją
-        dense1 = Dense(128, activation='relu', kernel_regularizer=l2(0.01))(combined)
-        dense2 = Dense(64, activation='relu', kernel_regularizer=l2(0.01))(dense1)
-        dense3 = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(dense2)
+        dense1 = Dense(128, kernel_regularizer=l2(0.01))(combined)
+        dense1 = LeakyReLU(alpha=0.01)(dense1)  # alpha=0.01 to typowa wartość dla LeakyReLU
+        dense1 = BatchNormalization()(dense1)
+
+        dense2 = Dense(64, kernel_regularizer=l2(0.01))(dense1)
+        dense2 = LeakyReLU(alpha=0.01)(dense2)
+        dense2 = BatchNormalization()(dense2)
+
+        dense3 = Dense(32, kernel_regularizer=l2(0.01))(dense2)
+        dense3 = LeakyReLU(alpha=0.01)(dense3)
+        dense3 = BatchNormalization()(dense3)
+
+        # Warstwa wyjściowa (softmax dla klasyfikacji wieloklasowej)
         output = Dense(7, activation='softmax')(dense3)
 
         # Kompilacja modelu z dostosowanymi parametrami
@@ -73,7 +87,7 @@ class ModelModule:
         self.model.compile(
             loss='categorical_crossentropy',
             optimizer=Adagrad(learning_rate=0.0001),
-            metrics=[CategoricalAccuracy(name="accuracy")]
+            metrics=['accuracy']
         )
 
     def create_btts_model(self):
@@ -162,11 +176,20 @@ class ModelModule:
             shuffle=True
         )
         # Ewaluacja
-        val_loss, val_acc, val_precision, val_recall = self.model.evaluate(
+        evaluation_results = self.model.evaluate(
             [X_home_val, X_away_val],
             y_val
         )
-        print(f'Validation Accuracy: {val_acc*100:.2f}%')
+        
+        # Get metrics names
+        metric_names = self.model.metrics_names
+        
+        # Print all available metrics
+        for name, value in zip(metric_names, evaluation_results):
+            if name == 'accuracy':
+                print(f'Validation Accuracy: {value*100:.2f}%')
+            else:
+                print(f'Validation {name}: {value:.4f}')
 
         #Confusion matrix
         self.confusion_matrix(X_home_val, X_away_val, y_val)
@@ -179,20 +202,22 @@ class ModelModule:
         y_pred_probs = self.model.predict([X_home_val, X_away_val])
 
         # Konwersja prawdopodobieństw na klasy (wybieramy indeks z najwyższą wartością)
-        y_pred = np.argmax(y_pred_probs, axis=1)
+        y_pred= np.argmax(y_pred_probs, axis=1)
+        #y_pred = np.where(y_pred_tmp < 3, 0, 1)
 
         # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
         y_true = np.argmax(y_val, axis=1)  # Jeśli y_val jest w formie one-hot
+        #y_true = np.where(y_true_tmp < 3, 0, 1)
 
-        for i in range(len(y_pred)):
-            print(f"MECZ {i}: Y_PRED: {y_pred[i]}, Y_TRUE: {y_true[i]}")
+        #for i in range(len(y_pred)):
+        #    print(f"MECZ {i}: Y_PRED: {y_pred[i]}, Y_TRUE: {y_true[i]}")
         # Obliczenie confusion matrix
         cm = confusion_matrix(y_true, y_pred)
         print(classification_report(y_true, y_pred))
 
         # Wizualizacja macierzy błędów
         plt.figure(figsize=(6,5))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[x for x in range(len(y_true))], yticklabels=[x for x in range(len(y_pred))])
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1,2], yticklabels=[0,1,2])
 
         plt.xlabel("Przewidywane")
         plt.ylabel("Prawdziwe")

@@ -2,13 +2,15 @@ from collections import deque
 
 # Klasa do obliczania ratingu drużyn na podstawie wyników meczów
 class GapRating:
-    def __init__(self, matches_df, teams_df, first_tier_leagues, second_tier_leagues, initial_elo, second_tier_coef):
+    def __init__(self, matches_df, teams_df, first_tier_leagues, second_tier_leagues, match_attributes):
         self.matches_df = matches_df
         self.teams_df = teams_df
         self.first_tier_leagues = first_tier_leagues
         self.second_tier_leagues = second_tier_leagues
         self.last_five_matches = {}
         self.powers = {}
+        # Domyślna konfiguracja jeśli nie podano match_attributes
+        self.match_attributes = match_attributes
 
     def calculate_rating(self):
         for index, row in self.matches_df.iterrows():
@@ -31,22 +33,30 @@ class GapRating:
     def calculate_match_rating(self, match):
         # Inicjalizacja powerów dla nowych drużyn
         if match['home_team'] not in self.last_five_matches:
-            self.last_five_matches[match['home_team']] = deque(maxlen=5)
+            self.last_five_matches[match['home_team']] = {}
             self.powers["{}h_att".format(match['home_team'])] = 0
             self.powers["{}h_def".format(match['home_team'])] = 0
             self.powers["{}a_att".format(match['home_team'])] = 0
             self.powers["{}a_def".format(match['home_team'])] = 0
         
         if match['away_team'] not in self.last_five_matches:
-            self.last_five_matches[match['away_team']] = deque(maxlen=5)
+            self.last_five_matches[match['away_team']] = {}
             self.powers["{}h_att".format(match['away_team'])] = 0
             self.powers["{}h_def".format(match['away_team'])] = 0
             self.powers["{}a_att".format(match['away_team'])] = 0
             self.powers["{}a_def".format(match['away_team'])] = 0
 
-        # Obliczenie średnich goli
-        s_h = sum(self.last_five_matches[match['home_team']]) / max(len(self.last_five_matches[match['home_team']]), 1)
-        s_a = sum(self.last_five_matches[match['away_team']]) / max(len(self.last_five_matches[match['away_team']]), 1)
+        # Initialize attributes if they don't exist
+        for attribute in self.match_attributes:
+            if attribute['name'] not in self.last_five_matches[match['home_team']]:
+                self.last_five_matches[match['home_team']][attribute['name']] = deque(maxlen=5)
+            if attribute['name'] not in self.last_five_matches[match['away_team']]:
+                self.last_five_matches[match['away_team']][attribute['name']] = deque(maxlen=5)
+
+        # Calculate averages for the main metric (assuming first attribute is the main one)
+        main_attribute = self.match_attributes[0]['name']
+        s_h = sum(self.last_five_matches[match['home_team']][main_attribute]) / max(len(self.last_five_matches[match['home_team']][main_attribute]), 1)
+        s_a = sum(self.last_five_matches[match['away_team']][main_attribute]) / max(len(self.last_five_matches[match['away_team']][main_attribute]), 1)
 
         # Pobranie aktualnych powerów
         i_h_att = float(self.powers["{}h_att".format(match['home_team'])])
@@ -63,8 +73,32 @@ class GapRating:
         self.gap_update_away_team(match, j_a_att, j_h_att, j_a_def, j_h_def, i_h_def, i_h_att, s_h, s_a, 0.5, 0.5)
 
         # Aktualizacja ostatnich 5 meczów
-        self.last_five_matches[match['home_team']].append(int(match['home_team_goals'] + match['away_team_goals']))
-        self.last_five_matches[match['away_team']].append(int(match['away_team_goals'] + match['home_team_goals']))
+        for attribute in self.match_attributes:
+            value = attribute['calculator'](match)
+            if match['home_team'] not in self.last_five_matches:
+                self.last_five_matches[match['home_team']] = {}
+            if match['away_team'] not in self.last_five_matches:
+                self.last_five_matches[match['away_team']] = {}
+            
+            if attribute['name'] not in self.last_five_matches[match['home_team']]:
+                self.last_five_matches[match['home_team']][attribute['name']] = deque(maxlen=5)
+            if attribute['name'] not in self.last_five_matches[match['away_team']]:
+                self.last_five_matches[match['away_team']][attribute['name']] = deque(maxlen=5)
+            
+            self.last_five_matches[match['home_team']][attribute['name']].append(value)
+            self.last_five_matches[match['away_team']][attribute['name']].append(value)
+
+        #btts = 1 if match['home_team_goals'] > 0 and match['away_team_goals'] > 0 else 0 
+        #self.last_five_matches[match['home_team']].append(btts)
+        #self.last_five_matches[match['away_team']].append(btts)
+        #self.last_five_matches[match['home_team']].append(int(match['home_team_goals'] + match['away_team_goals']))
+        #self.last_five_matches[match['away_team']].append(int(match['away_team_goals'] + match['home_team_goals']))
+
+        #Suma rożnych i strzałów
+        #value_home = int(match['home_team_ck']) + int(match['home_team_sc'])
+        #value_away = int(match['away_team_ck']) + int(match['away_team_sc'])
+        #self.last_five_matches[match['home_team']].append(value_home)
+        #self.last_five_matches[match['away_team']].append(value_away)
 
         # Zwracanie słownika z wszystkimi potrzebnymi wartościami
         return {
