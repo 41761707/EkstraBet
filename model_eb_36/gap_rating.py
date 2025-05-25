@@ -72,21 +72,27 @@ class GapRating:
         self.gap_update_home_team(match, i_h_att, i_h_def, i_a_att, j_a_def, j_a_att, i_a_def, s_h, s_a, 0.5, 0.5)
         self.gap_update_away_team(match, j_a_att, j_h_att, j_a_def, j_h_def, i_h_def, i_h_att, s_h, s_a, 0.5, 0.5)
 
-        # Aktualizacja ostatnich 5 meczów
         for attribute in self.match_attributes:
+            # Oblicz wartość dla danego atrybutu
             value = attribute['calculator'](match)
+            
+            # Inicjalizacja słowników dla drużyn, jeśli nie istnieją
             if match['home_team'] not in self.last_five_matches:
                 self.last_five_matches[match['home_team']] = {}
             if match['away_team'] not in self.last_five_matches:
                 self.last_five_matches[match['away_team']] = {}
             
-            if attribute['name'] not in self.last_five_matches[match['home_team']]:
-                self.last_five_matches[match['home_team']][attribute['name']] = deque(maxlen=5)
-            if attribute['name'] not in self.last_five_matches[match['away_team']]:
-                self.last_five_matches[match['away_team']][attribute['name']] = deque(maxlen=5)
+            # Dla drużyny gospodarzy zapisujemy tylko chances_home
+            if 'home' in attribute['name']:
+                if attribute['name'] not in self.last_five_matches[match['home_team']]:
+                    self.last_five_matches[match['home_team']][attribute['name']] = deque(maxlen=5)
+                self.last_five_matches[match['home_team']][attribute['name']].append(value)
             
-            self.last_five_matches[match['home_team']][attribute['name']].append(value)
-            self.last_five_matches[match['away_team']][attribute['name']].append(value)
+            # Dla drużyny gości zapisujemy tylko chances_away
+            if 'away' in attribute['name']:
+                if attribute['name'] not in self.last_five_matches[match['away_team']]:
+                    self.last_five_matches[match['away_team']][attribute['name']] = deque(maxlen=5)
+                self.last_five_matches[match['away_team']][attribute['name']].append(value)
 
         #btts = 1 if match['home_team_goals'] > 0 and match['away_team_goals'] > 0 else 0 
         #self.last_five_matches[match['home_team']].append(btts)

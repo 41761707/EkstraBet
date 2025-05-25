@@ -105,7 +105,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
             round_to_d = int(round)
         except ValueError as e:
             print(f"Błąd w pobieraniu rundy: {e}")
-    if league_id != 25:
+    if league_id != 36:
         if int(round) != int(round_to_d):
             return -1
     else:
@@ -209,7 +209,7 @@ VALUES ({league}, \
 {sport_id});'''.format(**match_data)
         print(sql)
         inserts.append(sql)
-    #update_db(inserts, conn)
+    update_db(inserts, conn)
     conn.close()
 def main():
     #WYWOŁANIE

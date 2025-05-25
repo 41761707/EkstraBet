@@ -18,13 +18,13 @@ import db_module
 # Funkcja odpowiadająca za pobranie informacji z bazy danych
 def get_values():
     conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2025-03-01' and result != '0' and sport_id = 1 and league in (25) order by game_date"
+    query = "SELECT * FROM matches where game_date < '2025-05-23' and result != '0' and sport_id = 1 order by game_date"
     matches_df = pd.read_sql(query, conn)
-    query = "SELECT id, name FROM teams where country = 20"
+    query = "SELECT id, name FROM teams where sport_id = 1"
     teams_df = pd.read_sql(query, conn)
     matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
     matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where cast(game_date as date) >= '2025-03-01' and league in (25) and home_team not in (933, 934, 935, 936) and away_team not in (933, 934, 935, 936) order by game_date"
+    query = "SELECT id, home_team, away_team, league, season FROM matches where cast(game_date as date) = '2025-05-23' and sport_id = 1 and league not in (20) order by game_date"
     upcoming_df = pd.read_sql(query, conn)
     conn.close()
     return matches_df, teams_df, upcoming_df

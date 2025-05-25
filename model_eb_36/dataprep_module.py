@@ -21,7 +21,8 @@ class DataPrep:
         self.leagues = leagues  # przekazanie pustej tablicy oznacza chęć pobrania wszystkich lig
         self.leagues_str = ",".join(map(str, self.leagues))  # string z id lig
         self.sport_id = sport_id  # id sportu używane do filtrowania danych
-        self.country = country  # -1 oznacza wszystkie kraje
+        self.country = country  # pusta tablica oznacza wszystkie kraje
+        self.country_str = ",".join(map(str, self.leagues))  # string z id krajow
         # lista lig pierwszej klasy (np. Ekstraklasa)
         self.first_tier_leagues = []
         self.second_tier_leagues = []  # lista lig drugiej klasy (np. I liga)
@@ -222,7 +223,7 @@ class DataPrep:
         Jeśli kraj jest równy -1, pobiera wszystkie drużyny dla danego sportu.
         Jeśli kraj jest podany, pobiera drużyny tylko dla tego kraju.
         '''
-        if self.country == -1:
+        if self.country == []:
             query = f"""
                 SELECT id, name 
                 FROM teams 
@@ -232,7 +233,7 @@ class DataPrep:
             query = f"""
                 SELECT id, name 
                 FROM teams 
-                WHERE country = {self.country}
+                WHERE country in ({self.country_str})
                 AND sport_id = {self.sport_id}
             """
         try:

@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 from datetime import date, timedelta
+import json
 
 # Moduły
 import dataprep_module
@@ -39,7 +40,7 @@ def get_matches(leagues, sport_id, country, rating_config, model_type, match_att
 
     initial_rating = 1500
     second_tier_coef = 0.8
-    input_date = date.today() - timedelta(days=2)
+    input_date = date.today() - timedelta(days=1)
     data = dataprep_module.DataPrep(input_date, leagues, sport_id, country)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()
@@ -76,7 +77,8 @@ def get_matches(leagues, sport_id, country, rating_config, model_type, match_att
 
 
 def prepare_training(model_type, leagues, sport_id, country, load_weights,
-                     feature_columns, rating_config, window_size, match_attributes):
+                     feature_columns, rating_config, window_size, 
+                     match_attributes, training_json, model_name, model_load_name):
     """
     Główna funkcja przygotowująca dane treningowe i model predykcyjny dla wybranego typu meczu
 
@@ -119,9 +121,9 @@ def prepare_training(model_type, leagues, sport_id, country, load_weights,
 
     # Model i predykcje
     model = model_module.ModelModule(train_data, val_data, len(
-        feature_columns), model_type, window_size)
+        feature_columns), model_type, model_name, window_size)
     if load_weights == '1':
-        model.load_predict_model(rating_config[model_type]['model_path'])
+        model.load_predict_model(f'model_winner_dev/{model_load_name}.h5')
     else:
         if model_type == 'winner':
             model.create_winner_model()
@@ -131,8 +133,15 @@ def prepare_training(model_type, leagues, sport_id, country, load_weights,
             model.create_btts_model()
         elif model_type == 'exact':
             model.create_exact_model()
-    history = model.train_model()
+    history, evaluation_results = model.train_model()
+    training_json["train_accuracy"] = history.history['accuracy'][-1]
+    training_json["train_loss"] = history.history['loss'][-1]
+    training_json["val_accuracy"] = evaluation_results[2]
+    training_json["val_loss"] = evaluation_results[3]
 
+    # Zapisanie do pliku JSON
+    with open(f'model_{model_type}_dev/{model_name}_config.json', 'w') as f:
+        json.dump(training_json, f, indent=4)
 
 def print_training_data_info(train_data, val_data, training_info, no_prints):
     """Pomocnicza funkcja do wyświetlania informacji o danych treningowych"""
@@ -202,7 +211,7 @@ def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
         print(f"{result_mapping[result]}: {count} ({percentage:.2f}%)")
 
 
-def prepare_predictions(model_type, leagues, sport_id, country, rating_config, feature_columns, window_size):
+def prepare_predictions(model_type, leagues, sport_id, country, rating_config, feature_columns, window_size, match_attributes):
     """
     Główna funkcja przygotowująca predykcje dla nadchodzących meczów
 
@@ -216,8 +225,8 @@ def prepare_predictions(model_type, leagues, sport_id, country, rating_config, f
         window_size (int): Rozmiar okna dla sekwencji
     """
     matches_df, teams_df, upcoming_df = get_matches(
-        leagues, sport_id, country, rating_config, model_type) #pobierz mecze
-    model = model_module.ModelModule([], [], [], [], []) #utwórz model
+        leagues, sport_id, country, rating_config, model_type,  match_attributes) #pobierz mecze
+    model = model_module.ModelModule([], [], [], [], [], []) #utwórz model
     predict_matches = prediction_module.PredictMatch(
         matches_df, upcoming_df, teams_df, feature_columns, model, model_type, window_size) #utwórz instancję klasy do przewidywania
     model.load_predict_model(rating_config[model_type]['model_path']) #wczytaj model
@@ -229,12 +238,14 @@ def main():
         Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
     '''
 
-    model_type = sys.argv[1]  # [winner, goals]
-    model_mode = sys.argv[2]  # [train, predict]
+    model_type = sys.argv[1]  # [winner, goals, btts]
+    model_mode = sys.argv[2]  # [train, predict, test]
     load_weights = sys.argv[3]  # [1, 0]
-    leagues = [1, 21]
+    model_name = sys.argv[4] # najlepiej żeby zawierał typ + jakiś opis użytej techniki
+    model_load_name = sys.argv[5] #model z ktorego trzeba wczytac wagi (load_weights = 1)
+    leagues = [1 ,21]
     sport_id = 1
-    country = -1
+    country = [1]
     window_size = 5
     feature_columns = []
     rating_types = ['elo' if model_type ==
@@ -243,10 +254,10 @@ def main():
     # Definiowanie kolumn dla każdego typu ratingu
     elo_columns = ['home_team_elo', 'away_team_elo']
     gap_columns = [
-        #'home_home_att_power',
-        #'home_home_def_power',
-        #'away_away_att_power',
-        #'away_away_def_power',
+        'home_home_att_power',
+        'home_home_def_power',
+        'away_away_att_power',
+        'away_away_def_power',
         'home_goals_avg',
         'away_goals_avg'
     ]
@@ -260,32 +271,129 @@ def main():
 
     # Konfiguracja specyficzna dla typu predykcji
     rating_config = {
-        'winner': {'rating_type': rating_types, 'model_path': 'model_winner_dev/best_model.h5'},
-        'goals': {'rating_type': rating_types, 'model_path': 'model_goals_dev/best_model.h5'},
-        'btts': {'rating_type': rating_types, 'model_path': 'model_btts_dev/best_model.h5'},
-        'exact': {'rating_type': rating_types, 'model_path': 'model_exact_dev/best_model.h5'}
+        'winner': {'rating_type': rating_types, 'model_path': f'model_winner_dev/{model_name}.h5'},
+        'goals': {'rating_type': rating_types, 'model_path': f'model_goals_dev/{model_name}.h5'},
+        'btts': {'rating_type': rating_types, 'model_path': f'model_btts_dev/{model_name}.h5'},
+        'exact': {'rating_type': rating_types, 'model_path': f'model_exact_dev/{model_name}.h5'}
     }
 
     match_attributes = [
-        {
-            'name': 'goals',
-            'calculator': lambda match: int(match['home_team_goals'] + match['away_team_goals'])
-        },
+        #{
+        #    'name': 'goals_home',
+        #    'calculator': lambda match: int(match['home_team_goals'])
+        #},
+        #        {
+        #    'name': 'goals_away',
+        #    'calculator': lambda match: int(match['away_team_goals'])
+        #},
         #{
         #    'name': 'btts',
         #    'calculator': lambda match: 1 if match['home_team_goals'] > 0 and match['away_team_goals'] > 0 else 0
         #},
-        #{
-        #    'name': 'chances',
-        #    'calculator': lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])
-        #}
+        {
+            'name': 'chances_home',
+            'calculator': lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])
+        },
+        {
+            'name': 'chances_away',
+            'calculator': lambda match: int(match['away_team_ck']) + int(match['away_team_sc'])
+        },
     ]
     if model_mode == 'train':
+        #Do przeniesienia wczytywanie w pliku jsona
+        training_json = {
+            "model_name": model_name,
+            "model_type": model_type,  # [winner, goals, btts, exact]
+            "window_size": window_size,
+            "train_accuracy": 0,  # zostanie uzupełnione po treningu
+            "train_loss": 0,     # zostanie uzupełnione po treningu
+            "val_accuracy": 0,   # zostanie uzupełnione po treningu
+            "val_loss": 0,       # zostanie uzupełnione po treningu
+            "model_path": f'model_{model_type}_dev/{model_name}.h5',
+            "feature_columns": feature_columns,  # lista używanych kolumn
+            "ratings": {
+                "elo": {
+                    "enabled": 'elo' in rating_types,
+                    "initial_rating": 1500,
+                    "second_tier_coef": 0.8,
+                    "columns": elo_columns if 'elo' in rating_types else []
+                },
+                "gap": {
+                    "enabled": 'gap' in rating_types,
+                    "columns": gap_columns if 'gap' in rating_types else [],
+                    "match_attributes": [
+                        {
+                            "name": attr["name"],
+                            "type": "chances"
+                        } for attr in match_attributes
+                    ]
+                }
+            },
+            "model":{
+                "architecture": {
+                    "lstm_layers": [
+                        {
+                            "units": [128, 64],
+                            "activation": ["tanh", "tanh"],
+                            "return_sequences": [True, False]
+                        },
+                        {
+                            "units": [128, 64],
+                            "activation": ["tanh", "tanh"],
+                            "return_sequences": [True, False]
+                        }
+                    ],
+                    "dense_layers": [
+                        {
+                            "units": 128,
+                            "activation": "relu",
+                            "regularization": {
+                                "l2": 0.01
+                            },
+                        },
+                        {
+                            "units": 64,
+                            "activation": "relu",
+                            "regularization": {
+                                "l2": 0.01
+                            },
+                        },
+                        {
+                            "units": 32,
+                            "activation": "relu",
+                            "regularization": {
+                                "l2": 0.01
+                            },
+                        }
+                    ],
+                    "output": {
+                        "units": 3,
+                        "activation": "softmax"
+                    }
+                },
+                "compilation": {
+                    "optimizer": {
+                        "type": "Adagrad",
+                        "learning_rate": 0.0001
+                    },
+                    "loss": "categorical_crossentropy",
+                    "metrics": ["accuracy", "Precision", "Recall"]
+                }
+            },
+            "training_config": {
+                "sport_id": sport_id,
+                "leagues": leagues,
+                "country": country,
+                "load_weights": load_weights == '1'
+            }
+        }
         prepare_training(model_type, leagues, sport_id,
-                         country, load_weights, feature_columns, rating_config, window_size, match_attributes)
+                         country, load_weights, feature_columns, 
+                         rating_config, window_size, match_attributes, 
+                         training_json, model_name, model_load_name)
     elif model_mode == 'predict':
         prepare_predictions(model_type, leagues, sport_id,
-                            country, rating_config, feature_columns, window_size)
+                            country, rating_config, feature_columns, window_size, match_attributes)
 
 
 if __name__ == '__main__':

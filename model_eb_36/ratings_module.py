@@ -5,7 +5,7 @@ from collections import deque
 import elo_rating
 import gap_rating
 import pi_rating
-
+import czech_rating
 class RatingFactory:
     @staticmethod
     def create_rating(rating_types=None, **kwargs):
@@ -42,6 +42,8 @@ class RatingFactory:
                 ))
             elif rating_type == "pi_rating":
                 ratings.append(pi_rating.PiRating())
+            elif rating_type == "czech_rating":
+                ratings.append(czech_rating.CzechRating())
             else:
                 raise ValueError(f"Nieznany typ rankingu: {rating_type}")
                 

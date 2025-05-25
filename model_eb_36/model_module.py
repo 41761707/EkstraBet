@@ -1,4 +1,4 @@
-from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, Concatenate, Flatten, Dropout, Bidirectional, LeakyReLU, BatchNormalization
+from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, Concatenate, Flatten, Dropout, Bidirectional, LeakyReLU, BatchNormalization, Multiply
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 class ModelModule:
-    def __init__(self, train_data, val_data, features, model_type, window_size) -> None:
+    def __init__(self, train_data, val_data, features, model_type, model_name, window_size):
         self.train_data = train_data
         self.val_data = val_data
         # Parametry
@@ -21,6 +21,106 @@ class ModelModule:
         self.model_type = model_type
         self.window_size = window_size
         self.model = None
+        self.current_date = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+        #self.model_name = f"{self.model_type}_model_{self.current_date}"
+        self.model_name = model_name
+
+    def build_model_from_config(self, config):
+        """
+        Buduje model na podstawie konfiguracji JSON
+        
+        Args:
+            config (dict): Konfiguracja modelu w formacie JSON
+        """
+        # Utworzenie warstw wejściowych
+        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
+        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
+        
+        # Budowanie warstw LSTM
+        lstm_config = config["architecture"]["lstm_layers"]
+        
+        # Przetwarzanie sekwencji home
+        lstm_home = input_home_seq
+        for i, layer in enumerate(lstm_config[0]["units"]):
+            lstm_home = LSTM(
+                units=layer,
+                activation=lstm_config[0]["activation"][i],
+                return_sequences=lstm_config[0]["return_sequences"][i]
+            )(lstm_home)
+            
+            # Dodaj dropout jeśli jest skonfigurowany
+            if "dropout" in lstm_config[0]:
+                lstm_home = Dropout(lstm_config[0]["dropout"][i])(lstm_home)
+        
+        # Przetwarzanie sekwencji away
+        lstm_away = input_away_seq
+        for i, layer in enumerate(lstm_config[1]["units"]):
+            lstm_away = LSTM(
+                units=layer,
+                activation=lstm_config[1]["activation"],
+                return_sequences=lstm_config[1]["return_sequences"][i]
+            )(lstm_away)
+            
+            # Dodaj dropout jeśli jest skonfigurowany
+            if "dropout" in lstm_config[1]:
+                lstm_away = Dropout(lstm_config[1]["dropout"][i])(lstm_away)
+        
+        # Połączenie sekwencji
+        combined = Concatenate()([lstm_home, lstm_away])
+        
+        # Dodaj warstwę attention jeśli jest skonfigurowana
+        if config["architecture"].get("attention", False):
+            attention = Dense(256, activation='sigmoid')(combined)
+            combined = Multiply()([combined, attention])
+        
+        # Budowanie warstw gęstych
+        dense_config = config["architecture"]["dense_layers"]
+        x = combined
+        for layer in dense_config:
+            x = Dense(
+                units=layer["units"],
+                activation=layer["activation"]
+            )(x)
+            
+            # Dodaj regularyzację jeśli jest skonfigurowana
+            if "regularization" in layer:
+                x = Dense(
+                    units=layer["units"],
+                    activation=layer["activation"],
+                    kernel_regularizer=l2(layer["regularization"]["l2"])
+                )(x)
+            
+            # Dodaj BatchNormalization jeśli jest skonfigurowany
+            if layer.get("batch_normalization", False):
+                x = BatchNormalization()(x)
+                
+            # Dodaj Dropout jeśli jest skonfigurowany
+            if "dropout" in layer:
+                x = Dropout(layer["dropout"])(x)
+        
+        # Warstwa wyjściowa
+        output_config = config["architecture"]["output"]
+        output = Dense(
+            units=output_config["units"],
+            activation=output_config["activation"]
+        )(x)
+        
+        # Tworzenie i kompilacja modelu
+        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
+        
+        # Konfiguracja optymalizatora
+        optimizer_config = config["compilation"]["optimizer"]
+        if optimizer_config["type"] == "Adam":
+            optimizer = Adam(learning_rate=optimizer_config["learning_rate"])
+        elif optimizer_config["type"] == "Adagrad":
+            optimizer = Adagrad(learning_rate=optimizer_config["learning_rate"])
+        
+        # Kompilacja modelu
+        self.model.compile(
+            loss=config["compilation"]["loss"],
+            optimizer=optimizer,
+            metrics=config["compilation"]["metrics"]
+        )
 
     #UWAGA: NA TEN MOMENT JEST SPECJALNIE TAK BRZYDKO 
     #ŻE KAŻDY MODEL MA OSOBNĄ FUNKCJĘ I 90% KODU SIĘ POWTARZA
@@ -158,7 +258,7 @@ class ModelModule:
                 mode='min'
             ),
             ModelCheckpoint(
-                f'model_{self.model_type}_dev/best_model_{datetime.now().strftime("%m_%d_%Y_%H_%M_%S")}.h5',
+                f'model_{self.model_type}_dev/best_model_{self.model_name}.h5',
                 monitor='accuracy',
                 save_best_only=True,
                 mode='min'
@@ -187,15 +287,17 @@ class ModelModule:
         # Print all available metrics
         for name, value in zip(metric_names, evaluation_results):
             if name == 'accuracy':
-                print(f'Validation Accuracy: {value*100:.2f}%')
+                print(f'Validation accuracy: {value*100:.2f}%')
             else:
                 print(f'Validation {name}: {value:.4f}')
 
         #Confusion matrix
         self.confusion_matrix(X_home_val, X_away_val, y_val)
+        if self.model_type == 'goals':
+            self.confusion_matrix_over_under(X_home_val, X_away_val, y_val)
         # Zapisz ostateczny model
-        self.model.save(f'model_dev/{self.model_type}_model_{datetime.now().strftime("%m_%d_%Y_%H_%M_%S")}.h5')
-        return history
+        self.model.save(f'model_dev/{self.model_name}.h5')
+        return history, evaluation_results
     
     def confusion_matrix(self, X_home_val, X_away_val, y_val):
         # Uzyskanie przewidywanych wartości (prawdopodobieństwa)
@@ -218,6 +320,31 @@ class ModelModule:
         # Wizualizacja macierzy błędów
         plt.figure(figsize=(6,5))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1,2], yticklabels=[0,1,2])
+
+        plt.xlabel("Przewidywane")
+        plt.ylabel("Prawdziwe")
+        plt.title("Confusion Matrix")
+        plt.show()
+
+    def confusion_matrix_over_under(self, X_home_val, X_away_val, y_val):
+        # Uzyskanie przewidywanych wartości (prawdopodobieństwa)
+        y_pred_probs = self.model.predict([X_home_val, X_away_val])
+
+        # Konwersja prawdopodobieństw na klasy (wybieramy indeks z najwyższą wartością)
+        y_pred_tmp = np.argmax(y_pred_probs, axis=1) 
+        y_pred = np.where(y_pred_tmp < 3, 0, 1)
+
+        # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
+        y_true_tmp = np.argmax(y_val, axis=1)  # Jeśli y_val jest w formie one-hot
+        y_true = np.where(y_true_tmp < 3, 0, 1)
+
+        # Obliczenie confusion matrix
+        cm = confusion_matrix(y_true, y_pred)
+        print(classification_report(y_true, y_pred))
+
+        # Wizualizacja macierzy błędów
+        plt.figure(figsize=(6,5))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1], yticklabels=[0,1])
 
         plt.xlabel("Przewidywane")
         plt.ylabel("Prawdziwe")

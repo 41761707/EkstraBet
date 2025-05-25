@@ -82,7 +82,8 @@ class PredictMatch:
         for pred in predictions_list:
             del pred['max_probability']
             
-        print(pd.DataFrame(predictions_list))
+        for element in predictions_list:
+            print(element)
         return pd.DataFrame(predictions_list)
     
     def predict_match_period(self):

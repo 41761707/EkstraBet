@@ -118,6 +118,7 @@ def highlight_cells_plus_minus(val):
 def goals_bar_chart(date, opponent, goals, team_name, ou_line, title="Bramki w meczach"):
     # Modify goals values - if goal is 0, set it to 0.3 for better visualization
     goals_graph = [0.3 if int(g) == 0 else g for g in goals]
+    goals = pd.DataFrame(goals)
     data = {
     'Date': [x for x in reversed(date)],
     'Opponent': [x for x in reversed(opponent)],
@@ -131,7 +132,7 @@ def goals_bar_chart(date, opponent, goals, team_name, ou_line, title="Bramki w m
     # Tworzenie wykresu goals
     fig, ax = plt.subplots(figsize=(10, 6))
     bars = ax.bar(df.index, df['Goals'], color='gray')
-    avg_goals = goals.mean()
+    avg_goals = np.mean(goals)
     hit_rate = (goals > ou_line).mean() * 100
     # Ustawienia osi
     ax.grid(False)

@@ -20,6 +20,15 @@ def check_if_in_db(home_team, away_team, game_date, conn):
         cursor.close()
         return result[0] if result else -1
 
+def update_db(queries, conn):
+    cursor = conn.cursor()
+    try:
+        for query in queries:
+            cursor.execute(query)
+            conn.commit()
+    finally:
+        cursor.close()
+
 def parse_match_date(match_date):
     date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
 
@@ -156,7 +165,6 @@ def get_match_data(driver, league_id, season_id, link, team_id, conn):
             match_data['away_team_rc'] = int(stat[2])
     return match_data
 
-#def main():
 def to_automate(league_id, season_id, games):
     #WYWOŁANIE
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
@@ -176,10 +184,12 @@ def to_automate(league_id, season_id, games):
     teams_df = pd.read_sql(query, conn)
     team_id = teams_df.set_index('name')['id'].to_dict()
     print(team_id)
+    inserts = []
     links = get_match_links(games, driver)
     for link in links[:]:
         match_data = get_match_data(driver, league_id, season_id, link, team_id, conn)
         if match_data == -1:
+            #update_db(inserts, conn)
             return
         sql = '''INSERT INTO matches (league, \
 season, \
@@ -241,6 +251,9 @@ VALUES ({league}, \
 {round}, \
 '{result}', \
 {sport_id});'''.format(**match_data)
+        inserts.append(sql)
         print(sql)
+    #update_db(inserts, conn)
+
 if __name__ == '__main__':
-    main()
+    to_automate()
