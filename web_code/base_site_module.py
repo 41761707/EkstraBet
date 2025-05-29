@@ -21,6 +21,7 @@ class Base:
         self.no_events = 3 #BTTS, OU, REZULTAT
         self.EV_plus = 0
         self.teams_dict = {}
+        self.special_rounds = {}
         self.date = datetime.today().strftime('%Y-%m-%d')
         self.conn = db_module.db_connect()
         self.set_config()
@@ -30,7 +31,38 @@ class Base:
         self.get_league_stats()          
         self.conn.close()
 
-    def set_config(self):
+    def set_season(self):
+        season_query = f"SELECT distinct m.season, s.years from matches m join seasons s on m.season = s.id where m.league = {self.league} order by s.years desc"
+        cursor = self.conn.cursor()
+        cursor.execute(season_query)
+        seasons_dict = {years: season_id for season_id, years in cursor.fetchall()}
+        self.seasons_list = [season for season in seasons_dict.keys()]
+        self.years = st.selectbox("Sezon", self.seasons_list)
+        self.season = seasons_dict[self.years]
+        cursor.close()
+
+    def set_round(self):
+        rounds_query = f"select round, game_date from matches where league = {self.league} and season = {self.season} order by game_date desc"
+        cursor = self.conn.cursor()
+        cursor.execute(rounds_query)
+        rounds_tmp = [self.special_rounds[x[0]] if x[0] > 100 else x[0] for x in cursor.fetchall()]
+        rounds_tmp.append(0)
+        for item in rounds_tmp:
+            if item not in self.rounds_list:
+                self.rounds_list.append(item)
+        self.round = st.selectbox("Kolejka", self.rounds_list)
+        if isinstance(self.round, str):
+            for round_id, round_name in self.special_rounds.items():
+                if round_name == self.round:
+                    self.round = round_id
+                    break
+
+    def set_db_queries(self):
+        special_rounds_query = "select id, name from special_rounds"
+        cursor = self.conn.cursor()
+        cursor.execute(special_rounds_query)
+        self.special_rounds = {special_id: name for special_id, name in cursor.fetchall()}
+        cursor.close()
         query = "select last_update, name from leagues where id = {}".format(self.league)
         cursor = self.conn.cursor()
         cursor.execute(query)
@@ -38,6 +70,9 @@ class Base:
         self.update = results[0][0]
         self.name = results[0][1]
         cursor.close()
+
+    def set_config(self):
+        self.set_db_queries()
         st.header(self.name)
         st.write("Ostatnia aktualizacja: {}".format(self.update))
         st.subheader("Konfiguracja prezentowanych danych")
@@ -51,25 +86,9 @@ class Base:
         
         col4, col5, col6 = st.columns(3)
         with col4:
-            season_query = f"SELECT distinct m.season, s.years from matches m join seasons s on m.season = s.id where m.league = {self.league} order by s.years desc"
-            cursor = self.conn.cursor()
-            cursor.execute(season_query)
-            seasons_dict = {years: season_id for season_id, years in cursor.fetchall()}
-            self.seasons_list = [season for season in seasons_dict.keys()]
-            self.years = st.selectbox("Sezon", self.seasons_list)
-            self.season = seasons_dict[self.years]
-            cursor.close()
+            self.set_season()
         with col5:
-            rounds_query = f"select round, game_date from matches where league = {self.league} and season = {self.season} order by game_date desc"
-            cursor = self.conn.cursor()
-            cursor.execute(rounds_query)
-            rounds_tmp = [x[0] for x in cursor.fetchall()]
-            rounds_tmp.append(0)
-            for item in rounds_tmp:
-                if item not in self.rounds_list:
-                    self.rounds_list.append(item)
-            self.round = st.selectbox("Kolejka", self.rounds_list)
-            cursor.close()
+            self.set_round()
         with col6:
             self.date_range = st.date_input(
                             "Zakres dat (działa tylko, gdy kolejka = 0)",
@@ -86,14 +105,14 @@ class Base:
     def get_schedule(self):
         if self.round > 1:
             if self.round >= 100:
-                round_name = self.get_special_round(self.round)
+                round_name = self.special_rounds[self.round]
             else:
                 round_name = self.round - 1
             with st.expander("Terminarz, poprzednia kolejka numer: {}".format(round_name)):
                 self.generate_schedule(self.round-1, self.date_range)
 
         if self.round >= 100:
-            round_name = self.get_special_round(self.round)
+            round_name = self.special_rounds[self.round]
         else:
             round_name = self.round
         if self.round == 0:
@@ -128,12 +147,7 @@ class Base:
 
     def get_league_stats(self):     
         with st.expander("Statystyki ligowe"):
-            query = ''' select
-                        count(*)
-                    from matches
-                    where league = {}
-                        and season = {}
-                        and result != '0'
+            query = ''' select count(*) from matches where league = {} and season = {} and result != '0'
             '''.format(self.league, self.season)
             cursor = self.conn.cursor()
             cursor.execute(query)
@@ -160,67 +174,6 @@ class Base:
         with st.expander("Statystyki predykcji w sezonie {} - porównania między drużynami".format(self.years)):
             stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn) 
 
-    def get_special_round(self, round):
-        special_round_names = {
-            900 : '1/64 finału, mecz numer 1',
-            901 : '1/64 finału, mecz numer 2',
-            902 : '1/64 finału, mecz numer 3',
-            903 : '1/64 finału, mecz numer 4',
-            904 : '1/64 finału, mecz numer 5',
-            905 : '1/64 finału, mecz numer 6',
-            906 : '1/64 finału, mecz numer 7',
-            910 : '1/32 finału, mecz numer 1',
-            911 : '1/32 finału, mecz numer 2',
-            912 : '1/32 finału, mecz numer 3',
-            913 : '1/32 finału, mecz numer 4',
-            914 : '1/32 finału, mecz numer 5',
-            915 : '1/32 finału, mecz numer 6',
-            916 : '1/32 finału, mecz numer 7',
-            920 : '1/16 finału, mecz numer 1',
-            921 : '1/16 finału, mecz numer 2',
-            922 : '1/16 finału, mecz numer 3',
-            923 : '1/16 finału, mecz numer 4',
-            924 : '1/16 finału, mecz numer 5',
-            925 : '1/16 finału, mecz numer 6',
-            926 : '1/16 finału, mecz numer 7',
-            930 : '1/8 finału, mecz numer 1',
-            931 : '1/8 finału, mecz numer 2',
-            932 : '1/8 finału, mecz numer 3',
-            933 : '1/8 finału, mecz numer 4',
-            934 : '1/8 finału, mecz numer 5',
-            935 : '1/8 finału, mecz numer 6',
-            936 : '1/8 finału, mecz numer 7',
-            940 : '1/4 finału, mecz numer 1',
-            941 : '1/4 finału, mecz numer 2',
-            942 : '1/4 finału, mecz numer 3',
-            943 : '1/4 finału, mecz numer 4',
-            944 : '1/4 finału, mecz numer 5',
-            945 : '1/4 finału, mecz numer 6',
-            946 : '1/4 finału, mecz numer 7',
-            950 : '1/2 finału, mecz numer 1',
-            951 : '1/2 finału, mecz numer 2',
-            952 : '1/2 finału, mecz numer 3',
-            953 : '1/2 finału, mecz numer 4',
-            954 : '1/2 finału, mecz numer 5',
-            955 : '1/2 finału, mecz numer 6',
-            956 : '1/2 finału, mecz numer 7',
-            960 : 'Finał, mecz numer 1',
-            961 : 'Finał, mecz numer 2',
-            962 : 'Finał, mecz numer 3',
-            963 : 'Finał, mecz numer 4',
-            964 : 'Finał, mecz numer 5',
-            965 : 'Finał, mecz numer 6',
-            966 : 'Finał, mecz numer 7',
-            100 : 'Brak podziału na kolejki',
-            1001 : "Baraż o utrzymanie, 1/4 finału, mecz numer 1",
-            1002 : "Baraż o utrzymanie, 1/4 finału, mecz numer 2",
-            1003 : 'Baraż o utrzymanie, 1/2 finału, mecz numer 1',
-            1004 : 'Baraż o utrzymanie, 1/2 finału, mecz numer 2',
-            1005 : "Baraż o utrzymanie, finał, mecz numer 1",
-            1006 : "Baraż o utrzymanie, finał, mecz numer 2",
-        }
-        return special_round_names[round]
-
     def single_team_data(self, team_id):
         query = f"SELECT name FROM teams WHERE id = {team_id}"
         team_name_df = pd.read_sql(query, self.conn)
@@ -228,8 +181,8 @@ class Base:
 
         query = f'''
             SELECT 
-                m.home_team AS home_id, t1.name AS home, 
-                m.away_team AS guest_id, t2.name AS guest, 
+                m.home_team AS home_id, t1.name AS home, t1.shortcut as home_shortcut, 
+                m.away_team AS guest_id, t2.name AS guest, t2.shortcut as guest_shortcut, 
                 date_format(cast(m.game_date as date), '%d.%m') AS date, m.home_team_goals AS home_goals, 
                 m.away_team_goals AS away_goals, m.result AS result
             FROM matches m 
@@ -246,6 +199,7 @@ class Base:
 
         date = [row.date for _, row in data.iterrows()]
         opponent = [row.guest if row.home_id == team_id else row.home for _, row in data.iterrows()]
+        opponent_shortcut = [row.guest_shortcut if row.home_id == team_id else row.home_shortcut for _, row in data.iterrows()] 
         goals = [0.4 if int(row.home_goals) + int(row.away_goals) == 0 else int(row.home_goals) + int(row.away_goals) for _, row in data.iterrows()]
         btts = [1 if int(row.home_goals) > 0 and int(row.away_goals) > 0 else -1 for _, row in data.iterrows()]
         home_team = [row.home for _, row in data.iterrows()]
@@ -254,7 +208,7 @@ class Base:
         away_team_score = [row.away_goals for _, row in data.iterrows()]
         results = [row.result for _, row in data.iterrows()]
 
-        return date, opponent, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, results
+        return date, opponent, opponent_shortcut, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, results
 
     def match_pred_summary(self, id, result, home_goals, away_goals):
         st.header("Pomeczowe statystyki predykcji i zakładów")
@@ -625,14 +579,14 @@ class Base:
             if st.button(button_label, use_container_width = True):
                 tab1, tab2 = st.tabs(["Statystyki drużyny", "Statystyki predykcji"])
                 with tab1:
-                    date, opponent, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, result = self.single_team_data(key)
+                    date, opponent, opponent_shortcut, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, result = self.single_team_data(key)
                     col1, col2 = st.columns(2)
                     with col1:
                         with st.container():
-                            graphs_module.goals_bar_chart(date, opponent, goals, team_name, self.ou_line)
+                            graphs_module.goals_bar_chart(date, opponent_shortcut, goals, team_name, self.ou_line)
                     with col2:
                         with st.container():
-                            graphs_module.btts_bar_chart(date, opponent, btts, team_name)
+                            graphs_module.btts_bar_chart(date, opponent_shortcut, btts, team_name)
                     col3, col4 = st.columns(2)
                     with col3:
                         with st.container():

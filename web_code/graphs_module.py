@@ -133,13 +133,13 @@ def goals_bar_chart(date, opponent, goals, team_name, ou_line, title="Bramki w m
     fig, ax = plt.subplots(figsize=(10, 6))
     bars = ax.bar(df.index, df['Goals'], color='gray')
     avg_goals = np.mean(goals)
-    hit_rate = (goals > ou_line).mean() * 100
+    hit_rate = (goals > ou_line).mean().iloc[0] * 100
     # Ustawienia osi
     ax.grid(False)
     ax.axhline(y=ou_line, color='white', linestyle='--', linewidth=2)
     ax.set_xticks(df.index)
     ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
-    ax.set_yticks(np.arange(0, df['Goals'].max() + 0.5, 0.5))
+    #ax.set_yticks(np.arange(0, df['Goals'].max() + 0.5, 0.5))
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.set_title("{}: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(title, team_name, avg_goals, ou_line, hit_rate), loc='left', fontsize=24, color='white')
@@ -161,8 +161,8 @@ def goals_bar_chart(date, opponent, goals, team_name, ou_line, title="Bramki w m
 
 def btts_bar_chart(date, opponent, btts, team_name):
     data = {
-    'Date': [x[:-3] for x in reversed(date)],
-    'Opponent': [x[:3] for x in reversed(opponent)],
+    'Date': [x for x in reversed(date)],
+    'Opponent': [x for x in reversed(opponent)],
     'BTTS': [x for x in reversed(btts)],
     }
     df = pd.DataFrame(data)

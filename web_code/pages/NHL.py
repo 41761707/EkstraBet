@@ -32,7 +32,9 @@ class HockeySite:
 
     def get_matches(self):
         query = f'''SELECT m.id as id, cast(m.game_date as date) as game_date, m.round as round, 
-                        t1.name as home_team, t1.id as home_team_id, t2.name as away_team, t2.id as away_team_id, m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result,
+                        t1.name as home_team, t1.id as home_team_id, t1.shortcut as home_team_shortcut, 
+                        t2.name as away_team, t2.id as away_team_id, t2.shortcut as away_team_shortcut,
+                        m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result,
                         ad.OT as OT, ad.SO as SO, ad.OTwinner as OTwinner, ad.SOwinner as SOwinner,
                         m.home_team_sog, m.away_team_sog, m.home_team_fk, m.away_team_fk, 
                         m.home_team_fouls, m.away_team_fouls, 
@@ -154,23 +156,26 @@ class HockeySite:
             for key, value in self.teams_dict.items():
                 button_label = value
                 if st.button(button_label, use_container_width = True):
-                    tab1, tab2, tab3 = st.tabs(["Statystyki drużyny", "Skład", "Statystyki zawodników", "Statystyki predykcji"])
+                    tab1, tab2, tab3, tab4 = st.tabs(["Statystyki drużyny", "Skład", "Statystyki zawodników", "Statystyki predykcji"])
                     self.current_team_info = nhl_schedule_package.get_team_info(key, self.lookback_games, self.matches)
                     with tab1:
                         self.current_team_stats(key, value)
                     with tab2:
-                        nhl_schedule_package.get_team_roster(key, value, self.conn)
+                        pass
+                        #nhl_schedule_package.get_team_roster(key, value, self.conn)
                     with tab3:
                         current_team_player_stats = nhl_schedule_package.get_team_players_stats(key, self.season, self.conn)
-                        st.write(current_team_player_stats)
+                        st.dataframe(current_team_player_stats)
+                    with tab4:
+                        pass
     
     def current_team_stats(self, team_id, team_name):
         df = pd.DataFrame(self.current_team_info)
         
         date = df['match_date'].tolist()
         opponent = df['opponent_shortcut'].tolist()
-        home_team = df['team_name'].tolist()
-        away_team = df['opponent_name'].tolist()
+        home_team = df['home_team'].tolist()
+        away_team = df['away_team'].tolist()
         home_team_score = df['team_goals'].tolist()
         away_team_score = df['opponent_goals'].tolist()
         home_team_sog = df['team_sog'].tolist()
@@ -183,7 +188,7 @@ class HockeySite:
                 graphs_module.goals_bar_chart(date, opponent, goals, team_name, self.ou_line)
         with col2:
             with st.container():
-                graphs_module.goals_bar_chart(date, opponent, home_team_sog, team_name, statistics.mean(home_team_sog))
+                graphs_module.goals_bar_chart(date, opponent, home_team_sog, team_name, statistics.mean(home_team_sog), "Liczba oddanych strzałów przez")
         col3, col4 = st.columns(2)
         with col3:
             with st.container():
@@ -218,14 +223,16 @@ class HockeySite:
         with st.expander("Tabele ligowe"):
             regular_season_matches = self.matches[self.matches['round'] == 100]  
             tab1, tab2, tab3, tab4 = st.tabs([
-                "Tabele sezonu zasadniczego", 
+                "Tabela sezonu zasadniczego", 
                 "Tabela domowa", 
                 "Tabela wyjazdowa", 
                 "Tabela OU"])
             with tab1:
+                st.write("Tabela ogólna")
                 st.dataframe(
                     self.create_table(regular_season_matches, 'all'),
                     use_container_width=True)
+                #TO-DO: Podział na konferencje i dywizje
             with tab2:
                 st.dataframe(
                     self.create_table(regular_season_matches, 'home'),

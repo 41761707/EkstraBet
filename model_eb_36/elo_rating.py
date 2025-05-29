@@ -1,9 +1,8 @@
-from collections import deque
-import winner_rating
+import rating_strategy
 # Klasa do obliczania rankingu drużyn na podstawie wyników meczów, wykorzystywana jest metdologia ELO
 
 
-class EloRating(winner_rating.WinnerRatingStrategy):
+class EloRating(rating_strategy.RatingStrategy):
     def __init__(self, matches_df, teams_df, first_tier_leagues, second_tier_leagues, initial_elo, second_tier_coef):
         self.matches_df = matches_df
         self.teams_df = teams_df
@@ -16,10 +15,8 @@ class EloRating(winner_rating.WinnerRatingStrategy):
     def calculate_rating(self):
         for index, row in self.matches_df.iterrows():
             new_elo = self.calculate_match_rating(row)
-            self.matches_df.at[index,
-                               'home_team_elo'] = new_elo['home_team_elo']
-            self.matches_df.at[index,
-                               'away_team_elo'] = new_elo['away_team_elo']
+            self.matches_df.at[index, 'home_team_elo'] = new_elo['home_team_elo']
+            self.matches_df.at[index, 'away_team_elo'] = new_elo['away_team_elo']
 
     def calculate_match_rating(self, match):
         home_team_elo = self.get_elo(match['home_team'], match['league'])
@@ -55,7 +52,7 @@ class EloRating(winner_rating.WinnerRatingStrategy):
                    away_team: int,
                    home_team_goals: int,
                    away_team_goals: int,
-                   result: int) -> None:
+                   result: int):
         """
         Aktualizuje ELO po meczu.
         result: 1 (home win), 0 (remis), 2 (away win)

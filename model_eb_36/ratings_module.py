@@ -40,10 +40,10 @@ class RatingFactory:
                     second_tier_leagues, 
                     match_attributes
                 ))
-            elif rating_type == "pi_rating":
+            elif rating_type == "pi":
                 ratings.append(pi_rating.PiRating())
-            elif rating_type == "czech_rating":
-                ratings.append(czech_rating.CzechRating())
+            elif rating_type == "czech":
+                ratings.append(czech_rating.CzechRating(matches_df, teams_df))
             else:
                 raise ValueError(f"Nieznany typ rankingu: {rating_type}")
                 

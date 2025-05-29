@@ -30,14 +30,14 @@ class ModelModule:
         Buduje model na podstawie konfiguracji JSON
         
         Args:
-            config (dict): Konfiguracja modelu w formacie JSON
+            config (dict): Konfiguracja z config_manager.py
         """
         # Utworzenie warstw wejściowych
         input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
         input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
         
         # Budowanie warstw LSTM
-        lstm_config = config["architecture"]["lstm_layers"]
+        lstm_config = config.model_config["model"]["architecture"]["lstm_layers"]
         
         # Przetwarzanie sekwencji home
         lstm_home = input_home_seq
@@ -49,57 +49,56 @@ class ModelModule:
             )(lstm_home)
             
             # Dodaj dropout jeśli jest skonfigurowany
-            if "dropout" in lstm_config[0]:
+            if "dropout" in lstm_config[0] and lstm_config[0]["dropout"][i]:
                 lstm_home = Dropout(lstm_config[0]["dropout"][i])(lstm_home)
+
+            if "batch_normalization" in lstm_config[0] and lstm_config[0]["batch_normalization"][i]:
+                lstm_home = BatchNormalization()(lstm_home)
         
         # Przetwarzanie sekwencji away
         lstm_away = input_away_seq
         for i, layer in enumerate(lstm_config[1]["units"]):
             lstm_away = LSTM(
                 units=layer,
-                activation=lstm_config[1]["activation"],
+                activation=lstm_config[1]["activation"][i],
                 return_sequences=lstm_config[1]["return_sequences"][i]
             )(lstm_away)
             
             # Dodaj dropout jeśli jest skonfigurowany
-            if "dropout" in lstm_config[1]:
+            if "dropout" in lstm_config[1] and lstm_config[1]["dropout"][i]:
                 lstm_away = Dropout(lstm_config[1]["dropout"][i])(lstm_away)
-        
+
+            if "batch_normalization" in lstm_config[1] and lstm_config[1]["batch_normalization"][i]:
+                lstm_away = BatchNormalization()(lstm_away)
         # Połączenie sekwencji
         combined = Concatenate()([lstm_home, lstm_away])
         
-        # Dodaj warstwę attention jeśli jest skonfigurowana
-        if config["architecture"].get("attention", False):
-            attention = Dense(256, activation='sigmoid')(combined)
-            combined = Multiply()([combined, attention])
-        
         # Budowanie warstw gęstych
-        dense_config = config["architecture"]["dense_layers"]
+        dense_config = config.model_config["model"]["architecture"]["dense_layers"]
         x = combined
-        for layer in dense_config:
+        for layer in dense_config:          
+            # Dodaj regularyzację jeśli jest skonfigurowana
             x = Dense(
                 units=layer["units"],
                 activation=layer["activation"]
-            )(x)
-            
-            # Dodaj regularyzację jeśli jest skonfigurowana
-            if "regularization" in layer:
+                )(x)
+            if "regularization" in layer and layer["regularization"]:
                 x = Dense(
                     units=layer["units"],
                     activation=layer["activation"],
-                    kernel_regularizer=l2(layer["regularization"]["l2"])
+                    kernel_regularizer=l2(layer["regularization"])
                 )(x)
             
             # Dodaj BatchNormalization jeśli jest skonfigurowany
-            if layer.get("batch_normalization", False):
+            if "batch_normalization" in layer and layer["batch_normalization"]:
                 x = BatchNormalization()(x)
                 
             # Dodaj Dropout jeśli jest skonfigurowany
-            if "dropout" in layer:
+            if "dropout" in layer and layer["dropout"]:
                 x = Dropout(layer["dropout"])(x)
         
         # Warstwa wyjściowa
-        output_config = config["architecture"]["output"]
+        output_config = config.model_config["model"]["architecture"]["output"]
         output = Dense(
             units=output_config["units"],
             activation=output_config["activation"]
@@ -109,7 +108,7 @@ class ModelModule:
         self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
         
         # Konfiguracja optymalizatora
-        optimizer_config = config["compilation"]["optimizer"]
+        optimizer_config = config.model_config["model"]["compilation"]["optimizer"]
         if optimizer_config["type"] == "Adam":
             optimizer = Adam(learning_rate=optimizer_config["learning_rate"])
         elif optimizer_config["type"] == "Adagrad":
@@ -117,9 +116,9 @@ class ModelModule:
         
         # Kompilacja modelu
         self.model.compile(
-            loss=config["compilation"]["loss"],
+            loss=config.model_config["model"]["compilation"]["loss"],
             optimizer=optimizer,
-            metrics=config["compilation"]["metrics"]
+            metrics=config.model_config["model"]["compilation"]["metrics"]
         )
 
     #UWAGA: NA TEN MOMENT JEST SPECJALNIE TAK BRZYDKO 
@@ -131,25 +130,31 @@ class ModelModule:
         input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
         input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
 
-        # Ulepszone warstwy LSTM dla każdej sekwencji
-        lstm_home = LSTM(128, activation='tanh', return_sequences=True)(input_home_seq)
+        # Ulepszone LSTM z Dropout i BatchNorm
+        lstm_home = LSTM(256, activation='tanh', return_sequences=True)(input_home_seq)
+        lstm_home = BatchNormalization()(lstm_home)
+        lstm_home = Dropout(0.2)(lstm_home)
+        lstm_home = LSTM(128, return_sequences=True)(lstm_home)
         lstm_home = LSTM(64)(lstm_home)
-        
-        lstm_away = LSTM(128, activation='tanh', return_sequences=True)(input_away_seq)
-        lstm_away = LSTM(64)(lstm_away)
-        # Połączenie sekwencji
-        combined = Concatenate()([lstm_home, lstm_away])
-        # Rozszerzone warstwy gęste z regularyzacją
-        dense1 = Dense(128, activation='relu', kernel_regularizer=l2(0.01))(combined)
-        dense2 = Dense(64, activation='relu', kernel_regularizer=l2(0.01))(dense1)
-        dense3 = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(dense2)
-        output = Dense(3, activation='softmax')(dense3)
 
-        # Kompilacja modelu z dostosowanymi parametrami
+        lstm_away = LSTM(256, activation='tanh', return_sequences=True)(input_away_seq)
+        lstm_away = BatchNormalization()(lstm_away)
+        lstm_away = Dropout(0.2)(lstm_away)
+        lstm_away = LSTM(128, return_sequences=True)(lstm_away)
+        lstm_away = LSTM(64)(lstm_away)
+
+        # Połączenie + warstwy Dense
+        combined = Concatenate()([lstm_home, lstm_away])
+        dense = Dense(128, activation='relu')(combined)
+        dense = Dropout(0.2)(dense)
+        dense = Dense(64, activation='relu')(dense)
+        output = Dense(3, activation='softmax')(dense)
+
+        # Kompilacja z Adam i LR scheduler
         self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
         self.model.compile(
             loss='categorical_crossentropy',
-            optimizer=Adagrad(learning_rate=0.0001),
+            optimizer=Adam(learning_rate=0.001),
             metrics=['accuracy', Precision(), Recall()]
         )
 
@@ -258,7 +263,7 @@ class ModelModule:
                 mode='min'
             ),
             ModelCheckpoint(
-                f'model_{self.model_type}_dev/best_model_{self.model_name}.h5',
+                f'model_{self.model_type}_dev/{self.model_name}.h5',
                 monitor='accuracy',
                 save_best_only=True,
                 mode='min'
@@ -273,6 +278,7 @@ class ModelModule:
             epochs=100,             
             validation_data=([X_home_val, X_away_val], y_val),
             callbacks=callbacks,
+            #class_weight = {0: 1.5, 1: 1, 2: 1.2},
             shuffle=True
         )
         # Ewaluacja

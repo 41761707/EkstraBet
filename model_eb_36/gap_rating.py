@@ -1,7 +1,8 @@
 from collections import deque
+import rating_strategy
 
 # Klasa do obliczania ratingu drużyn na podstawie wyników meczów
-class GapRating:
+class GapRating(rating_strategy.RatingStrategy):
     def __init__(self, matches_df, teams_df, first_tier_leagues, second_tier_leagues, match_attributes):
         self.matches_df = matches_df
         self.teams_df = teams_df

@@ -15,6 +15,20 @@ def parse_match_date(match_date):
 
     return date_formatted
 
+def check_odds_in_db(match_id, conn):
+    print
+    """
+    Check if odds exist for given match_id in the database
+    Returns True if odds exist, False otherwise
+    """
+    cursor = conn.cursor()
+    match_id = int(match_id)
+    query = "SELECT COUNT(*) FROM odds WHERE match_id = %s"
+    cursor.execute(query, (match_id,))
+    result = cursor.fetchone()[0]
+    cursor.close()
+    return result > 0
+
 def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     id = -1
     driver.get(link)
@@ -197,6 +211,10 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_
         links.append('https://www.flashscore.pl/mecz/{}'.format(id))
     for link in links[skip:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
+        # Check if odds already exist for this match
+        if check_odds_in_db(match_id, conn):
+            print(f"Odds already exist for match_id: {match_id}, skipping...")
+            continue
         if match_id == -1:
             break
         result_inserts = get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)

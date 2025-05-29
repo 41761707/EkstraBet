@@ -1,9 +1,6 @@
 from abc import ABC, abstractmethod
 
-class WinnerRatingStrategy(ABC):
-    @abstractmethod
-    def __init__(self, matches_df, teams_df, first_tier_leagues, second_tier_leagues, initial_elo, second_tier_coef):
-        pass
+class RatingStrategy(ABC):
     
     @abstractmethod
     def calculate_rating(self):

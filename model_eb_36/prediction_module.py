@@ -57,15 +57,19 @@ class PredictMatch:
             elif self.model_type == "goals":
                 result = f"{np.argmax(prediction[0])} goli"
                 probabilities = prediction[0]
+                #dodajemy OU
+                under_2_5 = sum(prediction[0][:3])  # Sum of probabilities for 0, 1, 2 goals
+                over_2_5 = sum(prediction[0][3:])   # Sum of probabilities for 3+ goals
+                probabilities = np.append(probabilities, [under_2_5, over_2_5])  # Add U/O to probabilities array
             elif self.model_type == "btts":
-                result = "Obie strzelą" if np.argmax(prediction[0]) == 1 else "Jedna lub żadna nie strzeli"
+                result = "Obie strzelą" if np.argmax(prediction[0]) == 1 else "Obie nie strzelą"
                 probabilities = prediction[0]
             elif self.model_type == "exact":
                 home_team_goals = np.argmax(prediction[0]) // 10 
                 away_team_goals = np.argmax(prediction[0]) % 10
                 result = f"Wynik {home_team_goals}:{away_team_goals}"
                 probabilities = prediction[0]
-                
+    
             # Dodanie wyniku do listy
             predictions_list.append({
                 'home_team': self.teams_df.loc[self.teams_df['id'] == row['home_team'], 'name'].iloc[0],

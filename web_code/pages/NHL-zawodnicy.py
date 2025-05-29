@@ -49,7 +49,7 @@ class HockeyPlayers:
 
     def get_player_season_stats(self, player_id):
         query = f"""
-            SELECT t1.name as Gospodarz, t2.name as Gość, date_format(cast(m.game_date as date), '%d.%m') AS Data, stat.points, stat.goals, stat.assists, stat.plus_minus, stat.toi, stat.sog,
+            SELECT t1.name as Gospodarz, t2.name as Gość, date_format(cast(m.game_date as date), '%d.%m') AS Data, stat.points, stat.goals, stat.assists, stat.plus_minus, stat.sog, stat.toi,
             CASE WHEN t1.id = stat.team_id THEN t2.shortcut WHEN t2.id = stat.team_id THEN t1.shortcut END AS opponent
             FROM hockey_match_player_stats stat
             JOIN matches m on stat.match_id = m.id
@@ -66,7 +66,28 @@ class HockeyPlayers:
         return stats_df
 
     def player_game_log(self):
-        st.dataframe(self.current_player_stats.drop(['toi_minutes','opponent'], axis=1), use_container_width=True)
+        # Create a dictionary mapping original column names to display names
+        column_names = {
+            'Gospodarz': 'Gospodarz',
+            'Gość': 'Gość',
+            'Data': 'Data',
+            'points': 'Punkty',
+            'goals': 'Bramki',
+            'assists': 'Asysty',
+            'plus_minus': '+/-',
+            'sog': 'Strzały na bramkę',
+            'toi': 'Czas na lodzie'
+        }
+        
+        # Create a copy of the DataFrame with renamed columns
+        display_df = self.current_player_stats.drop(['toi_minutes', 'opponent'], axis=1).rename(columns=column_names)
+        
+        # Reset index to start from 1
+        display_df.index = range(1, len(display_df) + 1)
+        display_df.index.name = 'L.P.'
+        
+        # Display the DataFrame with the new column names
+        st.dataframe(display_df, use_container_width=True)
 
     def player_graphs(self):
         col1, col2 = st.columns(2)
@@ -118,6 +139,14 @@ class HockeyPlayers:
     def get_players(self):
         query_teams = "SELECT id, name FROM teams WHERE sport_id = 2"
         teams_df = pd.read_sql(query_teams, self.conn)
+        query_players = f'''SELECT p.id, p.first_name, p.last_name, p.position, p.current_club
+                        FROM players p
+                        JOIN hockey_match_player_stats stat ON p.id = stat.player_id
+                        JOIN matches m ON stat.match_id = m.id
+                        WHERE m.season = {self.season}
+                        GROUP BY p.id, p.first_name, p.last_name
+                        ORDER BY p.first_name, p.last_name'''
+        players_df = pd.read_sql(query_players, self.conn)
         col1, col2, col3, col4 = st.columns(4)
         with col1:  
             selected_team = st.selectbox("Wybierz drużynę:", teams_df['name'])
@@ -146,19 +175,16 @@ class HockeyPlayers:
                 key='games_limit'
             )
             self.limit_games = limit_options[self.limit_games]
-        # Pobierz zawodników dla wybranej drużyny
-        query_players = f'''SELECT p.id, p.first_name, p.last_name, p.position
-                                FROM players p
-                                JOIN hockey_match_player_stats stat ON p.id = stat.player_id
-                                JOIN matches m ON stat.match_id = m.id
-                                WHERE current_club = {team_id} and m.season = {self.season}
-                                GROUP BY p.id, p.first_name, p.last_name
-                                ORDER BY p.first_name, p.last_name'''
-        players_df = pd.read_sql(query_players, self.conn)
         with col4:
             player_name = st.text_input("Wpisz imię lub nazwisko zawodnika")
             if player_name:
-                players_df = players_df[players_df['first_name'].str.contains(player_name, case=False) | players_df['last_name'].str.contains(player_name, case=False)]
+                players_df = players_df[
+                    players_df['first_name'].str.contains(player_name, case=False) |
+                    players_df['last_name'].str.contains(player_name, case=False) |
+                    players_df.apply(lambda x: f"{x['first_name']} {x['last_name']}".lower(), axis=1).str.contains(player_name.lower())
+                ]
+            else:
+                players_df = players_df[players_df['current_club'] == team_id]
         return players_df
     
     def get_config_lines(self):

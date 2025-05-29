@@ -180,6 +180,7 @@ def match_stats(match_row):
     # Mapowanie nazw statystyk
     stat_name = {
         'team': 'Nazwa drużyny',
+        'team_shortcut' : 'Skrót nazwy',
         'goals': 'Bramki',
         'team_sog': 'Strzały na bramkę',
         'team_fk': 'Minuty kar',
@@ -315,7 +316,9 @@ def get_team_info(team_id, lookback, matches_df):
             'opponent_goals': row[f'{opponent_key}_goals'],
             'team_sog': row[f'{team_key}_team_sog'],
             'opponent_sog': row[f'{opponent_key}_team_sog'],
-            'opponent_shortcut': row[f'{opponent_key}_team'], # Tutaj można dodać kolumnę shortcut jeśli jest dostępna
+            'opponent_shortcut': row[f'{opponent_key}_team_shortcut'],
+            'home_team' : row['home_team'],
+            'away_team' : row['away_team'],
             'result': result,
             'is_overtime': row['OT'] != 0,
             'is_shootout': row['SO'] != 0,
