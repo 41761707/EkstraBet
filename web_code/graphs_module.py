@@ -40,63 +40,88 @@ def generate_comparision(labels, wins, loses):
     # Wyświetlenie wykresu
     st.pyplot(fig)
 
-def generate_pie_chart_binary(labels, type_a, type_b):
-    # Dane do wykresu
-    data = {
-        'Label': [x for x in labels],
-        'Ppb': [type_a, type_b],
-    }
+def generate_pie_chart(data_labels, values, colors=None, title=None):
+    """
+    Generuje i wyświetla wykres kołowy o zmiennej liczbie segmentów przy użyciu Streamlit.
+    
+    Funkcja tworzy wykres kołowy przedstawiający proporcje między wartościami,
+    z możliwością dostosowania etykiet, kolorów i automatycznym wyświetlaniem wartości procentowych.
+    Wykres utrzymany jest w ciemnej stylistyce.
+    
+    Parametry:
+    ----------
+    data_labels : list
+        Lista etykiet tekstowych dla segmentów wykresu
+    values : list
+        Lista wartości liczbowych dla poszczególnych segmentów
+    colors : list, opcjonalne
+        Lista kolorów dla segmentów (domyślnie: automatyczna paleta)
+    title : str, opcjonalne
+        Tytuł wykresu (domyślnie brak)
+        
+    Zwraca:
+    -------
+    None
+        Funkcja wyświetla wykres bezpośrednio w interfejsie Streamlit za pomocą st.pyplot()
+    
+    Przykłady użycia:
+    ----------------
+    >>> # Wersja z dwoma segmentami
+    >>> generate_pie_chart(['Wygrane gospodarzy', 'Wygrane gości'], [65, 35])
+    
+    >>> # Wersja z trzema segmentami
+    >>> generate_pie_chart(['Wygrane gospodarzy', 'Remisy', 'Wygrane gości'], [60, 15, 25],
+    >>>                   colors=['orangered', 'gold', 'lightgreen'])
+    
+    >>> # Wersja z własnymi kolorami i tytułem
+    >>> generate_pie_chart(['Gole 1. połowa', 'Gole 2. połowa', 'Dogrywka'], [45, 50, 5],
+    >>>                   colors=['#FF9999','#66B2FF','#99FF99'],
+    >>>                   title="Rozkład strzelonych goli")
+    """
+    # Sprawdzenie poprawności danych wejściowych
+    if len(data_labels) != len(values):
+        raise ValueError("Liczba etykiet musi odpowiadać liczbie wartości")
+    
+    if colors and len(colors) != len(values):
+        raise ValueError("Liczba kolorów musi odpowiadać liczbie wartości")
+    
+    # Domyślna paleta kolorów jeśli nie podano
+    if not colors:
+        colors = plt.cm.tab20c.colors[:len(values)]
+    
     sns.set_theme(style="darkgrid")
-    df = pd.DataFrame(data)
+    df = pd.DataFrame({'Label': data_labels, 'Value': values})
     
-    # Ustawienia wykresu kołowego
+    # Utworzenie wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    wedges, texts, autotexts = ax.pie(df['Ppb'], labels=df['Label'], autopct='%1.1f%%', colors=['orangered', 'lightgreen'],
-                                    textprops=dict(color="white"), startangle=140)
+    wedges, texts, autotexts = ax.pie(
+        df['Value'], 
+        labels=df['Label'], 
+        autopct='%1.1f%%', 
+        colors=colors,
+        textprops=dict(color="white"), 
+        startangle=140,
+        pctdistance=0.85
+    )
     
-    # Ustawienia tytułu i koloru tła
-    #ax.set_title(title, loc='left', fontsize=24, color='white', pad = 40)
-    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
-    ax.axis('equal')  # Utrzymanie proporcji koła
+    # Dodanie tytułu jeśli podano
+    if title:
+        ax.set_title(title, loc='left', fontsize=24, color='white', pad=40)
     
-    # Ustawienia kolorów tekstów na biały
+    # Konfiguracja stylu
+    fig.patch.set_facecolor('black')
+    ax.axis('equal')
+    
+    # Dostosowanie wyglądu tekstu
     for text in texts:
         text.set_color('white')
-        text.set_fontsize(20)  # Zwiększenie czcionki napisów
+        text.set_fontsize(20)
+    
     for autotext in autotexts:
         autotext.set_color('black')
         autotext.set_fontsize(22)
     
-    st.pyplot(fig)
-
-def generate_pie_chart_result(labels, type_a, type_b, type_c):
-    # Data for the chart
-    data = {
-        'Label': [x for x in labels],
-        'Ppb': [type_a, type_b, type_c],
-    }
-    sns.set_theme(style="darkgrid")
-    df = pd.DataFrame(data)
-    
-    # Pie chart settings
-    fig, ax = plt.subplots(figsize=(10, 6))
-    wedges, texts, autotexts = ax.pie(df['Ppb'], labels=df['Label'], autopct='%1.1f%%', 
-                                    colors=['orangered', 'lightgreen', 'skyblue'],
-                                    textprops=dict(color="white"), startangle=140)
-    
-    # Background and title settings
-    #ax.set_title(title, loc='left', fontsize=24, color='white', pad = 40)
-    fig.patch.set_facecolor('black')  # Set the background color of the figure to black
-    ax.axis('equal')  # Maintain aspect ratio
-    
-    # Set text colors to white and adjust font size
-    for text in texts:
-        text.set_color('white')
-        text.set_fontsize(20)  # Increase the font size of labels
-    for autotext in autotexts:
-        autotext.set_color('black')
-        autotext.set_fontsize(22)
-    
+    # Wyświetlenie wykresu
     st.pyplot(fig)
 
 def highlight_cells_EV(val):
@@ -115,45 +140,112 @@ def highlight_cells_plus_minus(val):
         color = 'background-color: lightcoral; color : black'
     return color
 
-def goals_bar_chart(date, opponent, goals, team_name, ou_line, title="Bramki w meczach"):
-    # Modify goals values - if goal is 0, set it to 0.3 for better visualization
-    goals_graph = [0.3 if int(g) == 0 else g for g in goals]
-    goals = pd.DataFrame(goals)
+def vertical_bar_chart(date, opponent, stats, team_name, ou_line, title):
+    """
+    Generuje i wyświetla pionowy wykres słupkowy przedstawiający wybraną statystykę drużyny w kolejnych meczach.
+    
+    Funkcja tworzy interaktywny wykres z następującymi cechami:
+    - Wizualizacja liczby goli w formie słupków
+    - Podświetlenie wyników powyżej/poniżej ustalonej linii odniesienia
+    - Automatyczne obliczenie statystyk (średnia, hit rate)
+    - Ciemny motyw graficzny dopasowany do aplikacji
+    
+    Parametry:
+    ----------
+    date : list
+        Lista dat meczów w formacie string (np. ['2023-01-01', '2023-01-08'])
+    opponent : list
+        Lista nazw drużyn przeciwnych (np. ['Team A', 'Team B'])
+    stats : list
+        Lista danych danej statystyki w każdym meczu (np. liczba strzelonych goli: [2, 3, 0])
+    team_name : str
+        Pełna nazwa analizowanej drużyny (np. 'FC Barcelona')
+    ou_line : float
+        Wartość linii odniesienia (over/under line) do obliczenia hit rate
+    title : str
+        Tytuł wykresu wyświetlany w nagłówku (np. 'Statystyki ofensywne')
+    
+    Zwraca:
+    -------
+    None
+        Funkcja wyświetla wykres bezpośrednio w interfejsie Streamlit za pomocą st.pyplot()
+    
+    Szczegóły implementacji:
+    ------------------------
+    1. Przygotowanie danych:
+       - Zamienia wartości 0 goli na 0.3 dla lepszej wizualizacji
+       - Tworzy DataFrame z odwróconą kolejnością meczów (najnowsze na górze)
+    
+    2. Konfiguracja wykresu:
+       - Używa stylu 'darkgrid' z biblioteki seaborn
+       - Ustawia czarne tło wykresu i szare słupki domyślne
+       - Dodaje linię odniesienia (ou_line) jako białą linię przerywaną
+    
+    3. Obliczenia statystyczne:
+       - Oblicza średnią liczbę goli
+       - Oblicza hit rate (% meczów powyżej linii odniesienia)
+    
+    4. Stylizacja:
+       - Koloruje słupki: zielone powyżej linii, czerwone poniżej
+       - Dodaje etykiety z dokładną liczbą goli na każdym słupku
+       - Formatuje oś X jako kombinację daty i przeciwnika
+       - Ustawia białe czcionki dla lepszej czytelności
+    
+    5. Wyświetlanie:
+       - Dodaje kompleksowy tytuł ze statystykami
+       - Używa dużych czcionek dla lepszej czytelności
+       - Zachowuje spójną kolorystykę z aplikacją
+    
+    Przykład użycia:
+    ----------------
+    >>> dates = ['2023-01-01', '2023-01-08', '2023-01-15']
+    >>> opponents = ['Team A', 'Team B', 'Team C']
+    >>> stats = [2, 3, 0]
+    >>> vertical_bar_chart(dates, opponents, stats, 'FC Barcelona', 1.5, 'Statystyki ofensywne')
+    
+    Uwagi:
+    ------
+    - Wartości 0 goli są zmieniane na 0.3 dla lepszej widoczności na wykresie
+    - Hit rate jest obliczany jako procent meczów z liczbą goli > ou_line
+    - Kolejność meczów na wykresie jest odwrócona (najnowsze u góry)
+    - Wykres jest zoptymalizowany pod wyświetlanie w Streamlit
+    """
+    stats_graph = [0.3 if int(g) == 0 else g for g in stats] #Poprawa widocznosci (małe słupki czerwone zamiast nicości)
+    stats = pd.DataFrame(stats)
     data = {
     'Date': [x for x in reversed(date)],
     'Opponent': [x for x in reversed(opponent)],
-    'Goals': [x for x in reversed(goals_graph)],
+    'Stat': [x for x in reversed(stats_graph)],
     }
     df = pd.DataFrame(data)
 
     # Konfigurowanie stylu wykresu
     sns.set_theme(style="darkgrid")
 
-    # Tworzenie wykresu goals
+    # Tworzenie wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.bar(df.index, df['Goals'], color='gray')
-    avg_goals = np.mean(goals)
-    hit_rate = (goals > ou_line).mean().iloc[0] * 100
+    bars = ax.bar(df.index, df['Stat'], color='gray')
+    avg_stats = np.mean(stats)
+    hit_rate = (stats > ou_line).mean().iloc[0] * 100
     # Ustawienia osi
     ax.grid(False)
     ax.axhline(y=ou_line, color='white', linestyle='--', linewidth=2)
     ax.set_xticks(df.index)
     ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
-    #ax.set_yticks(np.arange(0, df['Goals'].max() + 0.5, 0.5))
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.set_title("{}: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(title, team_name, avg_goals, ou_line, hit_rate), loc='left', fontsize=24, color='white')
+    ax.set_title("{}: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(title, team_name, avg_stats, ou_line, hit_rate), loc='left', fontsize=24, color='white')
     ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
 
     # Kolorowanie pasków na czerwono lub zielono
-    for bar, goals in zip(bars, df['Goals']):
-        if goals > ou_line:
+    for bar, stat in zip(bars, df['Stat']):
+        if stat > ou_line:
             bar.set_color('green')
         else:
             bar.set_color('red')
-        ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 0.4, 0.2), f'{int(goals)}', 
+        ax.text(bar.get_x() + bar.get_width() / 2, max(bar.get_height() - 0.4, 0.2), f'{int(stat)}', 
             ha='center', va='bottom', color='white', fontsize=16)
 
     # Wyświetlenie wykresu

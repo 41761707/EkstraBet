@@ -583,7 +583,7 @@ class Base:
                     col1, col2 = st.columns(2)
                     with col1:
                         with st.container():
-                            graphs_module.goals_bar_chart(date, opponent_shortcut, goals, team_name, self.ou_line)
+                            graphs_module.vertical_bar_chart(date, opponent_shortcut, goals, team_name, self.ou_line, "Bramki w meczach")
                     with col2:
                         with st.container():
                             graphs_module.btts_bar_chart(date, opponent_shortcut, btts, team_name)

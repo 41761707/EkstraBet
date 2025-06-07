@@ -13,9 +13,9 @@ class ConfigManager:
         self.load_weights = None
         self.model_name = None
         self.model_load_name = None
-        self.leagues = [15, 30]
+        self.leagues = [25]
         self.sport_id = 1
-        self.country = [15]
+        self.country = []
         self.window_size = 5
         self.feature_columns = []
         self.rating_types = []
@@ -30,7 +30,7 @@ class ConfigManager:
         if self.model_mode == 'train' and self.load_weights == '1':
             self.model_load_name = args[5] #[nazwa modelu, z ktorego wczytujemy wagi]
         if self.model_type in ['winner', 'exact']:
-            self.rating_types = ['elo', 'czech']
+            self.rating_types = ['gap', 'elo', 'czech']
         else:
             self.rating_types = ['gap', 'czech']
         self._setup_configurations()
@@ -136,7 +136,7 @@ class ConfigManager:
                     "match_attributes": [
                         {
                             "name": attr["name"],
-                            "calculator": attr["calculator"]
+                            "calculator" : attr["calculator"]
                         } for attr in self.match_attributes
                     ]
                 },
@@ -146,6 +146,7 @@ class ConfigManager:
                 }
             },
             "model": {
+                "type" : "LSTM",
                 "architecture": {
                     "lstm_layers": [
                         {
@@ -207,17 +208,22 @@ class ConfigManager:
                         {
                             "units": 128,
                             "activation": "relu",
-                            "regularization": None,
+                            "regularization_l2": None,
                             "dropout": 0.2
                         },
                         {
                             "units": 64,
                             "activation": "relu",
-                            "regularization": None
+                            "regularization_l2": None
+                        },
+                        {
+                            "units": 16,
+                            "activation": "linear",
+                            "regularization_l2": None
                         }
                     ],
                     "output": {
-                        "units": 2,
+                        "units": 3,
                         "activation": "softmax"
                     }
                 },

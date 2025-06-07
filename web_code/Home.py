@@ -38,32 +38,36 @@ def main():
                     <li>Analiza historycznych danych meczowych</li>
                     <li>Predykcja wyników spotkań</li>
                     <li>Identyfikacja wartościowych zakładów</li>
-                    <li>Wizualizacja danych dla lepszego zrozumienia</li>
+                    <li>Wizualizacja prezentowanych danych</li>
                 </ul>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     with st.expander("Zawartość strony"):
-        st.markdown("""
-        <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
-            <h3 style='color: #4fc3f7;'>Co znajdziesz na naszej stronie:</h3>
-            <div style='display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;'>
-                <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
-                    <h4 style='margin-top: 0; color: #4fc3f7;'>📊 Kącik statystyczny</h4>
-                    <p style='font-size: 14px; color: #e0e0e0;'>Szczegółowe analizy drużyn, zawodników i trendów w różnych ligach.</p>
-                </div>
-                <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
-                    <h4 style='margin-top: 0; color: #4fc3f7;'>💸 Kącik bukmacherski</h4>
-                    <p style='font-size: 14px; color: #e0e0e0;'>Rekomendacje zakładów oparte na modelach predykcyjnych.</p>
-                </div>
-                <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
-                    <h4 style='margin-top: 0; color: #4fc3f7;'>⚽ Baza lig</h4>
-                    <p style='font-size: 14px; color: #e0e0e0;'>Dostęp do szczegółowych danych z wielu lig piłkarskich.</p>
+            st.markdown("""
+            <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
+                <h3 style='color: #4fc3f7;'>Co znajdziesz na naszej stronie:</h3>
+                <div style='display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;'>
+                    <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
+                        <h4 style='margin-top: 0; color: #4fc3f7;'>📊 Kącik statystyczny</h4>
+                        <p style='font-size: 14px; color: #e0e0e0;'>Szczegółowe analizy osiągnięć modeli oraz charakterystyk ligowych.</p>
+                    </div>
+                    <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
+                        <h4 style='margin-top: 0; color: #4fc3f7;'>💸 Kącik bukmacherski</h4>
+                        <p style='font-size: 14px; color: #e0e0e0;'>Rekomendacje zakładów oparte na modelach predykcyjnych.</p>
+                    </div>
+                    <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
+                        <h4 style='margin-top: 0; color: #4fc3f7;'>⚽ Baza lig</h4>
+                        <p style='font-size: 14px; color: #e0e0e0;'>Dostęp do szczegółowych danych oraz analiz z wielu lig.</p>
+                    </div>
+                    <div style='background: #2d2d2d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #444;'>
+                        <h4 style='margin-top: 0; color: #4fc3f7;'>🏆 Wiele dyscyplin</h4>
+                        <p style='font-size: 14px; color: #e0e0e0;'>System nie ogranicza się do jednego sportu - obecnie hokej i piłka nożna, w planach koszykówka i esport.</p>
+                    </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
     with st.expander("Planowane rozszerzenia"):
         st.markdown("""
@@ -72,19 +76,19 @@ def main():
             <div style='margin-top: 15px;'>
                 <div style='display: flex; align-items: center; margin-bottom: 10px;'>
                     <span style='background: #4fc3f7; color: #121212; border-radius: 50%; width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px;'>1</span>
-                    <span style='font-weight: 500; color: #e0e0e0;'>Rozszerzenie o inne dyscypliny sportowe (hokej, koszykówka)</span>
+                    <span style='font-weight: 500; color: #e0e0e0;'>Rozszerzenie o inne dyscypliny sportowe (np. koszykówka) oraz o esport (CS2, LOL)</span>
                 </div>
                 <div style='display: flex; align-items: center; margin-bottom: 10px;'>
                     <span style='background: #4fc3f7; color: #121212; border-radius: 50%; width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px;'>2</span>
-                    <span style='font-weight: 500; color: #e0e0e0;'>Dodanie analizy w czasie rzeczywistym</span>
+                    <span style='font-weight: 500; color: #e0e0e0;'>Dodanie analizy w czasie rzeczywistym w oparciu o dane użytkownika</span>
                 </div>
                 <div style='display: flex; align-items: center; margin-bottom: 10px;'>
                     <span style='background: #4fc3f7; color: #121212; border-radius: 50%; width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px;'>3</span>
-                    <span style='font-weight: 500; color: #e0e0e0;'>Integracja z API bukmacherów</span>
+                    <span style='font-weight: 500; color: #e0e0e0;'>Utworzenie API do łatwiejszej integracji z systemem dla developerów</span>
                 </div>
                 <div style='display: flex; align-items: center;'>
                     <span style='background: #4fc3f7; color: #121212; border-radius: 50%; width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px;'>4</span>
-                    <span style='font-weight: 500; color: #e0e0e0;'>Personalizacja profili użytkowników</span>
+                    <span style='font-weight: 500; color: #e0e0e0;'>Utworzenie profili użytkownika do personalizacji filtrów</span>
                 </div>
             </div>
         </div>
@@ -94,9 +98,10 @@ def main():
         st.markdown("""
         <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
             <h3 style='color: #4fc3f7;'>Skontaktuj się z autorem</h3>
-            <p style='margin-bottom: 20px; color: #e0e0e0;'>Masz pytania lub sugestie dotyczące projektu? Chętnie je poznamy!</p>
+            <p style='margin-bottom: 20px; color: #e0e0e0;'>Masz pytania lub sugestie dotyczące projektu? Chętnie je poznam!</p>
             <a href='https://41761707.github.io/' target='_blank' style='display: inline-block; background-color: #4fc3f7; color: #121212; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; transition: background-color 0.3s;'>Odwiedź stronę autora</a>
-            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Projekt rozwijany przez pasjonatów dla pasjonatów sportu</p>
+            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Autor projektu: Radikey</p>
+            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Projekt rozwijany przez pasjonatów dla pasjonatów</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -120,9 +125,10 @@ def main():
             }
             </style>
             <div class="note-box">
-                <p>📚 Wszystkie dane wykorzystane w serwisie pochodzą ze stron o charakterze kronikarskim. Wykorzystywane są jedynie do celów edukacyjnych-badawczych i nie mają na celu naruszenia praw autorskich.</p>
+                <p>📚 Wszystkie dane wykorzystane w serwisie pochodzą ze stron o charakterze kronikarskim. Wykorzystywane są jedynie do celów edukacyjno-badawczych i nie mają na celu naruszenia praw autorskich.</p>
                 <p>💡 Przedstawione zakłady wykonywane są głównie hipotetycznie w celu sprawdzenia osiągnięć modeli. Przybliżają jedynie potencjalne zyski bądź straty wynikające z udziału w zakładach bukmacherskich stosując przedstawione wytyczne i nie stanowią oferty w rozumieniu prawa.</p>
-                <p>📊 Dane odnośnie spotkań meczowych pochodzą z serwisu <a href="https://www.flashscore.pl" target="_blank">flashscore.pl</a>. Dodatkowe dane hokejowe zostały zaczerpnięte z <a href="https://api-web.nhle.com/" target="_blank">NHL API</a>.</p>
+                <p>📊 Dane odnośnie spotkań meczowych pochodzą z serwisu <a href="https://www.flashscore.pl" target="_blank">flashscore.pl</a> oraz <a href="https://optaplayerstats.statsperform.com/">opta.com</a>. 
+                    Dodatkowe dane hokejowe zostały zaczerpnięte z <a href="https://api-web.nhle.com/" target="_blank">NHL API</a>.</p>
                 <p>🧥 Zdjęcia koszulek hokejowych zapożyczono ze strony <a href="https://www.dailyfaceoff.com/" target="_blank">dailyfaceoff.com</a>.</p>
             </div>
             """,

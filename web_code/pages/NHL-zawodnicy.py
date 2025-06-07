@@ -94,7 +94,7 @@ class HockeyPlayers:
         col3, col4 = st.columns(2)
         with col1:
             #Wykres bramek
-            graphs_module.goals_bar_chart(self.current_player_stats['Data'], 
+            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
                                         self.current_player_stats['opponent'],
                                         self.current_player_stats['goals'],
                                         self.player_full_name,
@@ -102,7 +102,7 @@ class HockeyPlayers:
                                         "Liczba bramek")
         with col2:
             #Wykres asyst
-            graphs_module.goals_bar_chart(self.current_player_stats['Data'], 
+            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
                                         self.current_player_stats['opponent'],
                                         self.current_player_stats['assists'],
                                         self.player_full_name,
@@ -110,7 +110,7 @@ class HockeyPlayers:
                                         "Liczba asyst")
         with col3:
             #Wykres punktów
-            graphs_module.goals_bar_chart(self.current_player_stats['Data'], 
+            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
                                         self.current_player_stats['opponent'],
                                         self.current_player_stats['points'],
                                         self.player_full_name,
@@ -118,7 +118,7 @@ class HockeyPlayers:
                                         "Liczba punktów")
         with col4:
             #Wykres strzałów na bramkę
-            graphs_module.goals_bar_chart(self.current_player_stats['Data'], 
+            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
                                         self.current_player_stats['opponent'],
                                         self.current_player_stats['sog'],
                                         self.player_full_name,

@@ -37,7 +37,7 @@ def get_matches(config):
         4. Łączy wszystkie obliczone ratingi w jeden DataFrame
         5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
     """
-    input_date = date.today() - timedelta(days=7)
+    input_date = date.today() - timedelta(days=1)
     data = dataprep_module.DataPrep(input_date, config.leagues, config.sport_id, config.country)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()
@@ -50,7 +50,6 @@ def get_matches(config):
                                                                 initial_rating=config.model_config["ratings"]["elo"]["initial_rating"],
                                                                 second_tier_coef=config.model_config["ratings"]["elo"]["second_tier_coef"],
                                                                 match_attributes=config.model_config["ratings"]["gap"]["match_attributes"])
-
     # Tworzymy kopię oryginalnego DataFrame
     merged_matches_df = matches_df.copy()
     for rating in rating_factory:
@@ -58,11 +57,8 @@ def get_matches(config):
         rating.calculate_rating()
         rating.print_rating()
         temp_matches_df, _ = rating.get_data()
-
         # Znajdujemy nowe kolumny dodane przez aktualny rating
-        new_columns = [
-            col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
-
+        new_columns = [col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
         # Dodajemy nowe kolumny do głównego DataFrame
         for col in new_columns:
             merged_matches_df[col] = temp_matches_df[col]
@@ -79,9 +75,7 @@ def get_matches(config):
     # Usuwamy kolumny, które nie są używane przez żaden system rankingowy
     columns_to_drop = [col for col in matches_df.columns if col not in rating_columns]
     matches_df = matches_df.drop(columns=columns_to_drop)
-    
     print(matches_df.tail())
-
     return matches_df, teams_df, upcoming_df
 
 
@@ -134,6 +128,7 @@ def prepare_training(config):
     # Analiza rozkładu danych
     analyze_result_distribution(train_data, config.model_type, "Training Data")
     analyze_result_distribution(val_data, config.model_type, "Validation Data")
+    print(training_info[1])
     print_training_data_info(train_data, val_data, training_info, 3)
 
     # Inicjalizacja i trenowanie modelu
@@ -149,21 +144,19 @@ def prepare_training(config):
     if config.load_weights == '1':
         model.load_predict_model(f'model_{config.model_type}_dev/{config.model_load_name}.h5')
     else:
-        model_creator = {
-            'winner': model.build_model_from_config,
-            'goals': model.build_model_from_config,
-            'btts': model.build_model_from_config,
-            'exact': model.build_model_from_config
-        }
-        model_creator[config.model_type](config)
+        print(config.model_config["model"]["type"])
+        if config.model_config["model"]["type"] == "LSTM":
+            model.build_lstm_model_from_config(config)
     
     # Trenowanie modelu i aktualizacja konfiguracji
     history, evaluation_results = model.train_model()
-    config.model_config["train_accuracy"] = history.history['accuracy'][-1]
-    config.model_config["train_loss"] = history.history['loss'][-1]
-    config.model_config["val_accuracy"] = evaluation_results[1]
-    config.model_config["val_loss"] = evaluation_results[0]
+    config.model_config["train_accuracy"] = float(history.history['accuracy'][-1])
+    config.model_config["train_loss"] = float(history.history['loss'][-1])
+    config.model_config["val_accuracy"] = float(evaluation_results[1])
+    config.model_config["val_loss"] = float(evaluation_results[0])
 
+    if config.model_config["ratings"]["gap"]["match_attributes"]:
+        config.model_config["ratings"]["gap"]["match_attributes"] = ''
     # Zapis konfiguracji do pliku
     with open(f'model_{config.model_type}_dev/{config.model_name}_config.json', 'w') as f:
         json.dump(config.model_config, f, indent=4)
@@ -271,12 +264,13 @@ def prepare_predictions(config):
         config.feature_columns,
         model,
         config.model_type,
+        config.model_name,
         config.window_size
     )
 
     # Wczytanie wag modelu i wykonanie predykcji
     model.load_predict_model(config.rating_config[config.model_type]['model_path'])
-    predict_matches.predict_next_game(model, upcoming_df)
+    predict_matches.predict_games(model, upcoming_df)
 
 def main():
     '''

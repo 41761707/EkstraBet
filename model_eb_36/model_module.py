@@ -1,9 +1,9 @@
-from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, Concatenate, Flatten, Dropout, Bidirectional, LeakyReLU, BatchNormalization, Multiply
+from tensorflow.keras.layers import Input, LSTM, Dense, Concatenate, Dropout, LeakyReLU, BatchNormalization
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from tensorflow.keras.optimizers import Adagrad, Adam
-from tensorflow.keras.metrics import Precision, Recall, CategoricalAccuracy
+from tensorflow.keras.metrics import Precision, Recall
 from tensorflow.keras import backend as K
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
@@ -25,7 +25,7 @@ class ModelModule:
         #self.model_name = f"{self.model_type}_model_{self.current_date}"
         self.model_name = model_name
 
-    def build_model_from_config(self, config):
+    def build_lstm_model_from_config(self, config):
         """
         Buduje model na podstawie konfiguracji JSON
         
@@ -78,16 +78,17 @@ class ModelModule:
         x = combined
         for layer in dense_config:          
             # Dodaj regularyzację jeśli jest skonfigurowana
-            x = Dense(
-                units=layer["units"],
-                activation=layer["activation"]
-                )(x)
-            if "regularization" in layer and layer["regularization"]:
+            if "regularization_l2" in layer and layer["regularization_l2"]:
                 x = Dense(
                     units=layer["units"],
                     activation=layer["activation"],
-                    kernel_regularizer=l2(layer["regularization"])
+                    kernel_regularizer=l2(layer["regularization_l2"])
                 )(x)
+            else:
+                x = Dense(
+                    units=layer["units"],
+                    activation=layer["activation"]
+                    )(x)
             
             # Dodaj BatchNormalization jeśli jest skonfigurowany
             if "batch_normalization" in layer and layer["batch_normalization"]:
@@ -298,9 +299,10 @@ class ModelModule:
                 print(f'Validation {name}: {value:.4f}')
 
         #Confusion matrix
-        self.confusion_matrix(X_home_val, X_away_val, y_val)
+        #self.confusion_matrix(X_home_val, X_away_val, y_val)
         if self.model_type == 'goals':
             self.confusion_matrix_over_under(X_home_val, X_away_val, y_val)
+        #self.print_sample_predictions(X_home_val, X_away_val, y_val)
         # Zapisz ostateczny model
         self.model.save(f'model_dev/{self.model_name}.h5')
         return history, evaluation_results
@@ -311,11 +313,9 @@ class ModelModule:
 
         # Konwersja prawdopodobieństw na klasy (wybieramy indeks z najwyższą wartością)
         y_pred= np.argmax(y_pred_probs, axis=1)
-        #y_pred = np.where(y_pred_tmp < 3, 0, 1)
 
         # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
         y_true = np.argmax(y_val, axis=1)  # Jeśli y_val jest w formie one-hot
-        #y_true = np.where(y_true_tmp < 3, 0, 1)
 
         #for i in range(len(y_pred)):
         #    print(f"MECZ {i}: Y_PRED: {y_pred[i]}, Y_TRUE: {y_true[i]}")
@@ -362,3 +362,36 @@ class ModelModule:
     
     def predict(self, inputs): 
         return self.model.predict(inputs)
+    
+    def print_sample_predictions(self, X_home_val, X_away_val, y_val, num_samples=10000):
+        """
+        Prints detailed comparison of predictions vs actual values for a few samples
+        """
+        # Get predictions
+        predictions = self.model.predict([X_home_val, X_away_val])
+        
+        # Convert to class labels
+        y_pred = np.argmax(predictions, axis=1)
+        y_true = np.argmax(y_val, axis=1)
+        
+        print("\n=== Sample Predictions ===")
+        for i in range(min(num_samples, len(y_true))):
+            prediction = y_pred[i]
+            actual = y_true[i]
+            
+            # Convert numeric labels to readable format
+            if self.model_type == 'winner':
+                pred_label = ['Draw', 'Home Win', 'Away Win'][prediction]
+                true_label = ['Draw', 'Home Win', 'Away Win'][actual]
+            elif self.model_type == 'btts':
+                pred_label = ['No BTTS', 'BTTS'][prediction]
+                true_label = ['No BTTS', 'BTTS'][actual]
+            else:  # for goals and exact
+                pred_label = str(prediction)
+                true_label = str(actual)
+            
+            result = "WIN" if prediction == actual else "LOSE"
+            print(f"\nPrediction #{i+1}:")
+            print(f"Expected: {true_label}")
+            print(f"Predicted: {pred_label}")
+            print(f"Result: {result}")

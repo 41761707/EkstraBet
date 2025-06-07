@@ -197,7 +197,7 @@ class DataPrep:
 
         if self.leagues == []:
             query = f"""
-                SELECT id, home_team, game_date, away_team, league, round, season, result
+                SELECT id, home_team, game_date, away_team, league, round, season, home_team_goals, away_team_goals, result
                 FROM matches 
                 WHERE cast(game_date as date) >= '{self.input_date}'
                 AND sport_id = {self.sport_id}
@@ -205,7 +205,7 @@ class DataPrep:
         """
         else:
             query = f"""
-                SELECT id, home_team, away_team, game_date, round, league, season, result
+                SELECT id, home_team, away_team, game_date, round, league, season, home_team_goals, away_team_goals, result
                 FROM matches 
                 WHERE cast(game_date as date) >= '{self.input_date}'
                 AND league IN ({self.leagues_str})

@@ -141,6 +141,8 @@ class CzechRating:
         # Prepare data for tabulation
         table_data = []
         for team in sorted_stats:
+            if int(team['matches'] == 0):
+                continue
             row = [
                 team['team_name'],
                 f"{team['matches']}",
@@ -155,25 +157,11 @@ class CzechRating:
             table_data.append(row)
         
         # Define headers
-        headers = [
-            'Team',
-            'Matches',
-            'W-D-L',
-            'Win%',
-            'Draw%',
-            'GS Avg',
-            'GC Avg',
-            'GS StD',
-            'GC StD'
-        ]
+        headers = ['Team', 'Matches', 'W-D-L', 'Win%', 'Draw%', 'GS Avg', 'GC Avg', 'GS StD', 'GC StD']
         
         # Print the table
         print("\nTeam Ratings:")
-        print(tabulate(table_data, 
-                    headers=headers, 
-                    tablefmt='grid', 
-                    numalign='right',
-                    floatfmt='.2f'))
+        print(tabulate(table_data,  headers=headers,  tablefmt='grid',  numalign='right', floatfmt='.2f'))
 
     def calculate_match_rating(self):
         pass
