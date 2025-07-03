@@ -1,3 +1,0 @@
-Liczba meczów: 4214
-Skutecznoťść: 0.23350735643094447
-OU skutecznoťśc: 0.5334598955861415

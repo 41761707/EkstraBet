@@ -1,245 +1,258 @@
 import numpy as np
 import pandas as pd
 
-## @package dataprep
+# @package dataprep
 # Moduł DataPrep zawiera funkcje i klasy służące do przygotowania danych do dalszych operacji w programie.
-# Wymagane zależności: 
+# Wymagane zależności:
 # Moduł 'pandas'
 # Moduł 'numpy'
 
+import db_module
+
 ##
-# Klasa Data odpowiedzialna za przetwarzanie danych i przygotowanie ich do dalszych operacji.
+# Klasa DataPrep odpowiedzialna za przetwarzanie danych i przygotowanie ich do dalszych operacji.
+
+
 class DataPrep:
-    ##
     # Konstruktor klasy DataPrep
-    # @param matches_df Lista rozegranych meczów
-    # @param teams_df Lista wszystkich drużyn w bazie danych
-    # @param upcoming_df Lista przyszłych meczów do rozpatrzenia
-    def __init__(self, matches_df, teams_df, upcoming_df):
-        self.matches_df = matches_df
-        self.teams_df = teams_df
-        self.upcoming_df = upcoming_df
-        self.model_columns = []
-        self.model_columns_df = []
-    
-    def prepare_predict_goals(self):
-        for index, _ in self.matches_df.iterrows():
-            self.model_columns.append({'id' : index, 
-                                       'home_team' : self.matches_df.loc[index, 'home_team'],
-                                       'away_team' : self.matches_df.loc[index, 'away_team'],
-                                       'game_date' : self.matches_df.loc[index, 'game_date'],
-                                       'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
-                                       'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
-                                       'away_away_att_power' : self.matches_df.at[index, 'away_away_att_power'],
-                                       'away_away_def_power' : self.matches_df.at[index, 'away_away_def_power'],
-                                       'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
-                                       'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
-                                       'goals' : self.matches_df.loc[index, 'home_team_goals'] + self.matches_df.loc[index, 'away_team_goals']})
-        self.model_columns_df = pd.DataFrame(self.model_columns)
+    def __init__(self, input_date, leagues, sport_id, country):
+        # data w formacie YYYY-MM-DD rozgraniczająca co przewidujemy (upcoming) a co analizujemy (matches)
+        self.input_date = input_date
+        self.leagues = leagues  # przekazanie pustej tablicy oznacza chęć pobrania wszystkich lig
+        self.leagues_str = ",".join(map(str, self.leagues))  # string z id lig
+        self.sport_id = sport_id  # id sportu używane do filtrowania danych
+        self.country = country  # pusta tablica oznacza wszystkie kraje
+        self.country_str = ",".join(map(str, self.leagues))  # string z id krajow
+        # lista lig pierwszej klasy (np. Ekstraklasa)
+        self.first_tier_leagues = []
+        self.second_tier_leagues = []  # lista lig drugiej klasy (np. I liga)
+        self.conn = db_module.db_connect()  # połączenie z bazą danych
+        self.matches_df = pd.DataFrame()  # DataFrame z danymi historycznymi
+        self.teams_df = pd.DataFrame()  # DataFrame z danymi drużyn
+        self.upcoming_df = pd.DataFrame()  # DataFrame z danymi nadchodzących meczów
+        self.set_data()  # wywołanie funkcji do pobrania danych z bazy danych
 
-    def prepare_predict_goals_ppb(self):
-        for index, _ in self.matches_df.iterrows():
-            total_goals = int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals'])
-            results = [0] * 7
-            results[min(total_goals, 6)] = 1
-            self.model_columns.append({'id' : index,
-                                       'home_team' : self.matches_df.loc[index, 'home_team'],
-                                       'away_team' : self.matches_df.loc[index, 'away_team'],
-                                       'game_date' : self.matches_df.loc[index, 'game_date'], 
-                                       'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
-                                       'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
-                                       'away_away_att_power' : self.matches_df.at[index, 'away_away_att_power'],
-                                       'away_away_def_power' : self.matches_df.at[index, 'away_away_def_power'],
-                                       'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
-                                       'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
-                                       '0_goals' : results[0],
-                                       '1_goals' : results[1],
-                                       '2_goals' : results[2],
-                                       '3_goals' : results[3],
-                                       '4_goals' : results[4],
-                                       '5_goals' : results[5],
-                                       '6_goals' : results[5]})
-        self.model_columns_df = pd.DataFrame(self.model_columns)
+    def set_data(self):
+        '''
+            Funkcja rozruchowa modułu Dataprep
+        '''
 
-    def prepare_predict_btts(self):
-        for index, _ in self.matches_df.iterrows():
-            home_goals = int(self.matches_df.loc[index, 'home_team_goals'])
-            away_goals = int(self.matches_df.loc[index, 'away_team_goals'])
-            results = [1, 0] if home_goals > 0 and away_goals > 0 else [0, 1]
-            self.model_columns.append({'id' : index, 
-                                       'home_team' : self.matches_df.loc[index, 'home_team'],
-                                       'away_team' : self.matches_df.loc[index, 'away_team'],
-                                       'game_date' : self.matches_df.loc[index, 'game_date'],
-                                       'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
-                                       'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
-                                       'home_away_att_power' : self.matches_df.at[index, 'home_away_att_power'],
-                                       'home_away_def_power' : self.matches_df.at[index, 'home_away_def_power'],
-                                       'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
-                                       'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
-                                       'btts_yes' : results[0],
-                                       'btts_no' : results[1]})
-        self.model_columns_df = pd.DataFrame(self.model_columns)
+        self.get_historical_data()
+        self.get_upcoming_data()
+        self.get_teams_data()
+        self.get_league_tier()
 
-    def prepare_predict_ou(self):
-        for index, _ in self.matches_df.iterrows():
-            total_goals = int(self.matches_df.loc[index, 'home_team_goals']) + int(self.matches_df.loc[index, 'away_team_goals'])
-            results = [0, 1] if total_goals > 2.5 else [1, 0]
-            self.model_columns.append({'id' : index, 
-                                       'home_team' : self.matches_df.loc[index, 'home_team'],
-                                       'away_team' : self.matches_df.loc[index, 'away_team'],
-                                       'game_date' : self.matches_df.loc[index, 'game_date'],
-                                       'home_home_att_power' : self.matches_df.at[index, 'home_home_att_power'],
-                                       'home_home_def_power' : self.matches_df.at[index, 'home_home_def_power'],
-                                       'home_away_att_power' : self.matches_df.at[index, 'home_away_att_power'],
-                                       'home_away_def_power' : self.matches_df.at[index, 'home_away_def_power'],
-                                       'home_goals_avg' : self.matches_df.at[index, 'home_goals_avg'],
-                                       'away_goals_avg' : self.matches_df.at[index, 'away_goals_avg'],
-                                       'under_2_5' : results[0],
-                                       'over_2_5' : results[1]})
-        self.model_columns_df = pd.DataFrame(self.model_columns)
+    def get_league_tier(self):
+        """
+        Pobiera informacje o poziomach (tier) lig z bazy danych i klasyfikuje ligi
 
-    def prepare_predict_winner(self):
-        for index, _ in self.matches_df.iterrows():
-            result = self.matches_df.loc[index, 'result']
-            results = [1, 0, 0] if result == 1 else [0, 1, 0] if result == 0 else [0, 0, 1]
-            self.model_columns.append({'id' : index, 
-                                       'home_team' : self.matches_df.loc[index, 'home_team'],
-                                       'away_team' : self.matches_df.loc[index, 'away_team'],
-                                       'game_date' : self.matches_df.loc[index, 'game_date'],
-                                       'home_rating' : self.matches_df.loc[index, 'home_rating'],
-                                       'away_rating' : self.matches_df.loc[index, 'away_rating'],
-                                       'results_home' : results[0],
-                                       'results_draw' : results[1],
-                                       'results_away' : results[2]})
-        self.model_columns_df = pd.DataFrame(self.model_columns)
-    
-    def turn_match_into_numpy_goals(self, match):
-        return [match['home_home_att_power'],
-                match['home_home_def_power'],
-                match['away_away_att_power'],
-                match['away_away_def_power'],
-                match['home_goals_avg'],
-                match['away_goals_avg'],
-                ]
-    
-    def turn_match_into_numpy_winner(self, match):
-        return [match['home_rating'], 
-                match['away_rating'], 
-                ]
-    
-    def turn_match_into_numpy_btts(self, match):
-        return [
-                match['home_home_att_power'],
-                match['home_home_def_power'],
-                match['away_away_att_power'],
-                match['away_away_def_power'],
-                match['home_goals_avg'],
-                match['away_goals_avg']
-                ]
-    
-    def return_last_matches(self, amount, team_id):
-        filtered_rows = self.matches_df[(self.matches_df['home_team'] == int(team_id)) | (self.matches_df['away_team'] == int(team_id))].tail(int(amount))
-        return filtered_rows
-    
-    def return_last_matches_one(self, amount, team_id, matches_df):
-        filtered_rows = matches_df[(matches_df['home_team'] == int(team_id)) | (matches_df['away_team'] == int(team_id))].tail(int(amount))
-        return filtered_rows
-    
-    def generate_goals_test(self, schedule, ratings, powers, last_five_matches):
-        external_test = []
-        for pair in schedule:
-            match_schedule = []
-            home_team_df = self.return_last_matches(4, pair[0])
-            away_team_df = self.return_last_matches(4, pair[1])
-            home_team_schedule = []
-            away_team_schedule = []
-            for _, match in home_team_df.iterrows():
-                home_team_schedule.append(self.turn_match_into_numpy_goals(match))
-            for _, match in away_team_df.iterrows():
-                away_team_schedule.append(self.turn_match_into_numpy_goals(match))
-            for i in range(len(home_team_schedule)):
-                match_schedule.append(home_team_schedule[i])
-                match_schedule.append(away_team_schedule[i])
-                #print(pair[0], pair[1])
-            match_schedule.append( [powers["{}h_att".format(pair[0])], 
-                                       powers["{}h_def".format(pair[0])], 
-                                       powers["{}a_att".format(pair[1])], 
-                                       powers["{}a_def".format(pair[1])],
-                                       sum(last_five_matches[pair[0]]) / 5,
-                                       sum(last_five_matches[pair[1]]) / 5])
-            print("GOLE: {} - {}".format(last_five_matches[pair[0]], last_five_matches[pair[1]]))
-            external_test.append(match_schedule)
-        return external_test
+        Metoda wykonuje następujące kroki:
+        1. Buduje zapytanie SQL w zależności od tego czy określono listę lig:
+        - Dla pustej listy lig pobiera wszystkie ligi
+        - Dla określonych lig pobiera tylko wybrane
+        2. Wykonuje zapytanie i zapisuje wyniki w DataFrame league_tier_df
+        3. Klasyfikuje ligi na podstawie kolumny 'tier':
+        - Liga tier 1 -> dodaje do listy first_tier_leagues
+        - Liga tier 2 -> dodaje do listy second_tier_leagues
 
-    def generate_winner_test(self, schedule, ratings):
-        external_test = []
-        for pair in schedule:
-            match_schedule = []
-            home_team_df = self.return_last_matches(4, pair[0])
-            away_team_df = self.return_last_matches(4, pair[1])
-            home_team_schedule = []
-            away_team_schedule = []
-            for _, match in home_team_df.iterrows():
-                home_team_schedule.append(self.turn_match_into_numpy_winner(match))
-            for _, match in away_team_df.iterrows():
-                away_team_schedule.append(self.turn_match_into_numpy_winner(match))
-            for i in range(len(home_team_schedule)):
-                match_schedule.append(home_team_schedule[i])
-                match_schedule.append(away_team_schedule[i])
-            match_schedule.append([ratings[pair[0]],ratings[pair[1]]])
-            #match_schedule.append([self.get_last_elo(pair[0]), self.get_last_elo(pair[1])])
-            external_test.append(match_schedule)
-        return external_test
-    
-    def generate_btts_test(self, schedule, ratings, powers, last_five_matches):
-        external_test = []
-        for pair in schedule:
-            match_schedule = []
-            home_team_df = self.return_last_matches(4, pair[0])
-            away_team_df = self.return_last_matches(4, pair[1])
-            home_team_schedule = []
-            away_team_schedule = []
-            for _, match in home_team_df.iterrows():
-                home_team_schedule.append(self.turn_match_into_numpy_btts(match))
-            for _, match in away_team_df.iterrows():
-                away_team_schedule.append(self.turn_match_into_numpy_btts(match))
-            for i in range(len(home_team_schedule)):
-                match_schedule.append(home_team_schedule[i])
-                match_schedule.append(away_team_schedule[i])
-                #print(pair[0], pair[1])
-            match_schedule.append( [
-                                    powers["{}h_att".format(pair[0])], 
-                                    powers["{}h_def".format(pair[0])], 
-                                    powers["{}a_att".format(pair[1])], 
-                                    powers["{}a_def".format(pair[1])],
-                                    sum(last_five_matches[pair[0]]) / 5,
-                                    sum(last_five_matches[pair[1]]) / 5])
-            print("BTTS: {} - {}".format(last_five_matches[pair[0]], last_five_matches[pair[1]]))
-            external_test.append(match_schedule)
-        return external_test
-    
-    def generate_winner_test_one(self, pair, ratings, matches_df):
-        external_test = []
-        match_schedule = []
-        home_team_df = self.return_last_matches_one(4, pair[0], matches_df)
-        away_team_df = self.return_last_matches_one(4, pair[1], matches_df)
-        home_team_schedule = []
-        away_team_schedule = []
-        for _, match in home_team_df.iterrows():
-            home_team_schedule.append(self.turn_match_into_numpy_winner(match))
-        for _, match in away_team_df.iterrows():
-            away_team_schedule.append(self.turn_match_into_numpy_winner(match))
-        for i in range(len(home_team_schedule)):
-            match_schedule.append(home_team_schedule[i])
-            match_schedule.append(away_team_schedule[i])
-        match_schedule.append([ratings[pair[0]],ratings[pair[1]]])
-        # match_schedule.append([self.get_last_elo(pair[0]), self.get_last_elo(pair[1])])
-        external_test.append(match_schedule)
-        return external_test
-    ##
-    # Funkcja odpowiadająca za zwrócenie przygotowanych danych do dalszych operacji
-    # @return matches_df Lista rozegranych meczów
-    # @return teams_df Lista wszystkich drużyn w bazie danych
-    # @return upcoming_df Lista przyszłych meczów do rozpatrzenia
+        Atrybuty klasy aktualizowane:
+            self.league_tier_df (DataFrame): Tabela z id lig i ich poziomami
+            self.first_tier_leagues (list): Lista id lig pierwszego poziomu
+            self.second_tier_leagues (list): Lista id lig drugiego poziomu
+
+        Uwaga:
+            Wymaga wcześniejszego ustawienia:
+            - self.leagues (list) - lista lig do filtrowania (może być pusta)
+            - self.leagues_str (str) - sformatowana lista lig jako string dla SQL
+            - self.conn - aktywne połączenie do bazy danych
+        """
+
+        if self.leagues == []:
+            query = f"""
+                SELECT id, tier 
+                FROM leagues 
+            """
+        else:
+            query = f"""
+                SELECT id, tier 
+                FROM leagues 
+                WHERE id IN ({self.leagues_str})
+            """
+        self.league_tier_df = pd.read_sql(query, self.conn)
+        for index, row in self.league_tier_df.iterrows():
+            if row['tier'] == 1:
+                self.first_tier_leagues.append(row['id'])
+            elif row['tier'] == 2:
+                self.second_tier_leagues.append(row['id'])
+
+    def get_historical_data(self):
+        """
+        Pobiera historyczne dane meczowe z bazy danych i przygotowuje je do analizy.
+
+        Metoda wykonuje następujące operacje:
+        1. Buduje odpowiednie zapytanie SQL w zależności od tego czy określono listę lig:
+        - Dla pustej listy lig pobiera wszystkie mecze dla danego sportu
+        - Dla określonych lig pobiera tylko mecze z wybranych lig
+        2. Filtruje mecze według kryteriów:
+        - Data meczu wcześniejsza niż input_date
+        - Określony sport_id
+        - Wynik różny od '0' (nieważny/walkower)
+        - Sortuje wyniki według daty meczu rosnąco
+        3. Wykonuje zapytanie i zapisuje wyniki w DataFrame matches_df
+        4. Konwertuje kolumnę 'result' na wartości liczbowe:
+        - 'X' → 0 (remis)
+        - '1' → 1 (zwycięstwo gospodarzy)
+        - '2' → 2 (zwycięstwo gości)
+
+        Atrybuty klasy aktualizowane:
+            self.matches_df (DataFrame): Tabela z historycznymi danymi meczowymi
+                Kolumny:
+                - Wszystkie kolumny z tabeli matches
+                - 'result' (int): przekonwertowany wynik meczu
+
+        Wyjątki:
+            W przypadku błędu podczas pobierania danych, wyświetla komunikat o błędzie
+            ale nie przerywa działania programu.
+
+        Uwagi:
+            - Wymaga wcześniejszego ustawienia:
+            * self.input_date - data graniczna dla pobieranych meczów
+            * self.sport_id - identyfikator sportu
+            * self.leagues_str - sformatowana lista lig jako string dla SQL
+            * self.conn - aktywne połączenie do bazy danych
+            - Wyniki meczów są sortowane chronologicznie (najstarsze pierwsze)
+            - Pomija mecze z wynikiem '0' (traktowane jako nieważne)
+        """
+
+        if self.leagues == []:
+            query = f"""
+                SELECT * 
+                FROM matches 
+                WHERE game_date < '{self.input_date}'
+                AND sport_id = {self.sport_id}
+                AND result != '0'
+            order by game_date asc
+            """
+        else:
+            query = f"""
+                SELECT * 
+                FROM matches 
+                WHERE game_date < '{self.input_date}'
+                AND league IN ({self.leagues_str})
+                AND sport_id = {self.sport_id}
+                AND result != '0'
+                #and (home_team_goals < 1 or away_team_goals < 1)
+                order by game_date asc
+            """
+        try:
+            self.matches_df = pd.read_sql(query, self.conn)
+            self.matches_df['result'] = self.matches_df['result'].replace({'X': 0, '1': 1, '2': 2}).astype(
+                int)  # 0 - remis, 1 - zwyciestwo gosp. 2 - zwyciestwo goscia
+        except Exception as e:
+            print("Bład podczas pobierania danych historycznych: {}".format(e))
+
+    def get_upcoming_data(self):
+        """
+        Pobiera nadchodzące mecze z bazy danych i przygotowuje je do analizy.
+
+        Metoda wykonuje następujące operacje:
+        1. Buduje zapytanie SQL w zależności od tego czy określono listę lig:
+        - Dla pustej listy lig pobiera wszystkie nadchodzące mecze dla danego sportu
+        - Dla określonych lig pobiera tylko mecze z wybranych lig
+        2. Filtruje mecze według kryteriów:
+        - Data meczu równa lub późniejsza niż input_date
+        - Określony sport_id
+        - Sortuje wyniki według daty meczu rosnąco
+        3. Wybiera tylko kluczowe kolumny:
+        - id: identyfikator meczu
+        - home_team: nazwa gospodarzy
+        - away_team: nazwa gości  
+        - game_date: data meczu
+        - league: liga
+        - round: runda
+        - season: sezon
+        - result: wynik (jeśli już rozegrany)
+
+        Atrybuty klasy aktualizowane:
+            self.upcoming_df (DataFrame): Tabela z nadchodzącymi meczami zawierająca:
+                - Wszystkie wybrane kolumny z tabeli matches
+                - Posortowana chronologicznie (najbliższe mecze pierwsze)
+
+        Wyjątki:
+            W przypadku błędu podczas pobierania danych, wyświetla komunikat o błędzie
+            ale nie przerywa działania programu.
+
+        Uwagi:
+            - Wymaga wcześniejszego ustawienia:
+            * self.input_date - data graniczna od której pobierane są mecze
+            * self.sport_id - identyfikator sportu
+            * self.leagues_str - sformatowana lista lig jako string dla SQL
+            * self.conn - aktywne połączenie do bazy danych
+            - Różni się od get_historical_data() tym że:
+            * Pobiera mecze z przyszłości (>= input_date)
+            * Nie filtruje wyników (może zawierać null/0)
+            * Wybiera ograniczony zestaw kolumn
+            * Nie modyfikuje danych wynikowych
+        """
+
+        if self.leagues == []:
+            query = f"""
+                SELECT id, home_team, game_date, away_team, league, round, season, home_team_goals, away_team_goals, result
+                FROM matches 
+                WHERE cast(game_date as date) >= '{self.input_date}'
+                AND sport_id = {self.sport_id}
+                order by game_date asc
+        """
+        else:
+            query = f"""
+                SELECT id, home_team, away_team, game_date, round, league, season, home_team_goals, away_team_goals, result
+                FROM matches 
+                WHERE cast(game_date as date) >= '{self.input_date}'
+                AND league IN ({self.leagues_str})
+                AND sport_id = {self.sport_id}
+                order by game_date asc
+            """
+        try:
+            self.upcoming_df = pd.read_sql(query, self.conn)
+        except Exception as e:
+            print("Bład podczas pobierania danych przyszłych: {}".format(e))
+
+    def get_teams_data(self):
+        '''
+        Pobiera dane drużyn z bazy danych na podstawie sportu i kraju.
+        Jeśli kraj jest równy -1, pobiera wszystkie drużyny dla danego sportu.
+        Jeśli kraj jest podany, pobiera drużyny tylko dla tego kraju.
+        '''
+        if self.country == []:
+            query = f"""
+                SELECT id, name 
+                FROM teams 
+                WHERE sport_id = {self.sport_id}
+            """
+        else:
+            query = f"""
+                SELECT id, name 
+                FROM teams 
+                WHERE country in ({self.country_str})
+                AND sport_id = {self.sport_id}
+            """
+        try:
+            self.teams_df = pd.read_sql(query, self.conn)
+        except Exception as e:
+            print("Bład podczas pobierania danych drużyn: {}".format(e))
+
+    def close_connection(self):
+        ''' Zamykanie połączenia'''
+        self.conn.close()
+
     def get_data(self):
-        return self.matches_df, self.teams_df, self.upcoming_df, self.model_columns_df
+        '''
+            Zwracanie predefiniowanych danych
+            Returns:
+                self.matches_df - lista meczów przed wskazaną datą (lista meczów do generowania danych historycznych)
+                self.teams_df - słownik drużyn typu {id: name}
+                self.upcoming_df - lista meczów do przewidzenia (stosowane tylko w predict)
+                self.first_tier_leagues - ligi poziomu 1 (Ekstraklasa / Premier League)
+                self.second_tier_leagues - ligi poziomu 2 (Betclic 1 Liga / Championship)
+            '''
+        return self.matches_df, self.teams_df, self.upcoming_df, self.first_tier_leagues, self.second_tier_leagues

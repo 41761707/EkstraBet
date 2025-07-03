@@ -1,510 +1,371 @@
-import mysql.connector
-import pandas as pd
 import numpy as np
 import sys
-import random
+import json
 
-#Moduły
-import ratings_module
-import model_module 
+# Moduły
 import dataprep_module
-import views_module
+import ratings_module
+import model_module
+import process_data
+import prediction_module
+import config_manager
+import test_module
 import db_module
-## @package main
-# Moduł main zawiera funkcje i procedury odpowiedzialne za interakcję z użytkownikiem 
-# oraz inicjalizację jak i poprawny przepływ działania programu.
 
-##
-# Funkcja odpowiadająca za pobranie informacji z bazy danych
-def get_values():
-    conn = db_module.db_connect()
-    query = "SELECT * FROM matches where game_date < '2025-05-23' and result != '0' and sport_id = 1 order by game_date"
-    matches_df = pd.read_sql(query, conn)
-    query = "SELECT id, name FROM teams where sport_id = 1"
-    teams_df = pd.read_sql(query, conn)
-    matches_df['result'] = matches_df['result'].replace({'X': 0, '1' : 1, '2' : -1}) # 0 - remis, 1 - zwyciestwo gosp. -1 - zwyciestwo goscia
-    matches_df.set_index('id', inplace=True)
-    query = "SELECT id, home_team, away_team, league, season FROM matches where cast(game_date as date) = '2025-05-23' and sport_id = 1 and league not in (20) order by game_date"
-    upcoming_df = pd.read_sql(query, conn)
-    conn.close()
+# @package main
+def get_calculator_func(name):
+    #TO-DO: Zrobić to lepiej bo teraz jest mega syf - to zwraca typy kalukatorów dla rankingu gap
+    calculators = {
+        'chances_home': {
+            'calculator': lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])
+        },
+        'chances_away': {
+            'calculator': lambda match: int(match['away_team_ck']) + int(match['away_team_sc'])
+        },
+        'goals_home': {
+            'calculator': lambda match: int(match['home_team_goals'])
+        },
+        'goals_away': {
+            'calculator': lambda match: int(match['away_team_goals'])
+        },
+        'btts': {
+            'calculator': lambda match: 1 if match['home_team_goals'] > 0 and match['away_team_goals'] > 0 else 0
+        },
+    }
+    return calculators.get(name, None)
+
+def get_rating_params(config):
+    """
+    Pobiera parametry ratingów z konfiguracji i przygotowuje je do użycia.
+    
+    Args:
+        config (ConfigManager): Obiekt konfiguracyjny zawierający ustawienia modelu
+    
+    Returns:
+        tuple: Krotka zawierająca:
+            - initial_rating (int): Początkowa wartość rankingu ELO
+            - second_tier_coef (float): Współczynnik dla drużyn z drugiej ligi
+            - match_attributes (list/str): Lista atrybutów meczu lub pusty string
+    """
+    # Sprawdzenie czy ranking ELO jest aktywny
+    elo_enabled = 'elo' in config.rating_config[config.model_type]['rating_type']
+    # Pobranie początkowego rankingu ELO jeśli aktywny, w przeciwnym razie 0
+    initial_rating = config.model_config["ratings"]["elo"]["initial_rating"] if elo_enabled else 0
+    # Pobranie współczynnika dla drugiej ligi jeśli ELO aktywne, w przeciwnym razie 0
+    second_tier_coef = config.model_config["ratings"]["elo"]["second_tier_coef"] if elo_enabled else 0
+
+    # Sprawdzenie czy ranking GAP jest aktywny
+    gap_enabled = 'gap' in config.rating_config[config.model_type]['rating_type']
+    if gap_enabled:
+        # Pobranie atrybutów meczu z konfiguracji (domyślnie pusty string)
+        match_attributes = config.model_config["ratings"]["gap"].get("match_attributes", "")
+        for attr in match_attributes:
+            attr["calculator"] = get_calculator_func(attr["name"])["calculator"]
+        print(match_attributes)  # Debugowe wyświetlenie atrybutów
+    else:
+        # Dla nieaktywnego GAP zwracamy pusty string
+        match_attributes = ""
+    
+    return initial_rating, second_tier_coef, match_attributes
+
+def get_matches(config):
+    """
+    Główna funkcja pobierająca i przetwarzająca dane meczowe, obliczająca ratingi drużyn
+
+    Args:
+        leagues (list): Lista lig do analizy
+        sport_id (int): ID sportu (np. 1 - piłka nożna)
+        country (int): ID kraju
+        rating_config (dict): Konfiguracja ratingu zawierająca parametry obliczeń
+        model_type (str): Typ modelu do tworzenia ratingu
+
+    Returns:
+        tuple: Krotka zawierająca:
+            - matches_df (DataFrame): Dane historycznych meczów z obliczonymi ratingami
+            - teams_df (DataFrame): Informacje o drużynach
+            - upcoming_df (DataFrame): Nadchodzące mecze do predykcji
+
+    Proces:
+        1. Pobiera dane meczowe i drużynowe z bazy danych
+        2. Tworzy ratingi drużyn na podstawie konfiguracji
+        3. Oblicza wartości ratingów dla różnych modeli
+        4. Łączy wszystkie obliczone ratingi w jeden DataFrame
+        5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
+    """
+    input_date = config.model_config["training_config"]["threshold_date"]
+    data = dataprep_module.DataPrep(input_date, config.leagues, config.sport_id, config.country)
+    matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
+    data.close_connection()
+    # Pobierz parametry ratingów
+    initial_rating, second_tier_coef, match_attributes = get_rating_params(config)
+    # Tworzenie ratingu
+    rating_factory = ratings_module.RatingFactory.create_rating(
+        config.rating_config[config.model_type]['rating_type'],
+        matches_df=matches_df.copy(),
+        teams_df=teams_df,
+        first_tier_leagues=first_tier_leagues,
+        second_tier_leagues=second_tier_leagues,
+        initial_rating=initial_rating,
+        second_tier_coef=second_tier_coef,
+        match_attributes=match_attributes
+    )
+    # Tworzymy kopię oryginalnego DataFrame
+    merged_matches_df = matches_df.copy()
+    for rating in rating_factory:
+        print(f'Tworzenie rankingu dla: {type(rating).__name__}')
+        rating.calculate_rating()
+        temp_matches_df, _ = rating.get_data()
+        # Znajdujemy nowe kolumny dodane przez aktualny rating
+        new_columns = [col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
+        # Dodajemy nowe kolumny do głównego DataFrame
+        for col in new_columns:
+            merged_matches_df[col] = temp_matches_df[col]
+
+    # Zastępujemy oryginalny matches_df połączonym DataFrame
+    matches_df = merged_matches_df
+    # Zbieramy wszystkie kolumny używane przez systemy rankingowe 
+    # Nie ma co trzymac dodatkowych danych i obciazac pamiec
+    rating_columns = set()
+    for rating in rating_factory:
+        temp_df, _ = rating.get_data()
+        rating_columns.update(temp_df.columns)
+
+    # Usuwamy kolumny, które nie są używane przez żaden system rankingowy
+    columns_to_drop = [col for col in matches_df.columns if col not in rating_columns]
+    matches_df = matches_df.drop(columns=columns_to_drop)
+    print("Przykład reprezentacji meczów:")
+    print(matches_df.tail())
     return matches_df, teams_df, upcoming_df
 
-def accuracy_test_goals(matches_df, teams_dict, teams_df, upcoming_df, key):
-    filtered_matches_df = matches_df.loc[(matches_df['home_team'] == key) | (matches_df['away_team'] == key)]
-    model_type = 'goals_total'
-    data = dataprep_module.DataPrep(filtered_matches_df , teams_df, upcoming_df)
-    data.prepare_predict_goals()
 
-    _, _, _, model_columns_df = data.get_data() 
-    predict_model = model_module.Model(model_type, model_columns_df, 9, 6, 'old')
-    predict_model.create_window()
-    predict_model.window_to_numpy(1)
-    predict_model.divide_set()
-    predict_model.train_goals_total_model()
-    exact_accuracy, ou_accuracy, exact, ou, predictions = predict_model.graph_team_goals(teams_dict[key])
-    print("{};{};{};{};{};{}".format(key,
-                                     exact_accuracy,
-                                     ou_accuracy,
-                                     exact, 
-                                     ou, 
-                                     predictions))
+def prepare_training(config):
+    """
+    Przygotowuje i trenuje model predykcyjny na podstawie konfiguracji
     
-def accuracy_test_winner(matches_df, teams_dict, teams_df, upcoming_df, key):
-    filtered_matches_df = matches_df.loc[(matches_df['home_team'] == key) | (matches_df['away_team'] == key)]
-    model_type = 'winner'
-    data = dataprep_module.DataPrep(filtered_matches_df , teams_df, upcoming_df)
-    data.prepare_predict_winner()
+    Args:
+        config (ConfigManager): Obiekt zarządzający konfiguracją zawierający:
+            - model_type: Typ modelu do trenowania (winner/goals/btts/exact)
+            - leagues: Lista lig do analizy
+            - sport_id: ID sportu
+            - country: ID kraju
+            - load_weights: Flaga określająca czy ładować wagi pretrenowanego modelu
+            - feature_columns: Lista kolumn z cechami
+            - rating_config: Konfiguracja ratingu drużyn
+            - window_size: Rozmiar okna czasowego
+            - match_attributes: Atrybuty meczu do analizy
+            - model_config: Konfiguracja modelu
+            - model_name: Nazwa modelu
+            - model_load_name: Nazwa modelu do wczytania wag
 
-    _, _, _, model_columns_df = data.get_data() 
-    predict_model = model_module.Model(model_type, model_columns_df, 9, 2, 'old')
-    predict_model.create_window()
-    predict_model.window_to_numpy(3)
-    predict_model.divide_set()
-    predict_model.train_winner_model()
-    accuracy, predictions = predict_model.graph_team_winner(teams_dict[key])
-    print("{};{};{}".format(key,
-                                     accuracy,
-                                     predictions))
+    Returns:
+        tuple: Krotka zawierająca:
+            - model: Wytrenowany lub załadowany model predykcyjny
+            - history: Historia trenowania modelu (None jeśli załadowano wagi)
+            - training_info: Informacje o danych treningowych
+
+    Proces:
+        1. Pobiera dane meczowe z funkcji get_matches()
+        2. Przetwarza dane do formatu odpowiedniego dla modelu
+        3. Analizuje rozkład danych treningowych i walidacyjnych
+        4. Inicjalizuje i buduje odpowiedni model w zależności od typu
+        5. Trenuje model lub ładuje pretrenowane wagi
+        6. Zapisuje wyniki treningu do pliku konfiguracyjnego
+    """
+    # Pobranie danych meczowych
+    matches_df, teams_df, _ = get_matches(config)
+    # Przetwarzanie danych treningowych
+    processor = process_data.ProcessData(
+        matches_df, 
+        teams_df, 
+        config.model_type, 
+        config.feature_columns, 
+        config.window_size
+    )
+    train_data, val_data, training_info = processor.process_train_data()
+
+    # Analiza rozkładu danych
+    analyze_result_distribution(train_data, config.model_type, "Training Data")
+    analyze_result_distribution(val_data, config.model_type, "Validation Data")
+    #Testowe printy
+    #print(training_info[1])
+    #print_training_data_info(train_data, val_data, training_info, 3)
+
+    # Inicjalizacja i trenowanie modelu
+    model = model_module.ModelModule(
+        train_data, 
+        val_data, 
+        len(config.feature_columns), 
+        config.model_type, 
+        config.model_name, 
+        config.window_size
+    )
     
-
-def accuracy_test_btts(matches_df, teams_dict, teams_df, upcoming_df, key):
-    filtered_matches_df = matches_df.loc[(matches_df['home_team'] == key) | (matches_df['away_team'] == key)]
-    model_type = 'btts'
-    data = dataprep_module.DataPrep(filtered_matches_df , teams_df, upcoming_df)
-    data.prepare_predict_btts()
-
-    _, _, _, model_columns_df = data.get_data() 
-    predict_model = model_module.Model(model_type, model_columns_df, 9, 6, 'old')
-    predict_model.create_window()
-    predict_model.window_to_numpy(2)
-    predict_model.divide_set()
-    predict_model.train_btts_model()
-    accuracy, predictions = predict_model.graph_team_btts(teams_dict[key])
-    print("{};{};{}".format(key,
-                                     accuracy,
-                                     predictions))
-
-def predict_chosen_matches_goals(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print):
-    external_tests = data.generate_goals_test(schedule, ratings, powers, last_five_matches)
-    external_tests_np = np.array(external_tests)
-    predictions = predict_model.make_goals_predictions(external_tests_np)
-    for i in range(len(predictions)):
-        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
-        id = record.iloc[0]['id']
-        generated_ou = "U" if predictions[i] < 2.5 else "O"
-        if pretty_print == 'pretty':
-
-            #print("{};{};{}".format(id, predictions[i], generated_ou))
-            print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-            print("Wygenerowana liczba bramek w spotkaniu: {} - O/U: {}".format(predictions[i], generated_ou))
-            '''print("Rankingi druzyny domowej {} - {} - {} - {}".format(
-                                                        powers["{}h_att".format(schedule[i][0])],
-                                                        powers["{}h_def".format(schedule[i][0])], 
-                                                        powers["{}a_att".format(schedule[i][0])],
-                                                        powers["{}a_def".format(schedule[i][0])] ,
-            ))
-            print("Rankingi druzyny wyjazdowej {} - {} - {} - {}".format(
-                                                        powers["{}h_att".format(schedule[i][1])],
-                                                        powers["{}h_def".format(schedule[i][1])], 
-                                                        powers["{}a_att".format(schedule[i][1])],
-                                                        powers["{}a_def".format(schedule[i][1])] ,
-            ))'''
-        else:
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 173 , {:.2f});".format(id, predictions[i]))
-
-def predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, ratings, upcoming_df, pretty_print):
-    external_tests = data.generate_winner_test(schedule, ratings)
-    external_tests_np = np.array(external_tests)
-    #print(external_tests_np[0])
-    predictions = predict_model.make_winner_predictions(external_tests_np)
-    for i in range(len(predictions)):
-        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
-        id = record.iloc[0]['id']
-        #print(external_tests_np[i][8])
-        percentages = np.round(predictions[i] * 100, 2)
-        if pretty_print == "pretty":
-            print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-            print("Rankingi: {:.2f} - {:.2f}".format(ratings[schedule[i][0]], ratings[schedule[i][1]]))
-            print("Gospo: {:.2f}, Remis: {:.2f}, Gość: {:.2f}".format(percentages[0], percentages[1], percentages[2]))
-        else:
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 1 , {:.2f});".format(id, percentages[0]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 2 , {:.2f});".format(id, percentages[1]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 3 , {:.2f});".format(id, percentages[2]))
-    
-
-def predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print):
-    external_tests = data.generate_btts_test(schedule, ratings, powers, last_five_matches)
-    external_tests_np = np.array(external_tests)
-    predictions = predict_model.make_btts_predictions(external_tests_np)
-    for i in range(len(predictions)):
-        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
-        id = record.iloc[0]['id']
-        percentages = np.round(predictions[i] * 100, 2)
-        if pretty_print == "pretty":
-            print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-            print("Tak: {:.2f}, Nie: {:.2f}".format(percentages[0], percentages[1]))
-        else:
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 6 , {:.2f});".format(id, percentages[0]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 172 , {:.2f});".format(id, percentages[1]))
-
-def predict_chosen_matches_goals_ou(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print):
-    external_tests = data.generate_btts_test(schedule, ratings, powers, last_five_matches)
-    external_tests_np = np.array(external_tests)
-    predictions = predict_model.make_btts_predictions(external_tests_np)
-    for i in range(len(predictions)):
-        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
-        id = record.iloc[0]['id']
-        percentages = np.round(predictions[i] * 100, 2)
-        if pretty_print == "pretty":
-            print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-            print("Under: {:.2f}, Over: {:.2f}".format(percentages[0], percentages[1]))
-        else:
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 12 , {:.2f});".format(id, percentages[0]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 8 , {:.2f});".format(id, percentages[1]))
-
-def predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print):
-    external_tests = data.generate_goals_test(schedule, ratings, powers, last_five_matches)
-    external_tests_np = np.array(external_tests)
-    predictions = predict_model.make_goals_ppb_predictions(external_tests_np)
-    for i in range(len(predictions)):
-        record = upcoming_df.loc[(upcoming_df['home_team'] == schedule[i][0]) & (upcoming_df['away_team'] == schedule[i][1])]
-        id = record.iloc[0]['id']
-        percentages = np.round(predictions[i] * 100, 2)
-        under_2_5 = percentages[0] + percentages[1] + percentages[2]
-        over_2_5 = percentages[3] + percentages[4] + percentages[5] + percentages[6]
-
-        #print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-        #for i in range(len(percentages)):
-        #    print("Ppb {} bramek: {}".format(i, percentages[i]))
-        #print("{:.2f}, {:.2f}".format(percentages[0], percentages[1]))
-        if pretty_print == 'pretty':
-            print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-            print("Under: {:.2f}, Over: {:.2f}".format(under_2_5, over_2_5))
-            for i in range(len(percentages)):
-                print("Ppb {} bramek: {}".format(i, percentages[i]))
-        else:
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 174 , {:.2f});".format(id, percentages[0]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 175 , {:.2f});".format(id, percentages[1]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 176 , {:.2f});".format(id, percentages[2]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 177 , {:.2f});".format(id, percentages[3]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 178 , {:.2f});".format(id, percentages[4]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 179 , {:.2f});".format(id, percentages[5]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 180 , {:.2f});".format(id, percentages[6]))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 8 , {:.2f});".format(id, over_2_5))
-            print("INSERT INTO predictions(match_id, event_id, value) VALUES({}, 12 , {:.2f});".format(id, under_2_5))
-
-
-def predict_whole_season(data, schedule, predict_model, my_rating, ratings, matches_df, teams_dict, upcoming_df):
-    #schedule =  [[home_team, away_team, game_date], [...], ...]
-    team_table = {
-        198: 0,
-        199: 0,
-        200: 0,
-        201: 0,
-        202: 0,
-        203: 0,
-        204: 0,
-        205: 0,
-        206: 0,
-        207: 0,
-        208: 0,
-        209: 0,
-        210: 0,
-        211: 0,
-        212: 0,
-        213: 0,
-        218: 0,
-        215: 0,
-        219: 0,
-        226: 0
-    }
-    predictions = []
-    winners = []
-    for match in schedule:
-        #record = upcoming_df.loc[(upcoming_df['home_team'] == match[0]) & (upcoming_df['away_team'] == match[1]) & (upcoming_df['season'] == 1)]
-        #id = record.iloc[0]['id']
-        match_array = data.generate_winner_test_one(match,ratings, matches_df)
-        match_array_np = np.array(match_array)
-        #print(match_array)
-        match_predict = predict_model.make_winner_predictions(match_array_np)
-        #print(match_predict)
-        winner = np.argmax(match_predict, axis=1)[0]
-        winner_prob = random.uniform(0,1)
-        #print(winner_prob)
-        if match_predict[0][0] >= winner_prob:
-            winner = 0
-            team_table[match[0]] += 3
-        elif match_predict[0][1] >= winner_prob:
-            winner = 1
-            team_table[match[0]] += 1
-            team_table[match[1]] += 1
-        else:
-            winner = 2
-            team_table[match[1]] += 3
-        predictions.append(match_predict)
-        winners.append(winner)
-        #print("WINNER: ", winner)
-        #Aktualizacja rankingu
-        elo_winner = -1
-        if winner == 0:
-            elo_winner = 1
-        elif winner == 1:
-            elo_winner = 0
-        old_home_rating, old_away_rating = ratings[match[0]], ratings[match[1]]
-
-        new_home_rating, new_away_rating = my_rating.main_rating(ratings, match[0], match[1], elo_winner, 1, 0, 10)
-        #print(new_home_rating, new_away_rating)
-        results= []
-        if winner == 0:
-            #print(winner)
-            results = [1, 0, 0]
-        elif winner == 1:
-            results = [0, 1, 0]
-        else:
-            results= [0, 0, 1]
-        new_record = {'home_team': match[0], 
-                      'away_team': match[1], 
-                      'home_rating' : new_home_rating,
-                      'away_rating' : new_away_rating,
-                      'results_home' : results[0],
-                      'results_draw' : results[1],
-                      'results_away' : results[2] }
-        matches_df = matches_df._append(new_record, ignore_index = True)
-        percentages = np.round(match_predict[0] * 100, 2)
-        #print("{};{:.2f};{:.2f};{:.2f}".format(id, percentages[0], percentages[1], percentages[2]))
-        print("Spotkanie: {} - {}".format(teams_dict[match[0]], teams_dict[match[1]]))
-        print("Rezultat: ", winner)
-        print("Ranking przed: {} - {}".format(old_home_rating, old_away_rating ))
-        print(percentages)
-        print("Ranking po: {} - {}".format(new_home_rating, new_away_rating ))
-    print("TABELA NA KONIEC: ")
-    sorted_team_table = dict(sorted(team_table.items(), key=lambda item: item[1]))
-    print(sorted_team_table)
-    #for i in range(len(predictions)):
-    #    percentages = np.round(predictions[i] * 100, 2)
-    #    print("Spotkanie: {} - {}".format(teams_dict[schedule[i][0]], teams_dict[schedule[i][1]]))
-    #    print(percentages)
-
-
-def generate_schedule(upcoming_df):
-    schedule = []
-    for _, row in upcoming_df.iterrows():
-        schedule.append([row['home_team'], row['away_team']])
-    return schedule
-##
-# Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
-def main():
-    model_type = sys.argv[1]
-    model_mode = sys.argv[2]
-
-    pretty_print = sys.argv[4]
-    matches_df, teams_df, upcoming_df = get_values()
-    rating_factory = ratings_module.RatingFactory()
-    my_rating = ""
-    if model_type == 'goals_total' or model_type == 'goals_ppb' or model_type == 'goals_ou':
-        my_rating = rating_factory.create_rating("GoalsRating", matches_df, teams_df)
-        my_rating.rating_wrapper()
-        matches_df, _, teams_dict , powers, ratings, last_five_matches = my_rating.get_data()
-        #my_rating.print_ratings()
-    if model_type == 'winner':
-        my_rating = rating_factory.create_rating("WinnerRating", matches_df, teams_df)
-        my_rating.rating_wrapper()
-        matches_df, _, teams_dict , _, ratings = my_rating.get_data()
-        my_rating.print_ratings()
-    if model_type == 'btts':
-        my_rating = rating_factory.create_rating("BTTSRating", matches_df, teams_df)
-        my_rating.rating_wrapper()
-        matches_df, _, teams_dict , powers, ratings, last_five_matches = my_rating.get_data()
-        #my_rating.print_ratings()
-    data = dataprep_module.DataPrep(matches_df, teams_df, upcoming_df)
-    if sys.argv[3] != '-1':
-        if model_type == 'goals_total':
-            accuracy_test_goals(matches_df, teams_dict, teams_df, upcoming_df, int(sys.argv[3]))
-        #if model_type == 'goals_ppb':
-        #    accuracy_test_goals_ppb(matches_df, teams_dict, teams_df, upcoming_df, int(sys.argv[3]))
-        if model_type == 'winner':
-            accuracy_test_winner(matches_df, teams_dict, teams_df, upcoming_df, int(sys.argv[3]))
-        if model_type == 'btts':
-            accuracy_test_btts(matches_df, teams_dict, teams_df, upcoming_df, int(sys.argv[3]))
+    if config.load_weights == '1':
+        model.load_predict_model(f'model_{config.model_type}_dev/{config.model_load_name}.h5')
     else:
-        if model_type == 'goals_total':
-            data.prepare_predict_goals()
-            _, _, _, model_columns_df = data.get_data() 
-            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
-            predict_model.create_window()
-            predict_model.window_to_numpy(1)
-            predict_model.divide_set()
-            predict_model.train_goals_total_model()
-            predict_model.goals_total_test()
+        model.build_model_from_config(config)
+    
+    # Trenowanie modelu i aktualizacja konfiguracji
+    history, evaluation_results = model.train_model()
+    config.model_config["train_accuracy"] = float(history.history['accuracy'][-1])
+    config.model_config["train_loss"] = float(history.history['loss'][-1])
+    config.model_config["val_accuracy"] = float(evaluation_results[1])
+    config.model_config["val_loss"] = float(evaluation_results[0])
 
-        if model_type == 'goals_ppb':
-            data.prepare_predict_goals_ppb()
-            _, _, _, model_columns_df = data.get_data() 
-            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
-            predict_model.create_window()
-            predict_model.window_to_numpy(7)
-            predict_model.divide_set()
-            predict_model.train_goals_ppb_model()
-            predict_model.goals_ppb_test()
+    #TO-DO: Reprezentacja lambda funkcji jako stringa
+    if "match_attributes" in config.model_config["ratings"]["gap"]:
+        if config.model_config["ratings"]["gap"]["match_attributes"]:
+            config.model_config["ratings"]["gap"]["match_attributes"] = ''
+    # Zapis konfiguracji do pliku
+    with open(f'model_{config.model_type}_dev/{config.model_name}_config.json', 'w') as f:
+        json.dump(config.model_config, f, indent=4)
 
-        if model_type =='goals_ou':
-            data.prepare_predict_ou()
-            _, _, _, model_columns_df = data.get_data()
-            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
-            predict_model.create_window()
-            predict_model.window_to_numpy(2)
-            predict_model.divide_set()
-            predict_model.train_ou_model()
-            predict_model.test_btts_model()
+def print_training_data_info(train_data, val_data, training_info, no_prints):
+    """Pomocnicza funkcja do wyświetlania informacji o danych treningowych"""
 
-        if model_type == 'winner':
-            data.prepare_predict_winner()
-            _, _, _, model_columns_df = data.get_data()
-            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 2, model_mode)
-            predict_model.create_window()
-            predict_model.window_to_numpy(3)
-            predict_model.divide_set()
-            predict_model.train_winner_model()
-            predict_model.test_winner_model()
-        
-        if model_type =='btts':
-            data.prepare_predict_btts()
-            _, _, _, model_columns_df = data.get_data()
-            predict_model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
-            predict_model.create_window()
-            predict_model.window_to_numpy(2)
-            predict_model.divide_set()
-            predict_model.train_btts_model()
-            predict_model.test_btts_model()
+    print("\n=== TRAINING DATA ===")
+    print(f"Shape of sequences: {train_data[0].shape}")
+    print(f"Number of samples: {len(train_data[0])}")
+    print("\nTrain sequences:")
+    for i in range(no_prints):
+        print(f"\nSequence {i+1}:")
+        print("Home team sequence:")
+        print(train_data[0][i])
+        print("\nAway team sequence:")
+        print(train_data[1][i])
+        print("\nTarget:")
+        print(train_data[2][i])
+        print("\n MATCH_ID")
+        print(training_info[0][i])
 
-        schedule = generate_schedule(upcoming_df)
-        if model_type == 'winner':
-            predict_chosen_matches_winner(data, schedule, predict_model, teams_dict, ratings, upcoming_df, pretty_print)
-        if model_type == 'goals_ppb':
-            predict_chosen_matches_goals_ppb(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-        if model_type == 'goals_total':
-            predict_chosen_matches_goals(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-        if model_type == 'goals_ou':
-            predict_chosen_matches_goals_ou(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-        if model_type == 'btts':
-            predict_chosen_matches_btts(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
+    print("\n=== VALIDATION DATA ===")
+    print(f"Shape of sequences: {val_data[0].shape}")
+    print(f"Number of samples: {len(val_data[0])}")
+    print("\nVal sequences:")
+    for i in range(no_prints):
+        print(f"\nSequence {i+1}:")
+        print("Home team sequence:")
+        print(val_data[0][i])
+        print("\nAway team sequence:")
+        print(val_data[1][i])
+        print("\nTarget:")
+        print(val_data[2][i])
+        print("\n MATCH_ID")
+        print(training_info[1][i])
+
+
+def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
+    """
+    Analizuje i wypisuje rozkład danych w podanym zbiorze danych
+
+    Args:
+        data_tuple: Dane zawierające krotkę (X_home_seq, X_away_seq, y), gdzie y jest one-hotem
+        dataset_name: Nazwa zbioru danych, wykorzystywane głównie przy wypisywaniu informacji
+    """
+    _, _, y = data_tuple
+    # Convert one-hot encoded back to labels
+    results = np.argmax(y, axis=1)
+
+    # Count occurrences
+    unique, counts = np.unique(results, return_counts=True)
+    total = len(results)
+
+    print(f"\n=== {dataset_name} Distribution ===")
+    print(f"Total samples: {total}")
+
+    # Create a mapping for better readability
+    if model_type == 'winner':
+        result_mapping = {0: "Draw", 1: "Home Win", 2: "Away Win"}
+    elif model_type == 'goals':
+        result_mapping = {i: f"{i} Goals" for i in range(7)}
+    elif model_type == 'btts':
+        result_mapping = {0: "No BTTS", 1: "BTTS"}
+    else:
+        return
+
+    for result, count in zip(unique, counts):
+        percentage = (count / total) * 100
+        print(f"{result_mapping[result]}: {count} ({percentage:.2f}%)")
+
+
+def prepare_predictions(config, conn):
+    """
+    Przygotowuje predykcje dla nadchodzących meczów na podstawie konfiguracji
+
+    Args:
+        config (ConfigManager): Obiekt zarządzający konfiguracją zawierający:
+            - model_type: Typ modelu (winner/goals/btts/exact)
+            - leagues: Lista lig do analizy
+            - sport_id: ID sportu
+            - country: ID kraju
+            - rating_config: Konfiguracja ratingu
+            - feature_columns: Lista kolumn z cechami
+            - window_size: Rozmiar okna czasowego
+            - match_attributes: Atrybuty meczu do analizy
+
+    Proces:
+        1. Pobiera dane historyczne i nadchodzące mecze
+        2. Inicjalizuje model predykcyjny
+        3. Wczytuje wytrenowane wagi modelu
+        4. Generuje predykcje dla nadchodzących meczów
+    """
+    # Pobranie danych meczowych
+    matches_df, teams_df, upcoming_df = get_matches(config)
+
+    # Inicjalizacja modelu
+    model = model_module.ModelModule([], [], [], [], [], [])
+    # Utworzenie instancji klasy do przewidywania
+    predict_matches = prediction_module.PredictMatch(
+        matches_df,
+        upcoming_df,
+        teams_df,
+        config.feature_columns,
+        model,
+        config.model_type,
+        config.model_name,
+        config.window_size,
+        conn
+    )
+
+    # Wczytanie wag modelu i wykonanie predykcji
+    model.load_predict_model(config.rating_config[config.model_type]['model_path'])
+    predict_matches.predict_games(model, upcoming_df)
+    return predict_matches.get_predictions()
+
+def run_tests(matches_predictions, analized_event, conn):
+    '''
+    Uruchamia testy na podstawie przewidywań meczów
+    Args:
+        matches_predictions (list): Lista przewidywań meczów zawierająca:
+            - match_id: ID meczu
+            - event_id: ID zdarzenia
+            - is_final: Czy wynik jest ostateczny
+        analized_event (str): Typ analizowanego zdarzenia (winner/goals/btts/exact)
+        conn: Połączenie z bazą danych
+    '''
+    tests = test_module.TestModule(matches_predictions, analized_event, conn)
+    tests.calculate_predictions_profit()
+
+def main():
+    '''
+        Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
+        Przykłady wywołania:
+        python .\main.py winner predict 1 alpha_0_0_result - przewidywanie meczów dla zdarzenia typu winner
+        python .\main.py goals train 1 alpha_0_0_result - trenowanie modelu dla zdarzenia typu goals
+    '''
+    conn = db_module.db_connect()
+    config = config_manager.ConfigManager()
+    config.load_from_args(sys.argv)
+    if config.model_mode == 'train':
+        prepare_training(config)
+    elif config.model_mode == 'predict':
+        matches_predictions = prepare_predictions(config, conn)
+        for element in matches_predictions:
+            print(element)
+    elif config.model_mode == 'test':
+        run_tests(matches_predictions, config.model_type, conn)
+    conn.close()
+
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-'''
-def main():
-    model_type = sys.argv[1]
-    model_mode = sys.argv[2]
-    pretty_print = sys.argv[4]
-
-    matches_df, teams_df, upcoming_df = get_values()
-    rating_factory = ratings_module.RatingFactory()
-
-    # Stworzenie ratingu w zależności od modelu
-    rating_mapping = {
-        'goals_total': 'GoalsRating',
-        'goals_ppb': 'GoalsRating',
-        'goals_ou': 'GoalsRating',
-        'winner': 'WinnerRating',
-        'btts': 'BTTSRating'
-    }
-    
-    my_rating = rating_factory.create_rating(rating_mapping[model_type], matches_df, teams_df)
-    my_rating.rating_wrapper()
-    
-    matches_df, _, teams_dict, powers, ratings, last_five_matches = my_rating.get_data()
-
-    data = dataprep_module.DataPrep(matches_df, teams_df, upcoming_df)
-    
-    # Testowanie dokładności, jeśli podano odpowiedni argument
-    if sys.argv[3] != '-1':
-        accuracy_test_mapping = {
-            'goals_total': accuracy_test_goals,
-            'winner': accuracy_test_winner,
-            'btts': accuracy_test_btts
-        }
-        accuracy_test = accuracy_test_mapping.get(model_type)
-        if accuracy_test:
-            accuracy_test(matches_df, teams_dict, teams_df, upcoming_df, int(sys.argv[3]))
-    else:
-        # Trenowanie i testowanie modelu
-        predict_model = prepare_and_train_model(model_type, data, matches_df, model_mode)
-
-        # Generowanie harmonogramu
-        schedule = generate_schedule(upcoming_df)
-        
-        # Wybór funkcji do przewidywania meczów na podstawie modelu
-        prediction_mapping = {
-            'winner': predict_chosen_matches_winner,
-            'goals_ppb': predict_chosen_matches_goals_ppb,
-            'goals_total': predict_chosen_matches_goals,
-            'goals_ou': predict_chosen_matches_goals_ou,
-            'btts': predict_chosen_matches_btts
-        }
-        
-        predict_function = prediction_mapping.get(model_type)
-        if predict_function:
-            predict_function(data, schedule, predict_model, teams_dict, ratings, powers, last_five_matches, upcoming_df, pretty_print)
-
-
-def prepare_and_train_model(model_type, data, matches_df, model_mode):
-    # Przygotowanie danych do trenowania w zależności od typu modelu
-    data_prep_functions = {
-        'goals_total': data.prepare_predict_goals,
-        'goals_ppb': data.prepare_predict_goals_ppb,
-        'goals_ou': data.prepare_predict_ou,
-        'winner': data.prepare_predict_winner,
-        'btts': data.prepare_predict_btts
-    }
-    prepare_data = data_prep_functions.get(model_type)
-    prepare_data()
-
-    _, _, _, model_columns_df = data.get_data()
-
-    # Tworzenie i trenowanie modelu
-    model = model_module.Model(model_type, matches_df, model_columns_df, 9, 6, model_mode)
-    model.create_window()
-    
-    window_mapping = {
-        'goals_total': 1,
-        'goals_ppb': 7,
-        'goals_ou': 2,
-        'winner': 3,
-        'btts': 2
-    }
-    model.window_to_numpy(window_mapping[model_type])
-    
-    model.divide_set()
-    
-    train_function_mapping = {
-        'goals_total': model.train_goals_total_model,
-        'goals_ppb': model.train_goals_ppb_model,
-        'goals_ou': model.train_ou_model,
-        'winner': model.train_winner_model,
-        'btts': model.train_btts_model
-    }
-    
-    train_function = train_function_mapping.get(model_type)
-    if train_function:
-        train_function()
-    
-    test_function_mapping = {
-        'goals_total': model.goals_total_test,
-        'goals_ppb': model.goals_ppb_test,
-        'goals_ou': model.test_btts_model,
-        'winner': model.test_winner_model,
-        'btts': model.test_btts_model
-    }
-    
-    test_function = test_function_mapping.get(model_type)
-    if test_function:
-        test_function()
-    
-    return model
-    '''

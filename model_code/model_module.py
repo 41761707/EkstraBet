@@ -1,475 +1,272 @@
-import mysql.connector
-import pandas as pd
+from tensorflow.keras.layers import Input, LSTM, Dense, Concatenate, Dropout, LeakyReLU, BatchNormalization
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+from tensorflow.keras.optimizers import Adagrad, Adam
+from tensorflow.keras.metrics import Precision, Recall
+from tensorflow.keras import backend as K
 import numpy as np
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
 import matplotlib.pyplot as plt
-import tensorflow as tf
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-from sklearn.metrics import accuracy_score
-from tensorflow.keras.optimizers import Adagrad
-from tensorflow.keras.models import load_model
-from tensorflow.keras import layers, backend
-from tensorflow.keras.losses import SparseCategoricalCrossentropy
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
-import random
+from datetime import datetime
 
-class Model:
-    def __init__(self, model_type, matches_df, model_columns_df, entries, features, create_model):
-        self.model_columns_df = model_columns_df
-        self.matches_df = matches_df
-        self.model_type = model_type
-        self.model = ''
-        self.entries = entries
+class ModelModule:
+    def __init__(self, train_data, val_data, features, model_type, model_name, window_size):
+        self.train_data = train_data
+        self.val_data = val_data
+        # Parametry
+        self.embedding_dim = 8
         self.features = features
-        self.create_model = create_model
-        self.window_helper = []
-        self.window_df = []
-        self.indexes = []
-        self.X = []
-        self.y = []
-        self.indexes_train = []
-        self.X_train = []
-        self.y_train = []
-        self.indexes_val = []
-        self.X_val = []
-        self.y_val = []
-        self.indexes_test = []
-        self.X_test = []
-        self.y_test = []
-        self.test_predictions = []
-        self.mean_y = 0
-        self.mean_rank = 0
-        self.norm_y = 0
-        self.norm_rank = 0
-    
-    def normalize_rank(self, data):
-        data_np = np.array(data)
+        self.model_type = model_type
+        self.window_size = window_size
+        self.model = None
+        self.current_date = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+        #self.model_name = f"{self.model_type}_model_{self.current_date}"
+        self.model_name = model_name
 
-        # Znalezienie minimalnej i maksymalnej wartości w całej tablicy
-        min_val = np.min(data_np)
-        max_val = np.max(data_np)
+    def build_model_from_config(self, config):
+        """
+        Buduje model na podstawie konfiguracji JSON
+        
+        Args:
+            config (dict): Konfiguracja z config_manager.py
+        """
+        #TO-DO rozszerzyć może o inne modele niż LSTM?
+        if config.model_config["model"]["type"] == "LSTM":
+            self.build_lstm_model(config)
 
-        # Normalizacja tablicy
-        normalized_data = (data_np - min_val) / (max_val - min_val)
+    def build_lstm_model(self, config):
+        # Utworzenie warstw wejściowych
+        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
+        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
+        
+        # Budowanie warstw LSTM
+        lstm_config = config.model_config["model"]["architecture"]["lstm_layers"]
+        
+        # Przetwarzanie sekwencji home
+        lstm_home = input_home_seq
+        for i, layer in enumerate(lstm_config[0]["units"]):
+            lstm_home = LSTM(
+                units=layer,
+                activation=lstm_config[0]["activation"][i],
+                return_sequences=lstm_config[0]["return_sequences"][i]
+            )(lstm_home)
+            
+            # Dodaj dropout jeśli jest skonfigurowany
+            if "dropout" in lstm_config[0] and lstm_config[0]["dropout"][i]:
+                lstm_home = Dropout(lstm_config[0]["dropout"][i])(lstm_home)
 
-        # Konwersja znormalizowanej tablicy z powrotem do listy (opcjonalnie)
-        normalized_data_list = normalized_data.tolist()
+            if "batch_normalization" in lstm_config[0] and lstm_config[0]["batch_normalization"][i]:
+                lstm_home = BatchNormalization()(lstm_home)
+        
+        # Przetwarzanie sekwencji away
+        lstm_away = input_away_seq
+        for i, layer in enumerate(lstm_config[1]["units"]):
+            lstm_away = LSTM(
+                units=layer,
+                activation=lstm_config[1]["activation"][i],
+                return_sequences=lstm_config[1]["return_sequences"][i]
+            )(lstm_away)
+            
+            # Dodaj dropout jeśli jest skonfigurowany
+            if "dropout" in lstm_config[1] and lstm_config[1]["dropout"][i]:
+                lstm_away = Dropout(lstm_config[1]["dropout"][i])(lstm_away)
 
-        return normalized_data_list
-
-    '''def create_window(self):
-        model_tolist = self.model_columns_df.values.tolist()
-        iter = 0
-        while True:
-            self.window_helper.append({'id' : model_tolist[iter+8][0], 
-                                       'Match-8' : model_tolist[iter][1:], 
-                                       'Match-7' : model_tolist[iter+1][1:], 
-                                       'Match-6' : model_tolist[iter+2][1:], 
-                                       'Match-5' : model_tolist[iter+3][1:], 
-                                       'Match-4' : model_tolist[iter+4][1:], 
-                                       'Match-3' : model_tolist[iter+5][1:], 
-                                       'Match-2' : model_tolist[iter+6][1:],
-                                       'Match-1' : model_tolist[iter+7][1:],
-                                       'Match-CURR' : model_tolist[iter+8][1:]})
-            iter = iter + 1
-            if iter > len(self.model_columns_df)-self.entries:
-                break
-        self.window_df = pd.DataFrame(self.window_helper)
-        #self.window_df = self.window_df.drop(columns=['id'])'''
-    
-    def get_last_matches(self, team_id, game_date, amount):
-        filtered_rows = self.matches_df[((self.matches_df['home_team'] == int(team_id)) | 
-                                        (self.matches_df['away_team'] == int(team_id))) & 
-                                        (self.matches_df['game_date'] < game_date)].tail(int(amount))
-        return filtered_rows
-    
-    def turn_match_into_numpy_winner(self, match):
-        result = match['result']
-        results = [1, 0, 0] if result == 1 else [0, 1, 0] if result == 0 else [0, 0, 1]
-        return [match['home_rating'], 
-                match['away_rating'], 
-                results[0],
-                results[1],
-                results[2]
-                ]
-    def turn_match_into_numpy_btts(self, match):
-        home_goals = int(match['home_team_goals'])
-        away_goals = int(match['away_team_goals'])
-        results = [1, 0] if home_goals > 0 and away_goals > 0 else [0, 1]
-        return [match['home_home_att_power'],
-                match['home_home_def_power'],
-                match['away_away_att_power'],
-                match['away_away_def_power'],
-                match['home_goals_avg'],
-                match['away_goals_avg'],
-                results[0],
-                results[1]
-                ]
-    def turn_match_into_numpy_ou(self, match):
-        total_goals = int(match['home_team_goals']) + int(match['away_team_goals'])
-        results = [0, 1] if total_goals > 2.5 else [1, 0]
-        return [match['home_home_att_power'],
-                match['home_home_def_power'],
-                match['away_away_att_power'],
-                match['away_away_def_power'],
-                match['home_goals_avg'],
-                match['away_goals_avg'],
-                results[0],
-                results[1]
-                ]
-    
-    def turn_match_into_numpy_goals_ppb(self, match):
-        total_goals = int(match['home_team_goals']) + int(match['away_team_goals'])
-        results = [0] * 7
-        results[min(total_goals, 6)] = 1
-        return [match['home_home_att_power'],
-                match['home_home_def_power'],
-                match['away_away_att_power'],
-                match['away_away_def_power'],
-                match['home_goals_avg'],
-                match['away_goals_avg'],
-                results[0], results[1], results[2], results[3], results[4], results[5], results[6]
-                ]
-    
-    def turn_match_into_numpy_goals_total(self, match):
-        goals = int(match['home_team_goals']) + int(match['away_team_goals'])
-        return [match['home_home_att_power'],
-                match['home_home_def_power'],
-                match['away_away_att_power'],
-                match['away_away_def_power'],
-                match['home_goals_avg'],
-                match['away_goals_avg'],
-                goals
-                ]
-    
-    def create_window(self):
-        model_tolist = self.model_columns_df.values.tolist()
-        for i in range(len(model_tolist)):
-            home_matches = self.get_last_matches(model_tolist[i][1], model_tolist[i][3], 4)
-            away_matches = self.get_last_matches(model_tolist[i][2], model_tolist[i][3], 4)
-            if len(home_matches) == 4 and len(away_matches) == 4:
-                home_team_matches = []
-                away_team_matches = []
-                if self.model_type == 'winner':
-                    for _, match in home_matches.iterrows():
-                        home_team_matches.append(self.turn_match_into_numpy_winner(match))
-                    for _, match in away_matches.iterrows():
-                        away_team_matches.append(self.turn_match_into_numpy_winner(match))
-                elif self.model_type == 'btts':
-                    for _, match in home_matches.iterrows():
-                        home_team_matches.append(self.turn_match_into_numpy_btts(match))
-                    for _, match in away_matches.iterrows():
-                        away_team_matches.append(self.turn_match_into_numpy_btts(match))
-                elif self.model_type == 'goals_ou':
-                    for _, match in home_matches.iterrows():
-                        home_team_matches.append(self.turn_match_into_numpy_ou(match))
-                    for _, match in away_matches.iterrows():
-                        away_team_matches.append(self.turn_match_into_numpy_ou(match)) 
-                elif self.model_type == 'goals_ppb':
-                    for _, match in home_matches.iterrows():
-                        home_team_matches.append(self.turn_match_into_numpy_goals_ppb(match))
-                    for _, match in away_matches.iterrows():
-                        away_team_matches.append(self.turn_match_into_numpy_goals_ppb(match)) 
-                elif self.model_type == 'goals_total':
-                    for _, match in home_matches.iterrows():
-                        home_team_matches.append(self.turn_match_into_numpy_goals_total(match))
-                    for _, match in away_matches.iterrows():
-                        away_team_matches.append(self.turn_match_into_numpy_goals_total(match)) 
-                else:
-                    print("Błędny argument")
-                self.window_helper.append({'id' : model_tolist[i][0], 
-                                            'Match-8' : home_team_matches[0], 
-                                            'Match-7' : away_team_matches[0], 
-                                            'Match-6' : home_team_matches[1], 
-                                            'Match-5' : away_team_matches[1], 
-                                            'Match-4' : home_team_matches[2], 
-                                            'Match-3' : away_team_matches[2], 
-                                            'Match-2' : home_team_matches[3],
-                                            'Match-1' : away_team_matches[3],
-                                            'Match-CURR' : model_tolist[i][4:]})
+            if "batch_normalization" in lstm_config[1] and lstm_config[1]["batch_normalization"][i]:
+                lstm_away = BatchNormalization()(lstm_away)
+        # Połączenie sekwencji
+        combined = Concatenate()([lstm_home, lstm_away])
+        
+        # Budowanie warstw gęstych
+        dense_config = config.model_config["model"]["architecture"]["dense_layers"]
+        x = combined
+        for layer in dense_config:          
+            # Dodaj regularyzację jeśli jest skonfigurowana
+            if "regularization_l2" in layer and layer["regularization_l2"]:
+                x = Dense(
+                    units=layer["units"],
+                    activation=layer["activation"],
+                    kernel_regularizer=l2(layer["regularization_l2"])
+                )(x)
             else:
-                continue
-        self.window_df = pd.DataFrame(self.window_helper)
+                x = Dense(
+                    units=layer["units"],
+                    activation=layer["activation"]
+                    )(x)
+            
+            # Dodaj BatchNormalization jeśli jest skonfigurowany
+            if "batch_normalization" in layer and layer["batch_normalization"]:
+                x = BatchNormalization()(x)
+                
+            # Dodaj Dropout jeśli jest skonfigurowany
+            if "dropout" in layer and layer["dropout"]:
+                x = Dropout(layer["dropout"])(x)
         
-
-    def remade(self, labels):
-        new_self_x = []
-        for list in self.X:
-            row = []
-            for inner_list in list:
-                for inner_inner in inner_list:
-                    row.append(inner_inner[0:-1 * labels])
-            new_self_x.append(row)
-        return new_self_x
-
+        # Warstwa wyjściowa
+        output_config = config.model_config["model"]["architecture"]["output"]
+        output = Dense(
+            units=output_config["units"],
+            activation=output_config["activation"]
+        )(x)
         
-    def window_to_numpy(self, labels):
-        df_as_np = self.window_df.to_numpy()
-        #for element in df_as_np:
-        #    print(element)
-        #self.indexes = list(range(1, len(df_as_np) + 1)) 
-        self.indexes = df_as_np[:, 0]
-        mid = df_as_np[:, 1:]
-        tmp_y = df_as_np[:, -1]
-        for element in tmp_y:
-            self.y.append(element[(-1) * labels :])
-        self.X = mid.reshape((len(self.indexes), mid.shape[1], 1))
-        self.X = self.remade(labels)
+        # Tworzenie i kompilacja modelu
+        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
+        
+        # Konfiguracja optymalizatora
+        optimizer_config = config.model_config["model"]["compilation"]["optimizer"]
+        if optimizer_config["type"] == "Adam":
+            optimizer = Adam(learning_rate=optimizer_config["learning_rate"])
+        elif optimizer_config["type"] == "Adagrad":
+            optimizer = Adagrad(learning_rate=optimizer_config["learning_rate"])
+        
+        # Kompilacja modelu
+        self.model.compile(
+            loss=config.model_config["model"]["compilation"]["loss"],
+            optimizer=optimizer,
+            metrics=config.model_config["model"]["compilation"]["metrics"]
+        )
 
+    def train_model(self):
+        (X_home_train, X_away_train, y_train) = self.train_data
+        (X_home_val, X_away_val, y_val) = self.val_data
+        
+        # Ulepszone callbacks
+        callbacks = [
+            EarlyStopping(
+                monitor='accuracy',  
+                patience=10,         # Zwiększona cierpliwość
+                restore_best_weights=True,
+                mode='min'
+            ),
+            ModelCheckpoint(
+                f'model_{self.model_type}_dev/{self.model_name}.h5',
+                monitor='accuracy',
+                save_best_only=True,
+                mode='min'
+            ),
+            TensorBoard(log_dir='./logs')
+        ]
+        history = self.model.fit(
+            x=[X_home_train, X_away_train],
+            y=y_train,
+            batch_size=32,          # Zwiększony batch size
+            epochs=100,             
+            validation_data=([X_home_val, X_away_val], y_val),
+            callbacks=callbacks,
+            #class_weight = {0: 1.5, 1: 1, 2: 1.2},
+            shuffle=True
+        )
+        # Ewaluacja
+        evaluation_results = self.model.evaluate(
+            [X_home_val, X_away_val],
+            y_val
+        )
+        
+        # Get metrics names
+        metric_names = self.model.metrics_names
+        
+        # Print all available metrics
+        for name, value in zip(metric_names, evaluation_results):
+            if name == 'accuracy':
+                print(f'Validation accuracy: {value*100:.2f}%')
+            else:
+                print(f'Validation {name}: {value:.4f}')
 
-
-    def divide_set(self):
-        first = int(len(self.indexes) * 0.90)
-        second = int(len(self.indexes) * 0.95)
-        self.indexes_train, self.X_train, self.y_train = self.indexes[:first], self.X[:first], self.y[:first]
-        self.indexes_val, self.X_val, self.y_val = self.indexes[first:second], self.X[first:second], self.y[first:second]
-        self.indexes_test, self.X_test, self.y_test = self.indexes[second:], self.X[second:], self.y[second:]
-        print("ROZMIAR TEST: ", len(self.indexes_test))
-        #print("SELF.X_TRAIN: ", self.X_train[0])
-
-    def make_goals_predictions(self, tests):
-        test_prediction = self.model.predict(tests).flatten().astype(int)
-        test_prediction = np.clip(test_prediction, 0, 6)
-        return test_prediction
+        #Confusion matrix
+        self.confusion_matrix(X_home_val, X_away_val, y_val)
+        if self.model_type == 'goals':
+            self.confusion_matrix_over_under(X_home_val, X_away_val, y_val)
+        #self.print_sample_predictions(X_home_val, X_away_val, y_val)
+        # Zapisz ostateczny model
+        self.model.save(f'model_dev/{self.model_name}.h5')
+        return history, evaluation_results
     
-    def make_winner_predictions(self, tests):
-        test_prediction = self.model.predict(tests)
-        #test_prediction = np.argmax(test_prediction, axis=1)
-        return test_prediction
+    def confusion_matrix(self, X_home_val, X_away_val, y_val):
+        # Uzyskanie przewidywanych wartości (prawdopodobieństwa)
+        y_pred_probs = self.model.predict([X_home_val, X_away_val])
+
+        # Konwersja prawdopodobieństw na klasy (wybieramy indeks z najwyższą wartością)
+        y_pred= np.argmax(y_pred_probs, axis=1)
+
+        # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
+        y_true = np.argmax(y_val, axis=1)  # Jeśli y_val jest w formie one-hot
+
+        #for i in range(len(y_pred)):
+        #    print(f"MECZ {i}: Y_PRED: {y_pred[i]}, Y_TRUE: {y_true[i]}")
+        # Obliczenie confusion matrix
+        cm = confusion_matrix(y_true, y_pred)
+        print(classification_report(y_true, y_pred))
+
+        # Wizualizacja macierzy błędów
+        plt.figure(figsize=(6,5))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1,2], yticklabels=[0,1,2])
+
+        plt.xlabel("Przewidywane")
+        plt.ylabel("Prawdziwe")
+        plt.title("Confusion Matrix")
+        plt.show()
+
+    def confusion_matrix_over_under(self, X_home_val, X_away_val, y_val):
+        # Uzyskanie przewidywanych wartości (prawdopodobieństwa)
+        y_pred_probs = self.model.predict([X_home_val, X_away_val])
+
+        # Konwersja prawdopodobieństw na klasy (wybieramy indeks z najwyższą wartością)
+        y_pred_tmp = np.argmax(y_pred_probs, axis=1) 
+        y_pred = np.where(y_pred_tmp < 3, 0, 1)
+
+        # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
+        y_true_tmp = np.argmax(y_val, axis=1)  # Jeśli y_val jest w formie one-hot
+        y_true = np.where(y_true_tmp < 3, 0, 1)
+
+        # Obliczenie confusion matrix
+        cm = confusion_matrix(y_true, y_pred)
+        print(classification_report(y_true, y_pred))
+
+        # Wizualizacja macierzy błędów
+        plt.figure(figsize=(6,5))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=[0,1], yticklabels=[0,1])
+
+        plt.xlabel("Przewidywane")
+        plt.ylabel("Prawdziwe")
+        plt.title("Confusion Matrix")
+        plt.show()
     
-    def make_goals_ppb_predictions(self, tests):
-        test_prediction = self.model.predict(tests)
-        #test_prediction = np.argmax(test_prediction, axis=1)
-        return test_prediction
+    def load_predict_model(self, path):
+        self.model = load_model(path)
     
-    def make_btts_predictions(self, tests):
-        test_prediction = self.model.predict(tests)
-        #test_prediction = np.argmax(test_prediction, axis=1)
-        return test_prediction
-
-    def graph_team_goals(self, team_name):
-        test_predictions = self.model.predict(self.X_test).flatten().astype(int)
-        test_predictions = np.clip(test_predictions, 0, 6)
-        plt.plot([x for x in range(len(test_predictions))], test_predictions)
-        plt.plot([x for x in range(len(test_predictions))], self.y_test)
-        plt.legend(['Predykcje', 'Obserwacje'])
-        plt.savefig('graphs/goals/{}_goals_total.png'.format(team_name))
-        plt.close()
-        ou_accuracy = 0
-        exact_accuracy = 0
-        for i in range(len(test_predictions)):
-            generated_ou = "U" if test_predictions[i] < 2.5 else "O"
-            real_ou = "U" if self.y_test[i][0] < 2.5 else "O"
-            if generated_ou == real_ou:
-                ou_accuracy = ou_accuracy + 1
-            if test_predictions[i] == self.y_test[i][0]:
-                exact_accuracy = exact_accuracy + 1
-        return exact_accuracy / len(test_predictions), ou_accuracy / len(test_predictions), exact_accuracy, ou_accuracy, len(test_predictions)
+    def predict(self, inputs): 
+        return self.model.predict(inputs)
     
-    def graph_team_btts(self, team_name):
-        test_predictions = self.model.predict(self.X_test)
-        np_array = np.array(self.y_test)
-        test_max = np.argmax(np_array, axis=1)
-        predict_max = np.argmax(test_predictions, axis = 1)
-        plt.plot([x for x in range(len(predict_max))], predict_max)
-        plt.plot([x for x in range(len(predict_max))], test_max)
-        plt.legend(['Predykcje', 'Obserwacje'], loc='upper left')
-        plt.savefig('graphs/btts/{}_winner.png'.format(team_name))
-        plt.close()
-        print(test_max)
-        print(predict_max)
-        return np.sum(test_max  == predict_max ) / len(test_max), len(test_max)
-    
-    def graph_team_winner(self, team_name):
-        test_predictions = self.model.predict(self.X_test)
-        np_array = np.array(self.y_test)
-        test_max = np.argmax(np_array, axis=1)
-        predict_max = np.argmax(test_predictions, axis = 1)
-        plt.plot([x for x in range(len(predict_max))], predict_max)
-        plt.plot([x for x in range(len(predict_max))], test_max)
-        plt.legend(['Predykcje', 'Obserwacje'], loc='upper left')
-        plt.savefig('graphs/winners/{}_winner.png'.format(team_name))
-        plt.close()
-        print(test_max)
-        print(predict_max)
-        return np.sum(test_max  == predict_max ) / len(test_max), len(test_max)
-    
-    def train_goals_total_model(self):
-        if self.create_model == 'new':
-            self.model = Sequential([layers.Input((int(self.entries), self.features)),
-                    layers.LSTM(64, activation = 'relu'),
-                    layers.Dense(32, activation = 'relu'),
-                    layers.Dense(16, activation = 'relu'),
-                    layers.Dense(1)])
-            cp = ModelCheckpoint('model_goals_release/', save_best_only = True)
-            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_goals_release/model_weights.h5')
-            self.model.compile(loss='mse', 
-                optimizer=Adagrad(learning_rate=0.001),
-                metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
-            #print(self.model.summary())
-        else:
-            self.model = load_model('model_goals_release/')
-            self.model.save_weights('model_goals_release/model_weights.h5')
-
-    def train_goals_ppb_model(self):
-        if self.create_model == 'new':
-            self.model = Sequential([layers.Input((int(self.entries), self.features)),
-                    layers.LSTM(64, activation = 'relu'),
-                    layers.Dense(32, activation = 'relu'),
-                    layers.Dense(16, activation = 'relu'),
-                    layers.Dense(7, activation = 'softmax')])
-            cp = ModelCheckpoint('model_goals_ppb_release/', save_best_only = True)
-            es = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-            self.model.load_weights('model_goals_ppb_release/model_weights.h5')
-            self.model.compile(loss='categorical_crossentropy', 
-                optimizer=Adagrad(learning_rate=0.001),
-                metrics=['accuracy'])
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
-            self.model.save_weights('model_goals_ppb_correct_calc/model_weights.h5')
-            #print(self.model.summary())
-        else:
-            self.model = load_model('model_goals_ppb_release/')
-            self.model.save_weights('model_goals_ppb_release/model_weights.h5')
-
-    def train_winner_model(self):
-        if self.create_model == 'new':
-            self.model = Sequential([layers.Input((int(self.entries), self.features)),
-                    layers.LSTM(64, activation = 'relu'),
-                    layers.Dense(32, activation = 'relu'),
-                    layers.Dense(16, activation = 'relu'),
-                    layers.Dense(3, activation = 'softmax')])
-            cp = ModelCheckpoint('model_winner_release/', save_best_only = True)
-            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            #self.model.load_weights('model_winner_release/model_weights.h5')
-            self.model.compile(loss='categorical_crossentropy', 
-                optimizer=Adagrad(learning_rate=0.001),
-                metrics=['accuracy'])
-
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
-            print(self.model.summary())
-        else:
-            self.model = load_model('model_winner_release/')
-            self.model.save_weights('model_winner_release/model_weights.h5')
-
-    def train_btts_model(self):
-        if self.create_model == 'new':
-            self.model = Sequential([layers.Input((int(self.entries), self.features)),
-                    layers.LSTM(64, activation = 'sigmoid'),
-                    layers.Dense(32, activation = 'relu'),
-                    layers.Dense(16, activation = 'relu'),
-                    layers.Dense(2, activation = 'softmax')])
-            cp = ModelCheckpoint('model_btts_release/', save_best_only = True)
-            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_btts_release/model_weights.h5')
-            self.model.compile(loss='categorical_crossentropy', 
-                optimizer=Adagrad(learning_rate=0.001),
-                metrics=['accuracy'])
-
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
-            print(self.model.summary())
-        else:
-            self.model = load_model('model_btts_release/')
-            self.model.save_weights('model_btts_release/model_weights.h5')
-
-    def train_ou_model(self):
-        if self.create_model == 'new':
-            self.model = Sequential([layers.Input((int(self.entries), self.features)),
-                    layers.LSTM(64, activation = 'sigmoid'),
-                    layers.Dense(32, activation = 'relu'),
-                    layers.Dense(16, activation = 'relu'),
-                    layers.Dense(2, activation = 'softmax')])
-            cp = ModelCheckpoint('model_ou_release/', save_best_only = True)
-            es = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
-            self.model.load_weights('model_ou_release/model_weights.h5')
-            self.model.compile(loss='categorical_crossentropy',  
-                optimizer=Adagrad(learning_rate=0.001),
-                metrics=['accuracy'])
-
-            self.model.fit(self.X_train, self.y_train, validation_data=(self.X_val, self.y_val), epochs=30, batch_size = 32, callbacks = [cp, es])
-            print(self.model.summary())
-        else:
-            self.model = load_model('model_ou_release/')
-            self.model.save_weights('model_ou_release/model_weights.h5')
-
-    def goals_total_test(self):
-        test_predictions = self.model.predict(self.X_test).flatten().astype(int)
-        accuracy = accuracy_score(test_predictions, self.y_test)
-        test_predictions = np.clip(test_predictions, 0, 6)
-        ou_predictions = 0
-        for i in range(len(test_predictions)):
-            if (self.y_test[i][0] < 2.5 and test_predictions[i] < 2.5) or (self.y_test[i][0] > 2.5 and test_predictions[i] > 2.5):
-                ou_predictions += 1
-        print("Liczba meczów: {}".format(len(self.X_test)))
-        print("Accuracy:", accuracy)
-        print("OU accuracy: ", ou_predictions / len(test_predictions))
-        #for i in range(len(self.X_test)):
-        #    generated_ou = "U" if test_predictions[i] < 2.5 else "O"
-        #    print("{};{};{}".format(self.indexes_test[i], test_predictions[i], generated_ou))
-        #graph_indexes = [x for x in range(1,51)]
-        #plt.plot(graph_indexes, test_predictions[-50:])
-        #plt.plot(graph_indexes, self.y_test[-50:])
-        #plt.legend(['Predykcje', 'Obserwacje'])
-        #plt.show()
-
-    def goals_ppb_test(self):
-        test_predictions = self.model.predict(self.X_test)
-        np_array = np.array(self.y_test)
-        test_max = np.argmax(np_array, axis=1)
-        predict_max = np.argmax(test_predictions, axis = 1)
-        ou_predictions = 0
-        for i in range(len(test_predictions)):
-            #print("Indeks meczu: {}".format(self.indexes_test[i]))
-            #print("Zaobserwowana liczba bramek: {}".format(test_max[i]))
-            #print("Przewidywana liczba bramek: {}".format(predict_max[i]))
-            #print("Under: {}".format(test_predictions[i][0] + test_predictions[i][1] + test_predictions[i][2]))
-            #print("Over: {}".format(test_predictions[i][3] + test_predictions[i][4] + test_predictions[i][5] + test_predictions[i][6]))
-            if (test_max[i] < 2.5 and predict_max[i] < 2.5) or (test_max[i] > 2.5 and predict_max[i] > 2.5):
-                ou_predictions += 1
-        print("Liczba meczów: {}".format(len(self.X_test)))
-        print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        print("OU skuteczność: {}".format(ou_predictions / len(test_predictions)))
-
-    
-    def test_winner_model(self):
-        test_predictions = self.model.predict(self.X_test)
-        np_array = np.array(self.y_test)
-        test_max = np.argmax(np_array, axis=1)
-        predict_max = np.argmax(test_predictions, axis = 1)
-        print("Liczba meczów: {}".format(len(self.X_test)))
-        print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
-        print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        #for i in range(len(self.X_test)):
-        #    percentages = np.round(test_predictions[i] * 100, 2)
-        #    print("{};{:.2f};{:.2f};{:.2f}".format(self.indexes_test[i], percentages[0], percentages[1], percentages[2]))
-        #    print("{};{};{}".format(self.indexes_test[i], predict_max[i], test_max[i]))
-
-    def test_btts_model(self):
-        test_predictions = self.model.predict(self.X_test)
-        np_array = np.array(self.y_test)
-        test_max = np.argmax(np_array, axis=1)
-        predict_max = np.argmax(test_predictions, axis = 1)
-        print("Liczba meczów: {}".format(len(self.X_test)))
-        print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
-        print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        #for i in range(len(self.X_test)):
-        #    percentages = np.round(test_predictions[i] * 100, 2)
-        #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
-        #     print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
-        #    print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
-
-    def test_ou_model(self):
-        test_predictions = self.model.predict(self.X_test)
-        np_array = np.array(self.y_test)
-        test_max = np.argmax(np_array, axis=1)
-        predict_max = np.argmax(test_predictions, axis = 1)
-        print("Liczba meczów: {}".format(len(self.X_test)))
-        print("Liczba poprawnych: {}".format(np.sum(test_max  == predict_max )))
-        print("Skuteczność: {}".format(np.sum(test_max  == predict_max ) / len(test_max)))
-        #for i in range(len(self.X_test)):
-        #    percentages = np.round(test_predictions[i] * 100, 2)
-        #    print("{};{:.2f};{:.2f};".format(self.indexes_test[i], percentages[0], percentages[1]))
-        #     print("{};{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE', 'TAK' if test_max[i] == 0 else 'NIE'))
-        #    print("{};{}".format(int(self.indexes_test[i]), 'TAK' if predict_max[i] == 0 else 'NIE'))
+    def print_sample_predictions(self, X_home_val, X_away_val, y_val, num_samples=10000):
+        """
+        Prints detailed comparison of predictions vs actual values for a few samples
+        """
+        # Get predictions
+        predictions = self.model.predict([X_home_val, X_away_val])
+        
+        # Convert to class labels
+        y_pred = np.argmax(predictions, axis=1)
+        y_true = np.argmax(y_val, axis=1)
+        
+        print("\n=== Sample Predictions ===")
+        for i in range(min(num_samples, len(y_true))):
+            prediction = y_pred[i]
+            actual = y_true[i]
+            
+            # Convert numeric labels to readable format
+            if self.model_type == 'winner':
+                pred_label = ['Draw', 'Home Win', 'Away Win'][prediction]
+                true_label = ['Draw', 'Home Win', 'Away Win'][actual]
+            elif self.model_type == 'btts':
+                pred_label = ['No BTTS', 'BTTS'][prediction]
+                true_label = ['No BTTS', 'BTTS'][actual]
+            else:  # for goals and exact
+                pred_label = str(prediction)
+                true_label = str(actual)
+            
+            result = "WIN" if prediction == actual else "LOSE"
+            print(f"\nPrediction #{i+1}:")
+            print(f"Expected: {true_label}")
+            print(f"Predicted: {pred_label}")
+            print(f"Result: {result}")
