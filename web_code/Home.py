@@ -2,9 +2,6 @@ import streamlit as st
 #st.set_page_config(layout="wide")
 st.set_page_config(page_title = "Ekstrabet", page_icon = "⚽", layout="centered")
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime
 
 import db_module
 

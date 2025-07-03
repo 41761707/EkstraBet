@@ -1,4 +1,5 @@
 from collections import deque
+from tqdm import tqdm
 import rating_strategy
 
 # Klasa do obliczania ratingu drużyn na podstawie wyników meczów
@@ -14,7 +15,7 @@ class GapRating(rating_strategy.RatingStrategy):
         self.match_attributes = match_attributes
 
     def calculate_rating(self):
-        for index, row in self.matches_df.iterrows():
+        for index, row in tqdm(self.matches_df.iterrows(), total=len(self.matches_df), desc="Aktualizacja GapRating"):
             powers = self.calculate_match_rating(row)
             
             # Przypisanie wartości do DataFrame

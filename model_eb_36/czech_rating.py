@@ -1,8 +1,8 @@
 from tabulate import tabulate
-
+from tqdm import tqdm
 import rating_strategy
 
-class CzechRating:
+class CzechRating(rating_strategy.RatingStrategy):
     def __init__(self, matches_df, teams_df):
         self.matches_df = matches_df
         self.teams_df = teams_df
@@ -13,156 +13,325 @@ class CzechRating:
         # Initialize current ratings
         for _, team in self.teams_df.iterrows():
             current_dict = {
-                'team_id': team['id'],
-                'team_name' : team['name'],
-                'wins' : 0,
-                'draws' : 0,
-                'loses' : 0,
-                'matches' : 0,
-                'goals_scored' : 0,
-                'goals_conceded' : 0,
-                'win_pct': 0.0,
-                'draw_pct': 0.0,
-                'gs_avg': 0.0,
-                'gc_avg': 0.0,
-                'gs_std': 0.0,
-                'gc_std': 0.0
-               # 'rest': 0
+                'team_id': team['id'],      # ID drużyny
+                'team_name' : team['name'], # Nazwa drużyny
+                'home_wins' : 0,            # Liczba zwycięstw w spotkania domowych (sumaryczna)
+                'away_wins' : 0,            # Liczba zwycięstw w spotkania wyjazdowych (sumaryczna)
+                'home_draws' : 0,           # Liczba remisów w spotkaniach domowych (sumaryczna)
+                'away_draws' : 0,           # Liczba remisów w spotkaniach wyjazdowych (sumaryczna)
+                'home_loses' : 0,           # Liczba porażek w spotkaniach domowych (sumaryczna)
+                'away_loses' : 0,           # Liczba porażek w spotkaniach wyjazdowych (sumaryczna)
+                'matches' : 0,              # Liczba rozegranych meczów (sumaryczna)
+                'home_goals_scored' : 0,    # Liczba zdobytych bramek w meczach domowych (sumaryczna)
+                'home_goals_scored_sq' : 0, # Suma kwadratów zdobytych bramek w meczach domowych (sumaryczna)
+                'away_goals_scored' : 0,    # Liczba zdobytych bramek w meczach wyjazdowych (sumaryczna)
+                'away_goals_scored_sq' : 0, # Suma kwadratów zdobytych bramek w meczach wyjazdowych (sumaryczna)
+                'home_goals_conceded' : 0,       # Liczba straconych bramek w meczach domowych (sumaryczna)
+                'home_goals_conceded_sq' : 0,    # Suma kwadratów straconych bramek w meczach domowych (sumaryczna)
+                'away_goals_conceded' : 0,       # Liczba straconych bramek w meczach wyjazdowych (sumaryczna)
+                'away_goals_conceded_sq' : 0,    # Suma kwadratów straconych bramek w meczach wyjazdowych (sumaryczna)
+                'home_win_pct': 0.0,             # Procent zwycięstw w meczach domowych
+                'away_win_pct': 0.0,             # Procent zwycięstw w meczach wyjazdowych
+                'home_draw_pct': 0.0,            # Procent remisów w meczach domowych
+                'away_draw_pct': 0.0,            # Procent remisów w meczach wyjazdowych
+                'home_gs_avg': 0.0,              # Średnia zdobytych bramek w meczach domowych
+                'away_gs_avg': 0.0,              # Średnia zdobytych bramek w meczach wyjazdowych
+                'home_gc_avg': 0.0,              # Średnia straconych bramek w meczach domowych
+                'away_gc_avg': 0.0,              # Średnia straconych bramek w meczach wyjazdowych
+                'home_gs_std': 0.0,              # Odchylenie standardowe zdobytych bramek w meczach domowych
+                'away_gs_std': 0.0,              # Odchylenie standardowe zdobytych bramek w meczach wyjazdowych
+                'home_gc_std': 0.0,              # Odchylenie standardowe straconych bramek w meczach domowych
+                'away_gc_std': 0.0,              # Odchylenie standardowe straconych bramek w meczach wyjazdowych
+                'last_game_date': None,     # Data ostatniego meczu
+                'rest': 0,                  # Liczba dni odpoczynku od ostatniego meczu
+                'win_pct_last_5' : 0.0,       # Procent zwycięstw w ostatnich 5 meczach
+                'draw_pct_last_5' : 0.0,      # Procent remisów w ostatnich 5 meczach
+                'gs_avg_last_5' : 0.0,      # Średnia zdobytych bramek w ostatnich 5 meczach
+                'gc_avg_last_5' : 0.0,      # Średnia straconych bramek w ostatnich 5 meczach
+                'gs_std_last_5' : 0.0,      # Odchylenie standardowe zdobytych bramek w ostatnich 5 meczach
+                'gc_std_last_5' : 0.0,      # Odchylenie standardowe straconych bramek w ostatnich 5 meczach
             }
             self.team_stats.append(current_dict)
     
-    def calculate_rating(self):
-        for index, match in self.matches_df.iterrows():
-            # Update statistics for both teams
-            #print(f"Gospo: {match['home_team']}, Gosc: {match['away_team']}, Wynik: {match['home_team_goals']} : {match['away_team_goals']}")
-            home_stats, away_stats = self.update_team_stats(match)
-            self.matches_df.at[index, 'home_team_win_pct'] = home_stats['win_pct']
-            self.matches_df.at[index, 'home_team_draw_pct'] = home_stats['draw_pct']
-            self.matches_df.at[index, 'home_team_gs_avg'] = home_stats['gs_avg']
-            self.matches_df.at[index, 'home_team_gc_avg'] = home_stats['gc_avg']
-            self.matches_df.at[index, 'home_team_gs_std'] = home_stats['gs_std']
-            self.matches_df.at[index, 'home_team_gc_std'] = home_stats['gc_std']
-            
-            self.matches_df.at[index, 'away_team_win_pct'] = away_stats['win_pct']
-            self.matches_df.at[index, 'away_team_draw_pct'] = away_stats['draw_pct']
-            self.matches_df.at[index, 'away_team_gs_avg'] = away_stats['gs_avg']
-            self.matches_df.at[index, 'away_team_gc_avg'] = away_stats['gc_avg']
-            self.matches_df.at[index, 'away_team_gs_std'] = away_stats['gs_std']
-            self.matches_df.at[index, 'away_team_gc_std'] = away_stats['gc_std']
-
-    def update_team_stats(self, match):
-        """Helper method to update team statistics for both home and away teams"""
-        home_stats = next(team for team in self.team_stats if team['team_id'] == match['home_team'])
-        away_stats = next(team for team in self.team_stats if team['team_id'] == match['away_team'])
-        #if (match['home_team'] == 3 or match['away_team'] == 3):
-        #    print(f"Gospo: {match['home_team']}, Gosc: {match['away_team']}, Wynik: {match['home_team_goals']} : {match['away_team_goals']}")
-        # Update match results
-        if match['result'] == 1:  # Home win
-            #if (match['home_team'] == 3 or match['away_team'] == 3):
-            #    print("GOSPO WIN")
-            home_stats['wins'] += 1
-            away_stats['loses'] += 1
-        elif match['result'] == 2:  # Away win
-            #if (match['home_team'] == 3 or match['away_team'] == 3):
-            #    print("GOSPO LOSE")
-            home_stats['loses'] += 1
-            away_stats['wins'] += 1
-        elif match['result'] == 0:  # Draw
-            #if (match['home_team'] == 3 or match['away_team'] == 3):
-            #    print("DRAW")
-            home_stats['draws'] += 1
-            away_stats['draws'] += 1
-        else:
-            print("Brak danych")
-            return
+    def calculate_rating(self) -> None:
+        """
+        Oblicza i aktualizuje statystyki drużyn dla wszystkich meczów w DataFrame.
         
-        # Update basic stats for home team
-        self._update_basic_stats(
-            home_stats, 
-            match['home_team_goals'], 
-            match['away_team_goals']
-        )
+        Dla każdego meczu w matches_df:
+        1. Pobiera aktualne statystyki drużyn (gospodarza i gościa)
+        2. Aktualizuje wartości statystyk w DataFrame
+        3. Uwzględnia różne wskaźniki jak procent wygranych, średnie bramki, odchylenia standardowe
         
-        # Update basic stats for away team
-        self._update_basic_stats(
-            away_stats, 
-            match['away_team_goals'], 
-            match['home_team_goals']
-        )
+        Statystyki są obliczane osobno dla:
+        - występów gospodarza u siebie
+        - występów gościa na wyjeździe
+        - ostatnich 5 meczów drużyny
         
-        # Calculate standard deviations
-        self._update_standard_deviations(home_stats, match, is_home=True)
-        self._update_standard_deviations(away_stats, match, is_home=False)
-        #print(home_stats)
-        #print(away_stats)
-        return home_stats, away_stats
-
-    def _update_basic_stats(self, stats, goals_scored, goals_conceded):
-        """Helper method to update basic statistics"""
-        stats['matches'] += 1
-        stats['goals_scored'] += goals_scored
-        stats['goals_conceded'] += goals_conceded
+        Argumenty:
+            self - instancja klasy zawierająca matches_df z danymi meczowymi
         
-        stats['win_pct'] = round(stats['wins'] * 100 / stats['matches'], 2)
-        stats['draw_pct'] = round(stats['draws'] * 100 / stats['matches'], 2)
-        stats['gs_avg'] = round(stats['goals_scored'] / stats['matches'], 2)
-        stats['gc_avg'] = round(stats['goals_conceded'] / stats['matches'], 2)
-
-    def _update_standard_deviations(self, stats, current_match, is_home):
-        """Helper method to calculate standard deviations"""
-        team_matches = self.matches_df[
-            ((self.matches_df['home_team' if is_home else 'away_team'] == stats['team_id']) &
-            (self.matches_df['game_date'] < current_match['game_date']))
+        Zwraca:
+            None - funkcja modyfikuje bezpośrednio matches_df dodając kolumny ze statystykami
+        """
+        
+        # Stałe z nazwami kolumn do aktualizacji
+        STAT_COLUMNS = [
+            'home_win_pct', 'away_win_pct', 'home_draw_pct', 'away_draw_pct',
+            'home_gs_avg', 'away_gs_avg', 'home_gc_avg', 'away_gc_avg',
+            'home_gs_std', 'away_gs_std', 'home_gc_std', 'away_gc_std',
+            'win_pct_last_5', 'draw_pct_last_5', 'gs_avg_last_5', 'gc_avg_last_5',
+            'gs_std_last_5', 'gc_std_last_5', 'rest'
         ]
         
-        if team_matches.empty:
-            stats['gs_std'] = 0.0
-            stats['gc_std'] = 0.0
-            return
+        # Przygotowanie słowników do przechowywania wyników
+        home_updates = {f'home_team_{col}': [] for col in STAT_COLUMNS}
+        away_updates = {f'away_team_{col}': [] for col in STAT_COLUMNS}
         
-        goals_column = 'home_team_goals' if is_home else 'away_team_goals'
-        conceded_column = 'away_team_goals' if is_home else 'home_team_goals'
+        # Iteracja przez wszystkie mecze
+        for _, match in tqdm(self.matches_df.iterrows(), total=len(self.matches_df), desc="Aktualizacja CzechRating"):
+            # Pobranie aktualnych statystyk drużyn
+            home_stats, away_stats = self.update_team_stats(match)
+            
+            # Zbieranie statystyk gospodarza
+            for col in STAT_COLUMNS:
+                home_updates[f'home_team_{col}'].append(home_stats[col])
+            
+            # Zbieranie statystyk gościa
+            for col in STAT_COLUMNS:
+                away_updates[f'away_team_{col}'].append(away_stats[col])
         
-        goals_scored_variance = sum((getattr(match, goals_column) - stats['gs_avg']) ** 2 
-                                for match in team_matches.itertuples())
-        goals_conceded_variance = sum((getattr(match, conceded_column) - stats['gc_avg']) ** 2 
-                                    for match in team_matches.itertuples())
-        
-        stats['gs_std'] = round((goals_scored_variance / len(team_matches)) ** 0.5, 2)
-        stats['gc_std'] = round((goals_conceded_variance / len(team_matches)) ** 0.5, 2)
+        # Aktualizacja DataFrame
+        for col, values in home_updates.items():
+            self.matches_df[col] = values
+            
+        for col, values in away_updates.items():
+            self.matches_df[col] = values
 
-    def print_rating(self):
-        """Prints team statistics in a formatted table"""
-        # Sort teams by win percentage (descending)
-        sorted_stats = sorted(self.team_stats, 
-                            key=lambda x: (x['win_pct'], x['gs_avg']), 
-                            reverse=True)
+    def update_team_stats(self, match) -> tuple[dict, dict]:
+        """
+        Kompleksowo aktualizuje statystyki drużyn na podstawie wyniku meczu.
         
-        # Prepare data for tabulation
+        Parametry:
+            match : pd.Series
+                Dane meczu zawierające:
+                - home_team: ID gospodarza
+                - away_team: ID gościa
+                - result: wynik (1=gospodarz, 0=remis, 2=gość)
+                - home_team_goals: bramki gospodarza
+                - away_team_goals: bramki gościa
+                - date: data meczu
+        
+        Zwraca:
+            tuple[dict, dict]: Zaktualizowane statystyki (gospodarz, gość)
+        """
+        home_stats = next(t for t in self.team_stats if t['team_id'] == match['home_team'])
+        away_stats = next(t for t in self.team_stats if t['team_id'] == match['away_team'])
+        
+        # Wspólna aktualizacja podstawowych statystyk
+        home_stats['matches'] += 1
+        away_stats['matches'] += 1
+        
+        # Aktualizacja zintegrowana - wyniki i bramki
+        if match['result'] == 1:  # Zwycięstwo gospodarza
+            self._update_combined_stats(
+                home_stats, away_stats,
+                home_goals=match['home_team_goals'],
+                away_goals=match['away_team_goals'],
+                home_result='win',
+                away_result='lose'
+            )
+        elif match['result'] == 2:  # Zwycięstwo gościa
+            self._update_combined_stats(
+                home_stats, away_stats,
+                home_goals=match['home_team_goals'],
+                away_goals=match['away_team_goals'],
+                home_result='lose',
+                away_result='win'
+            )
+        elif match['result'] == 0:  # Remis
+            self._update_combined_stats(
+                home_stats, away_stats,
+                home_goals=match['home_team_goals'],
+                away_goals=match['away_team_goals'],
+                home_result='draw',
+                away_result='draw'
+            )
+        
+        # Obliczenie statystyk pochodnych
+        self.update_standard_deviations(home_stats)
+        self.update_standard_deviations(away_stats)
+        # Aktualizacja daty i odpoczynku
+        return home_stats, away_stats
+
+    def _update_combined_stats(self, home_stats: dict, away_stats: dict, 
+                            home_goals: int, away_goals: int,
+                            home_result: str, away_result: str) -> None:
+        """
+        Kompleksowa aktualizacja statystyk meczowych w jednej operacji.
+        
+        Parametry:
+            home_stats: statystyki gospodarza
+            away_stats: statystyki gościa
+            home_goals: bramki gospodarza
+            away_goals: bramki gościa
+            home_result: wynik gospodarza ('win'/'lose'/'draw')
+            away_result: wynik gościa ('win'/'lose'/'draw')
+        """
+        # Aktualizacja wyników
+        if home_result == 'win':
+            home_stats['home_wins'] += 1
+            away_stats['away_loses'] += 1
+        elif home_result == 'lose':
+            home_stats['home_loses'] += 1
+            away_stats['away_wins'] += 1
+        else:  # remis
+            home_stats['home_draws'] += 1
+            away_stats['away_draws'] += 1
+        
+        # Aktualizacja statystyk bramkowych gospodarza (mecz domowy)
+        home_stats['home_goals_scored'] += home_goals
+        home_stats['home_goals_scored_sq'] += home_goals ** 2
+        home_stats['home_goals_conceded'] += away_goals
+        home_stats['home_goals_conceded_sq'] += away_goals ** 2
+        
+        # Aktualizacja statystyk bramkowych gościa (mecz wyjazdowy)
+        away_stats['away_goals_scored'] += away_goals
+        away_stats['away_goals_scored_sq'] += away_goals ** 2
+        away_stats['away_goals_conceded'] += home_goals
+        away_stats['away_goals_conceded_sq'] += home_goals ** 2
+
+        # Uzupełnianie średnich bramek w słowniku stats
+        home_matches = home_stats['home_wins'] + home_stats['home_draws'] + home_stats['home_loses']
+        away_matches = away_stats['away_wins'] + away_stats['away_draws'] + away_stats['away_loses']
+
+        # Obliczanie średnich bramek zdobytych i straconych
+        home_stats['home_gs_avg'] = home_stats['home_goals_scored'] / home_matches if home_matches > 0 else 0.0
+        home_stats['home_gc_avg'] = home_stats['home_goals_conceded'] / home_matches if home_matches > 0 else 0.0
+        away_stats['away_gs_avg'] = away_stats['away_goals_scored'] / away_matches if away_matches > 0 else 0.0
+        away_stats['away_gc_avg'] = away_stats['away_goals_conceded'] / away_matches if away_matches > 0 else 0.0
+
+    def update_standard_deviations(self, stats):
+        """
+        Oblicza odchylenia standardowe dla bramek zdobytych i straconych
+        w meczach domowych i wyjazdowych.
+        Args:
+            stats: dict - słownik zawierający statystyki drużyny
+        """
+        # Obliczenia dla meczów domowych - bez zbędnego sprawdzania n>0
+        home_matches = stats['home_wins'] + stats['home_draws'] + stats['home_loses']
+        stats['home_gs_std'] = self._calculate_single_std(
+            stats['home_goals_scored'],
+            stats['home_goals_scored_sq'],
+            home_matches
+        )
+        stats['home_gc_std'] = self._calculate_single_std(
+            stats['home_goals_conceded'],
+            stats['home_goals_conceded_sq'],
+            home_matches
+        )
+
+        # Obliczenia dla meczów wyjazdowych - analogicznie
+        away_matches = stats['away_wins'] + stats['away_draws'] + stats['away_loses']
+        stats['away_gs_std'] = self._calculate_single_std(
+            stats['away_goals_scored'],
+            stats['away_goals_scored_sq'],
+            away_matches
+        )
+        stats['away_gc_std'] = self._calculate_single_std(
+            stats['away_goals_conceded'],
+            stats['away_goals_conceded_sq'],
+            away_matches
+        )
+
+    def _calculate_single_std(self, total_goals, total_goals_sq, matches):
+        """
+        Oblicza odchylenie standardowe dla pojedynczego typu meczu (domowy/wyjazdowy).
+        
+        Args:
+            total_goals: int - suma zdobytych bramek
+            total_goals_sq: int - suma kwadratów zdobytych bramek
+            matches: int - liczba rozegranych meczów
+        
+        Returns:
+            float - odchylenie standardowe
+        """
+        if matches > 0:
+            mean = total_goals / matches
+            variance = (total_goals_sq / matches) - (mean ** 2)
+            return variance ** 0.5
+        return 0.0
+
+    def print_rating(self) -> None:
+        """
+        Wyświetla ranking drużyn w sformatowanej tabeli, uwzględniając:
+        - statystyki ogólne
+        - podział na mecze domowe i wyjazdowe (zarówno GS jak i GC)
+        
+        Dane sortowane są malejąco według:
+        1. Procentu zwycięstw ogółem
+        2. Średniej zdobytych bramek
+        """
+        # Sortowanie drużyn według skuteczności
+        sorted_stats = sorted(
+            self.team_stats,
+            key=lambda x: (
+                (x['home_wins'] + x['away_wins']) / max(1, x['matches']),  # Całkowity win_pct
+                (x['home_goals_scored'] + x['away_goals_scored']) / max(1, x['matches'])  # Całkowity gs_avg
+            ),
+            reverse=True
+        )
+        
+        # Przygotowanie danych do tabeli
         table_data = []
-        for team in sorted_stats:
-            if int(team['matches'] == 0):
+        for idx, team in enumerate(sorted_stats, 1):
+            if team['matches'] == 0:
                 continue
+                
+            # Obliczenia statystyk ogólnych
+            total_wins = team['home_wins'] + team['away_wins']
+            total_draws = team['home_draws'] + team['away_draws']
+            total_losses = team['home_loses'] + team['away_loses']
+            total_gs = team['home_goals_scored'] + team['away_goals_scored']
+            total_gc = team['home_goals_conceded'] + team['away_goals_conceded']
+            
+            # Formatowanie wiersza
             row = [
-                team['team_name'],
+                f"{idx}. {team['team_name']}",
                 f"{team['matches']}",
-                f"{team['wins']}-{team['draws']}-{team['loses']}",
-                f"{team['win_pct']}%",
-                f"{team['draw_pct']}%",
-                f"{team['gs_avg']:.2f}",
-                f"{team['gc_avg']:.2f}",
-                f"{team['gs_std']:.2f}",
-                f"{team['gc_std']:.2f}"
+                f"{total_wins}-{total_draws}-{total_losses}",
+                f"{(total_wins / team['matches']) * 100:.1f}%",
+                f"{(total_draws / team['matches']) * 100:.1f}%",
+                f"{total_gs / team['matches']:.2f}",
+                f"{total_gc / team['matches']:.2f}",
+                # Statystyki domowe
+                f"{team['home_wins']}-{team['home_draws']}-{team['home_loses']}",
+                f"{team['home_gs_avg']:.2f}",
+                f"{team['home_gc_avg']:.2f}",  # Dodane GC domowe
+                # Statystyki wyjazdowe
+                f"{team['away_wins']}-{team['away_draws']}-{team['away_loses']}",
+                f"{team['away_gs_avg']:.2f}",
+                f"{team['away_gc_avg']:.2f}",  # Dodane GC wyjazdowe
             ]
             table_data.append(row)
         
-        # Define headers
-        headers = ['Team', 'Matches', 'W-D-L', 'Win%', 'Draw%', 'GS Avg', 'GC Avg', 'GS StD', 'GC StD']
+        # Nagłówki tabeli
+        headers = [
+            'Team', 'M', 'W-D-L', 'Win%', 'Draw%', 'GS Avg', 'GC Avg',
+            'Home W-D-L', 'Home GS AVG', 'Home GC AVG',  # Dodany Home GC
+            'Away W-D-L', 'Away GS AVG', 'Away GC AVG'   # Dodany Away GC
+        ]
         
-        # Print the table
-        print("\nTeam Ratings:")
-        print(tabulate(table_data,  headers=headers,  tablefmt='grid',  numalign='right', floatfmt='.2f'))
-
+        # Wyświetlenie tabeli
+        print("\nTeam Ratings Summary:")
+        print(tabulate(
+            table_data,
+            headers=headers,
+            tablefmt='grid',
+            stralign='left',
+            numalign='right',
+            floatfmt='.2f'
+        ))
+        
     def calculate_match_rating(self):
         pass
 

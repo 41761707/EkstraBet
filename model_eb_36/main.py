@@ -1,6 +1,5 @@
 import numpy as np
 import sys
-from datetime import date, timedelta
 import json
 
 # Moduły
@@ -10,8 +9,64 @@ import model_module
 import process_data
 import prediction_module
 import config_manager
-# @package main
+import test_module
+import db_module
 
+# @package main
+def get_calculator_func(name):
+    #TO-DO: Zrobić to lepiej bo teraz jest mega syf - to zwraca typy kalukatorów dla rankingu gap
+    calculators = {
+        'chances_home': {
+            'calculator': lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])
+        },
+        'chances_away': {
+            'calculator': lambda match: int(match['away_team_ck']) + int(match['away_team_sc'])
+        },
+        'goals_home': {
+            'calculator': lambda match: int(match['home_team_goals'])
+        },
+        'goals_away': {
+            'calculator': lambda match: int(match['away_team_goals'])
+        },
+        'btts': {
+            'calculator': lambda match: 1 if match['home_team_goals'] > 0 and match['away_team_goals'] > 0 else 0
+        },
+    }
+    return calculators.get(name, None)
+
+def get_rating_params(config):
+    """
+    Pobiera parametry ratingów z konfiguracji i przygotowuje je do użycia.
+    
+    Args:
+        config (ConfigManager): Obiekt konfiguracyjny zawierający ustawienia modelu
+    
+    Returns:
+        tuple: Krotka zawierająca:
+            - initial_rating (int): Początkowa wartość rankingu ELO
+            - second_tier_coef (float): Współczynnik dla drużyn z drugiej ligi
+            - match_attributes (list/str): Lista atrybutów meczu lub pusty string
+    """
+    # Sprawdzenie czy ranking ELO jest aktywny
+    elo_enabled = 'elo' in config.rating_config[config.model_type]['rating_type']
+    # Pobranie początkowego rankingu ELO jeśli aktywny, w przeciwnym razie 0
+    initial_rating = config.model_config["ratings"]["elo"]["initial_rating"] if elo_enabled else 0
+    # Pobranie współczynnika dla drugiej ligi jeśli ELO aktywne, w przeciwnym razie 0
+    second_tier_coef = config.model_config["ratings"]["elo"]["second_tier_coef"] if elo_enabled else 0
+
+    # Sprawdzenie czy ranking GAP jest aktywny
+    gap_enabled = 'gap' in config.rating_config[config.model_type]['rating_type']
+    if gap_enabled:
+        # Pobranie atrybutów meczu z konfiguracji (domyślnie pusty string)
+        match_attributes = config.model_config["ratings"]["gap"].get("match_attributes", "")
+        for attr in match_attributes:
+            attr["calculator"] = get_calculator_func(attr["name"])["calculator"]
+        print(match_attributes)  # Debugowe wyświetlenie atrybutów
+    else:
+        # Dla nieaktywnego GAP zwracamy pusty string
+        match_attributes = ""
+    
+    return initial_rating, second_tier_coef, match_attributes
 
 def get_matches(config):
     """
@@ -37,25 +92,28 @@ def get_matches(config):
         4. Łączy wszystkie obliczone ratingi w jeden DataFrame
         5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
     """
-    input_date = date.today() - timedelta(days=1)
+    input_date = config.model_config["training_config"]["threshold_date"]
     data = dataprep_module.DataPrep(input_date, config.leagues, config.sport_id, config.country)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()
+    # Pobierz parametry ratingów
+    initial_rating, second_tier_coef, match_attributes = get_rating_params(config)
     # Tworzenie ratingu
-    rating_factory = ratings_module.RatingFactory.create_rating(config.rating_config[config.model_type]['rating_type'],
-                                                                matches_df=matches_df.copy(),
-                                                                teams_df=teams_df,
-                                                                first_tier_leagues=first_tier_leagues,
-                                                                second_tier_leagues=second_tier_leagues,
-                                                                initial_rating=config.model_config["ratings"]["elo"]["initial_rating"],
-                                                                second_tier_coef=config.model_config["ratings"]["elo"]["second_tier_coef"],
-                                                                match_attributes=config.model_config["ratings"]["gap"]["match_attributes"])
+    rating_factory = ratings_module.RatingFactory.create_rating(
+        config.rating_config[config.model_type]['rating_type'],
+        matches_df=matches_df.copy(),
+        teams_df=teams_df,
+        first_tier_leagues=first_tier_leagues,
+        second_tier_leagues=second_tier_leagues,
+        initial_rating=initial_rating,
+        second_tier_coef=second_tier_coef,
+        match_attributes=match_attributes
+    )
     # Tworzymy kopię oryginalnego DataFrame
     merged_matches_df = matches_df.copy()
     for rating in rating_factory:
-        print(type(rating).__name__)
+        print(f'Tworzenie rankingu dla: {type(rating).__name__}')
         rating.calculate_rating()
-        rating.print_rating()
         temp_matches_df, _ = rating.get_data()
         # Znajdujemy nowe kolumny dodane przez aktualny rating
         new_columns = [col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
@@ -75,6 +133,7 @@ def get_matches(config):
     # Usuwamy kolumny, które nie są używane przez żaden system rankingowy
     columns_to_drop = [col for col in matches_df.columns if col not in rating_columns]
     matches_df = matches_df.drop(columns=columns_to_drop)
+    print("Przykład reprezentacji meczów:")
     print(matches_df.tail())
     return matches_df, teams_df, upcoming_df
 
@@ -114,7 +173,6 @@ def prepare_training(config):
     """
     # Pobranie danych meczowych
     matches_df, teams_df, _ = get_matches(config)
-    
     # Przetwarzanie danych treningowych
     processor = process_data.ProcessData(
         matches_df, 
@@ -128,8 +186,9 @@ def prepare_training(config):
     # Analiza rozkładu danych
     analyze_result_distribution(train_data, config.model_type, "Training Data")
     analyze_result_distribution(val_data, config.model_type, "Validation Data")
-    print(training_info[1])
-    print_training_data_info(train_data, val_data, training_info, 3)
+    #Testowe printy
+    #print(training_info[1])
+    #print_training_data_info(train_data, val_data, training_info, 3)
 
     # Inicjalizacja i trenowanie modelu
     model = model_module.ModelModule(
@@ -144,9 +203,7 @@ def prepare_training(config):
     if config.load_weights == '1':
         model.load_predict_model(f'model_{config.model_type}_dev/{config.model_load_name}.h5')
     else:
-        print(config.model_config["model"]["type"])
-        if config.model_config["model"]["type"] == "LSTM":
-            model.build_lstm_model_from_config(config)
+        model.build_model_from_config(config)
     
     # Trenowanie modelu i aktualizacja konfiguracji
     history, evaluation_results = model.train_model()
@@ -155,8 +212,10 @@ def prepare_training(config):
     config.model_config["val_accuracy"] = float(evaluation_results[1])
     config.model_config["val_loss"] = float(evaluation_results[0])
 
-    if config.model_config["ratings"]["gap"]["match_attributes"]:
-        config.model_config["ratings"]["gap"]["match_attributes"] = ''
+    #TO-DO: Reprezentacja lambda funkcji jako stringa
+    if "match_attributes" in config.model_config["ratings"]["gap"]:
+        if config.model_config["ratings"]["gap"]["match_attributes"]:
+            config.model_config["ratings"]["gap"]["match_attributes"] = ''
     # Zapis konfiguracji do pliku
     with open(f'model_{config.model_type}_dev/{config.model_name}_config.json', 'w') as f:
         json.dump(config.model_config, f, indent=4)
@@ -229,7 +288,7 @@ def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
         print(f"{result_mapping[result]}: {count} ({percentage:.2f}%)")
 
 
-def prepare_predictions(config):
+def prepare_predictions(config, conn):
     """
     Przygotowuje predykcje dla nadchodzących meczów na podstawie konfiguracji
 
@@ -255,7 +314,6 @@ def prepare_predictions(config):
 
     # Inicjalizacja modelu
     model = model_module.ModelModule([], [], [], [], [], [])
-    
     # Utworzenie instancji klasy do przewidywania
     predict_matches = prediction_module.PredictMatch(
         matches_df,
@@ -265,23 +323,48 @@ def prepare_predictions(config):
         model,
         config.model_type,
         config.model_name,
-        config.window_size
+        config.window_size,
+        conn
     )
 
     # Wczytanie wag modelu i wykonanie predykcji
     model.load_predict_model(config.rating_config[config.model_type]['model_path'])
     predict_matches.predict_games(model, upcoming_df)
+    return predict_matches.get_predictions()
+
+def run_tests(matches_predictions, analized_event, conn):
+    '''
+    Uruchamia testy na podstawie przewidywań meczów
+    Args:
+        matches_predictions (list): Lista przewidywań meczów zawierająca:
+            - match_id: ID meczu
+            - event_id: ID zdarzenia
+            - is_final: Czy wynik jest ostateczny
+        analized_event (str): Typ analizowanego zdarzenia (winner/goals/btts/exact)
+        conn: Połączenie z bazą danych
+    '''
+    tests = test_module.TestModule(matches_predictions, analized_event, conn)
+    tests.calculate_predictions_profit()
 
 def main():
     '''
         Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
+        Przykłady wywołania:
+        python .\main.py winner predict 1 alpha_0_0_result - przewidywanie meczów dla zdarzenia typu winner
+        python .\main.py goals train 1 alpha_0_0_result - trenowanie modelu dla zdarzenia typu goals
     '''
+    conn = db_module.db_connect()
     config = config_manager.ConfigManager()
     config.load_from_args(sys.argv)
     if config.model_mode == 'train':
         prepare_training(config)
     elif config.model_mode == 'predict':
-        prepare_predictions(config)
+        matches_predictions = prepare_predictions(config, conn)
+        for element in matches_predictions:
+            print(element)
+    elif config.model_mode == 'test':
+        run_tests(matches_predictions, config.model_type, conn)
+    conn.close()
 
 
 if __name__ == '__main__':

@@ -4,9 +4,9 @@ import db_module
 from sklearn.preprocessing import MinMaxScaler
 
 class PredictMatch:
-    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size):
+    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn):
         self.predictions_list = []
-        self.conn = db_module.db_connect()
+        self.conn = conn
         self.matches_df = matches_df
         self.upcoming_df = upcoming_df
         self.teams_df = teams_df
@@ -16,7 +16,7 @@ class PredictMatch:
         self.model_name = model_name
         self.sequence_length = window_size
         self.scaler = MinMaxScaler()
-        self.pretty_print = 1 #TMP do weryfikacji czy wszystko generuje się poprawnie
+        self.pretty_print = 0 #TMP do weryfikacji czy wszystko generuje się poprawnie
         self.events, self.model_id = self.get_additional_prediction_info()
 
     def get_additional_prediction_info(self):
@@ -35,7 +35,7 @@ class PredictMatch:
             elif self.model_type == 'btts':
                 events = [172, 6]   # NO BTTS, BTTS
             elif self.model_type == 'goals':
-                events = [174, 175, 176, 177, 178, 179, 8, 12, 173] #Dużo by pisać
+                events = [174, 175, 176, 177, 178, 179, 180, 12, 8, 173] #Dużo by pisać
             
             return events, model_id
             
@@ -79,8 +79,7 @@ class PredictMatch:
             # Predykcja
             prediction = model.predict([home_seq_normalized, away_seq_normalized])
             self.predictions_list.append(self.create_probability_list_entry(row, prediction))
-        #self.insert_predictions_into_db(predictions_list)
-        self.print_predictions()
+        self.insert_predictions_into_db()
 
     def predict_match_period(self):
         #TO-DO: Tu chodzi o to, że jak wyżej możemy tylko jeden mecz przewidzieć
@@ -117,7 +116,7 @@ class PredictMatch:
             'game_date': row['game_date'],
             'predicted_result': result,
             'probabilities': [round(x, 2) for x in probabilities],
-            'wynik' : row['home_team_goals'] + row['away_team_goals'] if row['result'] != '0' else -1,
+            'wynik' : f"{row['home_team_goals']}:{row['away_team_goals']}",
             }
         #Dodanie wyniku do listy - wersja do automatyzacji procesu
         else:
@@ -142,7 +141,7 @@ class PredictMatch:
             for element in self.predictions_list:
                 # For each prediction, we need to create multiple inserts - one for each probability
                 for i in range(len(element['probabilities'])):
-                    sql = """
+                    '''sql = """
                         INSERT INTO predictions(match_id, event_id, model_id, value, is_final) 
                         VALUES (%s, %s, %s, %s, %s)
                     """
@@ -153,13 +152,19 @@ class PredictMatch:
                         element['probabilities'][i],  # Get corresponding probability
                         element['is_final'][i]  # Get corresponding is_final value
                     )
-                    print(sql) #check
+                    print(sql) #check'''
+                    sql = f"""
+                        INSERT INTO predictions(match_id, event_id, model_id, value, is_final) 
+                        VALUES ({element['match_id']}, {element['event_id'][i]}, {element['model_id']}, {round(element['probabilities'][i], 2)}, {element['is_final'][i]})
+                    """
+                    print(sql) 
                     #cursor.execute(sql, values)
-            self.conn.commit()
+            #self.conn.commit()
         except Exception as e:
-            self.conn.rollback()
+            #self.conn.rollback()
             print(f"Error inserting predictions: {str(e)}")
         finally:
+            pass
             cursor.close()
 
     def print_predictions(self):

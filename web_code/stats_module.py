@@ -22,7 +22,7 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
             ou_accuracy_pred = round(100 * ou_predictions['correct_ou_pred'] / predictions, 2)
             btts_accuracy_pred = round(100 * btts_predictions['correct_btts_pred'] / predictions, 2)
             result_accuracy_pred = round(100 * result_predictions['correct_result_pred'] / predictions, 2)    
-        st.header("Wszystkie przewidywnia \n Kolejki: {} - {}".format(first_round, last_round))
+        st.header("Wszystkie przewidywnia")
         data = {
         'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
         'Wszystkie': [predictions] * 3,
@@ -41,7 +41,7 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
             btts_accuracy = round(100 * btts_bets['correct_btts_bets'] / btts_bets['btts_bets'], 2)
         if result_bets['result_bets'] != 0:
             result_accuracy = round(100 * result_bets['correct_result_bets'] / result_bets['result_bets'], 2)
-        st.header("Wszystkie zakłady \n Kolejki: {} - {}".format(first_round, last_round))
+        st.header("Wszystkie zakłady")
         data = {
         'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
         'Wszystkie': [ou_bets['ou_bets'], btts_bets['btts_bets'], result_bets['result_bets']],

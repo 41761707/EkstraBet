@@ -25,13 +25,18 @@ class ModelModule:
         #self.model_name = f"{self.model_type}_model_{self.current_date}"
         self.model_name = model_name
 
-    def build_lstm_model_from_config(self, config):
+    def build_model_from_config(self, config):
         """
         Buduje model na podstawie konfiguracji JSON
         
         Args:
             config (dict): Konfiguracja z config_manager.py
         """
+        #TO-DO rozszerzyć może o inne modele niż LSTM?
+        if config.model_config["model"]["type"] == "LSTM":
+            self.build_lstm_model(config)
+
+    def build_lstm_model(self, config):
         # Utworzenie warstw wejściowych
         input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
         input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
@@ -122,135 +127,6 @@ class ModelModule:
             metrics=config.model_config["model"]["compilation"]["metrics"]
         )
 
-    #UWAGA: NA TEN MOMENT JEST SPECJALNIE TAK BRZYDKO 
-    #ŻE KAŻDY MODEL MA OSOBNĄ FUNKCJĘ I 90% KODU SIĘ POWTARZA
-    #BO NA ŚLEPO TESTUJĘ CO BĘDZIE DOBRZE
-    #GDY JUŻ ODPOWIEDNIE ARCHITEKTURY ZOSTANĄ USTAWIONE POMYŚLIMY NAD LEPSZYM OKODZENIEM
-    def create_winner_model(self):
-        # Wejścia
-        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
-        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
-
-        # Ulepszone LSTM z Dropout i BatchNorm
-        lstm_home = LSTM(256, activation='tanh', return_sequences=True)(input_home_seq)
-        lstm_home = BatchNormalization()(lstm_home)
-        lstm_home = Dropout(0.2)(lstm_home)
-        lstm_home = LSTM(128, return_sequences=True)(lstm_home)
-        lstm_home = LSTM(64)(lstm_home)
-
-        lstm_away = LSTM(256, activation='tanh', return_sequences=True)(input_away_seq)
-        lstm_away = BatchNormalization()(lstm_away)
-        lstm_away = Dropout(0.2)(lstm_away)
-        lstm_away = LSTM(128, return_sequences=True)(lstm_away)
-        lstm_away = LSTM(64)(lstm_away)
-
-        # Połączenie + warstwy Dense
-        combined = Concatenate()([lstm_home, lstm_away])
-        dense = Dense(128, activation='relu')(combined)
-        dense = Dropout(0.2)(dense)
-        dense = Dense(64, activation='relu')(dense)
-        output = Dense(3, activation='softmax')(dense)
-
-        # Kompilacja z Adam i LR scheduler
-        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
-        self.model.compile(
-            loss='categorical_crossentropy',
-            optimizer=Adam(learning_rate=0.001),
-            metrics=['accuracy', Precision(), Recall()]
-        )
-
-    def create_goals_model(self):
-        # Wejścia
-        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
-        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
-
-        # Ulepszone warstwy LSTM dla każdej sekwencji
-        lstm_home = LSTM(128, activation='tanh', return_sequences=True)(input_home_seq)
-        lstm_home = LSTM(64)(lstm_home)
-        
-        lstm_away = LSTM(128, activation='tanh', return_sequences=True)(input_away_seq)
-        lstm_away = LSTM(64)(lstm_away)
-        # Połączenie sekwencji
-        combined = Concatenate()([lstm_home, lstm_away])
-        # Rozszerzone warstwy gęste z regularyzacją
-        dense1 = Dense(128, kernel_regularizer=l2(0.01))(combined)
-        dense1 = LeakyReLU(alpha=0.01)(dense1)  # alpha=0.01 to typowa wartość dla LeakyReLU
-        dense1 = BatchNormalization()(dense1)
-
-        dense2 = Dense(64, kernel_regularizer=l2(0.01))(dense1)
-        dense2 = LeakyReLU(alpha=0.01)(dense2)
-        dense2 = BatchNormalization()(dense2)
-
-        dense3 = Dense(32, kernel_regularizer=l2(0.01))(dense2)
-        dense3 = LeakyReLU(alpha=0.01)(dense3)
-        dense3 = BatchNormalization()(dense3)
-
-        # Warstwa wyjściowa (softmax dla klasyfikacji wieloklasowej)
-        output = Dense(7, activation='softmax')(dense3)
-
-        # Kompilacja modelu z dostosowanymi parametrami
-        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
-        self.model.compile(
-            loss='categorical_crossentropy',
-            optimizer=Adagrad(learning_rate=0.0001),
-            metrics=['accuracy']
-        )
-
-    def create_btts_model(self):
-        # Wejścia
-        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
-        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
-
-        # Warstwy LSTM
-        lstm_home = LSTM(64, activation='sigmoid')(input_home_seq)
-        
-        lstm_away = LSTM(64, activation='sigmoid')(input_away_seq)
-        
-        # Połączenie sekwencji
-        combined = Concatenate()([lstm_home, lstm_away])
-        
-        # Warstwy gęste
-        dense1 = Dense(32, activation='tanh')(combined)
-        dense2 = Dense(16, activation='tanh')(dense1)
-        
-        # Warstwa wyjściowa - binarna klasyfikacja
-        output = Dense(2, activation='softmax')(dense2)
-
-        # Kompilacja modelu
-        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
-        self.model.compile(
-            loss='categorical_crossentropy',
-            optimizer=Adam(learning_rate=1e-06),
-            metrics=['accuracy', Precision(), Recall()]
-        )
-
-    def create_exact_model(self):
-        # Wejścia
-        input_home_seq = Input(shape=(self.window_size, self.features), name='home_input')
-        input_away_seq = Input(shape=(self.window_size, self.features), name='away_input')
-
-        # Ulepszone warstwy LSTM dla każdej sekwencji
-        lstm_home = LSTM(512, activation='tanh', return_sequences=True)(input_home_seq)
-        lstm_home = LSTM(256)(lstm_home)
-        
-        lstm_away = LSTM(512, activation='tanh', return_sequences=True)(input_away_seq)
-        lstm_away = LSTM(256)(lstm_away)
-        # Połączenie sekwencji
-        combined = Concatenate()([lstm_home, lstm_away])
-        # Rozszerzone warstwy gęste z regularyzacją
-        dense1 = Dense(1024, activation='relu', kernel_regularizer=l2(0.01))(combined)
-        dense2 = Dense(512, activation='relu', kernel_regularizer=l2(0.01))(dense1)
-        dense3 = Dense(256, activation='relu', kernel_regularizer=l2(0.01))(dense2)
-        output = Dense(100, activation='softmax')(dense3)
-
-        # Kompilacja modelu z dostosowanymi parametrami
-        self.model = Model(inputs=[input_home_seq, input_away_seq], outputs=output)
-        self.model.compile(
-            loss='categorical_crossentropy',
-            optimizer=Adagrad(learning_rate=0.0001),
-            metrics=['accuracy', Precision(), Recall()]
-        )
-
     def train_model(self):
         (X_home_train, X_away_train, y_train) = self.train_data
         (X_home_val, X_away_val, y_val) = self.val_data
@@ -271,7 +147,6 @@ class ModelModule:
             ),
             TensorBoard(log_dir='./logs')
         ]
-        
         history = self.model.fit(
             x=[X_home_train, X_away_train],
             y=y_train,
@@ -299,7 +174,7 @@ class ModelModule:
                 print(f'Validation {name}: {value:.4f}')
 
         #Confusion matrix
-        #self.confusion_matrix(X_home_val, X_away_val, y_val)
+        self.confusion_matrix(X_home_val, X_away_val, y_val)
         if self.model_type == 'goals':
             self.confusion_matrix_over_under(X_home_val, X_away_val, y_val)
         #self.print_sample_predictions(X_home_val, X_away_val, y_val)

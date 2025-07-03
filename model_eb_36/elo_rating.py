@@ -1,4 +1,5 @@
 import rating_strategy
+from tqdm import tqdm
 # Klasa do obliczania rankingu drużyn na podstawie wyników meczów, wykorzystywana jest metdologia ELO
 
 
@@ -13,7 +14,7 @@ class EloRating(rating_strategy.RatingStrategy):
         self.elo_dict = {}  # {team_id: aktualne ELO}
 
     def calculate_rating(self):
-        for index, row in self.matches_df.iterrows():
+        for index, row in tqdm(self.matches_df.iterrows(), total=len(self.matches_df), desc="Aktualizacja ELORating"):
             new_elo = self.calculate_match_rating(row)
             self.matches_df.at[index, 'home_team_elo'] = new_elo['home_team_elo']
             self.matches_df.at[index, 'away_team_elo'] = new_elo['away_team_elo']

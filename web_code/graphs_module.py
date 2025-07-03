@@ -309,8 +309,8 @@ def graph_winner(home, draw, away):
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
     for bar, ppb in zip(bars, df['Ppb']):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
-            ha='center', va='bottom', color='black', fontsize=22)
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 0.05,
+                f'{float(ppb):.0%}', ha='center', va='top', color='black', fontsize=22)
     st.pyplot(fig)
 
 def graph_exact_goals(goals_no):
@@ -334,7 +334,7 @@ def graph_exact_goals(goals_no):
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
     for bar, ppb in zip(bars, df['Ppb']):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 3, f'{float(ppb)}%', 
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 0.02, f'{float(ppb):.0%}', 
             ha='center', va='bottom', color='black', fontsize=16)
     st.pyplot(fig)
 
@@ -359,7 +359,7 @@ def graph_btts(no, yes):
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
     for bar, ppb in zip(bars, df['Ppb']):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 0.05, f'{float(ppb):.0%}', 
             ha='center', va='bottom', color='black', fontsize=22)
     st.pyplot(fig)
 
@@ -464,7 +464,7 @@ def graph_ou(under, over, title):
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
     for bar, ppb in zip(bars, df['Ppb']):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 5, f'{float(ppb)}%', 
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() - 0.05, f'{float(ppb):.0%}', 
             ha='center', va='bottom', color='black', fontsize=22)
     st.pyplot(fig)
 

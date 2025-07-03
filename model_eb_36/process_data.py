@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.utils import to_categorical
+from tqdm import tqdm
 
 class ProcessData:
     def __init__(self, matches_df, teams_df, model_type, feature_columns, sequence_length=5):
@@ -32,7 +33,7 @@ class ProcessData:
         self.team_to_idx = {team: idx for idx, team in enumerate(self.teams_df['id'].unique())}
         
         # Krok 3: Generowanie sekwencji
-        for _, row in self.matches_df.iterrows():
+        for _, row in tqdm(self.matches_df.iterrows(), total=len(self.matches_df), desc="ProcessData dla spotkań"):
             # Sekwencja dla gospodarza
             home_seq = self.get_sequences(row['home_team'], row['game_date'])
             
