@@ -115,23 +115,28 @@ class PredictMatch:
             'away_team': self.teams_df.loc[self.teams_df['id'] == row['away_team'], 'name'].iloc[0],
             'game_date': row['game_date'],
             'predicted_result': result,
-            'probabilities': [round(x, 2) for x in probabilities],
+            'probabilities': [float(f"{x:.2f}") for x in probabilities],
             'wynik' : f"{row['home_team_goals']}:{row['away_team_goals']}",
             }
         #Dodanie wyniku do listy - wersja do automatyzacji procesu
         else:
-            # Get index of highest probability
-            max_prob_index = np.argmax(probabilities)
-            # Create list of zeros with same length as probabilities
+            # Indeks wartości z największym prawdopodobieństwem
+            if self.model_type == "goals":
+                # W przypadku modelu 'goals' na końcu jest przewidywana liczba bramek, więc nie bierzemy jej pod uwagę przy określaniu indeksu
+                max_prob_index = np.argmax(probabilities[:-1])
+            else:
+                max_prob_index = np.argmax(probabilities)
+            # Tworzenie listy is_final, gdzie tylko najwyższy indeks ma wartość 1
+            # Reszta ma wartość 0
             is_final = [0] * len(probabilities)
-            # Set 1 for the highest probability index
+            # Ustawienie wartości 1 dla indeksu z najwyższym prawdopodobieństwem
             is_final[max_prob_index] = 1
             entry = {
             'match_id' : row['id'],
-            'model_id' : self.model_id, #get model id
-            'event_id' : self.events, #get event id
-            'probabilities': [round(x, 2) for x in probabilities],
-            'is_final' : is_final #get final bet
+            'model_id' : self.model_id,
+            'event_id' : self.events,
+            'probabilities': [float(f"{x:.2f}") for x in probabilities],
+            'is_final' : is_final
             }
         return entry
 
@@ -141,7 +146,7 @@ class PredictMatch:
             for element in self.predictions_list:
                 # For each prediction, we need to create multiple inserts - one for each probability
                 for i in range(len(element['probabilities'])):
-                    '''sql = """
+                    sql = """
                         INSERT INTO predictions(match_id, event_id, model_id, value, is_final) 
                         VALUES (%s, %s, %s, %s, %s)
                     """
@@ -152,16 +157,16 @@ class PredictMatch:
                         element['probabilities'][i],  # Get corresponding probability
                         element['is_final'][i]  # Get corresponding is_final value
                     )
-                    print(sql) #check'''
-                    sql = f"""
+                    cursor.execute(sql, values)
+                    #Print do testów
+                    '''sql = f"""
                         INSERT INTO predictions(match_id, event_id, model_id, value, is_final) 
-                        VALUES ({element['match_id']}, {element['event_id'][i]}, {element['model_id']}, {round(element['probabilities'][i], 2)}, {element['is_final'][i]})
+                        VALUES ({element['match_id']}, {element['event_id'][i]}, {element['model_id']}, {element['probabilities'][i]}, {element['is_final'][i]})
                     """
-                    print(sql) 
-                    #cursor.execute(sql, values)
-            #self.conn.commit()
+                    print(sql)'''
+            self.conn.commit()
         except Exception as e:
-            #self.conn.rollback()
+            self.conn.rollback()
             print(f"Error inserting predictions: {str(e)}")
         finally:
             pass

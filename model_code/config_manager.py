@@ -50,7 +50,7 @@ class ConfigManager:
         self.model_load_name = None
         
         # Lista ID lig do analizy
-        self.leagues = []
+        self.leagues = [34, 35, 15, 30, 17, 32, 25]
         
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1
@@ -97,10 +97,6 @@ class ConfigManager:
         
         # Flaga ładowania wag: '0' - nie, '1' - tak
         self.load_weights = args[3]
-        
-        # Inicjalizacja pustych list lig i krajów
-        self.leagues = [15, 30]
-        self.country = []
         
         # Nazwa modelu (dla nowego modelu) lub modelu do predykcji
         self.model_name = args[4]
@@ -162,12 +158,6 @@ class ConfigManager:
                     'model_path': f'model_exact_dev/{self.model_name}.h5'
                 }
             }
-            # Synchronizacja training_config
-            #training_config = config.get("training_config", {})
-            #self.sport_id = training_config.get("sport_id", 1)
-            #self.leagues = training_config.get("leagues", [])
-            #self.country = training_config.get("country", [])
-            #self.load_weights = training_config.get("load_weights", "0")
             #Ustawienia atrybutów meczu (GAP RATING)
             self._setup_match_attributes()
 
@@ -311,7 +301,7 @@ class ConfigManager:
         INITIAL_ELO = 1500                     # Początkowa wartość rankingu ELO
         SECOND_TIER_COEF = 0.8                 # Współczynnik dla lig drugiej kategorii
         LEARNING_RATE = 0.00001                # Domyślna szybkość uczenia
-        THRESHOLD_DATE = "2025-06-23"          # Data graniczna dla danych treningowych
+        THRESHOLD_DATE = "2025-07-04"          # Data graniczna dla danych treningowych
         
         # --------------------------------------------------------------------------
         # KONFIGURACJA WARSTW LSTM

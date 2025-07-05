@@ -18,19 +18,19 @@ def generate_dicts(query, conn):
 
 def generate_button(button_name, conn, type, where_clause):
     if type == -1: #Już zrealizowane
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, f.confidence as "PEWNOSC MODELU",
-                    case when f.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, p.value as "PEWNOSC MODELU",
+                    case when p.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
                             from bets b
-                                join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
+                                join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
                                 join matches m on b.match_id = m.id
                                 join teams t1 on m.home_team = t1.id
                                 join teams t2 on m.away_team = t2.id
                                 join events e on b.event_id = e.id
                                 join leagues l on m.league = l.id'''
     else: #1 - przyszłe
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, f.confidence as "PEWNOSC MODELU"
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, p.value as "PEWNOSC MODELU"
                     from bets b
-                        join final_predictions f on (b.match_id = f.match_id and b.event_id = f.event_id)
+                        join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
                         join matches m on b.match_id = m.id
                         join teams t1 on m.home_team = t1.id
                         join teams t2 on m.away_team = t2.id
@@ -59,13 +59,13 @@ def main():
 
     with st.expander("Poprzednie zakłady"):
         generate_button("Wczorajsze zakłady", conn, -1,
-                        " where cast(m.game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by f.confidence desc".format(odds_range))
+                        " where cast(m.game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by p.value desc".format(odds_range))
     
     with st.expander("Proponowane zakłady"):
         generate_button("TOP 5 + Polska (dla Kubona)", conn, 1, 
                         " where cast(m.game_date as date) = current_date and league in (1, 21, 2, 3, 4, 5, 6) order by b.EV desc".format(odds_range))
         generate_button("Wszystkie ligi", conn, 1, 
-                        " where cast(m.game_date as date) = current_date order by f.confidence desc".format(odds_range))
+                        " where cast(m.game_date as date) = current_date order by p.value desc".format(odds_range))
         generate_button("Tylko OU", conn, 1, 
                         " where cast(m.game_date as date) = current_date and f.event_id in (8,12) order by b.EV desc".format(odds_range))
         generate_button("Tylko BTTS", conn, 1, 
@@ -88,9 +88,9 @@ def main():
                     m.game_date AS "DATA SPOTKANIA",
                     b.odds AS KURS,
                     b.EV AS VB,
-                    f.confidence AS "PEWNOSC MODELU"
+                    p.value AS "PEWNOSC MODELU"
                 FROM bets b
-                JOIN final_predictions f ON (b.match_id = f.match_id AND b.event_id = f.event_id)
+                JOIN predictions p ON (b.match_id = p.match_id AND b.event_id = p.event_id)
                 JOIN matches m ON b.match_id = m.id
                 JOIN teams t1 ON m.home_team = t1.id
                 JOIN teams t2 ON m.away_team = t2.id
@@ -106,6 +106,7 @@ def main():
                     AND b.odds >= {odds_range}
                     AND m.league IN ({",".join(str(leagues_dict[v]) for v in chosen_leagues)})
                     AND e.id IN ({",".join(str(events_dict[v]) for v in chosen_events)})
+                    AND p.is_final = 1
                     ORDER BY m.game_date
                 '''
 

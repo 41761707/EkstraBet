@@ -470,24 +470,6 @@ class Base:
             8: 'Fuksiarz'
         }
         odds_dict = self.get_bookmaker_odds(id, bookie_dict, predictions)
-        '''
-        for _, row in odds_details.iterrows():
-            if row.event == 1: #GOSPO WIN
-                home_win_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 2: #REMIS
-                draw_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 3: #GOŚĆ WIN
-                guest_win_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 6:
-                btts_yes_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event  == 172:
-                btts_no_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 8:
-                over_odds[bookie_dict[row.bookmaker]] = row.odds
-            if row.event == 12:
-                under_odds[bookie_dict[row.bookmaker]] = row.odds
-        '''
-
         col3, col4, col5 = st.columns(3)
         with col3:
             st.write("Porównanie kursów z estymacją na rezultat:")
@@ -679,7 +661,7 @@ class Base:
                     col1, col2 = st.columns(2)
                     with col1:
                         with st.container():
-                            graphs_module.vertical_bar_chart(date, opponent_shortcut, goals, team_name, self.ou_line, "Bramki w meczach")
+                            graphs_module.goals_bar_chart(date, opponent_shortcut, goals, team_name, self.ou_line, "Bramki w meczach")
                     with col2:
                         with st.container():
                             graphs_module.btts_bar_chart(date, opponent_shortcut, btts, team_name)

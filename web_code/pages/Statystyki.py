@@ -26,11 +26,11 @@ def main():
         if st.button("Statystyki wszystkich predykcji", use_container_width=True):
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) > '2024-07-01' and result != '0'"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
-        if st.button("Statystyki predykcji, sezon 2023/24", use_container_width=True):
-            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where result != '0' and season = 1"
-            stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
         if st.button("Statystyki predykcji, sezon 2024/25", use_container_width=True):
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where result != '0' and season = 11"
+            stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
+        if st.button("Statystyki predykcji, sezon 2025/26", use_container_width=True):
+            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where result != '0' and season = 12"
             stats_module.generate_statistics(query, tax_flag, 1, 1000, 3, conn, EV_plus)
         if st.button("Statystyki predykcji z ostatniego miesiąca", use_container_width=True):
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where cast(game_date as date) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) and result != '0'"

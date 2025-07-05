@@ -92,7 +92,11 @@ def get_matches(config):
         4. Łączy wszystkie obliczone ratingi w jeden DataFrame
         5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
     """
-    input_date = config.model_config["training_config"]["threshold_date"]
+    if config.model_type == 'train':
+        input_date = config.model_config["training_config"]["threshold_date"]
+    else:
+        input_date = "2025-07-04"  # TMP
+    print(input_date)
     data = dataprep_module.DataPrep(input_date, config.leagues, config.sport_id, config.country)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()

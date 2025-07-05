@@ -140,7 +140,7 @@ def highlight_cells_plus_minus(val):
         color = 'background-color: lightcoral; color : black'
     return color
 
-def vertical_bar_chart(date, opponent, stats, team_name, ou_line, title):
+def goals_bar_chart(date, opponent, stats, team_name, ou_line, title):
     """
     Generuje i wyświetla pionowy wykres słupkowy przedstawiający wybraną statystykę drużyny w kolejnych meczach.
     

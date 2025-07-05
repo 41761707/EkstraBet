@@ -40,36 +40,36 @@ def generate_predictions(conn, league, season, current_round, to_automate):
     #3. Pobrać wszystkie wpisy z tabeli "predictions" dla powyższych parametrów
     #4. Pobrać wszystkie wpisy z tabeli "odds" dla powyższych parametrów
     for id in matches_id_np:
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 1)
+        query = "select value, model_id from predictions where match_id = {} and event_id = {}".format(id, 1)
         home_win = pd.read_sql(query, conn).to_numpy()
-        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 2)
+        query  = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 2)
         draw = pd.read_sql(query, conn).to_numpy()
-        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 3)
+        query  = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 3)
         guest_win = pd.read_sql(query, conn).to_numpy()
-        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 6)
+        query  = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 6)
         btts_yes = pd.read_sql(query, conn).to_numpy()
-        query  = "select value from predictions where match_id = {} and event_id = {}".format(id, 172)
+        query  = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 172)
         btts_no = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 173)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 173)
         exact_goals = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 8)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 8)
         over_2_5 = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 12)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 12)
         under_2_5 = pd.read_sql(query, conn).to_numpy()
 
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 174)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 174)
         zero_goals = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 175)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 175)
         one_goal = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 176)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 176)
         two_goals = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 177)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 177)
         three_goals = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 178)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 178)
         four_goals = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 179)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 179)
         five_goals = pd.read_sql(query, conn).to_numpy()
-        query = "select value from predictions where match_id = {} and event_id = {}".format(id, 180)
+        query = "select value, model_id  from predictions where match_id = {} and event_id = {}".format(id, 180)
         six_plus_goals = pd.read_sql(query, conn).to_numpy()
 
         bookie_dict = {
@@ -109,13 +109,13 @@ def generate_predictions(conn, league, season, current_round, to_automate):
                 if row.event == 12:
                     under_odds[bookie_dict[row.bookmaker]] = row.odds
 
-            home_win_EV = round((home_win[0][0] / 100) * max(home_win_odds[1:]) - 1, 2)
-            draw_EV = round((draw[0][0] / 100) * max(draw_odds[1:]) - 1, 2)
-            guest_win_EV = round((guest_win[0][0] / 100) * max(guest_win_odds[1:]) - 1, 2)
-            btts_no_EV = round((btts_no[0][0] / 100) * max(btts_no_odds[1:]) - 1, 2)
-            btts_yes_EV = round((btts_yes[0][0] / 100) * max(btts_yes_odds[1:]) - 1, 2)
-            under_EV = round((under_2_5[0][0] / 100) * max(under_odds[1:]) - 1, 2)
-            over_EV = round((over_2_5[0][0] / 100) * max(over_odds[1:]) - 1, 2)
+            home_win_EV = round((home_win[0][0]) * max(home_win_odds[1:]) - 1, 2)
+            draw_EV = round((draw[0][0]) * max(draw_odds[1:]) - 1, 2)
+            guest_win_EV = round((guest_win[0][0]) * max(guest_win_odds[1:]) - 1, 2)
+            btts_no_EV = round((btts_no[0][0]) * max(btts_no_odds[1:]) - 1, 2)
+            btts_yes_EV = round((btts_yes[0][0]) * max(btts_yes_odds[1:]) - 1, 2)
+            under_EV = round((under_2_5[0][0]) * max(under_odds[1:]) - 1, 2)
+            over_EV = round((over_2_5[0][0]) * max(over_odds[1:]) - 1, 2)
             EVs = [home_win_EV, draw_EV, guest_win_EV, btts_no_EV, btts_yes_EV, under_EV, over_EV]
             #print(EVs)
 
@@ -160,11 +160,10 @@ def generate_predictions(conn, league, season, current_round, to_automate):
                 EV = guest_win_EV
                 odds = max(guest_win_odds[1:])
                 bookmaker = np.argmax(guest_win_odds[1:]) + 1
-            print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
-            inserts.append("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
             if event_id in (1, 2, 3): #and EV > 0:
-                print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
-                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+                model_id = int(home_win[0][1])
+                print("insert into bets(match_id, event_id, odds, bookmaker, EV, model_id) values ({}, {}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV, model_id))
+                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV, model_id) values ({}, {}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV, model_id))
             EV = 0
             #BTTS
             if btts_pred_id == 0:
@@ -181,11 +180,10 @@ def generate_predictions(conn, league, season, current_round, to_automate):
                 EV = btts_yes_EV
                 odds = max(btts_yes_odds[1:])
                 bookmaker = np.argmax(btts_yes_odds[1:]) + 1
-            print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
-            inserts.append("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
             if event_id in (6, 172):
-                print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
-                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+                model_id = int(btts_yes[0][1])
+                print("insert into bets(match_id, event_id, odds, bookmaker, EV, model_id) values ({}, {}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV, model_id))
+                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV, model_id) values ({}, {}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV, model_id))
             #OU
             EV = 0
             if ou_pred_id == 0:
@@ -202,12 +200,11 @@ def generate_predictions(conn, league, season, current_round, to_automate):
                 EV = over_EV
                 odds = max(over_odds[1:])
                 bookmaker = np.argmax(over_odds[1:]) + 1
-            print("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
-            inserts.append("insert into final_predictions(match_id, event_id, confidence) values({}, {}, {});".format(id, event_id,confidence))
             #print(event_id, " ", EV, " " , EVs)
             if event_id in (8, 12): #and EV > 0:
-                print("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
-                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV) values ({}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV))
+                model_id = int(over_2_5[0][1])
+                print("insert into bets(match_id, event_id, odds, bookmaker, EV, model_id) values ({}, {}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV, model_id))
+                inserts.append("insert into bets(match_id, event_id, odds, bookmaker, EV, model_id) values ({}, {}, {}, {}, {}, {});".format(id, event_id, odds, bookmaker, EV, model_id))
             #Przez wybory modelu rozumiemy największe % dla danego typu zdarzenia (Rezultat, BTTS, OU) - 3 predykcje dla jednego spotkania
     if to_automate:
         update_db(inserts, conn)
@@ -230,7 +227,7 @@ def bet_to_automate(league, season, mode):
     conn.close()    
 
 def main():
-    to_automate = 0
+    to_automate = 1
     warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
     #1. Wybrać dla jakiej ligi, jakiego sezonu i jakiej rundy wygenerować zestawienie
     league = int(sys.argv[1])
@@ -242,8 +239,6 @@ def main():
     
     if mode == 0:
         generate_predictions(conn, league, season, current_round, to_automate)
-    if mode == 1:
-        generate_statistics(conn, league, season, current_round)
     conn.close()
 
 if __name__ == '__main__':
