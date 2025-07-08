@@ -241,6 +241,9 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_
 def get_daily_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate):
     #TO-DO: Dokładny test tego komponentu
     matches_df = matches_df[matches_df['game_date'].dt.date == datetime.today().date()]
+    if matches_df.empty:
+        print("Brak meczów na dzisiaj")
+        return
     get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_automate)
 
 def get_historical_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate, skip):
@@ -263,9 +266,6 @@ def get_given_match_odds(conn, driver, matches_df, league_id, season_id, games, 
 def odds_to_automate(league_id, season_id, games, mode, skip = 0):
     #Inicjalizacja parametrów
     to_automate = 1
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
-    driver = webdriver.Chrome(options=options)
     conn = db_module.db_connect()
     query = f"SELECT * FROM matches where league = {league_id} and season = {season_id}"
     matches_df = pd.read_sql(query, conn)
@@ -275,6 +275,9 @@ def odds_to_automate(league_id, season_id, games, mode, skip = 0):
     query = "select name, id from teams where country = {}".format(country[0])
     teams_df = pd.read_sql(query, conn)
     team_id = teams_df.set_index('name')['id'].to_dict()
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
+    driver = webdriver.Chrome(options=options)
     print(team_id)
     if mode == 'historical':
         get_historical_odds(conn, driver, matches_df, league_id, season_id, games, team_id, to_automate, skip)

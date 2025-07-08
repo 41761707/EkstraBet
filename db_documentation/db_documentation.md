@@ -9,7 +9,6 @@
 - [COUNTRIES](#countries) (Kraje, z których pochodzą analizowane ligi)
 - [EVENTS](#events) (Typy zakładów)
 - [EVENTS_PARLAY](#events_parlay) (Szczegóły kuponów)
-- [FINAL_PREDICTIONS](#final_predictions) (Końcowe predyckje, dla każdego meczu, dla każdego zdarzenia)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
 - [GAMBLER_PARLAYS](#gambler_parlays) (kupony graczy)
 - [GAMBLERS](#gamblers) (zadeklarowani gracze)
@@ -93,19 +92,6 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie**
 | *BET_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *bets*  | NULL |
 
 Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przyszłości przewidywane jest dodawaniez zdarzeń poprzez moduł "Kupony Graczy")
-
-### FINAL_PREDICTIONS 
-(Końcowe predyckje, dla każdego meczu, dla każdego zdarzenia)
-
-| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
-| :---:         |  :---:        | :---:     | :---:             | :---:             |
-| **ID**        |  INT       | INT    | ID końcowej predykcji           | AUTOMATYCZNIE GENEROWANY            |
-| *MATCH_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *matches* | NULL | 
-| *EVENT_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *events* | NULL |
-| CONFIDENCE | FLOAT | [0,100] | Pewność modelu dotycząca danego zdarzenia | NULL |
-| OUTCOME | INT | {0, 1} | Wynik predykcji, 1 = predykcja poprawna, 0 = predykcja niepoprawna | NULL (to istotne) |
-
-Dane do tabeli naliczane są w ramach modułu **bet_all.py**
 
 ### FOOTBALL_SPECIAL_ROUND_ADD 
 (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
@@ -352,10 +338,12 @@ Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_playe
 
 | POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
 | :---:         |  :---:        | :---:     | :---:             | :---:             |
-| **ID**        |  INT       | INT    | ID zawodnika        | AUTOMATYCZNIE GENEROWANY        |
-| *MATCH_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *matches* | NULL |
-| *EVENT_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *events* | NULL |
-| VALUE          | FLOAT         | [0,100]"%" | Prawdopodobieństwo danego zdarzenia | NULL |
+| **ID**        |  INT       | INT>0          | ID zawodnika        | AUTOMATYCZNIE GENEROWANY        |
+| *MATCH_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *matches* | NULL |
+| *EVENT_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *events* | NULL |
+| *MODEL_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *models* | NULL |
+| VALUE         | FLOAT         | [0,1] | Prawdopodobieństwo danego zdarzenia | NULL |
+| OUTCOME       | INT           | {0, 1} | Wynik predykcji (0 - predykcja niepoprawna, 1 - predykcja poprawna) | NULL
 
 Dane naliczane w ramach modułu **main.py**
 

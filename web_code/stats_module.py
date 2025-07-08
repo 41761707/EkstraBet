@@ -83,9 +83,9 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
             st.dataframe(df, use_container_width=True, hide_index=True)
             #st.write(ou_predictions)
             st.write('Rozkład wykonanych przewidywań na zdarzenie OU')
-            graphs_module.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], 
-                                            round(ou_predictions['under_pred'] * 100 / predictions, 2), 
-                                            round(ou_predictions['over_pred'] * 100 / predictions, 2))
+            graphs_module.generate_pie_chart(['Under 2.5', 'Over 2.5'], 
+                                            [round(ou_predictions['under_pred'] * 100 / predictions, 2), 
+                                            round(ou_predictions['over_pred'] * 100 / predictions, 2)])
             st.write('Wynik przewidywań w zależności od typu zdarzenia')
             graphs_module.generate_comparision(['Under 2.5', 'Over 2.5'], 
                                         [ou_predictions['under_correct'], ou_predictions['over_correct']],
@@ -106,9 +106,9 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
             st.dataframe(df, use_container_width=True, hide_index=True)
             #st.write(ou_bets)
             st.write('Rozkład wykonanych zakładów na zdarzenie OU')
-            graphs_module.generate_pie_chart_binary(['Under 2.5', 'Over 2.5'], 
-                                            round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2), 
-                                            round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2))
+            graphs_module.generate_pie_chart(['Under 2.5', 'Over 2.5'], 
+                                            [round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2), 
+                                            round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2)])
             st.write('Wynik zakładów w zależności od typu zdarzenia')
             graphs_module.generate_comparision(['Under 2.5', 'Over 2.5'], 
                                         [ou_bets['under_correct'], ou_bets['over_correct']],
@@ -130,9 +130,9 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
             st.dataframe(df, use_container_width=True, hide_index=True)
             #st.write(ou_predictions)
             st.write('Rozkład wykonanych przewidywań na zdarzenie BTTS')
-            graphs_module.generate_pie_chart_binary(['NO BTTS', 'BTTS'], 
-                                            round(btts_predictions['btts_no_pred'] * 100 / predictions, 2), 
-                                            round(btts_predictions['btts_yes_pred'] * 100 / predictions, 2))
+            graphs_module.generate_pie_chart(['NO BTTS', 'BTTS'], 
+                                            [round(btts_predictions['btts_no_pred'] * 100 / predictions, 2), 
+                                            round(btts_predictions['btts_yes_pred'] * 100 / predictions, 2)])
             st.write('Wynik przewidywań w zależności od typu zdarzenia')
             graphs_module.generate_comparision(['NO BTTS', 'BTTS'], 
                                         [btts_predictions['btts_no_correct'], btts_predictions['btts_yes_correct']],
@@ -152,9 +152,9 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True, hide_index=True)
             st.write('Rozkład wykonanych zakładów na zdarzenie BTTS')
-            graphs_module.generate_pie_chart_binary(["NO BTTS", "BTTS"], 
-                                            round(btts_bets['btts_no_bets'] * 100 / btts_bets['btts_bets'], 2), 
-                                            round(btts_bets['btts_yes_bets'] * 100 / btts_bets['btts_bets'], 2))
+            graphs_module.generate_pie_chart(["NO BTTS", "BTTS"], 
+                                            [round(btts_bets['btts_no_bets'] * 100 / btts_bets['btts_bets'], 2), 
+                                            round(btts_bets['btts_yes_bets'] * 100 / btts_bets['btts_bets'], 2)])
             st.write('Wynik zakładów w zależności od typu zdarzenia')
             graphs_module.generate_comparision(['NO BTTS', 'BTTS'],  
                                         [btts_bets['btts_no_correct'], btts_bets['btts_yes_correct']],

@@ -17,3 +17,5 @@
 /model_code/model_dev
 /model_code/model_exact_dev
 pages/nhl_funcs/__pycache__/
+/graphics_code/db_module
+/graphics_code/__pycache__/

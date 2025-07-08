@@ -50,7 +50,7 @@ class ConfigManager:
         self.model_load_name = None
         
         # Lista ID lig do analizy
-        self.leagues = [34, 35, 15, 30, 17, 32, 25]
+        self.leagues = []
         
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1
@@ -130,8 +130,11 @@ class ConfigManager:
         with open(f'model_{self.model_type}_dev/{self.model_load_name}_config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
             self.model_config = config
-            self.model_name = config.get("model_name")
-            self.model_type = config.get("model_type")
+            #Nadpisz te zmienne zeby znowu nie wpisal danych ze wzorca
+            config["model_name"] = self.model_name
+            config["model_path"] = f'model_{self.model_type}_dev/{self.model_name}.h5'
+            #self.model_name = config.get("model_name")
+            #self.model_type = config.get("model_type")
             self.window_size = config.get("window_size")
             self.feature_columns = config.get("feature_columns", [])
             self.rating_types = []

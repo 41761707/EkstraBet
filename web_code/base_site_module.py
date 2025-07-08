@@ -617,7 +617,7 @@ class Base:
                     }
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+                graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
             suma = sum(btts_outcomes)
             liczba = len(btts_outcomes)
             with col2:
@@ -630,7 +630,7 @@ class Base:
                     }
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+                graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
             suma = sum(result_outcomes)
             liczba = len(result_outcomes)
             with col3:
@@ -643,7 +643,7 @@ class Base:
                     }
                 df = pd.DataFrame(data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                graphs_module.generate_pie_chart_binary(['Niepoprawne', 'Poprawne'], liczba - suma, suma)
+                graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
             #Wykresy z podziałem na typ zdarzenia
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where (home_team = {} or away_team = {}) and result != '0'".format(key, key)
             stats_module.generate_statistics(query, 0, 1, self.round, self.no_events, self.conn, self.EV_plus)
