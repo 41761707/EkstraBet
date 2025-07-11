@@ -111,7 +111,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     else:
         round = 100
         today = date.today()
-        max_date = today + timedelta(days=7)
+        max_date = today + timedelta(days=3)
         game_date_obj = datetime.strptime(match_data['game_date'], "%Y-%m-%d %H:%M").date()
         
         if game_date_obj > max_date:

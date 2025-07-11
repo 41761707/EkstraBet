@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 class ConfigManager:
     """
     Klasa zarządzająca konfiguracją aplikacji realizująca wzorzec Singleton.
@@ -76,6 +77,12 @@ class ConfigManager:
         # Nazwy domyślnie aktywnych atrybutów meczu (wybrane z ALL_MATCH_ATTRIBUTES, GAP rating)
         self.active_match_attributes = []
         
+        # Stałe
+        self.MODEL_BASE_PATH = 'model_{}_dev/{}.h5'  # Szablon ścieżki do zapisu modelu
+        self.INITIAL_ELO = 1500                     # Początkowa wartość rankingu ELO
+        self.SECOND_TIER_COEF = 0.8                 # Współczynnik dla lig drugiej kategorii
+        self.LEARNING_RATE = 0.00001                # Domyślna szybkość uczenia
+        self.THRESHOLD_DATE = '2025-07-11'          # Data graniczna dla danych treningowych
     def load_from_args(self, args):
         """
         Inicjalizuje konfigurację na podstawie argumentów wiersza poleceń.
@@ -107,7 +114,7 @@ class ConfigManager:
             self.rating_types = ['elo', 'gap', 'czech']
         else:
             # Dla pozostałych modeli tylko gap i czech
-            self.rating_types = ['gap', 'czech']
+            self.rating_types = ['gap']
         
         # Domyślne atrybuty meczu jeśli rating 'gap' jest aktywny
         if 'gap' in self.rating_types:
@@ -124,15 +131,14 @@ class ConfigManager:
             self._setup_configurations()
 
     def _setup_configurations_from_model(self):
-        """
-        Wczytuje całą konfigurację modelu z pliku JSON i synchronizuje atrybuty klasy.
-        """
+        """Wczytuje całą konfigurację modelu z pliku JSON i synchronizuje atrybuty klasy. """
         with open(f'model_{self.model_type}_dev/{self.model_load_name}_config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
             self.model_config = config
             #Nadpisz te zmienne zeby znowu nie wpisal danych ze wzorca
             config["model_name"] = self.model_name
             config["model_path"] = f'model_{self.model_type}_dev/{self.model_name}.h5'
+            config["training_config"]["threshold_date"] = self.THRESHOLD_DATE
             #self.model_name = config.get("model_name")
             #self.model_type = config.get("model_type")
             self.window_size = config.get("window_size")
@@ -165,7 +171,7 @@ class ConfigManager:
             self._setup_match_attributes()
 
     def _setup_configurations(self):
-        ''' Funkcja odpowiedzialna ustawienia wszystkich konfiguracji modelu '''
+        """Funkcja odpowiedzialna ustawienia wszystkich konfiguracji modelu. """
         #Ustawienia ratingów
         self._setup_rating_columns()
         #Ustawienia cech, na podstawie których odbywa się trening
@@ -178,7 +184,7 @@ class ConfigManager:
         self._setup_model_config()
 
     def _setup_rating_columns(self):
-        """Definicje kolumn dla różnych typów ratingów"""
+        """Definicje kolumn dla różnych typów ratingów."""
         self.elo_columns = ['home_team_elo', 'away_team_elo']
         
         self.czech_columns = [
@@ -210,7 +216,7 @@ class ConfigManager:
         ]
 
     def _setup_feature_columns(self):
-        """Dynamiczne tworzenie kolumn features na podstawie wybranych rating_types"""
+        """Dynamiczne tworzenie kolumn features na podstawie wybranych rating_types."""
         self.feature_columns = []
         
         rating_columns_mapping = {
@@ -298,15 +304,6 @@ class ConfigManager:
         """
         
         # --------------------------------------------------------------------------
-        # STAŁE KONFIGURACYJNE
-        # --------------------------------------------------------------------------
-        MODEL_BASE_PATH = 'model_{}_dev/{}.h5'  # Szablon ścieżki do zapisu modelu
-        INITIAL_ELO = 1500                     # Początkowa wartość rankingu ELO
-        SECOND_TIER_COEF = 0.8                 # Współczynnik dla lig drugiej kategorii
-        LEARNING_RATE = 0.00001                # Domyślna szybkość uczenia
-        THRESHOLD_DATE = "2025-07-04"          # Data graniczna dla danych treningowych
-        
-        # --------------------------------------------------------------------------
         # KONFIGURACJA WARSTW LSTM
         # --------------------------------------------------------------------------
         lstm_layers_config = {
@@ -365,13 +362,13 @@ class ConfigManager:
             "val_loss": 0,
             
             # Ścieżka do zapisu/odczytu modelu
-            "model_path": MODEL_BASE_PATH.format(self.model_type, self.model_name),
+            "model_path": self.MODEL_BASE_PATH.format(self.model_type, self.model_name),
             
             # Lista używanych cech
             "feature_columns": self.feature_columns,
             
             # Konfiguracja systemów ratingowych
-            "ratings": self._get_ratings_config(INITIAL_ELO, SECOND_TIER_COEF),
+            "ratings": self._get_ratings_config(self.INITIAL_ELO, self.SECOND_TIER_COEF),
             
             # Szczegółowa architektura modelu
             "model": {
@@ -396,7 +393,7 @@ class ConfigManager:
                 "compilation": {
                     "optimizer": {
                         "type": "Adam",            
-                        "learning_rate": LEARNING_RATE
+                        "learning_rate": self.LEARNING_RATE
                     },
                     "loss": "categorical_crossentropy",  # Funkcja straty
                     "metrics": ["accuracy", "Precision", "Recall"]  # Metryki
@@ -409,12 +406,18 @@ class ConfigManager:
                 "leagues": self.leagues,        # Lista lig
                 "country": self.country,        # Lista krajów
                 "load_weights": self.load_weights,  # Czy wagi były ładowane
-                "threshold_date": THRESHOLD_DATE # Data graniczna danych
+                "threshold_date": self.THRESHOLD_DATE # Data graniczna danych
             }
         }
 
     def _get_ratings_config(self, initial_elo, second_tier_coef):
-        """Konfiguracja ratingów dla modelu z optymalizacją outputu JSON"""
+        """Konfiguracja ratingów dla modelu z optymalizacją outputu JSON
+        Args:
+            initial_elo (int): Początkowa wartość rankingu ELO
+            second_tier_coef (float): Współczynnik dla lig drugiej kategorii
+        Returns:
+            ratings_config (dict): Słownik z konfiguracją ratingów
+        """
         ratings_config = {}
         
         # Konfiguracja dla elo

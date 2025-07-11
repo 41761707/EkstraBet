@@ -87,7 +87,7 @@ class ProcessData:
 
         # Krok 5: Podział danych
         split_idx = int(0.9 * len(self.X_home_seq))
-        start_idx = int(0.1 * len(self.X_home_seq))
+        start_idx = 0
         return (
             (self.X_home_seq[start_idx:split_idx], self.X_away_seq[start_idx:split_idx], self.y[start_idx:split_idx]),
             (self.X_home_seq[split_idx:], self.X_away_seq[split_idx:], self.y[split_idx:]),

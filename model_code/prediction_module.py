@@ -115,7 +115,7 @@ class PredictMatch:
             'away_team': self.teams_df.loc[self.teams_df['id'] == row['away_team'], 'name'].iloc[0],
             'game_date': row['game_date'],
             'predicted_result': result,
-            'probabilities': [float(f"{x:.2f}") for x in probabilities],
+            'probabilities': [float(f"{x:.4f}") for x in probabilities],
             'wynik' : f"{row['home_team_goals']}:{row['away_team_goals']}",
             }
         #Dodanie wyniku do listy - wersja do automatyzacji procesu
@@ -135,7 +135,7 @@ class PredictMatch:
             'match_id' : row['id'],
             'model_id' : self.model_id,
             'event_id' : self.events,
-            'probabilities': [float(f"{x:.2f}") for x in probabilities],
+            'probabilities': [float(f"{x:.4f}") for x in probabilities],
             'is_final' : is_final
             }
         return entry

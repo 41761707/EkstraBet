@@ -61,7 +61,6 @@ def get_rating_params(config):
         match_attributes = config.model_config["ratings"]["gap"].get("match_attributes", "")
         for attr in match_attributes:
             attr["calculator"] = get_calculator_func(attr["name"])["calculator"]
-        print(match_attributes)  # Debugowe wyświetlenie atrybutów
     else:
         # Dla nieaktywnego GAP zwracamy pusty string
         match_attributes = ""
@@ -92,17 +91,12 @@ def get_matches(config):
         4. Łączy wszystkie obliczone ratingi w jeden DataFrame
         5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
     """
-    if config.model_type == 'train':
-        input_date = config.model_config["training_config"]["threshold_date"]
-    else:
-        input_date = "2025-07-04"  # TMP
+    input_date = config.model_config["training_config"]["threshold_date"]
     print(input_date)
     data = dataprep_module.DataPrep(input_date, config.leagues, config.sport_id, config.country)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()
-    # Pobierz parametry ratingów
     initial_rating, second_tier_coef, match_attributes = get_rating_params(config)
-    # Tworzenie ratingu
     rating_factory = ratings_module.RatingFactory.create_rating(
         config.rating_config[config.model_type]['rating_type'],
         matches_df=matches_df.copy(),
@@ -113,7 +107,6 @@ def get_matches(config):
         second_tier_coef=second_tier_coef,
         match_attributes=match_attributes
     )
-    # Tworzymy kopię oryginalnego DataFrame
     merged_matches_df = matches_df.copy()
     for rating in rating_factory:
         print(f'Tworzenie rankingu dla: {type(rating).__name__}')
@@ -121,7 +114,6 @@ def get_matches(config):
         temp_matches_df, _ = rating.get_data()
         # Znajdujemy nowe kolumny dodane przez aktualny rating
         new_columns = [col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
-        # Dodajemy nowe kolumny do głównego DataFrame
         for col in new_columns:
             merged_matches_df[col] = temp_matches_df[col]
 
@@ -191,7 +183,6 @@ def prepare_training(config):
     analyze_result_distribution(train_data, config.model_type, "Training Data")
     analyze_result_distribution(val_data, config.model_type, "Validation Data")
     #Testowe printy
-    #print(training_info[1])
     #print_training_data_info(train_data, val_data, training_info, 3)
 
     # Inicjalizacja i trenowanie modelu
@@ -226,7 +217,7 @@ def prepare_training(config):
 
 def print_training_data_info(train_data, val_data, training_info, no_prints):
     """Pomocnicza funkcja do wyświetlania informacji o danych treningowych"""
-
+    # Nieładnie, ale tak ma być - nie chce mi się tego poprawiać jak to tylko pomocnicza funkcja
     print("\n=== TRAINING DATA ===")
     print(f"Shape of sequences: {train_data[0].shape}")
     print(f"Number of samples: {len(train_data[0])}")
@@ -267,17 +258,16 @@ def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
         dataset_name: Nazwa zbioru danych, wykorzystywane głównie przy wypisywaniu informacji
     """
     _, _, y = data_tuple
-    # Convert one-hot encoded back to labels
+    # Konwertujemy one-hot encoding do etykiet
     results = np.argmax(y, axis=1)
 
-    # Count occurrences
     unique, counts = np.unique(results, return_counts=True)
     total = len(results)
 
     print(f"\n=== {dataset_name} Distribution ===")
     print(f"Total samples: {total}")
 
-    # Create a mapping for better readability
+    # Ułatwienie czytelności - mapowanie wyników na czytelne etykiety
     if model_type == 'winner':
         result_mapping = {0: "Draw", 1: "Home Win", 2: "Away Win"}
     elif model_type == 'goals':

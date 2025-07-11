@@ -218,7 +218,7 @@ def show_statistics(no_events, ou_predictions, btts_predictions, result_predicti
 
 def generate_statistics(query, tax_flag, first_round, last_round, no_events, conn, EV_plus):
     match_stats_df = pd.read_sql(query, conn)
-    #TO-DO: Poniższe w oparciu o pole outcome w final_predictions / outcomes
+    #TO-DO: Poniższe w oparciu o pole outcome w predictions
     predictions = 0
     ou_predictions = {
         'correct_ou_pred' : 0,

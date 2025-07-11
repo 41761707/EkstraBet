@@ -12,124 +12,336 @@ import stats_module
 
 class Base:
     def __init__(self, league, season, name):
-        self.league = league
-        self.season = -1
-        self.round = -1
-        self.rounds_list = []
-        self.season_list = []
-        self.name = ''
+        """ Inicjalizacja klasy bazowej dla analizy lig piłkarskich."""
+        self.league = league #ID ligi
+        self.season = -1 #ID sezonu
+        self.round = -1 #Numer kolejki
+        self.rounds_list = [] #Lista kolejki
+        self.season_list = [] #Lista sezonów
+        self.name = '' #Nazwa ligi
         self.no_events = 3 #BTTS, OU, REZULTAT
-        self.EV_plus = 0
-        self.teams_dict = {}
-        self.special_rounds = {}
-        self.date = datetime.today().strftime('%Y-%m-%d')
-        self.conn = db_module.db_connect()
-        self.set_config()
-        self.get_teams()
-        self.get_schedule()    
-        self.get_league_tables()
-        self.get_league_stats()          
-        self.conn.close()
+        self.EV_plus = 0 #EV dla zakładów
+        self.teams_dict = {} #Słownik z drużynami
+        self.special_rounds = {} #Słownik z nazwami specjalnych kolejek
+        self.date = datetime.today().strftime('%Y-%m-%d') # Data w formacie YYYY-MM-DD
+        self.conn = db_module.db_connect() # Połączenie z bazą danych
+        self.set_config() # Ustawienie konfiguracji na podstawie wybranej ligi
+        self.get_teams() # Pobranie drużyn z bazy danych dla danej ligi i sezonu
+        self.get_schedule()  # Pobranie terminarza meczów dla danej ligi i sezonu
+        self.get_league_tables() # Pobranie tabeli ligowej dla danej ligi i sezonu
+        self.get_league_stats() # Pobranie statystyk ligowych dla danej ligi i sezonu
+        self.conn.close() # Zamknięcie połączenia z bazą danych
 
-    def set_season(self):
-        season_query = f"SELECT distinct m.season, s.years from matches m join seasons s on m.season = s.id where m.league = {self.league} order by s.years desc"
+    def get_available_seasons(self) -> dict:
+        """
+        Pobiera dostępne sezony z bazy danych dla obecnej ligi.
+        
+        Returns:
+            dict: Słownik w formacie {lata: id_sezonu}, np. {'2022/2023': 1}
+        """
+        season_query = f"""
+            SELECT distinct m.season, s.years 
+            FROM matches m 
+            JOIN seasons s ON m.season = s.id 
+            WHERE m.league = {self.league} 
+            ORDER BY s.years DESC
+        """
         cursor = self.conn.cursor()
         cursor.execute(season_query)
-        seasons_dict = {years: season_id for season_id, years in cursor.fetchall()}
-        self.seasons_list = [season for season in seasons_dict.keys()]
-        self.years = st.selectbox("Sezon", self.seasons_list)
-        self.season = seasons_dict[self.years]
+        seasons = {years: season_id for season_id, years in cursor.fetchall()}
         cursor.close()
+        return seasons
 
-    def set_round(self):
-        rounds_query = f"select round, game_date from matches where league = {self.league} and season = {self.season} order by game_date desc"
+    def set_season(self) -> None:
+        """
+        Umożliwia użytkownikowi wybór sezonu przez UI i zapisuje wybór w obiekcie.
+        """
+        seasons_dict = self.get_available_seasons()
+        selected_year = st.selectbox("Sezon", list(seasons_dict.keys()))
+        self.season = seasons_dict[selected_year]  # Tylko tutaj modyfikujemy stan!
+        self.years = selected_year
+
+    def get_available_rounds(self) -> list:
+        """
+        Pobiera listę dostępnych kolejek dla bieżącej ligi i sezonu z bazy danych.
+        Przetwarza specjalne kolejki (o ID > 100) na czytelne nazwy.
+
+        Returns:
+            list: Lista kolejek w formacie [int | str], np. [1, 2, 3, 'Finał']
+        """
+        rounds = []
+        rounds_query = f"""
+            SELECT round, game_date 
+            FROM matches 
+            WHERE league = {self.league} AND season = {self.season} 
+            ORDER BY game_date DESC
+        """
         cursor = self.conn.cursor()
         cursor.execute(rounds_query)
-        rounds_tmp = [self.special_rounds[x[0]] if x[0] > 100 else x[0] for x in cursor.fetchall()]
-        rounds_tmp.append(0)
+        rounds_tmp = [
+            self.special_rounds[round_id] if round_id > 100 else round_id
+            for round_id, _ in cursor.fetchall()
+        ]
+        rounds_tmp.append(0)  # Dodajemy 0 jako domyślną kolejkę dla dat
         for item in rounds_tmp:
-            if item not in self.rounds_list:
-                self.rounds_list.append(item)
-        self.round = st.selectbox("Kolejka", self.rounds_list)
-        if isinstance(self.round, str):
-            for round_id, round_name in self.special_rounds.items():
-                if round_name == self.round:
-                    self.round = round_id
-                    break
-
-    def set_db_queries(self):
-        special_rounds_query = "select id, name from special_rounds"
-        cursor = self.conn.cursor()
-        cursor.execute(special_rounds_query)
-        self.special_rounds = {special_id: name for special_id, name in cursor.fetchall()}
+            if item not in rounds:
+                rounds.append(item)
         cursor.close()
-        query = "select last_update, name from leagues where id = {}".format(self.league)
-        cursor = self.conn.cursor()
-        cursor.execute(query)
-        results = cursor.fetchall()
-        self.update = results[0][0]
-        self.name = results[0][1]
-        cursor.close()
+        return rounds
 
-    def set_config(self):
+    def set_round(self) -> None:
+        """
+        Umożliwia interaktywny wybór kolejki przez użytkownika i aktualizuje stan obiektu.
+        Przetwarza wybór użytkownika (w tym specjalne kolejki) na odpowiadające ID.
+
+        Args:
+            None (korzysta z atrybutów klasy: self.league, self.season, self.special_rounds)
+
+        Ustawia atrybuty:
+            self.rounds_list: lista wszystkich dostępnych kolejek
+            self.round: ID wybranej kolejki (int)
+        """
+        available_rounds = self.get_available_rounds()
+        # Interaktywny wybór
+        selected_round = st.selectbox("Kolejka", available_rounds)
+        # Konwersja nazwy specjalnej kolejki na ID
+        if isinstance(selected_round, str):
+            selected_round = next(
+                round_id 
+                for round_id, round_name in self.special_rounds.items()
+                if round_name == selected_round
+            )
+        # Aktualizacja stanu
+        self.rounds_list = available_rounds 
+        self.round = selected_round
+
+    def set_db_queries(self) -> None:
+        """
+        Pobiera i ustawia specjalne kolejki oraz informacje o lidze z bazy danych.    
+        Wykonuje dwa główne zadania:
+        1. Ładuje słownik specjalnych kolejek (id: nazwa) do self.special_rounds
+        2. Ustawia datę ostatniej aktualizacji (self.update) i nazwę ligi (self.name)
+
+        Sets:
+            self.special_rounds: dict - słownik specjalnych kolejek {id: nazwa}
+            self.update: datetime - data ostatniej aktualizacji ligi
+            self.name: str - nazwa wybranej ligi
+
+        Raises:
+            implicit DatabaseError: jeśli wystąpi błąd podczas wykonywania zapytań SQL
+        """
+        # Pobranie specjalnych kolejek
+        with self.conn.cursor() as cursor:  # Context manager dla automatycznego zamknięcia kursora
+            cursor.execute("SELECT id, name FROM special_rounds")
+            self.special_rounds = dict(cursor.fetchall())  # Bezpośrednia konwersja na słownik
+
+        # Pobranie informacji o lidze
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT last_update, name FROM leagues WHERE id = %s", 
+                (self.league,)
+            )
+            result = cursor.fetchone()
+            
+            if result:  # Zabezpieczenie przed brakiem wyników
+                self.update, self.name = result
+            else:
+                raise ValueError(f"Nie znaleziono ligi o ID: {self.league}")
+
+    def set_date_range(self) -> tuple:
+        """
+        Tworzy interfejs wyboru zakresu dat w Streamlit i zwraca wybrany okres.
+        Funkcja działa tylko gdy kolejka nie jest wybrana (wartość 0). Generuje domyślny zakres
+        7-dniowy od bieżącej daty i umożliwia jego modyfikację przez użytkownika.
+
+        Returns:
+            tuple: Krotka zawierająca:
+                - date: Obiekt daty początkowej (datetime.date)
+                - date: Obiekt daty końcowej (datetime.date)
+                Przykład: (datetime.date(2023, 5, 1), datetime.date(2023, 5, 7))
+        """
+        # Ustalenie domyślnego zakresu: dzisiaj -> dzisiaj + 7 dni
+        today = datetime.today()
+        end_date = today + timedelta(days=7)
+
+        # Utworzenie interaktywnego komponentu wyboru dat w Streamlit
+        date_range = st.date_input(
+            label="Zakres dat (działa tylko, gdy kolejka = 0)",
+            value=(today.date(), end_date.date()),  # Domyślny zakres
+            min_value=pd.to_datetime('2015-01-01'),  # Ograniczenie dolne
+            max_value=pd.to_datetime('2030-12-31'),  # Ograniczenie górne
+            format="YYYY-MM-DD"  # Format wyświetlania
+        )
+
+        return date_range
+
+    def set_config(self) -> None:
+        """
+        Konfiguruje główne ustawienia aplikacji poprzez interfejs użytkownika Streamlit.
+        
+        Wykonuje następujące operacje:
+        1. Inicjalizuje połączenie z bazą danych i pobiera podstawowe dane
+        2. Wyświetla nagłówek z nazwą ligi i datą aktualizacji
+        3. Udostępnia interfejs do konfiguracji parametrów analizy
+        4. Umożliwia wybór sezonu, kolejki i zakresu dat
+
+        Sets:
+            self.games: int - liczba analizowanych spotkań wstecz
+            self.ou_line: float - linia over/under
+            self.h2h: int - liczba spotkań head-to-head
+            self.date_range: tuple - wybrany zakres dat
+            oraz atrybuty ustawiane przez wywoływane metody
+        """
+        # 1. Inicjalizacja danych z bazy
         self.set_db_queries()
+        
+        # 2. Wyświetlenie nagłówka sekcji
         st.header(self.name)
-        st.write("Ostatnia aktualizacja: {}".format(self.update))
+        st.write(f"Ostatnia aktualizacja: {self.update}")
         st.subheader("Konfiguracja prezentowanych danych")
+
+        # 3. Konfiguracja głównych parametrów w układzie kolumnowym
         col1, col2, col3 = st.columns(3)
         with col1:
-            self.games = st.slider("Liczba analizowanych spotkań wstecz", 5, 15, 10)
+            self.games = st.slider(
+                "Liczba analizowanych spotkań wstecz",
+                min_value=5,
+                max_value=15,
+                value=10,
+                help="Określa ile ostatnich meczów będzie analizowanych dla każdego zespołu"
+            )
         with col2:
-            self.ou_line = st.slider("Linia Over/Under", 0.5, 4.5, 2.5, 0.5)
+            self.ou_line = st.slider(
+                "Linia Over/Under",
+                min_value=0.5,
+                max_value=4.5,
+                value=2.5,
+                step=0.5,
+                help="Próg dla analizy zakładów over/under"
+            )
         with col3:
-            self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
-        
+            self.h2h = st.slider(
+                "Liczba prezentowanych spotkań H2H",
+                min_value=0,
+                max_value=10,
+                value=5,
+                help="Ilość historycznych bezpośrednich spotkań do wyświetlenia"
+            )
+        # 4. Wybór zakresu danych (sezon/kolejka/daty)
         col4, col5, col6 = st.columns(3)
         with col4:
-            self.set_season()
+            self.set_season()  # Ustawia self.season i self.years  
         with col5:
-            self.set_round()
+            self.set_round()  # Ustawia self.round i self.rounds_list      
         with col6:
-            self.date_range = st.date_input(
-                            "Zakres dat (działa tylko, gdy kolejka = 0)",
-                            value=(pd.to_datetime('2025-01-01'), pd.to_datetime('2025-01-31')),
-                            min_value=pd.to_datetime('2000-01-01'),
-                            max_value=pd.to_datetime('2030-12-31'),
-                            format="YYYY-MM-DD")
+            self.date_range = self.set_date_range()  # Ustawia zakres dat
 
-    def get_teams(self):
-        all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(self.league, self.season)
-        all_teams_df = pd.read_sql(all_teams, self.conn)
+    def get_teams(self) -> None:
+        """
+        Pobiera listę drużyn dla wybranej ligi i sezonu z bazy danych.
+        Tworzy słownik mapujący ID drużyn na ich nazwy.
+        
+        Metoda wykonuje następujące operacje:
+        1. Wykonuje zapytanie SQL pobierające wszystkie drużyny (zarówno gospodarzy jak i gości)
+        dla aktualnie wybranej ligi (self.league) i sezonu (self.season)
+        2. Konwertuje wynik na DataFrame pandas
+        3. Tworzy słownik {id_druzyny: nazwa_druzyny} i zapisuje go w self.teams_dict
+
+        Sets:
+            self.teams_dict: Dict[int, str] - słownik mapujący ID drużyn na ich nazwy
+        """
+        # Bezpieczne zapytanie SQL z parametryzacją
+        query = """
+            SELECT DISTINCT t.id, t.name 
+            FROM matches m 
+            JOIN teams t ON (m.home_team = t.id OR m.away_team = t.id)
+            WHERE m.league = %s AND m.season = %s 
+            ORDER BY t.name
+        """
+        # Wykonanie zapytania z parametrami
+        all_teams_df = pd.read_sql(
+            query, 
+            self.conn, 
+            params=(self.league, self.season)  # Bezpieczne wstawienie parametrów
+        )
+        # Konwersja DataFrame do słownika
         self.teams_dict = all_teams_df.set_index('id')['name'].to_dict()
 
-    def get_schedule(self):
-        if self.round > 1:
-            if self.round >= 100:
-                round_name = self.special_rounds[self.round]
-            else:
-                round_name = self.round - 1
-            with st.expander("Terminarz, poprzednia kolejka numer: {}".format(round_name)):
-                self.generate_schedule(self.round-1, self.date_range)
+    def get_schedule(self) -> None:
+        """
+        Wyświetla terminarz meczów w rozwijanych sekcjach w zależności od wybranej kolejki/dat.
+        
+        Logika prezentacji:
+        1. Dla wybranej kolejki > 1 pokazuje dodatkowo terminarz poprzedniej kolejki
+        2. Dla specjalnych kolejek (ID >= 100) używa nazw zamiast numerów
+        3. Dla kolejki = 0 (wybór po dacie) pokazuje mecze w wybranym zakresie dat
+        4. Dodatkowo wyświetla panel z listą wszystkich drużyn w sezonie
 
-        if self.round >= 100:
-            round_name = self.special_rounds[self.round]
-        else:
-            round_name = self.round
-        if self.round == 0:
-            with st.expander("Terminarz, mecze dla dat: {} - {}".format(self.date_range[0], self.date_range[1])):
-                self.generate_schedule(self.round, self.date_range)
-        else:
-            with st.expander("Terminarz, aktualna kolejka numer: {}".format(round_name)):
-                self.generate_schedule(self.round, self.date_range)
-        with st.expander("Zespoły w sezonie {}".format(self.years)):
+        Args:
+            None (wykorzystuje atrybuty klasy):
+                - self.round: numer bieżącej kolejki (0 dla wyboru po dacie)
+                - self.special_rounds: słownik specjalnych kolejek {id: nazwa}
+                - self.date_range: krotka (start_date, end_date)
+                - self.years: opis sezonu
+                - self.teams_dict: słownik drużyn {id: nazwa}
+        """
+        # 1. Wyświetlenie poprzedniej kolejki (jeśli aktualna > 1)
+        if self.round > 1:
+            prev_round = self.round - 1
+            round_title = (
+                self.special_rounds.get(prev_round, prev_round) 
+                if prev_round >= 100 
+                else prev_round
+            ) 
+            with st.expander(f"Terminarz, poprzednia kolejka: {round_title}"):
+                self.generate_schedule(prev_round, self.date_range)
+
+        # 2. Wyświetlenie aktualnego terminarza
+        current_round_title = (
+            self.special_rounds.get(self.round, self.round) 
+            if self.round >= 100 
+            else self.round
+        )
+        expander_title = (
+            f"Terminarz, mecze dla dat: {self.date_range[0]} - {self.date_range[1]}" 
+            if self.round == 0 
+            else f"Terminarz, aktualna kolejka: {current_round_title}"
+        )
+        with st.expander(expander_title):
+            self.generate_schedule(self.round, self.date_range)
+
+        # 3. Panel z listą drużyn
+        with st.expander(f"Zespoły w sezonie {self.years}"):
             self.show_teams(self.teams_dict)
 
     def get_league_tables(self):
+        """
+        Generuje interaktywne tabele ligowe w rozwijanej sekcji Streamlit.
+        
+        Pobiera wyniki meczów z bazy danych i prezentuje je w czterech różnych formatach:
+        1. Tradycyjna tabela ligowa (punkty, kolejność)
+        2. Tabela wyników domowych
+        3. Tabela wyników wyjazdowych
+        4. Statystyki Over/Under i BTTS (Both Teams To Score
+        """
         with st.expander("Tabele ligowe" ):
-            query = '''select t1.name as home_team, t2.name as away_team, home_team_goals, away_team_goals, result 
-                from matches m join teams t1 on m.home_team = t1.id join teams t2 on m.away_team = t2.id 
-                where league = {} and season = {} and result != '0' and round < 900 '''.format(self.league, self.season)
-            results_df = pd.read_sql(query, self.conn)
+            query = """
+                SELECT 
+                    t1.name AS home_team, 
+                    t2.name AS away_team, 
+                    home_team_goals, 
+                    away_team_goals, 
+                    result 
+                FROM matches m 
+                JOIN teams t1 ON m.home_team = t1.id 
+                JOIN teams t2 ON m.away_team = t2.id 
+                WHERE league = %s 
+                AND season = %s 
+                AND result != '0' 
+                AND round < 900
+            """
+            results_df = pd.read_sql(query, self.conn, params=(self.league, self.season))
+
             tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
             with tab1:
                 st.header("Tradycyjna tabela ligowa")
@@ -175,45 +387,113 @@ class Base:
         with st.expander("Statystyki predykcji w sezonie {} - porównania między drużynami".format(self.years)):
             stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn) 
 
-    def get_league_stats(self):     
-        self.league_stats()
-        self.prediction_stats()
+    def get_league_stats(self): 
+        """Pobiera i wyświetla statystyki ligowe oraz predykcje dla wybranej ligi i sezonu."""    
+        self.league_stats() # Pobranie i wyświetlenie statystyk ligowych
+        self.prediction_stats() # Pobranie i wyświetlenie statystyk predykcji
 
-    def single_team_data(self, team_id):
-        query = f"SELECT name FROM teams WHERE id = {team_id}"
-        team_name_df = pd.read_sql(query, self.conn)
-        team_name = team_name_df.loc[0, 'name'] if not team_name_df.empty else None
+    def get_team_name(self, team_id: int) -> str:
+        """Pobiera nazwę drużyny z bazy danych"""
+        query = "SELECT name FROM teams WHERE id = %s"
+        team_df = pd.read_sql(query, self.conn, params=(team_id,))
+        return team_df.loc[0, 'name'] if not team_df.empty else None
+    
+    def process_match_data(self, data: pd.DataFrame, team_id: int, team_name: str) -> dict:
+        """Przetwarza surowe dane meczowe na gotowy słownik"""
+        if data.empty:
+            return {
+                'date': [],
+                'opponent': [],
+                'opponent_shortcut': [],
+                'team_name': team_name,
+                'goals': [],
+                'btts': [],
+                'home_teams': [],
+                'home_goals': [],
+                'away_teams': [],
+                'away_goals': [],
+                'results': []
+            }
 
-        query = f'''
+        return {
+            'date': data['date'].tolist(),
+            'opponent': [row['guest'] if row['home_id'] == team_id else row['home'] 
+                for _, row in data.iterrows()],
+            'opponent_shortcut': [row['guest_shortcut'] if row['home_id'] == team_id else row['home_shortcut'] 
+                for _, row in data.iterrows()],
+            'team_name': team_name,
+            'goals': [0.4 if int(row['home_goals']) + int(row['away_goals']) == 0 
+                else int(row['home_goals']) + int(row['away_goals']) 
+                for _, row in data.iterrows()],
+            'btts': [ 1 if int(row['home_goals']) > 0 and int(row['away_goals']) > 0 
+                else -1 
+                for _, row in data.iterrows()],
+            'home_teams': data['home'].tolist(),
+            'home_goals': data['home_goals'].tolist(),
+            'away_teams': data['guest'].tolist(),
+            'away_goals': data['away_goals'].tolist(),
+            'results': data['result'].tolist()
+        }
+    
+    def get_team_matches(self, team_id: int) -> pd.DataFrame:
+        """Pobiera ostatnie mecze drużyny z bazy danych"""
+        query = """
             SELECT 
-                m.home_team AS home_id, t1.name AS home, t1.shortcut as home_shortcut, 
-                m.away_team AS guest_id, t2.name AS guest, t2.shortcut as guest_shortcut, 
-                date_format(cast(m.game_date as date), '%d.%m') AS date, m.home_team_goals AS home_goals, 
-                m.away_team_goals AS away_goals, m.result AS result
+                m.home_team AS home_id, 
+                t1.name AS home, 
+                t1.shortcut AS home_shortcut, 
+                m.away_team AS guest_id, 
+                t2.name AS guest, 
+                t2.shortcut AS guest_shortcut, 
+                DATE_FORMAT(CAST(m.game_date AS date), '%d.%m') AS date, 
+                m.home_team_goals AS home_goals, 
+                m.away_team_goals AS away_goals, 
+                m.result AS result
             FROM matches m 
             JOIN teams t1 ON t1.id = m.home_team 
             JOIN teams t2 ON t2.id = m.away_team 
-            WHERE CAST(m.game_date AS date) <= '{self.date}' 
-            AND (m.home_team = {team_id} OR m.away_team = {team_id}) 
+            WHERE CAST(m.game_date AS date) <= %s
+            AND (m.home_team = %s OR m.away_team = %s) 
             AND m.result <> '0'
-            AND m.season = {self.season}
+            AND m.season = %s
             ORDER BY m.game_date DESC 
-            LIMIT {self.games}
-        '''
-        data = pd.read_sql(query, self.conn)
+            LIMIT %s
+        """
+        return pd.read_sql(
+            query, 
+            self.conn, 
+            params=(self.date, team_id, team_id, self.season, self.games))
 
-        date = [row.date for _, row in data.iterrows()]
-        opponent = [row.guest if row.home_id == team_id else row.home for _, row in data.iterrows()]
-        opponent_shortcut = [row.guest_shortcut if row.home_id == team_id else row.home_shortcut for _, row in data.iterrows()] 
-        goals = [0.4 if int(row.home_goals) + int(row.away_goals) == 0 else int(row.home_goals) + int(row.away_goals) for _, row in data.iterrows()]
-        btts = [1 if int(row.home_goals) > 0 and int(row.away_goals) > 0 else -1 for _, row in data.iterrows()]
-        home_team = [row.home for _, row in data.iterrows()]
-        home_team_score = [row.home_goals for _, row in data.iterrows()]
-        away_team = [row.guest for _, row in data.iterrows()]
-        away_team_score = [row.away_goals for _, row in data.iterrows()]
-        results = [row.result for _, row in data.iterrows()]
+    def single_team_data(self, team_id: int) -> dict:
+        """
+        Pobiera i przetwarza dane historyczne dla pojedynczej drużyny.
+        
+        Args:
+            team_id (int): ID drużyny, dla której pobierane są dane
 
-        return date, opponent, opponent_shortcut, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, results
+        Returns:
+            dict: Słownik zawierający przetworzone dane meczowe:
+                - dates (list): Lista dat meczów w formacie DD.MM
+                - opponents (list): Lista nazw drużyn przeciwnych
+                - opponent_shortcuts (list): Lista skrótów nazw przeciwników
+                - goals (list): Lista sum bramek w meczu (min. 0.4 dla meczu 0:0)
+                - btts (list): Lista flag czy padły bramki obu drużyn (1: tak, -1: nie)
+                - team_name (str): Nazwa drużyny
+                - home_teams (list): Lista nazw drużyn gospodarzy
+                - home_scores (list): Lista bramek gospodarzy
+                - away_teams (list): Lista nazw drużyn gości
+                - away_scores (list): Lista bramek gości
+                - results (list): Lista wyników meczów
+        """
+        # 1. Pobranie nazwy drużyny
+        team_name = self.get_team_name(team_id)
+        if not team_name:
+            raise ValueError(f"Nie znaleziono drużyny o ID: {team_id}")
+        # 2. Pobranie danych meczowych
+        match_data = self.get_team_matches(team_id)
+        # 3. Przetworzenie danych
+        processed_data = self.process_match_data(match_data, team_id, team_name)
+        return processed_data
 
     def match_pred_summary(self, id, result, home_goals, away_goals):
         st.header("Pomeczowe statystyki predykcji i zakładów")
@@ -326,6 +606,10 @@ class Base:
         return predictions if predictions else None
     
     def display_prediction_charts(self, predictions: dict) -> None:
+        """Wyświetla wykresy predykcji dla meczu.
+            Args:   
+                predictions: Słownik z predykcjami meczu
+        """
         if predictions is not None:
             goals_no = [predictions['zero_goals'], 
                         predictions['one_goal'], 
@@ -349,41 +633,38 @@ class Base:
     
     def calculate_ou_probabilities(self, goals_no : list) -> tuple:
         """Oblicza prawdopodobieństwa under/over dla różnych linii.
-        
         Args:
-            predictions: Słownik z predykcjami
-            
+            goals_no: Lista z prawdopodobieństwami dla 0, 1, 2, 3, 4, 5 i 6+ goli
         Returns:
-            Krotka (under_prob, over_prob, label)
-        """
+            Tuple z sumą prawdopodobieństw dla under i over oraz etykietą linii"""
         if self.ou_line < 1:
             return (
-                round(sum(goals_no[:1]), 2),
-                round(sum(goals_no[1:]), 2),
+                sum(goals_no[:1]),
+                sum(goals_no[1:]),
                 'OU 0.5'
             )
         elif self.ou_line < 2:
             return (
-                round(sum(goals_no[:2]), 2),
-                round(sum(goals_no[2:]), 2),
+                sum(goals_no[:2]),
+                sum(goals_no[2:]),
                 'OU 1.5'
             )
         elif self.ou_line < 3:
             return (
-                round(sum(goals_no[:3]), 2),
-                round(sum(goals_no[3:]), 2),
+                sum(goals_no[:3]),
+                sum(goals_no[3:]),
                 'OU 2.5'
             )
         elif self.ou_line < 4:
             return (
-                round(sum(goals_no[:4]), 2),
-                round(sum(goals_no[4:]), 2),
+                sum(goals_no[:4]),
+                sum(goals_no[4:]),
                 'OU 3.5'
             )
         else:
             return (
-                round(sum(goals_no[:5]), 2),
-                round(sum(goals_no[5:]), 2),
+                sum(goals_no[:5]),
+                sum(goals_no[5:]),
                 'OU 4.5'
             )
         
@@ -566,8 +847,8 @@ class Base:
             if row.result != '0':
                 button_label = button_label + ", wynik spotkania: {} - {}".format(row.h_g, row.a_g)
             if st.button(button_label, use_container_width=True):
+                tab1, tab2, tab3 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe", "Dla developerów"])
                 if row.result != '0':
-                    tab1, tab2 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe"])
                     with tab1:
                         self.show_predictions(row.h_g, row.a_g, row.id, row.result)
                     with tab2:
@@ -648,30 +929,63 @@ class Base:
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where (home_team = {} or away_team = {}) and result != '0'".format(key, key)
             stats_module.generate_statistics(query, 0, 1, self.round, self.no_events, self.conn, self.EV_plus)
 
+    def show_teams(self, teams_dict: dict) -> None:
+        """
+        Wyświetla interfejs wyboru drużyn i prezentuje ich statystyki w formie zakładek.
+        
+        Dla każdej drużyny z przekazanego słownika generuje przycisk, który po kliknięciu
+        pokazuje szczegółowe statystyki w dwóch zakładkach:
+        1. Statystyki historyczne drużyny
+        2. Statystyki predykcji
 
+        Args:
+            teams_dict (dict): Słownik drużyn w formacie {id_druzyny: nazwa_druzyny}
+        """
+        st.header(f"Drużyny grające w {self.name} w sezonie {self.years}:")
 
-    def show_teams(self, teams_dict):
-        st.header("Drużyny grające w {} w sezonie {}:".format(self.name, self.years))
-        for key, value in teams_dict.items():
-            button_label = value
-            if st.button(button_label, use_container_width = True):
+        for team_id, team_name in teams_dict.items():
+            # Przycisk wyboru drużyny
+            if st.button(team_name, use_container_width=True, key=f"team_{team_id}"):
+                # Pobranie danych w nowym formacie słownikowym
+                team_data = self.single_team_data(team_id)
+                # Utworzenie zakładek
                 tab1, tab2 = st.tabs(["Statystyki drużyny", "Statystyki predykcji"])
+                # Zakładka 1: Statystyki historyczne
                 with tab1:
-                    date, opponent, opponent_shortcut, goals, btts, team_name, home_team, home_team_score, away_team, away_team_score, result = self.single_team_data(key)
+                    # Układ dwukolumnowy dla wykresów
                     col1, col2 = st.columns(2)
                     with col1:
                         with st.container():
-                            graphs_module.goals_bar_chart(date, opponent_shortcut, goals, team_name, self.ou_line, "Bramki w meczach")
+                            graphs_module.goals_bar_chart(team_data['date'],
+                                team_data['opponent_shortcut'],
+                                team_data['goals'],
+                                team_data['team_name'],
+                                self.ou_line,
+                                "Bramki w meczach")        
                     with col2:
                         with st.container():
-                            graphs_module.btts_bar_chart(date, opponent_shortcut, btts, team_name)
+                            graphs_module.btts_bar_chart(team_data['date'],
+                                team_data['opponent_shortcut'],
+                                team_data['btts'],
+                                team_data['team_name'])
+                    # Drugi rząd kolumn
                     col3, col4 = st.columns(2)
                     with col3:
                         with st.container():
-                            graphs_module.winner_bar_chart(opponent, home_team ,result, team_name)
+                            graphs_module.winner_bar_chart(team_data['opponent'],
+                                team_data['home_teams'],
+                                team_data['results'],
+                                team_data['team_name'])
                     with col4:
                         with st.container():
-                            tables_module.matches_list(date, home_team, home_team_score, away_team, away_team_score, team_name)
+                            tables_module.matches_list(team_data['date'],
+                                team_data['home_teams'],
+                                team_data['home_goals'],
+                                team_data['away_teams'],
+                                team_data['away_goals'],
+                                team_data['team_name'])
+                
+                # Zakładka 2: Statystyki predykcji
                 with tab2:
-                    self.predicts_per_team(team_name, key)
+                    self.predicts_per_team(team_data['team_name'], team_id)
                 

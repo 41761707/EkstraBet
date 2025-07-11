@@ -39,14 +39,15 @@
 
 | POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
 | :---:         |  :---:        | :---:     | :---:             | :---:             |
-| **ID**        | INT           | INT       | Klucz główny, automatycznie generowany            | AUTOMATYCZNIE GENEROWANE |
+| **ID**        | INT           | INT      | Klucz główny, automatycznie generowany            | AUTOMATYCZNIE GENEROWANE |
 | *MATCH_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *matches* | NULL |
 | *EVENT_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *events* | NULL |
-| ODDS          | FLOAT         | >= 1 | Kurs danego zdarzenia | NULL |
-| EV            | FLOAT         | Teoretycznie (-inf, +inf), ale z reguły sensownie wartości są do [-1, 1]          | Sposób obliczania:  ustalone prawdopodobieństwo zdarzenia (wyrażone początkowo w procentach, czyli dzielimy na 100) * maksymalny kurs od bukmacherów - 1. Wartości >0 uznawane są jako "Interesujące" z perspektywy gracza                   | NULL |
+| ODDS          | FLOAT         | >= 1.0 | Kurs danego zdarzenia | NULL |
+| EV            | FLOAT         | Teoretycznie (-inf, +inf), ale z reguły sensownie wartości są do [-1, 1]          | Sposób obliczania:  ustalone prawdopodobieństwo zdarzenia * maksymalny kurs od bukmacherów - 1. Wartości > 0 uznawane są jako "Interesujące" z perspektywy gracza                   | NULL |
 | *BOOKMAKER*   | INT           | INT       | Klucz obcy, powiązanie z tabelą *bookmakers* | NULL |
 | OUTCOME       | INT           | {0, 1}    | 1 jeśli zakład wygrany, 0 jeśli przegrany | NULL (to istotne) |
-| CUSTOM BET       | INT           | {0, 1}    | 0 jeśli zakład wygenerowany przez model, 1 jeśli zakład dodany ręcznie przez użytkownika | 0 |
+| CUSTOM_BET       | INT           | {0, 1}    | 0 jeśli zakład wygenerowany przez model, 1 jeśli zakład dodany ręcznie przez użytkownika | 0 |
+| *MODEL_ID* | INT | INT  | Klucz obcy, powiązanie z tabelą *models* | NULL | 
 
 Dane do tabeli naliczane są w funkcji **bet_all.py**
 
