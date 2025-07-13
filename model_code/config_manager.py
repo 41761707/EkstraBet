@@ -51,7 +51,7 @@ class ConfigManager:
         self.model_load_name = None
         
         # Lista ID lig do analizy
-        self.leagues = []
+        self.leagues = [25]
         
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1

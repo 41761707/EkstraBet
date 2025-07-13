@@ -18,7 +18,7 @@ def generate_dicts(query, conn):
 
 def generate_button(button_name, conn, type, where_clause):
     if type == -1: #Już zrealizowane
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, p.value * 100 as "PEWNOSC MODELU [%]",
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2) as "PEWNOSC MODELU [%]",
                     case when p.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
                             from bets b
                                 join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
@@ -28,7 +28,7 @@ def generate_button(button_name, conn, type, where_clause):
                                 join events e on b.event_id = e.id
                                 join leagues l on m.league = l.id'''
     else: #1 - przyszłe
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, p.value * 100  as "PEWNOSC MODELU [%]"
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2)  as "PEWNOSC MODELU [%]"
                     from bets b
                         join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
                         join matches m on b.match_id = m.id
@@ -67,11 +67,11 @@ def main():
         generate_button("Wszystkie ligi", conn, 1, 
                         " where cast(m.game_date as date) = current_date order by p.value desc".format(odds_range))
         generate_button("Tylko OU", conn, 1, 
-                        " where cast(m.game_date as date) = current_date and f.event_id in (8,12) order by b.EV desc".format(odds_range))
+                        " where cast(m.game_date as date) = current_date and p.event_id in (8,12) order by b.EV desc".format(odds_range))
         generate_button("Tylko BTTS", conn, 1, 
-                        " where cast(m.game_date as date) = current_date and f.event_id in (6, 172) order by b.EV desc".format(odds_range))
+                        " where cast(m.game_date as date) = current_date and p.event_id in (6, 172) order by b.EV desc".format(odds_range))
         generate_button("Tylko REZULTAT", conn, 1, 
-                        " where cast(m.game_date as date) = current_date and f.event_id in (1,2,3) order by b.EV desc".format(odds_range))
+                        " where cast(m.game_date as date) = current_date and p.event_id in (1,2,3) order by b.EV desc".format(odds_range))
 
         #Do ewentualnej poprawki w przyszłości
         if st.button("Ustawienia niestandardowe (definiowane na górze strony)", use_container_width=True):
@@ -88,7 +88,7 @@ def main():
                     m.game_date AS "DATA SPOTKANIA",
                     b.odds AS KURS,
                     b.EV AS VB,
-                    p.value * 100 AS "PEWNOSC MODELU [%]"
+                    ROUND(p.value * 100, 2) AS "PEWNOSC MODELU [%]"
                 FROM bets b
                 JOIN predictions p ON (b.match_id = p.match_id AND b.event_id = p.event_id)
                 JOIN matches m ON b.match_id = m.id

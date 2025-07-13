@@ -358,34 +358,81 @@ class Base:
                 st.write("Drużyny prezentowane są w kolejności alfabetycznej")
 
     def league_stats(self):
+        """Wyświetla statystyki ligowe w rozwijanym panelu.
+        
+        Funkcja pokazuje liczbę rozegranych meczów w danej lidze i sezonie,
+        a jeśli mecze zostały rozegrane, wywołuje moduł statystyk ligowych.
+        """
         with st.expander("Statystyki ligowe"):
-            query = ''' select count(*) from matches where league = {} and season = {} and result != '0' '''.format(self.league, self.season)
+            query = '''
+                SELECT COUNT(*) 
+                FROM matches 
+                WHERE league = %s AND season = %s AND result != '0'
+            '''
             cursor = self.conn.cursor()
-            cursor.execute(query)
-            no_games = cursor.fetchall()
-            cursor.close()
-            st.header("Charakterstyki ligi: {}".format(self.name))
-            st.subheader("Do tej pory rozegrano {} meczów w ramach ligi: {}".format(no_games[0][0], self.name))
-            if no_games[0][0] > 0:
-                stats_module.league_charachteristics(self.conn, self.league, self.season, self.teams_dict, no_games[0][0])
+            try:
+                cursor.execute(query, (self.league, self.season))
+                no_games = cursor.fetchone()
+                
+                st.header(f"Charakterystyki ligi: {self.name}")
+                st.subheader(f"Do tej pory rozegrano {no_games[0]} meczów w ramach ligi: {self.name}")
+                
+                if no_games[0] > 0:
+                    # Wywołanie modułu statystyk ligowych
+                    stats_module.league_charachteristics(
+                        self.conn, self.league, self.season, 
+                        self.teams_dict, no_games[0]
+                    )
+            finally:
+                cursor.close()
 
     def prediction_stats(self):
-        with st.expander("Statystyki predykcji"):
-            st.header("Podsumowanie predykcji wykonanych dla ligi {} w sezonie {}".format(self.name, self.years))
+        """
+        Wyświetla statystyki predykcji dla wybranej ligi i sezonu.
+        Pozwala użytkownikowi wybrać zakres rund oraz opcję podatku.
+        """
+        with st.expander(f"Statystyki predykcji"):
+            st.header(f"Podsumowanie predykcji wykonanych dla ligi {self.name} w sezonie {self.years}")
+            # Wybór zakresu rund do analizy
             if self.round > 1:
-                first_round, last_round = st.select_slider(
-                "Zakres analizowanych rund",
-                options=[x+1 for x in range(self.round)],
-                value=(self.round,self.round))
+                rundy_dostepne = [x + 1 for x in range(self.round)]
+                first_round, last_round = st.select_slider("Zakres analizowanych rund",
+                    options=rundy_dostepne,
+                    value=(self.round, self.round)
+                )
             else:
                 first_round, last_round = 1, 1
             tax_flag = st.checkbox("Uwzględnij podatek 12%")
             rounds = list(range(first_round, last_round + 1))
-            rounds_str =','.join(map(str, rounds))
-            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where league = {} and season = {} and round in ({}) and result != '0'".format(self.league, self.season, rounds_str)
-            stats_module.generate_statistics(query, tax_flag, first_round, last_round, self.no_events, self.conn, self.EV_plus)
-        with st.expander("Statystyki predykcji w sezonie {} - porównania między drużynami".format(self.years)):
-            stats_module.aggregate_team_acc(self.teams_dict, self.league, self.season, self.conn) 
+            if not rounds:
+                st.warning("Brak dostępnych rund do analizy.")
+                return
+            rounds_str = ','.join(map(str, rounds))
+            query = f"""
+                SELECT 
+                    id, 
+                    result, 
+                    home_team_goals AS home_goals, 
+                    away_team_goals AS away_goals, 
+                    home_team_goals + away_team_goals AS total 
+                FROM matches 
+                WHERE league = {self.league}
+                    AND season = {self.season}
+                    AND round IN ({rounds_str}) 
+                    AND result != '0' """
+            # Wywołanie funkcji generującej statystyki
+            stats_module.generate_statistics(query, 
+                                             tax_flag, 
+                                             first_round, 
+                                             last_round, 
+                                             self.no_events, 
+                                             self.conn, 
+                                             self.EV_plus)
+        # Statystyki porównawcze między drużynami
+        with st.expander(f"Statystyki predykcji w sezonie {self.years} - porównania między drużynami"):
+            stats_module.aggregate_team_acc(self.teams_dict, 
+                                            self.league, self.season, 
+                                            self.conn)
 
     def get_league_stats(self): 
         """Pobiera i wyświetla statystyki ligowe oraz predykcje dla wybranej ligi i sezonu."""    
@@ -485,94 +532,166 @@ class Base:
                 - away_scores (list): Lista bramek gości
                 - results (list): Lista wyników meczów
         """
-        # 1. Pobranie nazwy drużyny
         team_name = self.get_team_name(team_id)
         if not team_name:
             raise ValueError(f"Nie znaleziono drużyny o ID: {team_id}")
-        # 2. Pobranie danych meczowych
         match_data = self.get_team_matches(team_id)
-        # 3. Przetworzenie danych
         processed_data = self.process_match_data(match_data, team_id, team_name)
         return processed_data
 
     def match_pred_summary(self, id, result, home_goals, away_goals):
-        st.header("Pomeczowe statystyki predykcji i zakładów")
-        query = "select f.event_id as event_id, e.name as name from final_predictions f join events e on f.event_id = e.id where match_id = {}".format(id)
-        final_predictions_df = pd.read_sql(query, self.conn)
-        predicts = [""] * 3
-        outcomes = [""] * 3
-        correct = ["NIE"] * 3
-        ou = 1 if home_goals + away_goals > 2.5 else 0
-        btts = 1 if home_goals > 0 and away_goals > 0 else 0
-        outcomes[0] = 'Poniżej 2.5 gola' if ou == 0 else 'Powyżej 2.5 gola'
-        outcomes[1] = 'Obie drużyny strzelą' if btts == 1 else 'Obie drużyny nie strzelą'
-        if result == '1':
-            outcomes[2] = 'Zwycięstwo gospodarza'
-        elif result == 'X': 
-            outcomes[2] = 'Remis'
-        else:
-            outcomes[2] = 'Zwycięstwo gościa'
-        for _, row in final_predictions_df.iterrows():
-            if row['event_id'] in (1,2,3):
-                predicts[2] = row['name']
-                if (result == '1' and row['event_id'] == 1) or (result == 'X' and row['event_id'] == 2) or (result == '2' and row['event_id'] == 3):
-                    correct[2] = 'TAK'
-            if row['event_id'] in (8,12):
-                predicts[0] = row['name']
-                if (ou == 0 and row['event_id'] == 12) or (ou == 1 and row['event_id'] == 8):
-                    correct[0] = 'TAK'
-            if row['event_id'] in (6, 172):
-                predicts[1] = row['name']
-                if (btts == 0 and row['event_id'] == 172) or (btts == 1 and row['event_id'] == 6):
-                    correct[1] = 'TAK'
-        final_predictions_df = pd.read_sql(query, self.conn)
-        data = {
-        'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
-        'Predykcja' : [x for x in predicts],
-        'Obserwacja' : [x for x in outcomes],
-        'Czy przewidywanie poprawne?' : [x for x in correct]
+        """Generuje podsumowanie predykcji i zakładów dla pojedynczego meczu.
+        
+        Args:
+            id (int): ID meczu w bazie danych
+            result (str): Wynik meczu (1, X, 2)
+            home_goals (int): Liczba goli gospodarzy
+            away_goals (int): Liczba goli gości
+            
+        Wyświetla tabelę porównującą przewidywania z rzeczywistymi wynikami
+        dla typów zakładów: OU (over/under), BTTS (both teams to score) i rezultatu.
+        """
+        # Stałe dla identyfikatorów zdarzeń
+        #To sa wartosci z bazy, przepisałem, żeby nie musieć tego każdorazowo wyciągać z bazy danych
+        #Czy to dobre podejście? Pewnie nie, ale potem się tym zajmę
+        EVENT_IDS = {
+            'HOME_WIN': 1,
+            'DRAW': 2,
+            'AWAY_WIN': 3,
+            'OVER_2_5': 8,
+            'UNDER_2_5': 12,
+            'BTTS_YES': 6,
+            'BTTS_NO': 172
         }
+        st.header("Pomeczowe statystyki predykcji i zakładów")  
+        # Pobieranie predykcji z bazy danych
+        query = """SELECT p.event_id as event_id, e.name as name 
+                   FROM predictions p 
+                   JOIN events e ON p.event_id = e.id 
+                   WHERE match_id = %s and p.is_final = 1"""
+        final_predictions_df = pd.read_sql(query, self.conn, params=(id,))
+        
+        # Inicjalizacja struktury na wyniki
+        results = {
+            'OU': {'prediction': '', 'outcome': '', 'correct': 'NIE'},
+            'BTTS': {'prediction': '', 'outcome': '', 'correct': 'NIE'},
+            'RESULT': {'prediction': '', 'outcome': '', 'correct': 'NIE'}
+        }
+        # Obliczenie rzeczywistych wyników
+        total_goals = home_goals + away_goals
+        ou_result = total_goals > 2.5
+        btts_result = home_goals > 0 and away_goals > 0
+        
+        # Ustalenie tekstowych opisów rzeczywistych wyników
+        results['OU']['outcome'] = 'Powyżej 2.5 gola' if ou_result else 'Poniżej 2.5 gola'
+        results['BTTS']['outcome'] = 'Obie drużyny strzelą' if btts_result else 'Obie drużyny nie strzelą'
+        
+        # Ustalenie wyniku meczu
+        if result == '1':
+            results['RESULT']['outcome'] = 'Zwycięstwo gospodarza'
+        elif result == 'X': 
+            results['RESULT']['outcome'] = 'Remis'
+        else:
+            results['RESULT']['outcome'] = 'Zwycięstwo gościa'
+        
+        # Mapowanie predykcji na rzeczywiste wyniki
+        for _, row in final_predictions_df.iterrows():
+            event_id = row['event_id']
+            
+            # Sprawdzenie predykcji wyniku meczu (1X2)
+            if event_id in (EVENT_IDS['HOME_WIN'], EVENT_IDS['DRAW'], EVENT_IDS['AWAY_WIN']):
+                results['RESULT']['prediction'] = row['name']
+                if ((result == '1' and event_id == EVENT_IDS['HOME_WIN']) or 
+                    (result == 'X' and event_id == EVENT_IDS['DRAW']) or 
+                    (result == '2' and event_id == EVENT_IDS['AWAY_WIN'])):
+                    results['RESULT']['correct'] = 'TAK'
+                    
+            # Sprawdzenie predykcji over/under
+            elif event_id in (EVENT_IDS['OVER_2_5'], EVENT_IDS['UNDER_2_5']):
+                results['OU']['prediction'] = row['name']
+                if ((not ou_result and event_id == EVENT_IDS['UNDER_2_5']) or 
+                    (ou_result and event_id == EVENT_IDS['OVER_2_5'])):
+                    results['OU']['correct'] = 'TAK'
+                    
+            # Sprawdzenie predykcji BTTS
+            elif event_id in (EVENT_IDS['BTTS_YES'], EVENT_IDS['BTTS_NO']):
+                results['BTTS']['prediction'] = row['name']
+                if ((not btts_result and event_id == EVENT_IDS['BTTS_NO']) or 
+                    (btts_result and event_id == EVENT_IDS['BTTS_YES'])):
+                    results['BTTS']['correct'] = 'TAK'
+        
+        # Przygotowanie danych do wyświetlenia w tabeli
+        data = {
+            'Zdarzenie': list(results.keys()),
+            'Predykcja': [v['prediction'] for v in results.values()],
+            'Obserwacja': [v['outcome'] for v in results.values()],
+            'Czy przewidywanie poprawne?': [v['correct'] for v in results.values()]
+        }
+        
+        # Tworzenie i wyświetlenie DataFrame
         df = pd.DataFrame(data)
-        df.index = range(1, len(df) + 1)
+        df.index = range(1, len(df) + 1)  # Indeksowanie od 1
         st.dataframe(df, use_container_width=True, hide_index=True)
     
     def generate_h2h(self, match_id):
-        # Get teams in the match
-        query = f"SELECT home_team, away_team FROM matches WHERE id = {match_id}"
-        teams_in_match = pd.read_sql(query, self.conn).to_numpy()
-        query = f"""
-            SELECT m.game_date AS date, t1.name AS home_team, m.home_team_goals AS home_team_goals, 
-                t2.name AS away_team, m.away_team_goals AS away_team_goals
+        """Generuje historię bezpośrednich spotkań (head-to-head) dla danego meczu.
+        
+        Args:
+            match_id (int): ID meczu, dla którego generujemy statystyki h2h
+            
+        Wyświetla listę ostatnich spotkań między drużynami w formacie:
+        data | gospodarz | wynik | gość
+        """
+        team_query = "SELECT home_team, away_team FROM matches WHERE id = %s"
+        teams = pd.read_sql(team_query, self.conn, params=(match_id,))
+        if teams.empty:
+            st.warning("Nie znaleziono meczu o podanym ID")
+            return
+        home_id, away_id = teams.iloc[0]['home_team'], teams.iloc[0]['away_team']
+        h2h_query = f"""
+            SELECT 
+                m.game_date AS date, 
+                t1.name AS home_team, 
+                m.home_team_goals AS home_goals, 
+                t2.name AS away_team, 
+                m.away_team_goals AS away_goals
             FROM matches m
             JOIN teams t1 ON m.home_team = t1.id
             JOIN teams t2 ON m.away_team = t2.id
-            WHERE m.home_team IN ({teams_in_match[0][0]}, {teams_in_match[0][1]})
-            AND m.away_team IN ({teams_in_match[0][0]}, {teams_in_match[0][1]})
+            WHERE ((m.home_team = {home_id} AND m.away_team = {away_id})
+               OR (m.home_team = {away_id} AND m.away_team = {home_id}))
             AND m.result != '0'
             ORDER BY m.game_date DESC
             LIMIT {self.h2h}
         """
-        h2h_df = pd.read_sql(query, self.conn)
-        if len(h2h_df) > 0:
-            dates = h2h_df['date'].dt.strftime('%d.%m.%y').tolist()
-            home_team = h2h_df['home_team'].tolist()
-            home_team_score = h2h_df['home_team_goals'].tolist()
-            away_team = h2h_df['away_team'].tolist()
-            away_team_score = h2h_df['away_team_goals'].tolist()
+        h2h_df = pd.read_sql(h2h_query, self.conn)
+        # Przygotowanie i wyświetlenie wyników
+        if not h2h_df.empty:
             st.header(f"Ostatnie {min(self.h2h, len(h2h_df))} bezpośrednie spotkania")
-            tables_module.matches_list_h2h(dates, home_team, home_team_score, away_team, away_team_score)
+            matches_data = {
+                'dates': h2h_df['date'].dt.strftime('%d.%m.%y').tolist(),
+                'home_teams': h2h_df['home_team'].tolist(),
+                'home_scores': h2h_df['home_goals'].tolist(),
+                'away_teams': h2h_df['away_team'].tolist(),
+                'away_scores': h2h_df['away_goals'].tolist()
+            }
+            tables_module.matches_list_h2h(matches_data['dates'],
+                                           matches_data['home_teams'],
+                                           matches_data['home_scores'],
+                                           matches_data['away_teams'],
+                                           matches_data['away_scores'])
         else:
             st.header("Brak bezpośrednich spotkań między drużynami w bazie danych")
 
     def get_match_predictions(self, match_id: int) -> dict:
         """Pobiera predykcje dla meczu z bazy danych.
-        
         Args:
             match_id: ID meczu
             
         Returns:
             Słownik z predykcjami lub None jeśli brak danych
         """
+        # Definicja identyfikatorów zdarzeń predykcji
         prediction_events = {
             'home_win': 1,
             'draw': 2,
@@ -638,35 +757,15 @@ class Base:
         Returns:
             Tuple z sumą prawdopodobieństw dla under i over oraz etykietą linii"""
         if self.ou_line < 1:
-            return (
-                sum(goals_no[:1]),
-                sum(goals_no[1:]),
-                'OU 0.5'
-            )
+            return (sum(goals_no[:1]), sum(goals_no[1:]), 'OU 0.5')
         elif self.ou_line < 2:
-            return (
-                sum(goals_no[:2]),
-                sum(goals_no[2:]),
-                'OU 1.5'
-            )
+            return (sum(goals_no[:2]), sum(goals_no[2:]), 'OU 1.5')
         elif self.ou_line < 3:
-            return (
-                sum(goals_no[:3]),
-                sum(goals_no[3:]),
-                'OU 2.5'
-            )
+            return (sum(goals_no[:3]), sum(goals_no[3:]),'OU 2.5')
         elif self.ou_line < 4:
-            return (
-                sum(goals_no[:4]),
-                sum(goals_no[4:]),
-                'OU 3.5'
-            )
-        else:
-            return (
-                sum(goals_no[:5]),
-                sum(goals_no[5:]),
-                'OU 4.5'
-            )
+            return (sum(goals_no[:4]), sum(goals_no[4:]), 'OU 3.5')
+        else: 
+            return (sum(goals_no[:5]), sum(goals_no[5:]), 'OU 4.5')
         
     def get_bookmaker_odds(self, match_id: int, bookie_dict: dict, predictions : dict) -> dict:
         """Pobiera kursy bukmacherskie z bazy danych.
@@ -717,40 +816,14 @@ class Base:
                 odds[event_type][bookie_idx] = row.odds
         
         return odds
-
-    def show_predictions(self, home_goals, away_goals, id, result):
-        #Pobierz predykcje dla meczu
-        predictions = self.get_match_predictions(id)
-        #Jeżeli nie ma predykcji - poinformuj o tym użytkownika
-        if predictions is None:
-            st.header("Na chwilę obecną brak przewidywań dla wskazanego spotkania")
-        # Jeżeli są predykcje - wyświetl je w formie graficznej
-        self.display_prediction_charts(predictions)
-        if self.h2h > 0:
-            self.generate_h2h(id)
-        bookie_dict = {
-            'USTALONE' : 0,
-            'Superbet' : 1,
-            'Betclic' : 2,
-            'Fortuna': 3,
-            'STS' : 4,
-            'LvBet': 5,
-            'Betfan' : 6,
-            'Etoto' : 7,
-            'Fuksiarz' : 8,
-        }
-        bookie_dict_reversed_keys = {
-            0: 'USTALONE',
-            1: 'Superbet',
-            2: 'Betclic',
-            3: 'Fortuna',
-            4: 'STS',
-            5: 'LvBet',
-            6: 'Betfan',
-            7: 'Etoto',
-            8: 'Fuksiarz'
-        }
-        odds_dict = self.get_bookmaker_odds(id, bookie_dict, predictions)
+    
+    def display_odds_comparison(self, odds_dict: dict, bookie_dict : dict) -> None:
+        """Wyświetla porównanie kursów bukmacherskich w formie wykresu słupkowego.
+        
+        Args:
+            odds_dict: Słownik z kursami dla różnych zdarzeń
+            bookie_dict: Słownik mapujący nazwy bukmacherów na ID
+        """
         col3, col4, col5 = st.columns(3)
         with col3:
             st.write("Porównanie kursów z estymacją na rezultat:")
@@ -783,78 +856,200 @@ class Base:
             df = pd.DataFrame(data)
             df.index = range(1, len(df) + 1)
             st.dataframe(df, use_container_width=True, hide_index=True)
-        #TO-DO: Przenieść do osobnej funkcji i zredagować
+
+    def display_recommended_bets(self, predictions, odds_dict, bookie_dict_reversed) -> None:
+        """Wyświetla rekomendowane zakłady na podstawie predykcji i kursów.
+        
+        Args:
+            predictions (dict): Słownik z predykcjami
+            odds_dict (dict): Słownik z kursami bukmacherskimi
+            bookie_dict_reversed (dict): Odwrócony słownik bukmacherów
+        """   
+        st.header("Proponowane zakłady na mecz przez model:")
+        # Przygotowanie danych o zdarzeniach
+        events_data = [
+            ('Zwycięstwo gospodarza', 'home_win', 'home'),
+            ('Remis', 'draw', 'draw'),
+            ('Zwycięstwo gościa', 'guest_win', 'away'),
+            ('BTTS NIE', 'btts_no', 'btts_no'),
+            ('BTTS TAK', 'btts_yes', 'btts_yes'),
+            ('Under 2.5', 'under_2_5', 'under'),
+            ('Over 2.5', 'over_2_5', 'over')
+        ]
+        # Obliczanie wartości oczekiwanej (EV) i najlepszego bukmachera
+        results = []
+        for event_name, pred_key, odds_key in events_data:
+            if pred_key in predictions and odds_key in odds_dict:
+                max_odds = max(odds_dict[odds_key][1:])
+                bookie_idx = np.argmax(odds_dict[odds_key][1:]) + 1
+                ev = round(predictions[pred_key] * max_odds - 1, 2)
+                bookie_name = bookie_dict_reversed.get(bookie_idx, 'Nieznany')
+                results.append((event_name, ev, bookie_name))
+        # Tworzenie i formatowanie DataFrame
+        df = pd.DataFrame(results, columns=['Zdarzenie', 'VB', 'Bukmacher'])
+        df.index = range(1, len(df) + 1)
+        df['VB'] = df['VB'].apply(lambda x: f"{x:.2f}")
+        
+        # Podświetlenie komórek i wyświetlenie tabeli
+        styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset=['VB'])
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+    def show_predictions(self, home_goals, away_goals, id, result) -> None:
+        """Wyświetla predykcje i kursy dla danego meczu.
+        Args:
+            home_goals (int): Liczba goli gospodarzy
+            away_goals (int): Liczba goli gości
+            id (int): ID meczu
+            result (str): Wynik meczu (1, X, 2)
+            """
+        predictions = self.get_match_predictions(id)
+        #Jeżeli nie ma predykcji - poinformuj o tym użytkownika
+        if predictions is None:
+            st.header("Na chwilę obecną brak przewidywań dla wskazanego spotkania")
+        # Jeżeli są predykcje - wyświetl je w formie graficznej
+        self.display_prediction_charts(predictions)
+        if self.h2h > 0:
+            self.generate_h2h(id)
+        bookie_dict = {
+            'USTALONE' : 0,
+            'Superbet' : 1,
+            'Betclic' : 2,
+            'Fortuna': 3,
+            'STS' : 4,
+            'LvBet': 5,
+            'Betfan' : 6,
+            'Etoto' : 7,
+            'Fuksiarz' : 8,
+        }
+        bookie_dict_reversed = {v: k for k, v in bookie_dict.items()}
+        odds_dict = self.get_bookmaker_odds(id, bookie_dict, predictions)
+        #Pokaż porównanie kursów bukmacherskich
+        self.display_odds_comparison(odds_dict, bookie_dict)
         if predictions is not None:
-            st.header("Proponowane zakłady na mecz przez model: ")
-            home_win_EV = round((predictions['home_win']) * max(odds_dict['home'][1:]) - 1, 2)
-            home_win_bookmaker = np.argmax(odds_dict['home'][1:]) + 1
-            draw_EV = round((predictions['draw']) * max(odds_dict['draw'][1:]) - 1, 2)
-            draw_bookmaker = np.argmax(odds_dict['draw'][1:]) + 1
-            guest_win_EV = round((predictions['guest_win']) * max(odds_dict['away'][1:]) - 1, 2)
-            guest_win_bookmaker = np.argmax(odds_dict['away'][1:]) + 1
-            btts_no_EV = round((predictions['btts_no']) * max(odds_dict['btts_no'][1:]) - 1, 2)
-            btts_no_bookmaker = np.argmax(odds_dict['btts_no'][1:]) + 1
-            btts_yes_EV = round((predictions['btts_yes']) * max(odds_dict['btts_yes'][1:]) - 1, 2)
-            btts_yes_bookmaker = np.argmax(odds_dict['btts_yes'][1:]) + 1
-            under_EV = round((predictions['under_2_5']) * max(odds_dict['under'][1:]) - 1, 2)
-            under_bookmaker = np.argmax(odds_dict['under'][1:]) + 1
-            over_EV = round((predictions['over_2_5']) * max(odds_dict['over'][1:]) - 1, 2)
-            over_bookmaker = np.argmax(odds_dict['over'][1:]) + 1
-            events = ['Zwycięstwo gospodarza', 
-                    'Remis',
-                    'Zwycięstwo gościa',
-                    'BTTS NIE',
-                    'BTTS TAK',
-                    'Under 2.5',
-                    'Over 2.5']
-            EVs = [home_win_EV, draw_EV, guest_win_EV, btts_no_EV, btts_yes_EV, under_EV, over_EV]
-            EV_bookmakers = [bookie_dict_reversed_keys[home_win_bookmaker], 
-                            bookie_dict_reversed_keys[draw_bookmaker], 
-                            bookie_dict_reversed_keys[guest_win_bookmaker], 
-                            bookie_dict_reversed_keys[btts_no_bookmaker], 
-                            bookie_dict_reversed_keys[btts_yes_bookmaker], 
-                            bookie_dict_reversed_keys[under_bookmaker], 
-                            bookie_dict_reversed_keys[over_bookmaker]]
-            data = {
-            'Zdarzenie': [x for x in events],
-            'VB' : ["{:.2f}".format(x) for x in EVs],
-            'Bukmacher' : [x for x in EV_bookmakers]
-            }
-            df = pd.DataFrame(data)
-            df.index = range(1, len(df) + 1)
-            styled_df = df.style.applymap(graphs_module.highlight_cells_EV, subset = ['VB'])
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
-        if result != '0':
-            self.match_pred_summary(id, result, home_goals, away_goals)
+            # Wyświetl rekomendowane zakłady
+            self.display_recommended_bets(predictions, odds_dict, bookie_dict_reversed)
+            if result != '0':
+                self.match_pred_summary(id, result, home_goals, away_goals)
 
 
 
     def generate_schedule(self, round, date_range):
-        print(round)
-        query = f'''select m.id as id, m.home_team as home_id, t1.name as home, m.away_team as guest_id, t2.name as guest, m.game_date as date, m.result as result, m.home_team_goals as h_g, m.away_team_goals as a_g
-                        from matches m join teams t1 on t1.id = m.home_team join teams t2 on t2.id = m.away_team 
-                        where m.league = {self.league} and m.season = {self.season}'''
+        """Generuje harmonogram meczów dla wybranej rundy lub zakresu dat.
+        
+        Args:
+            round (int): Numer rundy (0 dla wyboru według daty)
+            date_range (tuple): Krotka (start_date, end_date) używana gdy round=0
+            
+        Wyświetla listę meczów z przyciskami do szczegółów każdego spotkania.
+        """
+        # Budowanie zapytania SQL w bezpieczny sposób
+        query = """
+            SELECT 
+                m.id as id, 
+                m.home_team as home_id, 
+                t1.name as home, 
+                m.away_team as guest_id, 
+                t2.name as guest, 
+                m.game_date as date, 
+                m.result as result, 
+                m.home_team_goals as h_g, 
+                m.away_team_goals as a_g
+            FROM matches m 
+            JOIN teams t1 ON t1.id = m.home_team 
+            JOIN teams t2 ON t2.id = m.away_team 
+            WHERE m.league = %s AND m.season = %s
+        """
+        params = [self.league, self.season]
+        
+        # Dodanie warunków w zależności od trybu (wybór rundy lub daty)
         if round == 0:
             start_date, end_date = date_range
-            query = query + f" and m.game_date between '{start_date}' and '{end_date}'"
+            query += " AND m.game_date BETWEEN %s AND %s"
+            params.extend([start_date, end_date])
         else:
-            query = query + f" and m.round = {round}"
-        query = query + ' order by m.game_date'
-
-        schedule_df = pd.read_sql(query,self.conn)
-        for index, row in schedule_df.iterrows():
-            button_label = "{} - {}, data: {}".format(row.home, row.guest,row.date.strftime('%d.%m.%y %H:%M'))
-            if row.result != '0':
-                button_label = button_label + ", wynik spotkania: {} - {}".format(row.h_g, row.a_g)
-            if st.button(button_label, use_container_width=True):
-                tab1, tab2, tab3 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe", "Dla developerów"])
+            query += " AND m.round = %s"
+            params.append(round)
+            
+        query += " ORDER BY m.game_date"
+        
+        # Wykonanie zapytania
+        schedule_df = pd.read_sql(query, self.conn, params=params)
+        
+        # Generowanie interfejsu dla każdego meczu
+        for _, row in schedule_df.iterrows():
+            self.generate_match_button(row)
+    
+    def generate_match_button(self, row):
+        """Generuje przycisk i szczegóły dla pojedynczego meczu.
+        
+        Args:
+            row (pd.Series): Wiersz DataFrame z danymi meczu
+        """
+        # Budowanie etykiety przycisku
+        button_label = f"{row.home} - {row.guest}, data: {row.date.strftime('%d.%m.%y %H:%M')}"
+        
+        # Dodanie wyniku jeśli mecz się zakończył
+        if row.result != '0':
+            button_label += f", wynik spotkania: {row.h_g} - {row.a_g}"
+        
+        # Wyświetlenie przycisku i paneli szczegółów
+        if st.button(button_label, use_container_width=True, key=f"match_{row.id}"):
+            tab1, tab2, tab3 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe", "Dla developerów"])
+            with tab1:
+                self.show_predictions(row.h_g, row.a_g, row.id, row.result)     
+            with tab2:
+                status_msg = "Statystyki pomeczowe" if row.result != '0' else "Statystyki pomeczowe dostępne po zakończeniu spotkania"
+                st.header(status_msg)
                 if row.result != '0':
-                    with tab1:
-                        self.show_predictions(row.h_g, row.a_g, row.id, row.result)
-                    with tab2:
-                        st.write("Statystyki pomeczowe")
-                else:
-                    self.show_predictions(row.h_g, row.a_g, row.id, row.result)
+                    self.display_match_statistics()      
+            with tab3:
+                self.display_dev_data(row)
+
+    def display_match_statistics(self):
+        """Wyświetla statystyki pomeczowe dla aktualnie wybranego meczu.
+        """
+        pass
+        #TO-DO implementacja
+
+    def display_dev_data(self, row):
+        """Wyświetla szczegółowe dane techniczne meczu dla developerów.
+        
+        Args:
+            row (pd.Series): Wiersz DataFrame z danymi meczu
+        """
+        st.header("Dane dla developerów")
+        dev_data = {
+            "ID meczu": row.id,
+            "ID Ligi": self.league,
+            "ID sezonu": self.season,
+            "Wynik meczu (1/X/2)": row.result,
+            "Gole gospodarzy": row.h_g,
+            "Gole gości": row.a_g,
+            "Data meczu": row.date.strftime('%d.%m.%y %H:%M'),
+            "Drużyna gospodarzy": f"{row.home_id} - {row.home}",
+            "Drużyna gości": f"{row.guest_id} - {row.guest}"
+        }
+        for key, value in dev_data.items():
+            st.write(f"{key}: {value}")
+
+    def prediction_accuracy(self, outcomes, event_name) -> None:
+        """Oblicza i wyświetla skuteczność predykcji dla danego zdarzenia.
+        Args:
+            outcomes (list): Lista wyników predykcji (1 - poprawna, 0 - niepoprawna)
+            event_name (str): Nazwa zdarzenia, dla którego obliczana jest skuteczność
+        """
+        suma = sum(outcomes)
+        liczba = len(outcomes)
+        st.write(f"Skuteczność predykcji dla zdarzenia {event_name}")
+        data = {
+            'Zdarzenie': [event_name],
+            'Wszystkie': [liczba],
+            'Poprawne': [suma],
+            'Skuteczność' : [str(round((suma * 100 / liczba), 2)) + "%"]
+            }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
 
     def predicts_per_team(self, team_name, key):
         query = "select event_id, outcome from final_predictions f join matches m on m.id = f.match_id where (m.home_team = {} or m.away_team = {}) and m.result != '0' order by m.game_date desc".format(key, key)
@@ -886,45 +1081,12 @@ class Base:
                         btts_outcomes.append(0)        
             st.header("Skuteczność predykcji ostatnich {} meczów z udziałem drużyny {}".format(min(self.games, len(predicts_df) // 3), team_name))
             col1, col2, col3 = st.columns(3)
-            suma = sum(ou_outcomes)
-            liczba = len(ou_outcomes)
             with col1:
-                st.write("Skuteczność predykcji dla zdarzenia OU")
-                data = {
-                    'Zdarzenie': ['OU'],
-                    'Wszystkie': [liczba],
-                    'Poprawne': [suma],
-                    'Skuteczność' : [str(round((suma * 100 / liczba), 2)) + "%"]
-                    }
-                df = pd.DataFrame(data)
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
-            suma = sum(btts_outcomes)
-            liczba = len(btts_outcomes)
+                self.prediction_accuracy(ou_outcomes, "OU")
             with col2:
-                st.write("Skuteczność predykcji dla zdarzenia BTTS")
-                data = {
-                    'Zdarzenie': ['BTTS'],
-                    'Wszystkie': [liczba],
-                    'Poprawne': [suma],
-                    'Skuteczność' : [str(round((suma * 100 / liczba), 2)) + "%"]
-                    }
-                df = pd.DataFrame(data)
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
-            suma = sum(result_outcomes)
-            liczba = len(result_outcomes)
+                self.prediction_accuracy(btts_outcomes, "BTTS")
             with col3:
-                st.write("Skuteczność predykcji dla REZULTAT")
-                data = {
-                    'Zdarzenie': ['REZULTAT'],
-                    'Wszystkie': [liczba],
-                    'Poprawne': [suma],
-                    'Skuteczność' : [str(round((suma * 100 / liczba), 2)) + "%"]
-                    }
-                df = pd.DataFrame(data)
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
+                self.prediction_accuracy(result_outcomes, "Rezultat meczu")
             #Wykresy z podziałem na typ zdarzenia
             query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where (home_team = {} or away_team = {}) and result != '0'".format(key, key)
             stats_module.generate_statistics(query, 0, 1, self.round, self.no_events, self.conn, self.EV_plus)

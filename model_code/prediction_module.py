@@ -135,7 +135,7 @@ class PredictMatch:
             'match_id' : row['id'],
             'model_id' : self.model_id,
             'event_id' : self.events,
-            'probabilities': [float(f"{x:.4f}") for x in probabilities],
+            'probabilities': [float(f"{x:.6f}") for x in probabilities],
             'is_final' : is_final
             }
         return entry

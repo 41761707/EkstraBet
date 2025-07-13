@@ -6,7 +6,7 @@ import pandas as pd
 import db_module
 
 def main():
-    #db_connect
+    '''Główna funkcja aplikacji Streamlit'''
     conn = db_module.db_connect()
     query_names = "select id, name from leagues where active = 1 order by country"
     leagues_df = pd.read_sql(query_names, conn)
