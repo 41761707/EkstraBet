@@ -37,9 +37,10 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     match_data = {
         'league': 0,
         'season': 0,
-        'home_team' : 0,
-        'away_team' : 0,
-        'game_date' : 0}
+        'home_team': 0,
+        'away_team': 0,
+        'game_date': 0
+    }
     # Znajdź wszystkie divy o klasie '_row_18zuy_8'
     stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
     # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
@@ -55,16 +56,32 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
     for div in team_divs:
         match_info.append(div.text.strip())
 
-    #print(match_info)
-    match_data['league'] = league_id #id ligi
-    match_data['season'] = season_id #id sezonu
-    match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
-    match_data['away_team'] = team_id[match_info[3]]
-    match_data['game_date'] = parse_match_date(match_info[0])
-    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
-    id = record.iloc[0]['id']
-    if id == -1:
-        print("Nie udalo sie znalezc meczu!")
+    match_data['league'] = league_id  # id ligi
+    match_data['season'] = season_id  # id sezonu
+    match_data['home_team'] = team_id.get(match_info[1], None)  # nazwa gospodarzy
+    match_data['away_team'] = team_id.get(match_info[3], None)
+    try:
+        match_data['game_date'] = parse_match_date(match_info[0])
+    except Exception as e:
+        print(f"Błąd parsowania daty meczu: {e}")
+        return -1
+
+    # Sprawdź, czy wszystkie dane są dostępne
+    if None in [match_data['home_team'], match_data['away_team'], match_data['game_date']]:
+        print("Brak wymaganych danych meczu (gospodarz, goście lub data).")
+        return -1
+    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) &
+        (matches_df['away_team'] == match_data['away_team']) &
+        (matches_df['game_date'] == match_data['game_date'])]
+    if record.empty:
+        print("Nie znaleziono meczu w bazie danych!")
+        return -1
+
+    try:
+        id = record.iloc[0]['id']
+    except Exception as e:
+        print(f"Błąd pobierania ID meczu: {e}")
+        return
     return id
 
 def get_1x2_odds(id, link, driver):
@@ -228,6 +245,7 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_
             print(f"Odds already exist for match_id: {match_id}, skipping...")
             continue
         if match_id == -1:
+            print("Brak meczu w bazie danych, pomijam ligę...")
             break
         result_inserts = get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
         ou_inserts = get_over_under_odds(match_id, "{}{}".format(link,'/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver)
@@ -288,6 +306,7 @@ def odds_to_automate(league_id, season_id, games, mode, skip = 0):
     else:
         print("Nieobsługiwany typ wywołania procedury (mode: historical / match / daily)")
     conn.close()
+    driver.quit()
 
 def main():
     #Przykłady wywołania

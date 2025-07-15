@@ -1,0 +1,11 @@
+python 3.11.9
+pip install streamlit
+pip install mysql-connector-python
+pip install matplotlib
+pip install seaborn
+pip install plotly
+pip install selenium
+pip install tqdm
+pip install tabulate
+pip install tensorflow
+pip install scikit-learn

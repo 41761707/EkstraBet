@@ -51,7 +51,7 @@ class ConfigManager:
         self.model_load_name = None
         
         # Lista ID lig do analizy
-        self.leagues = [25]
+        self.leagues = []
         
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1
@@ -111,7 +111,7 @@ class ConfigManager:
         # Konfiguracja typów ratingów w zależności od typu modelu
         if self.model_type in ['winner', 'exact']:
             # Dla modeli winner i exact używamy wszystkich ratingów
-            self.rating_types = ['elo', 'gap', 'czech']
+            self.rating_types = ['elo', 'czech']
         else:
             # Dla pozostałych modeli tylko gap i czech
             self.rating_types = ['gap']

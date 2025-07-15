@@ -1,6 +1,8 @@
 import numpy as np
 import sys
 import json
+import tensorflow as tf
+tf.config.run_functions_eagerly(True)
 
 # Moduły
 import dataprep_module
@@ -196,7 +198,7 @@ def prepare_training(config):
     )
     
     if config.load_weights == '1':
-        model.load_predict_model(f'model_{config.model_type}_dev/{config.model_load_name}.h5')
+        model.load_predict_model(config)
     else:
         model.build_model_from_config(config)
     

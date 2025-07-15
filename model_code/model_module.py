@@ -232,8 +232,13 @@ class ModelModule:
         plt.title("Confusion Matrix")
         plt.show()
     
-    def load_predict_model(self, path):
-        self.model = load_model(path)
+    def load_predict_model(self, config):
+        self.model = load_model(f'model_{config.model_type}_dev/{config.model_load_name}.h5')
+        self.model.compile(
+            loss=config.model_config["model"]["compilation"]["loss"],
+            optimizer=config.model_config["model"]["compilation"]["optimizer"]["type"],
+            metrics=config.model_config["model"]["compilation"]["metrics"]
+        )
     
     def predict(self, inputs): 
         return self.model.predict(inputs)

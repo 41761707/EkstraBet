@@ -15,6 +15,7 @@ def main():
     league_country_df = pd.read_sql(query_countries, conn)
     league_country_dict = league_country_df.set_index('id')['country'].to_dict()
     st.title("Krzychu (Bet asystent): sezon 1")
+    st.write("Oficjalny start: 18.07.2025!")
     #st.page_link("Home.py", label="Strona domowa", icon="🏠")
     st.page_link("pages/Statystyki.py", label="Kącik statystyczny", icon="📊")
     st.page_link("pages/Bukmacherka.py", label="Kącik bukmacherski", icon="💸")

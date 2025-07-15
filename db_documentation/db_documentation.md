@@ -1,12 +1,16 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
-###### Ostatnia data modyfikacji: 12.01.2025
+###### Ostatnia data modyfikacji: 14.07.2025
 
 ## Opis struktury bazy 
 
 ## Wszystkie tabele w bazie danych
 - [BETS](#bets) (Wszystkie możliwe do zrealizowania zakłady)
 - [BOOKMAKERS](#bookmakers) (Wszyscy bukmacherzy brani pod uwagę w ramach badania)
+- [CONFERENCE_DIVISIONS](#conference_divisions) (Dywizje przypisane do konferencji (dotyczy lig północnoamerykańskich))
+- [CONFERENCES](#conferences) (Podział lig (głównie północnoamerykańskich) na konferencje)
 - [COUNTRIES](#countries) (Kraje, z których pochodzą analizowane ligi)
+- [DIVISION_TEAMS](#division_teams) (Przydział drużyn do dywizji)
+- [DIVISIONS](#divisions) (Dywizje w ligach północnoamerykańskich)
 - [EVENTS](#events) (Typy zakładów)
 - [EVENTS_PARLAY](#events_parlay) (Szczegóły kuponów)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
@@ -23,6 +27,7 @@
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
 - [SEASONS](#seasons) (Tabela z sezonami)
+- [SPECIAL_ROUNDS](#special_rounds) (Tabela z nazwami rund specjalnych)
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
@@ -59,7 +64,47 @@ Dane do tabeli naliczane są w funkcji **bet_all.py**
 | **ID**        |  INT       | INT    | ID bukmachera            | AUTOMATYCZNIE GENEROWANY            |
 | NAZWA         |  VARCHAR(45)       | STRING    |   Nazwa bukmachera         | NULL             |
 
-Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie**
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+### CONFERENCE_DIVISIONS
+(Dywizje przypisane do konferencji (dotyczy lig północnoamerykańskich))
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *CONFERENCE_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *conferences* | NULL |
+| *DIVISION_ID* | INT           | INT       | Klucz obcy, powiązanie z tabelą *divisions* | NULL |
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+### CONFERENCES
+(Podział lig (głównie północnoamerykańskich) na konferencje)
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *LEAGUE_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *leagues* | NULL |
+| NAME | VARCHAR(45)          | STRING       | Nazwa konferencji| NULL |
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+### DIVISION_TEAMS
+(Przydział drużyn do dywizji)
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *TEAM_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *teams* | NULL |
+| *DIVISION_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *divisions* | NULL |
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+### DIVISIONS
+(Dywizje w ligach północnoamerykańskich)
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *LEAGUE_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *leagues* | NULL |
+| NAME | VARCHAR(45)          | STRING       | Nazwa dywizji| NULL |
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
 
 ### COUNTRIES 
 (Kraje, z których pochodzą analizowane ligi)
@@ -69,9 +114,9 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie**
 | **ID**        |  INT       | INT    | ID kraju           | AUTOMATYCZNIE GENEROWANY            |
 | NAME | VARCHAR(45) | STRING | Nazwa kraju (PL) | NULL |
 | SHORT | VARCHAR(3) |  STRING | Skrót kraju (max 3 litery) | NULL |
-| EMOJI | VARCHAR(45) | STRING | Napis, który reprezentuje flag kraju w postaci emotki | NULL |
+| EMOJI | VARCHAR(45) | STRING | Napis, który reprezentuje flagę kraju w postaci emotki | NULL |
 
-Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie**
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
 
 ### EVENTS 
 (Typy zakładów)
@@ -81,7 +126,7 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie**
 | **ID**        |  INT       | INT    | ID zdarzenia           | AUTOMATYCZNIE GENEROWANY            |
 | NAME | VARCHAR(45) | STRING | Nazwa zdarzenia | NULL |
 
-Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie**
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
 
 ### EVENTS_PARLAY 
 (Szczegóły kuponów)
@@ -108,7 +153,7 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przysz
 | home_team_pen_score | INT | INT | Liczba trafionych karnych przez gospodarzy w ramach konkursu jedynastek | NULL |
 | away_team_pen_score | INT | INT | Liczba trafionych karnych przez gości w ramach konkursu jedynastek | NULL |
 
-Dane do tabeli **BĘDĄ** naliczane w ramach scrapperów (głównie **scrapper.py** oraz **update_scrapper.py**)
+Dane do tabeli **BĘDĄ** (jeszcze aktualnie nie są) naliczane w ramach scrapperów (głównie **scrapper.py** oraz **update_scrapper.py**)
 
 ### GAMBLER_PARLAYS
 (kupony graczy)
@@ -182,6 +227,7 @@ Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie now
 | SHOTS_AGAINST | INT | >=0 | Liczba strzałów oddanych przez przeciwników na bramkę danego zawodnika  (TYLKO BRAMKARZE) | NULL |
 | SHOTS_SAVED | INT | >=0 |  Liczba obronionych strzałów (TYLKO BRAMKARZE) | NULL |
 | SAVES_ACC | INT | >=0 | Skuteczność obron (TYLKO BRAMKARZE) | NULL |
+| TOI_STR | VARCHAR(10) | STRING | Prezentacja TOI w formie stringa (były problemy z formtowaniem więc załatwiłem to przez dodatkową kolumnę, nieoptymalnie, ale na razie niech będzie) | NULL
 
 Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.py**
 
@@ -229,8 +275,8 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 | away_team_faceoffs_acc | FLOAT | [0,100]| Skuteczność wygranych wznowień przez gości | NULL |
 | home_team_hits | INT | >= 0 | Liczba uderzeń wykonanych przez gospodarzy | NULL |
 | away_team_hits | INT | >= 0 | Liczba uderzeń wykonanych przez gości | NULL |
-| home_team_turnovers | INT | >= 0 | Liczba strat popełnionych przez gospodarzy | NULL |
-| away_team_turnovers | INT | >= 0 | Liczba strat popełnionych przez gości | NULL |
+| home_team_to | INT | >= 0 | Liczba strat popełnionych przez gospodarzy | NULL |
+| away_team_to | INT | >= 0 | Liczba strat popełnionych przez gości | NULL |
 | home_team_en | INT | >= 0 | Liczba goli zdobytych na pustą bramkę (en - empty net) przez gospodarzy | NULL |
 | away_team_en | INT | >= 0 | Liczba goli zdobytych na pustą bramkę (en - empty net) przez gości | NULL |
 | OTwinner | INT | {1,2,3} | Wynik dogrywki (1 - gospodarz wygrał, 2 - gość wygrał, 3 - rozstrzygnięcie dopiero w karnych) | NULL |
@@ -277,6 +323,7 @@ Dane do tabeli dodawane są ręcznie
 | *SEASON* | INT | INT | Klucz obcy, powiązanie z tabelą *seasons*  | NULL |
 | *HOME_TEAM* | INT | INT | Klucz obcy, powiązanie z tabelą *teams*  | NULL |
 | *AWAY_TEAM* | INT | INT | Klucz obcy, powiązanie z tabelą *teams*  | NULL |
+| *SPORT_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *sports* | NULL
 | GAME_DATE | DATETIME | DATETIME | Termin rozgrywanego meczu | NULL |
 | ROUND | INT | [0,100] ^ [900,1000] | Runda, w ramach której rozgegrano mecz. Runda 100 jako runda specjalna dla lig, które nie posiadają jednoznacznego podziału na rundy (NHL, MLS). Rundy od 900 to rundy specjalne zawierające informację o momencie fazy pucharowej, w której mecz został rozegrany (wsparcie dla meczów max 1/32 finału, BO7). Dokładny opis znajduje się w komentarzu do pola w bazie danych. | NULL |
 | RESULT | VARCHAR(1) | {'X', '0', '1', '2'} | Wynik spotkania ('0' - brak rezultatu w bazie / jeszcze nie rozegrano, '1' - gospodarz wygrał, '2' - gość wygrał, 'X' - remis ) | NULL |
@@ -345,6 +392,7 @@ Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_playe
 | *MODEL_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *models* | NULL |
 | VALUE         | FLOAT         | [0,1] | Prawdopodobieństwo danego zdarzenia | NULL |
 | OUTCOME       | INT           | {0, 1} | Wynik predykcji (0 - predykcja niepoprawna, 1 - predykcja poprawna) | NULL
+| IS_FINAL | INT | {0,1} | Czy predykcja jest ostateczna (czy dla danego typu zdarzenia wskazana predykcja ma największe prawdopodobieństwo: 0 - nie, 1 - tak) | NULL
 
 Dane naliczane w ramach modułu **main.py**
 
@@ -358,6 +406,13 @@ Dane naliczane w ramach modułu **main.py**
 
 Dane do tabeli dodawane tylko i wyłącznie ręcznie
 
+### SPECIAL_ROUNDS
+(Tabela z nazwami rund specjalnych)
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        |  INT       | INT    | ID rundy specjalnej      | AUTOMATYCZNIE GENEROWANY        |
+| NAME | VARCHAR(45) | STRING | Nazwa rundy specjalnej (np. finał, mecz numer 1). Rundy specjalne wspierają wszystkie typy rozgrywek aż do BO5 | NULL |
+
 
 ### SPORTS 
 (Tabela z analizowanymi sportami)
@@ -365,7 +420,7 @@ Dane do tabeli dodawane tylko i wyłącznie ręcznie
 | POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
 | :---:         |  :---:        | :---:     | :---:             | :---:             |
 | **ID**        |  INT       | INT    | ID sportu       | AUTOMATYCZNIE GENEROWANY        |
-| YEARS | VARCHAR(45) | STRING | Nazwa zwyczajowa sportu | NULL |
+| YNAME | VARCHAR(45) | STRING | Nazwa zwyczajowa sportu | NULL |
 
 Dane do tabeli dodawane tylko i wyłącznie ręcznie
 
