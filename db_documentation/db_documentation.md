@@ -13,6 +13,7 @@
 - [DIVISIONS](#divisions) (Dywizje w ligach północnoamerykańskich)
 - [EVENTS](#events) (Typy zakładów)
 - [EVENTS_PARLAY](#events_parlay) (Szczegóły kuponów)
+- [FINAL_PREDICTIONS](#final_predictions) (Wskaźniki predykcji ostatecznych)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
 - [GAMBLER_PARLAYS](#gambler_parlays) (kupony graczy)
 - [GAMBLERS](#gamblers) (zadeklarowani gracze)
@@ -138,6 +139,19 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | *BET_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *bets*  | NULL |
 
 Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przyszłości przewidywane jest dodawaniez zdarzeń poprzez moduł "Kupony Graczy")
+
+### FINAL_PREDICTIONS
+(Wskaźniki predykcji ostatecznych)
+
+| POLE            | DOMENA   | ZAKRES   | UWAGI                                                      | WARTOŚĆ DOMYŚLNA |
+| :---:           | :---:    | :---:    | :---:                                                      | :---:            |
+| **ID**          | INT      | INT>0    | Klucz główny, automatycznie generowany                     | AUTOMATYCZNIE GENEROWANY |
+| *PREDICTIONS_ID*| INT      | INT>0    | Klucz obcy, powiązanie z tabelą *predictions*              | NULL             |
+| CREATED_AT      | TIMESTAMP| TIMESTAMP| Data utworzenia wpisu (timestamp generowany automatycznie) | CURRENT_TIMESTAMP |
+| OUTCOME       | INT           | {0, 1} | Wynik predykcji (0 - predykcja niepoprawna, 1 - predykcja poprawna) | NULL |
+
+Opis:
+Tabela przechowuje wskaźniki do predykcji uznanych za ostateczne (finalne) dla danego zdarzenia/meczu/modelu. Pozwala na szybkie pobieranie tylko najważniejszych predykcji bez konieczności filtrowania całej tabeli PREDICTIONS. Wpis dodawany jest automatycznie po wygenerowaniu predykcji z flagą is_final=1.
 
 ### FOOTBALL_SPECIAL_ROUND_ADD 
 (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
@@ -391,8 +405,6 @@ Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_playe
 | *EVENT_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *events* | NULL |
 | *MODEL_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *models* | NULL |
 | VALUE         | FLOAT         | [0,1] | Prawdopodobieństwo danego zdarzenia | NULL |
-| OUTCOME       | INT           | {0, 1} | Wynik predykcji (0 - predykcja niepoprawna, 1 - predykcja poprawna) | NULL
-| IS_FINAL | INT | {0,1} | Czy predykcja jest ostateczna (czy dla danego typu zdarzenia wskazana predykcja ma największe prawdopodobieństwo: 0 - nie, 1 - tak) | NULL
 
 Dane naliczane w ramach modułu **main.py**
 

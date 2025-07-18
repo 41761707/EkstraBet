@@ -408,26 +408,16 @@ class Base:
                 st.warning("Brak dostępnych rund do analizy.")
                 return
             rounds_str = ','.join(map(str, rounds))
-            query = f"""
-                SELECT 
-                    id, 
-                    result, 
-                    home_team_goals AS home_goals, 
-                    away_team_goals AS away_goals, 
-                    home_team_goals + away_team_goals AS total 
-                FROM matches 
-                WHERE league = {self.league}
+            query = f""" league = {self.league}
                     AND season = {self.season}
                     AND round IN ({rounds_str}) 
                     AND result != '0' """
             # Wywołanie funkcji generującej statystyki
             stats_module.generate_statistics(query, 
                                              tax_flag, 
-                                             first_round, 
-                                             last_round, 
-                                             self.no_events, 
                                              self.conn, 
-                                             self.EV_plus)
+                                             self.EV_plus,
+                                             'all')
         # Statystyki porównawcze między drużynami
         with st.expander(f"Statystyki predykcji w sezonie {self.years} - porównania między drużynami"):
             stats_module.aggregate_team_acc(self.teams_dict, 
@@ -567,8 +557,9 @@ class Base:
         # Pobieranie predykcji z bazy danych
         query = """SELECT p.event_id as event_id, e.name as name 
                    FROM predictions p 
+                   JOIN final_predictions fp ON p.id = fp.predictions_id
                    JOIN events e ON p.event_id = e.id 
-                   WHERE match_id = %s and p.is_final = 1"""
+                   WHERE match_id = %s"""
         final_predictions_df = pd.read_sql(query, self.conn, params=(id,))
         
         # Inicjalizacja struktury na wyniki
@@ -942,7 +933,6 @@ class Base:
             
         Wyświetla listę meczów z przyciskami do szczegółów każdego spotkania.
         """
-        # Budowanie zapytania SQL w bezpieczny sposób
         query = """
             SELECT 
                 m.id as id, 
@@ -1051,35 +1041,54 @@ class Base:
         st.dataframe(df, use_container_width=True, hide_index=True)
         graphs_module.generate_pie_chart(['Niepoprawne', 'Poprawne'], [liczba - suma, suma])
 
-    def predicts_per_team(self, team_name, key):
-        query = "select event_id, outcome from final_predictions f join matches m on m.id = f.match_id where (m.home_team = {} or m.away_team = {}) and m.result != '0' order by m.game_date desc".format(key, key)
+    def predicts_per_team(self, team_name: str, key: int) -> None:
+        """Wyświetla statystyki skuteczności predykcji dla wybranej drużyny.
+        
+        Generuje wykresy kołowe przedstawiające skuteczność predykcji:
+        - Over/Under (OU)
+        - Both Teams To Score (BTTS)
+        - Wynik meczu (Rezultat)
+        dla ostatnich N meczów wybranej drużyny.
+
+        Args:
+            team_name (str): Nazwa drużyny do wyświetlenia w nagłówku
+            key (int): ID drużyny w bazie danych
+
+        Returns:
+            None: Funkcja wyświetla wyniki bez zwracania wartości
+        """
+        # Zapytanie SQL pobierające predykcje dla drużyny
+        query = f"""
+            SELECT event_id, outcome 
+            FROM predictions p 
+            JOIN final_predictions f ON p.id = f.predictions_id 
+            JOIN matches m ON m.id = p.match_id 
+            WHERE (m.home_team = {key} OR m.away_team = {key}) and m.season = {self.season}
+            AND m.result != '0' 
+            ORDER BY m.game_date DESC
+        """
         predicts_df = pd.read_sql(query, self.conn)
+        # Inicjalizacja list na wyniki
         result_outcomes = []
         btts_outcomes = []
         ou_outcomes = []
         counter = 0
-        #Predykcje - wykresy kołowe
+        # Przetwarzanie predykcji - wykresy kołowe
         if len(predicts_df) > 0:
             for _, row in predicts_df.iterrows():
-                counter = counter + 1
+                counter += 1
                 if counter == self.games * 3 + 1:
                     break
-                if row['event_id'] in (1,2,3):
-                    if row['outcome'] == 1:
-                        result_outcomes.append(1)
-                    else:
-                        result_outcomes.append(0)
-                if row['event_id'] in (8,12):
-                    if row['outcome'] == 1:
-                        ou_outcomes.append(1)
-                    else:
-                        ou_outcomes.append(0)
-                if row['event_id'] in (6, 172):
-                    if row['outcome'] == 1:
-                        btts_outcomes.append(1)
-                    else:
-                        btts_outcomes.append(0)        
-            st.header("Skuteczność predykcji ostatnich {} meczów z udziałem drużyny {}".format(min(self.games, len(predicts_df) // 3), team_name))
+                # Kategoryzacja wyników według typu zdarzenia
+                if row['event_id'] in (1, 2, 3):  # Wynik meczu
+                    result_outcomes.append(1 if row['outcome'] == 1 else 0)
+                elif row['event_id'] in (8, 12):  # Over/Under
+                    ou_outcomes.append(1 if row['outcome'] == 1 else 0)
+                elif row['event_id'] in (6, 172):  # BTTS
+                    btts_outcomes.append(1 if row['outcome'] == 1 else 0)
+            matches_count = min(self.games, len(predicts_df) // 3)
+            st.header(f"Skuteczność predykcji ostatnich {matches_count} meczów z udziałem drużyny {team_name}")
+            # Wyświetlenie wykresów w trzech kolumnach
             col1, col2, col3 = st.columns(3)
             with col1:
                 self.prediction_accuracy(ou_outcomes, "OU")
@@ -1087,9 +1096,14 @@ class Base:
                 self.prediction_accuracy(btts_outcomes, "BTTS")
             with col3:
                 self.prediction_accuracy(result_outcomes, "Rezultat meczu")
-            #Wykresy z podziałem na typ zdarzenia
-            query = "select id, result, home_team_goals as home_goals, away_team_goals as away_goals, home_team_goals + away_team_goals as total from matches where (home_team = {} or away_team = {}) and result != '0'".format(key, key)
-            stats_module.generate_statistics(query, 0, 1, self.round, self.no_events, self.conn, self.EV_plus)
+            
+            # Generowanie dodatkowych statystyk
+            stats_query = f"""(home_team = {key} OR away_team = {key}) AND result != '0' """
+            stats_module.generate_statistics(stats_query, 
+                                             0, 
+                                             self.conn, 
+                                             self.EV_plus,
+                                             'all')
 
     def show_teams(self, teams_dict: dict) -> None:
         """

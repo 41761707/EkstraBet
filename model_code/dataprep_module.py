@@ -210,6 +210,7 @@ class DataPrep:
                 WHERE cast(game_date as date) >= '{self.input_date}'
                 AND league IN ({self.leagues_str})
                 AND sport_id = {self.sport_id}
+                AND id != 105935
                 order by game_date asc
             """
         try:

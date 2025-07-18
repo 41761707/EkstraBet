@@ -79,7 +79,10 @@ class PredictMatch:
             # Predykcja
             prediction = model.predict([home_seq_normalized, away_seq_normalized])
             self.predictions_list.append(self.create_probability_list_entry(row, prediction))
-        self.insert_predictions_into_db()
+        if self.pretty_print == 1:
+            self.print_predictions()
+        else:
+            self.insert_predictions_into_db()
 
     def predict_match_period(self):
         #TO-DO: Tu chodzi o to, że jak wyżej możemy tylko jeden mecz przewidzieć
@@ -144,62 +147,60 @@ class PredictMatch:
         cursor = self.conn.cursor()
         try:
             for element in self.predictions_list:
-                # For each prediction, we need to create multiple inserts - one for each probability
                 for i in range(len(element['probabilities'])):
-                    sql = """
-                        INSERT INTO predictions(match_id, event_id, model_id, value, is_final) 
-                        VALUES (%s, %s, %s, %s, %s)
+                    # Insert prediction into predictions table
+                    sql_prediction = """
+                        INSERT INTO predictions(match_id, event_id, model_id, value)
+                        VALUES (%s, %s, %s, %s)
                     """
                     values = (
                         element['match_id'],
-                        element['event_id'][i],  # Get corresponding event_id from list
+                        element['event_id'][i],
                         element['model_id'],
-                        element['probabilities'][i],  # Get corresponding probability
-                        element['is_final'][i]  # Get corresponding is_final value
+                        element['probabilities'][i]
                     )
-                    cursor.execute(sql, values)
-                    #Print do testów
-                    '''sql = f"""
-                        INSERT INTO predictions(match_id, event_id, model_id, value, is_final) 
-                        VALUES ({element['match_id']}, {element['event_id'][i]}, {element['model_id']}, {element['probabilities'][i]}, {element['is_final'][i]})
+                    cursor.execute(sql_prediction, values)
+                    prediction_id = cursor.lastrowid
+                    # Jeśli jest to faktyczna predykcja (is_final == 1), dodajemy do final_predictions
+                    if element['is_final'][i] == 1:
+                        sql_final = """
+                            INSERT INTO final_predictions(predictions_id, created_at)
+                            VALUES (%s, NOW())
+                        """
+                        cursor.execute(sql_final, (prediction_id,))
+                    # Print for testing
+                    sql_prediction = f"""
+                        INSERT INTO predictions(match_id, event_id, model_id, value)
+                        VALUES ({element['match_id']}, {element['event_id'][i]}, {element['model_id']}, {element['probabilities'][i]})
                     """
-                    print(sql)'''
+                    print(sql_prediction)
+                    if element['is_final'][i] == 1:
+                        sql_final = f"""
+                            INSERT INTO final_predictions(predictions_id, created_at)
+                            VALUES ({prediction_id}, NOW())
+                        """
+                        print(sql_final)
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()
             print(f"Error inserting predictions: {str(e)}")
         finally:
-            pass
             cursor.close()
 
     def print_predictions(self):
         if not self.predictions_list:
             print("No predictions available.")
             return
-
-        if self.pretty_print == 1:
-            print("\n=== Match Predictions ===")
+        print("\n=== Match Predictions ===")
+        print("-" * 80)
+        for pred in self.predictions_list:
+            print(f"Match: {pred['home_team']} vs {pred['away_team']}")
+            print(f"Date: {pred['game_date']}")
+            print(f"Predicted Result: {pred['predicted_result']}")
+            print(f"Probabilities: {pred['probabilities']}")
+            if pred['wynik'] != -1:
+                print(f"Actual Goals: {pred['wynik']}")
             print("-" * 80)
-            for pred in self.predictions_list:
-                print(f"Match: {pred['home_team']} vs {pred['away_team']}")
-                print(f"Date: {pred['game_date']}")
-                print(f"Predicted Result: {pred['predicted_result']}")
-                print(f"Probabilities: {pred['probabilities']}")
-                if pred['wynik'] != -1:
-                    print(f"Actual Goals: {pred['wynik']}")
-                print("-" * 80)
-        else:
-            print("\n=== Technical Prediction Data ===")
-            print("-" * 80)
-            for pred in self.predictions_list:
-                print(f"Match ID: {pred['match_id']}")
-                print(f"Model ID: {pred['model_id']}")
-                print("Events and Probabilities:")
-                for event_id, prob, is_final in zip(pred['event_id'], 
-                                                  pred['probabilities'], 
-                                                  pred['is_final']):
-                    print(f"  Event {event_id}: {prob:.2f} (Final: {is_final})")
-                print("-" * 80)
 
     def get_predictions(self):
         return self.predictions_list

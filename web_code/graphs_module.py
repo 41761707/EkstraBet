@@ -100,35 +100,31 @@ def generate_pie_chart(data_labels, values, colors=None, title=None):
         raise ValueError("Liczba kolorów musi odpowiadać liczbie wartości")
     # Domyślna paleta kolorów jeśli nie podano
     if not colors:
-        colors = plt.cm.tab20c.colors[:len(values)]
+        default_palette = ['#F44336', '#4CAF50',  '#FFD700', '#9C27B0', '#607D8B', '#2196F3', '#FF9800']
+        colors = default_palette[:len(values)]
     sns.set_theme(style="darkgrid")
     df = pd.DataFrame({'Label': data_labels, 'Value': values})
     
     # Utworzenie wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    wedges, texts, autotexts = ax.pie(
-        df['Value'], 
-        labels=df['Label'], 
-        autopct='%1.1f%%', 
-        colors=colors,
-        textprops=dict(color="white"), 
-        startangle=140,
-        pctdistance=0.85
-    )
-    # Dodanie tytułu jeśli podano
+    _, texts, autotexts = ax.pie(df['Value'], 
+                                labels=df['Label'], 
+                                autopct='%1.1f%%', 
+                                colors=colors,
+                                textprops=dict(color="white"), 
+                                startangle=80,
+                                pctdistance=0.85)
     if title:
         ax.set_title(title, loc='left', fontsize=24, color='white', pad=40)
     # Konfiguracja stylu
     fig.patch.set_facecolor('black')
     ax.axis('equal')
-    # Dostosowanie wyglądu tekstu
     for text in texts:
         text.set_color('white')
         text.set_fontsize(20)
     for autotext in autotexts:
         autotext.set_color('black')
         autotext.set_fontsize(22)
-    # Wyświetlenie wykresu
     st.pyplot(fig)
 
 def highlight_cells_EV(val):

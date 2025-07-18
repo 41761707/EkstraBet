@@ -111,7 +111,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     else:
         round = 100
         today = date.today()
-        max_date = today + timedelta(days=3)
+        max_date = today + timedelta(days=2)
         game_date_obj = datetime.strptime(match_data['game_date'], "%Y-%m-%d %H:%M").date()
         
         if game_date_obj > max_date:
@@ -126,9 +126,9 @@ def to_automate(league_id, season_id, games, round_to_d):
     cursor = conn.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
-    #if len(results) > 0:
-    #    print("BLOKADA DODAWANIA NOWYCH SPOTKAŃ GDY W BAZIE ZNAJDUJĄ SIĘ MECZE Z DATĄ PÓŹNIEJSZĄ NIŻ DATA URUCHOMIENIA SKRYPTU")
-    #    return
+    if len(results) > 0:
+        print("BLOKADA DODAWANIA NOWYCH SPOTKAŃ GDY W BAZIE ZNAJDUJĄ SIĘ MECZE Z DATĄ PÓŹNIEJSZĄ NIŻ DATA URUCHOMIENIA SKRYPTU")
+        return
     query = "select country from leagues where id = {}".format(league_id)
     country_df = pd.read_sql(query,conn)
     country = country_df.values.flatten() 

@@ -10,378 +10,324 @@ import plotly.express as px
 import graphs_module
 import tables_module
 
-def show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
-                    first_round, last_round, ou_bets, btts_bets, result_bets, predictions):
+def show_distribution(title, labels, values):
+    st.write(title)
+    total = sum(values)
+    if total == 0:
+        percentages = [0 for _ in values]
+    else:
+        percentages = [round(v * 100 / total, 2) for v in values]
+    graphs_module.generate_pie_chart(labels, percentages)
+
+def show_comparison(title, labels, correct, incorrect):
+    st.write(title)
+    graphs_module.generate_comparision(labels, correct, incorrect)
+
+def show_ou_statistics(ou_predictions, ou_bets):
     col1, col2 = st.columns(2)
+    labels = ['Under 2.5', 'Over 2.5']
     with col1:
-        ou_accuracy_pred = 0
-        btts_accuracy_pred = 0
-        result_accuracy_pred = 0
-        if predictions != 0:
-            predictions = predictions / no_events
-            ou_accuracy_pred = round(100 * ou_predictions['correct_ou_pred'] / predictions, 2)
-            btts_accuracy_pred = round(100 * btts_predictions['correct_btts_pred'] / predictions, 2)
-            result_accuracy_pred = round(100 * result_predictions['correct_result_pred'] / predictions, 2)    
-        st.header("Wszystkie przewidywnia")
+        st.header("OU - Predykcje")
         data = {
-        'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
-        'Wszystkie': [predictions] * 3,
-        'Poprawne': [ou_predictions['correct_ou_pred'], btts_predictions['correct_btts_pred'], result_predictions['correct_result_pred']],
-        'Skuteczność' : [str(ou_accuracy_pred) + "%", str(btts_accuracy_pred) + "%", str(result_accuracy_pred) + "%"]
+            'Typ': labels + ['Wszystkie'],
+            'Wszystkie': [ou_predictions['under'], ou_predictions['over'], ou_predictions['under'] + ou_predictions['over']],
+            'Poprawne': [ou_predictions['under_correct'], ou_predictions['over_correct'], ou_predictions['under_correct'] + ou_predictions['over_correct']],
+            '% wszystkich': [
+                f"{round(100 * ou_predictions['under'] / max(ou_predictions['under'] + ou_predictions['over'], 1), 2)}%",
+                f"{round(100 * ou_predictions['over'] / max(ou_predictions['under'] + ou_predictions['over'], 1), 2)}%",
+                "100%"
+            ],
+            'Skuteczność': [
+                f"{round(100 * ou_predictions['under_correct'] / max(ou_predictions['under'], 1), 2)}%",
+                f"{round(100 * ou_predictions['over_correct'] / max(ou_predictions['over'], 1), 2)}%",
+                f"{round(100 * (ou_predictions['under_correct'] + ou_predictions['over_correct']) / max(ou_predictions['under'] + ou_predictions['over'], 1), 2)}%"
+            ]
         }
         df = pd.DataFrame(data)
         st.dataframe(df, use_container_width=True, hide_index=True)
+        if ou_predictions['under'] + ou_predictions['over'] > 0:
+            show_distribution('Rozkład wykonanych przewidywań na zdarzenie OU', labels, [ou_predictions['under'], ou_predictions['over']])
+            show_comparison('Wynik przewidywań w zależności od typu zdarzenia', labels,
+                            [ou_predictions['under_correct'], ou_predictions['over_correct']],
+                            [ou_predictions['under'] - ou_predictions['under_correct'], ou_predictions['over'] - ou_predictions['over_correct']])
     with col2:
-        ou_accuracy = 0
-        btts_accuracy = 0
-        result_accuracy = 0
-        if ou_bets['ou_bets'] != 0:
-            ou_accuracy = round(100 * ou_bets['correct_ou_bets'] / ou_bets['ou_bets'], 2)
-        if btts_bets['btts_bets'] != 0:
-            btts_accuracy = round(100 * btts_bets['correct_btts_bets'] / btts_bets['btts_bets'], 2)
-        if result_bets['result_bets'] != 0:
-            result_accuracy = round(100 * result_bets['correct_result_bets'] / result_bets['result_bets'], 2)
-        st.header("Wszystkie zakłady")
+        st.header("OU - Zakłady")
         data = {
-        'Zdarzenie': ["OU", "BTTS", "REZULTAT"],
-        'Wszystkie': [ou_bets['ou_bets'], btts_bets['btts_bets'], result_bets['result_bets']],
-        'Poprawne': [ou_bets['correct_ou_bets'], btts_bets['correct_btts_bets'], result_bets['correct_result_bets']],
-        'Profit (unit)' : [str(round(ou_bets['ou_profit_bets'],2)), str(round(btts_bets['btts_profit_bets'],2)), str(round(result_bets['result_profit_bets'],2))],
-        'Skuteczność' : [str(ou_accuracy)+"%", str(btts_accuracy)+"%", str(result_accuracy)+"%"]
+            'Typ': labels + ['Wszystkie'],
+            'Wszystkie': [ou_bets['under'], ou_bets['over'], ou_bets['under'] + ou_bets['over']],
+            'Poprawne': [ou_bets['under_correct'], ou_bets['over_correct'], ou_bets['under_correct'] + ou_bets['over_correct']],
+            'Profit (unit)': [str(round(ou_bets['profit_under'], 2)), str(round(ou_bets['profit_over'], 2)), str(round(ou_bets['profit_under'] + ou_bets['profit_over'], 2))],
+            'Skuteczność': [
+                f"{round(100 * ou_bets['under_correct'] / max(ou_bets['under'], 1), 2)}%",
+                f"{round(100 * ou_bets['over_correct'] / max(ou_bets['over'], 1), 2)}%",
+                f"{round(100 * (ou_bets['under_correct'] + ou_bets['over_correct']) / max(ou_bets['under'] + ou_bets['over'], 1), 2)}%"
+            ]
         }
         df = pd.DataFrame(data)
-        styled_df = df.style.applymap(graphs_module.highlight_cells_profit, subset = ['Profit (unit)'])
+        styled_df = df.style.applymap(graphs_module.highlight_cells_profit, subset=['Profit (unit)'])
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
-    col3, col4 = st.columns(2)
-    with col3:
-        if predictions != 0:
-            st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych predykcji")
-            graphs_module.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
-                                    [ou_predictions['correct_ou_pred'], btts_predictions['correct_btts_pred'], result_predictions['correct_result_pred']], 
-                                    [predictions - ou_predictions['correct_ou_pred'], predictions - btts_predictions['correct_btts_pred'], predictions - result_predictions['correct_result_pred']])
-    with col4:
-        if ou_bets['ou_bets'] != 0 or btts_bets['btts_bets'] != 0 or result_bets['result_bets'] != 0:
-            st.write("Obrazowe porównanie liczby poprawnych i niepoprawnych zakładów")
-            graphs_module.generate_comparision(['OU', 'BTTS', 'REZULTAT'], 
-                                    [ou_bets['correct_ou_bets'], btts_bets['correct_btts_bets'], result_bets['correct_result_bets']], 
-                                    [ou_bets['ou_bets'] - ou_bets['correct_ou_bets'], btts_bets['btts_bets'] - btts_bets['correct_btts_bets'], result_bets['result_bets'] - result_bets['correct_result_bets']])
-    col5, col6 = st.columns(2)
-    with col5:
-        #st.write(round(ou_predictions['under_pred'] * 100 / predictions, 2), round(ou_predictions['over_pred'] * 100 / predictions, 2))
-        if predictions > 0:
-            st.header("Under vs Over - porównanie liczby predykcji oraz ich skuteczności")
-            data = {
-            'Zdarzenie': ["Under 2.5", "Over 2.5"],
-            'Wszystkie': [ou_predictions['under_pred'], ou_predictions['over_pred']],
-            'Poprawne': [ou_predictions['under_correct'], ou_predictions['over_correct']],
-            'Procent przewidywań' : [str(round(ou_predictions['under_pred'] * 100 / predictions, 2)) + "%", 
-                                        str(round(ou_predictions['over_pred'] * 100 / predictions, 2)) + "%"],
-            'Skuteczność' : [str(round(100 * ou_predictions['under_correct'] / max(ou_predictions['under_pred'], 1), 2)) + "%", 
-                                str(round( 100 * ou_predictions['over_correct'] / max(ou_predictions['over_pred'], 1), 2)) + "%"]
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            #st.write(ou_predictions)
-            st.write('Rozkład wykonanych przewidywań na zdarzenie OU')
-            graphs_module.generate_pie_chart(['Under 2.5', 'Over 2.5'], 
-                                            [round(ou_predictions['under_pred'] * 100 / predictions, 2), 
-                                            round(ou_predictions['over_pred'] * 100 / predictions, 2)])
-            st.write('Wynik przewidywań w zależności od typu zdarzenia')
-            graphs_module.generate_comparision(['Under 2.5', 'Over 2.5'], 
-                                        [ou_predictions['under_correct'], ou_predictions['over_correct']],
-                                        [ou_predictions['under_pred'] - ou_predictions['under_correct'], ou_predictions['over_pred'] - ou_predictions['over_correct']])
-    with col6:
-        if ou_bets['ou_bets'] > 0:
-            st.header("Under vs Over - porównanie liczby zakładów oraz ich skuteczności")
-            data = {
-            'Zdarzenie': ["Under 2.5", "Over 2.5"],
-            'Wszystkie': [ou_bets['under_bets'], ou_bets['over_bets']],
-            'Poprawne': [ou_bets['under_correct'], ou_bets['over_correct']],
-            'Procent przewidywań' : [str(round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2)) + "%", 
-                                        str(round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2)) + "%"],
-            'Skuteczność' : [str(round(100 * ou_bets['under_correct'] / max(ou_bets['under_bets'], 1), 2)) + "%", 
-                                str(round( 100 * ou_bets['over_correct'] / max(ou_bets['over_bets'], 1), 2)) + "%"]
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            #st.write(ou_bets)
-            st.write('Rozkład wykonanych zakładów na zdarzenie OU')
-            graphs_module.generate_pie_chart(['Under 2.5', 'Over 2.5'], 
-                                            [round(ou_bets['under_bets'] * 100 / ou_bets['ou_bets'], 2), 
-                                            round(ou_bets['over_bets'] * 100 / ou_bets['ou_bets'], 2)])
-            st.write('Wynik zakładów w zależności od typu zdarzenia')
-            graphs_module.generate_comparision(['Under 2.5', 'Over 2.5'], 
-                                        [ou_bets['under_correct'], ou_bets['over_correct']],
-                                        [ou_bets['under_bets'] - ou_bets['under_correct'], ou_bets['over_bets'] - ou_bets['over_correct']])
-    col7, col8 = st.columns(2)
-    with col7:
-        if predictions > 0:
-            st.header("NO BTTS vs BTTS - porównanie liczby predykcji oraz ich skuteczności")
-            data = {
-            'Zdarzenie': ["NO BTTS", "BTTS"],
-            'Wszystkie': [btts_predictions['btts_no_pred'], btts_predictions['btts_yes_pred']],
-            'Poprawne': [btts_predictions['btts_no_correct'], btts_predictions['btts_yes_correct']],
-            'Procent przewidywań' : [str(round(btts_predictions['btts_no_pred'] * 100 / predictions, 2)) + "%", 
-                                        str(round(btts_predictions['btts_yes_pred'] * 100 / predictions, 2)) + "%"],
-            'Skuteczność' : [str(round(100 * btts_predictions['btts_no_correct'] / max(btts_predictions['btts_no_pred'], 1), 2)) + "%", 
-                                str(round( 100 * btts_predictions['btts_yes_correct'] / max(btts_predictions['btts_yes_pred'], 1), 2)) + "%"]
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            #st.write(ou_predictions)
-            st.write('Rozkład wykonanych przewidywań na zdarzenie BTTS')
-            graphs_module.generate_pie_chart(['NO BTTS', 'BTTS'], 
-                                            [round(btts_predictions['btts_no_pred'] * 100 / predictions, 2), 
-                                            round(btts_predictions['btts_yes_pred'] * 100 / predictions, 2)])
-            st.write('Wynik przewidywań w zależności od typu zdarzenia')
-            graphs_module.generate_comparision(['NO BTTS', 'BTTS'], 
-                                        [btts_predictions['btts_no_correct'], btts_predictions['btts_yes_correct']],
-                                        [btts_predictions['btts_no_pred'] - btts_predictions['btts_no_correct'], btts_predictions['btts_yes_pred'] - btts_predictions['btts_yes_correct']])
-    with col8:
-        if btts_bets['btts_bets'] > 0:
-            st.header("NO BTTS vs BTTS - porównanie liczby zakładów oraz ich skuteczności")
-            data = {
-            'Zdarzenie': ["NO BTTS", "BTTS"],
-            'Wszystkie': [btts_bets['btts_no_bets'], btts_bets['btts_yes_bets']],
-            'Poprawne': [btts_bets['btts_no_correct'], btts_bets['btts_yes_correct']],
-            'Procent przewidywań' : [str(round(btts_bets['btts_no_bets'] * 100 / btts_bets['btts_bets'], 2)) + "%", 
-                                        str(round(btts_bets['btts_yes_bets'] * 100 / btts_bets['btts_bets'], 2)) + "%"],
-            'Skuteczność' : [str(round(100 * btts_bets['btts_no_correct'] / max(btts_bets['btts_no_bets'], 1), 2)) + "%", 
-                                str(round( 100 * btts_bets['btts_yes_correct'] / max(btts_bets['btts_yes_bets'], 1), 2)) + "%"]
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            st.write('Rozkład wykonanych zakładów na zdarzenie BTTS')
-            graphs_module.generate_pie_chart(["NO BTTS", "BTTS"], 
-                                            [round(btts_bets['btts_no_bets'] * 100 / btts_bets['btts_bets'], 2), 
-                                            round(btts_bets['btts_yes_bets'] * 100 / btts_bets['btts_bets'], 2)])
-            st.write('Wynik zakładów w zależności od typu zdarzenia')
-            graphs_module.generate_comparision(['NO BTTS', 'BTTS'],  
-                                        [btts_bets['btts_no_correct'], btts_bets['btts_yes_correct']],
-                                        [btts_bets['btts_no_bets'] - btts_bets['btts_no_correct'], btts_bets['btts_yes_bets'] - btts_bets['btts_yes_correct']])
-    col9, col10 = st.columns(2)
-    with col9:
-        if result_bets['result_bets'] > 0:
-            st.header("1x2 - porównanie liczby predykcji oraz ich skuteczności")
-            data = {
-            'Zdarzenie': ["Gospodarz", "Remis", "Gość"],
-            'Wszystkie': [result_predictions['home_win_pred'], result_predictions['draw_pred'], result_predictions['away_win_pred']],
-            'Poprawne': [result_predictions['home_win_correct'], result_predictions['draw_correct'], result_predictions['away_win_correct']],
-            'Procent przewidywań' : [str(round(result_predictions['home_win_pred'] * 100 / predictions, 2)) + "%", 
-                                        str(round(result_predictions['draw_pred'] * 100 / predictions, 2)) + "%", 
-                                        str(round(result_predictions['away_win_pred'] * 100 / predictions, 2)) + "%"],
-            'Skuteczność' : [str(round(100 * result_predictions['home_win_correct'] / max(result_predictions['home_win_pred'], 1), 2)) + "%",
-                                str(round(100 * result_predictions['draw_correct'] / max(result_predictions['draw_pred'], 1), 2)) + "%",
-                                str(round(100 * result_predictions['away_win_correct'] / max(result_predictions['away_win_pred'], 1), 2)) + "%"]
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            #st.write(ou_predictions)
-            st.write('Rozkład wykonanych przewidywań na rezultat spotkania')
-            graphs_module.generate_pie_chart_result(["Gospodarz", "Remis", "Gość"], 
-                                            round(result_predictions['home_win_pred'] * 100 / predictions, 2), 
-                                            round(result_predictions['draw_pred'] * 100 / predictions, 2),
-                                            round(result_predictions['away_win_pred'] * 100 / predictions, 2))
-            st.write('Wynik przewidywań w zależności od typu zdarzenia')
-            graphs_module.generate_comparision(['Gospodarz', 'Remis', 'Gość'], 
-                                        [result_predictions['home_win_correct'], result_predictions['draw_correct'], result_predictions['away_win_correct']],
-                                        [result_predictions['home_win_pred'] - result_predictions['home_win_correct'], 
-                                        result_predictions['draw_pred'] - result_predictions['draw_correct'],
-                                        result_predictions['away_win_pred'] - result_predictions['away_win_correct']])
-    with col10:
-        if result_bets['result_bets'] > 0:
-            st.header("1x2 - porównanie liczby zakładów oraz ich skuteczności")
-            data = {
-            'Zdarzenie': ["Gospodarz", "Remis", "Gość"],
-            'Wszystkie': [result_bets['home_win_bets'], result_bets['draw_bets'], result_bets['away_win_bets']],
-            'Poprawne': [result_bets['home_win_correct'], result_bets['draw_correct'], result_bets['away_win_correct']],
-            'Procent przewidywań' : [str(round(result_bets['home_win_bets'] * 100 / result_bets['result_bets'], 2)) + "%", 
-                                        str(round(result_bets['draw_bets'] * 100 / result_bets['result_bets'], 2)) + "%",
-                                        str(round(result_bets['away_win_bets'] * 100 / result_bets['result_bets'], 2)) + "%"],
-            'Skuteczność' : [str(round(100 * result_bets['home_win_correct'] / max(result_bets['home_win_bets'], 1), 2)) + "%", 
-                                str(round(100 * result_bets['draw_correct'] / max(result_bets['draw_bets'], 1), 2)) + "%",
-                                str(round(100 * result_bets['away_win_correct'] / max(result_bets['away_win_bets'], 1), 2)) + "%"]
-            }
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            st.write('Rozkład wykonanych zakładów na rezultat spotkania')
-            graphs_module.generate_pie_chart_result(["Gospodarz", "Remis", "Gość"], 
-                                            round(result_bets['home_win_bets'] * 100 / result_bets['result_bets'], 2),
-                                            round(result_bets['draw_bets'] * 100 / result_bets['result_bets'], 2),
-                                            round(result_bets['away_win_bets'] * 100 / result_bets['result_bets'], 2))
-            st.write('Wynik przewidywań w zależności od typu zdarzenia')
-            graphs_module.generate_comparision(['Gospodarz', 'Remis', 'Gość'],  
-                                        [result_bets['home_win_correct'], result_bets['draw_correct'], result_bets['away_win_correct']],
-                                        [result_bets['home_win_bets'] - result_bets['home_win_correct'], 
-                                        result_bets['draw_bets'] - result_bets['draw_correct'], 
-                                        result_bets['away_win_bets'] - result_bets['away_win_correct']])
+        if ou_bets['under'] + ou_bets['over'] > 0:
+            show_distribution('Rozkład wykonanych zakładów na zdarzenie OU', labels, [ou_bets['under'], ou_bets['over']])
+            show_comparison('Wynik zakładów w zależności od typu zdarzenia', labels,
+                            [ou_bets['under_correct'], ou_bets['over_correct']],
+                            [ou_bets['under'] - ou_bets['under_correct'], ou_bets['over'] - ou_bets['over_correct']])
 
-def generate_statistics(query, tax_flag, first_round, last_round, no_events, conn, EV_plus):
-    match_stats_df = pd.read_sql(query, conn)
-    #TO-DO: Poniższe w oparciu o pole outcome w predictions
-    predictions = 0
-    ou_predictions = {
-        'correct_ou_pred' : 0,
-        'over_pred' : 0,
-        'over_correct' : 0,
-        'under_pred' : 0,
-        'under_correct' : 0
-    }
-    ou_bets = {
-        'ou_bets' : 0,
-        'correct_ou_bets' : 0,
-        'over_bets' : 0,
-        'over_correct' : 0,
-        'under_bets' : 0,
-        'under_correct': 0,
-        'ou_profit_bets' : 0,
-    }
-    btts_predictions = {
-        'correct_btts_pred' : 0,
-        'btts_yes_pred' : 0,
-        'btts_yes_correct' : 0,
-        'btts_no_pred' : 0,
-        'btts_no_correct' : 0
-    }
-    btts_bets = {
-        'btts_bets' : 0,
-        'correct_btts_bets' : 0,
-        'btts_yes_bets' : 0,
-        'btts_yes_correct' : 0,
-        'btts_no_bets' : 0,
-        'btts_no_correct' : 0,
-        'btts_profit_bets' : 0,
-    }
-    result_predictions = {
-        'correct_result_pred' : 0,
-        'home_win_pred' : 0,
-        'home_win_correct' : 0,
-        'draw_pred' : 0,
-        'draw_correct' : 0,
-        'away_win_pred' : 0,
-        'away_win_correct' : 0,
-    }
-    result_bets = {
-        'result_bets' : 0,
-        'correct_result_bets' : 0,
-        'home_win_bets' : 0,
-        'home_win_correct' : 0,
-        'draw_bets' : 0,
-        'draw_correct' : 0,
-        'away_win_bets' : 0,
-        'away_win_correct' : 0,
-        'result_profit_bets' : 0,
+def show_btts_statistics(btts_predictions, btts_bets):
+    col1, col2 = st.columns(2)
+    labels = ['NO BTTS', 'BTTS']
+    with col1:
+        st.header("BTTS - Predykcje")
+        data = {
+            'Typ': labels + ['Wszystkie'],
+            'Wszystkie': [btts_predictions['no'], btts_predictions['yes'], btts_predictions['no'] + btts_predictions['yes']],
+            'Poprawne': [btts_predictions['no_correct'], btts_predictions['yes_correct'], btts_predictions['no_correct'] + btts_predictions['yes_correct']],
+            '% wszystkich': [
+                f"{round(100 * btts_predictions['no'] / max(btts_predictions['no'] + btts_predictions['yes'], 1), 2)}%",
+                f"{round(100 * btts_predictions['yes'] / max(btts_predictions['no'] + btts_predictions['yes'], 1), 2)}%",
+                "100%" ],
+            'Skuteczność': [
+                f"{round(100 * btts_predictions['no_correct'] / max(btts_predictions['no'], 1), 2)}%",
+                f"{round(100 * btts_predictions['yes_correct'] / max(btts_predictions['yes'], 1), 2)}%",
+                f"{round(100 * (btts_predictions['no_correct'] + btts_predictions['yes_correct']) / max(btts_predictions['no'] + btts_predictions['yes'], 1), 2)}%"
+            ]
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        if btts_predictions['no'] + btts_predictions['yes'] > 0:
+            show_distribution('Rozkład wykonanych przewidywań na zdarzenie BTTS', labels, [btts_predictions['no'], btts_predictions['yes']])
+            show_comparison('Wynik przewidywań w zależności od typu zdarzenia', labels,
+                        [btts_predictions['no_correct'], btts_predictions['yes_correct']],
+                        [btts_predictions['no'] - btts_predictions['no_correct'], btts_predictions['yes'] - btts_predictions['yes_correct']])
+    with col2:
+        st.header("BTTS - Zakłady")
+        data = {
+            'Typ': labels + ['Wszystkie'],
+            'Wszystkie': [btts_bets['no'], btts_bets['yes'], btts_bets['no'] + btts_bets['yes']],
+            'Poprawne': [btts_bets['no_correct'], btts_bets['yes_correct'], btts_bets['no_correct'] + btts_bets['yes_correct']],
+            'Profit (unit)': [str(round(btts_bets['profit_no'], 2)), str(round(btts_bets['profit_yes'], 2)), str(round(btts_bets['profit_no'] + btts_bets['profit_yes'], 2))],
+            'Skuteczność': [
+                f"{round(100 * btts_bets['no_correct'] / max(btts_bets['no'], 1), 2)}%",
+                f"{round(100 * btts_bets['yes_correct'] / max(btts_bets['yes'], 1), 2)}%",
+                f"{round(100 * (btts_bets['no_correct'] + btts_bets['yes_correct']) / max(btts_bets['no'] + btts_bets['yes'], 1), 2)}%"
+            ]
+        }
+        df = pd.DataFrame(data)
+        styled_df = df.style.applymap(graphs_module.highlight_cells_profit, subset=['Profit (unit)'])
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        if btts_bets['no'] + btts_bets['yes'] > 0:
+            show_distribution('Rozkład wykonanych zakładów na zdarzenie BTTS', labels, [btts_bets['no'], btts_bets['yes']])
+            show_comparison('Wynik zakładów w zależności od typu zdarzenia', labels,
+                        [btts_bets['no_correct'], btts_bets['yes_correct']],
+                        [btts_bets['no'] - btts_bets['no_correct'], btts_bets['yes'] - btts_bets['yes_correct']])
+
+def show_result_statistics(result_predictions, result_bets):
+    col1, col2 = st.columns(2)
+    labels = ['Gospodarz', 'Remis', 'Gość']
+    with col1:
+        st.header("REZULTAT - Predykcje")
+        data = {
+            'Typ': labels + ['Wszystkie'],
+            'Wszystkie': [result_predictions['home'], result_predictions['draw'], result_predictions['away'], result_predictions['home'] + result_predictions['draw'] + result_predictions['away']],
+            'Poprawne': [result_predictions['home_correct'], result_predictions['draw_correct'], result_predictions['away_correct'], result_predictions['home_correct'] + result_predictions['draw_correct'] + result_predictions['away_correct']],
+            '% wszystkich': [
+                f"{round(100 * result_predictions['home'] / max(result_predictions['home'] + result_predictions['draw'] + result_predictions['away'], 1), 2)}%",
+                f"{round(100 * result_predictions['draw'] / max(result_predictions['home'] + result_predictions['draw'] + result_predictions['away'], 1), 2)}%",
+                f"{round(100 * result_predictions['away'] / max(result_predictions['home'] + result_predictions['draw'] + result_predictions['away'], 1), 2)}%",
+                "100%"],
+            'Skuteczność': [
+                f"{round(100 * result_predictions['home_correct'] / max(result_predictions['home'], 1), 2)}%",
+                f"{round(100 * result_predictions['draw_correct'] / max(result_predictions['draw'], 1), 2)}%",
+                f"{round(100 * result_predictions['away_correct'] / max(result_predictions['away'], 1), 2)}%",
+                f"{round(100 * (result_predictions['home_correct'] + result_predictions['draw_correct'] + result_predictions['away_correct']) / max(result_predictions['home'] + result_predictions['draw'] + result_predictions['away'], 1), 2)}%"
+            ]
+        }
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        if result_predictions['home'] + result_predictions['draw'] + result_predictions['away'] > 0:
+            show_distribution('Rozkład wykonanych przewidywań na zdarzenie REZULTAT', labels, [result_predictions['home'], result_predictions['draw'], result_predictions['away']])
+            show_comparison('Wynik przewidywań w zależności od typu zdarzenia', labels,
+                        [result_predictions['home_correct'], result_predictions['draw_correct'], result_predictions['away_correct']],
+                        [result_predictions['home'] - result_predictions['home_correct'], result_predictions['draw'] - result_predictions['draw_correct'], result_predictions['away'] - result_predictions['away_correct']])
+    with col2:
+        st.header("REZULTAT - Zakłady")
+        data = {
+            'Typ': labels + ['Wszystkie'],
+            'Wszystkie': [result_bets['home'], result_bets['draw'], result_bets['away'], result_bets['home'] + result_bets['draw'] + result_bets['away']],
+            'Poprawne': [result_bets['home_correct'], result_bets['draw_correct'], result_bets['away_correct'], result_bets['home_correct'] + result_bets['draw_correct'] + result_bets['away_correct']],
+            'Profit (unit)': [str(round(result_bets['profit_home'], 2)), str(round(result_bets['profit_draw'], 2)), str(round(result_bets['profit_away'], 2)), str(round(result_bets['profit_home'] + result_bets['profit_draw'] + result_bets['profit_away'], 2))],
+            'Skuteczność': [
+                f"{round(100 * result_bets['home_correct'] / max(result_bets['home'], 1), 2)}%",
+                f"{round(100 * result_bets['draw_correct'] / max(result_bets['draw'], 1), 2)}%",
+                f"{round(100 * result_bets['away_correct'] / max(result_bets['away'], 1), 2)}%",
+                f"{round(100 * (result_bets['home_correct'] + result_bets['draw_correct'] + result_bets['away_correct']) / max(result_bets['home'] + result_bets['draw'] + result_bets['away'], 1), 2)}%"
+            ]
+        }
+        df = pd.DataFrame(data)
+        styled_df = df.style.applymap(graphs_module.highlight_cells_profit, subset=['Profit (unit)'])
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        if result_bets['home'] + result_bets['draw'] + result_bets['away'] > 0:
+            show_distribution('Rozkład wykonanych zakładów na zdarzenie REZULTAT', labels, [result_bets['home'], result_bets['draw'], result_bets['away']])
+            show_comparison('Wynik zakładów w zależności od typu zdarzenia', labels,
+                        [result_bets['home_correct'], result_bets['draw_correct'], result_bets['away_correct']],
+                        [result_bets['home'] - result_bets['home_correct'], result_bets['draw'] - result_bets['draw_correct'], result_bets['away'] - result_bets['away_correct']])
+
+def show_all_statistics(stat_type, ou_predictions=None, btts_predictions=None, result_predictions=None,
+                        ou_bets=None, btts_bets=None, result_bets=None):
+    if stat_type == 'ou':
+        show_ou_statistics(ou_predictions, ou_bets)
+    elif stat_type == 'btts':
+        show_btts_statistics(btts_predictions, btts_bets)
+    elif stat_type == 'result':
+        show_result_statistics(result_predictions, result_bets)
+    elif stat_type == 'all':
+        show_ou_statistics(ou_predictions, ou_bets)
+        show_btts_statistics(btts_predictions, btts_bets)
+        show_result_statistics(result_predictions, result_bets)
+
+def generate_ou_statistics(df, tax):
+    ou_pred = df[df['event_id'].isin([8, 12])]
+    ou_bets_df = df[df['bet_event_id'].isin([8, 12]) & df['bet_outcome'].notnull()]
+    return {
+        'pred': {
+            'correct': int(ou_pred['pred_outcome'].sum()),
+            'over': int((ou_pred['event_id'] == 8).sum()),
+            'over_correct': int(ou_pred[(ou_pred['event_id'] == 8) & (ou_pred['pred_outcome'] == 1)].shape[0]),
+            'under': int((ou_pred['event_id'] == 12).sum()),
+            'under_correct': int(ou_pred[(ou_pred['event_id'] == 12) & (ou_pred['pred_outcome'] == 1)].shape[0])
+        },
+        'bets': {
+            'total': len(ou_bets_df),
+            'correct': int(ou_bets_df['bet_outcome'].sum()),
+            'over': int((ou_bets_df['bet_event_id'] == 8).sum()),
+            'over_correct': int(ou_bets_df[(ou_bets_df['bet_event_id'] == 8) & (ou_bets_df['bet_outcome'] == 1)].shape[0]),
+            'under': int((ou_bets_df['bet_event_id'] == 12).sum()),
+            'under_correct': int(ou_bets_df[(ou_bets_df['bet_event_id'] == 12) & (ou_bets_df['bet_outcome'] == 1)].shape[0]),
+            'profit_under' : float(
+                ou_bets_df[ou_bets_df['bet_event_id'] == 12].apply(
+                    lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+                ).sum()
+            ),
+            'profit_over' : float(
+                ou_bets_df[ou_bets_df['bet_event_id'] == 8].apply(
+                    lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+                ).sum()
+            )
+        }
     }
 
-    tax = 0
-    if tax_flag:
-        tax = 0.12
+def generate_btts_statistics(df, tax):
+    btts_pred = df[df['event_id'].isin([6, 172])]
+    btts_bets_df = df[df['bet_event_id'].isin([6, 172]) & df['bet_outcome'].notnull()]
+    return {
+        'pred': {
+            'correct': int(btts_pred['pred_outcome'].sum()),
+            'yes': int((btts_pred['event_id'] == 6).sum()),
+            'yes_correct': int(btts_pred[(btts_pred['event_id'] == 6) & (btts_pred['pred_outcome'] == 1)].shape[0]),
+            'no': int((btts_pred['event_id'] == 172).sum()),
+            'no_correct': int(btts_pred[(btts_pred['event_id'] == 172) & (btts_pred['pred_outcome'] == 1)].shape[0])
+        },
+        'bets': {
+            'total': len(btts_bets_df),
+            'correct': int(btts_bets_df['bet_outcome'].sum()),
+            'yes': int((btts_bets_df['bet_event_id'] == 6).sum()),
+            'yes_correct': int(btts_bets_df[(btts_bets_df['bet_event_id'] == 6) & (btts_bets_df['bet_outcome'] == 1)].shape[0]),
+            'no': int((btts_bets_df['bet_event_id'] == 172).sum()),
+            'no_correct': int(btts_bets_df[(btts_bets_df['bet_event_id'] == 172) & (btts_bets_df['bet_outcome'] == 1)].shape[0]),
+            'profit_yes' : float(
+                btts_bets_df[btts_bets_df['bet_event_id'] == 6].apply(
+                    lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+                ).sum()
+            ),  
+            'profit_no' : float(
+                btts_bets_df[btts_bets_df['bet_event_id'] == 172].apply(
+                    lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+                ).sum()
+            )
+        }
+    }
 
-    for _, row in match_stats_df.iterrows():
-        id = row['id']
-        query = 'select event_id from final_predictions where match_id = {}'.format(id)
-        predictions_df = pd.read_sql(query, conn)
-        query = 'select event_id, odds, bookmaker, EV from bets where match_id = {}'.format(id)
-        bets_df = pd.read_sql(query, conn)
-        for _, predict in predictions_df.iterrows():
-            predictions = predictions + 1
-            if predict['event_id'] == 8:
-                ou_predictions['over_pred'] = ou_predictions['over_pred'] + 1
-                if row['total'] > 2.5:
-                    ou_predictions['over_correct'] = ou_predictions['over_correct'] + 1
-                    ou_predictions['correct_ou_pred'] = ou_predictions['correct_ou_pred'] + 1
-            elif predict['event_id'] == 12:
-                ou_predictions['under_pred'] = ou_predictions['under_pred'] + 1
-                if row['total'] < 2.5:
-                    ou_predictions['under_correct'] = ou_predictions['under_correct'] + 1
-                    ou_predictions['correct_ou_pred'] = ou_predictions['correct_ou_pred'] + 1
-            elif predict['event_id'] == 1:
-                result_predictions['home_win_pred'] = result_predictions['home_win_pred'] + 1
-                if row['result'] == '1':
-                    result_predictions['home_win_correct'] = result_predictions['home_win_correct'] + 1
-                    result_predictions['correct_result_pred'] = result_predictions['correct_result_pred'] + 1
-            elif predict['event_id'] == 2:
-                result_predictions['draw_pred'] = result_predictions['draw_pred'] + 1
-                if row['result'] == 'X':
-                    result_predictions['draw_correct'] = result_predictions['draw_correct'] + 1
-                    result_predictions['correct_result_pred'] = result_predictions['correct_result_pred'] + 1                        
-            elif predict['event_id'] == 3:
-                result_predictions['away_win_pred'] = result_predictions['away_win_pred'] + 1
-                if row['result'] == '2':
-                    result_predictions['away_win_correct'] = result_predictions['away_win_correct'] + 1
-                    result_predictions['correct_result_pred'] = result_predictions['correct_result_pred'] + 1 
-            elif predict['event_id'] == 6:
-                btts_predictions['btts_yes_pred'] = btts_predictions['btts_yes_pred'] + 1
-                if (row['home_goals'] >0 and row['away_goals'] > 0 ):
-                    btts_predictions['btts_yes_correct'] = btts_predictions['btts_yes_correct'] + 1
-                    btts_predictions['correct_btts_pred'] = btts_predictions['correct_btts_pred'] + 1
-            elif predict['event_id'] == 172: 
-                btts_predictions['btts_no_pred'] = btts_predictions['btts_no_pred'] + 1
-                if not (row['home_goals'] > 0 and row['away_goals'] > 0):
-                    btts_predictions['btts_no_correct'] = btts_predictions['btts_no_correct'] + 1
-                    btts_predictions['correct_btts_pred'] = btts_predictions['correct_btts_pred'] + 1
-            else:
-                pass
-        
-        for _, bet in bets_df.iterrows():
-            if EV_plus and bet['EV'] < 0:
-                continue
-            if bet['event_id'] in (8,12):
-                    ou_bets['ou_bets'] = ou_bets['ou_bets'] + 1
-                    ou_bets['ou_profit_bets'] = ou_bets['ou_profit_bets'] - 1
-            if bet['event_id'] in (1,2,3):
-                    result_bets['result_bets'] = result_bets['result_bets'] + 1
-                    result_bets['result_profit_bets'] = result_bets['result_profit_bets'] - 1
-            if bet['event_id'] in (6,172):
-                    btts_bets['btts_bets'] = btts_bets['btts_bets'] + 1
-                    btts_bets['btts_profit_bets'] = btts_bets['btts_profit_bets'] - 1
+def generate_result_statistics(df, tax):
+    result_pred = df[df['event_id'].isin([1, 2, 3])]
+    result_bets_df = df[df['bet_event_id'].isin([1, 2, 3]) & df['bet_outcome'].notnull()]
+    profit_home = float(
+        result_bets_df[result_bets_df['bet_event_id'] == 1].apply(
+            lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+        ).sum()
+    )
+    profit_draw = float(
+        result_bets_df[result_bets_df['bet_event_id'] == 2].apply(
+            lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+        ).sum()
+    )
+    profit_away = float(
+        result_bets_df[result_bets_df['bet_event_id'] == 3].apply(
+            lambda x: (x['odds'] * (1 - tax)) - 1 if x['bet_outcome'] == 1 else -1, axis=1
+        ).sum()
+    )
+    return {
+        'pred': {
+            'correct': int(result_pred['pred_outcome'].sum()),
+            'home': int((result_pred['event_id'] == 1).sum()),
+            'home_correct': int(result_pred[(result_pred['event_id'] == 1) & (result_pred['pred_outcome'] == 1)].shape[0]),
+            'draw': int((result_pred['event_id'] == 2).sum()),
+            'draw_correct': int(result_pred[(result_pred['event_id'] == 2) & (result_pred['pred_outcome'] == 1)].shape[0]),
+            'away': int((result_pred['event_id'] == 3).sum()),
+            'away_correct': int(result_pred[(result_pred['event_id'] == 3) & (result_pred['pred_outcome'] == 1)].shape[0])
+        },
+        'bets': {
+            'total': len(result_bets_df),
+            'correct': int(result_bets_df['bet_outcome'].sum()),
+            'home': int((result_bets_df['bet_event_id'] == 1).sum()),
+            'home_correct': int(result_bets_df[(result_bets_df['bet_event_id'] == 1) & (result_bets_df['bet_outcome'] == 1)].shape[0]),
+            'draw': int((result_bets_df['bet_event_id'] == 2).sum()),
+            'draw_correct': int(result_bets_df[(result_bets_df['bet_event_id'] == 2) & (result_bets_df['bet_outcome'] == 1)].shape[0]),
+            'away': int((result_bets_df['bet_event_id'] == 3).sum()),
+            'away_correct': int(result_bets_df[(result_bets_df['bet_event_id'] == 3) & (result_bets_df['bet_outcome'] == 1)].shape[0]),
+            'profit_home': profit_home,
+            'profit_draw': profit_draw,
+            'profit_away': profit_away
+        }
+    }
 
-            if bet['event_id'] == 8:
-                ou_bets['over_bets'] = ou_bets['over_bets'] + 1
-                if row['total'] > 2.5:
-                    ou_bets['correct_ou_bets'] = ou_bets['correct_ou_bets'] + 1
-                    ou_bets['over_correct'] = ou_bets['over_correct'] + 1
-                    ou_bets['ou_profit_bets'] = ou_bets['ou_profit_bets'] + (bet['odds'] * (1-tax))
-            elif bet['event_id'] == 12:
-                ou_bets['under_bets'] = ou_bets['under_bets'] + 1
-                if row['total'] < 2.5:
-                    ou_bets['correct_ou_bets'] = ou_bets['correct_ou_bets'] + 1
-                    ou_bets['under_correct'] = ou_bets['under_correct'] + 1
-                    ou_bets['ou_profit_bets'] = ou_bets['ou_profit_bets'] + (bet['odds'] * (1-tax))
-            elif bet['event_id'] == 1:
-                result_bets['home_win_bets'] = result_bets['home_win_bets'] + 1
-                if row['result'] == '1':
-                    result_bets['correct_result_bets'] = result_bets['correct_result_bets'] + 1
-                    result_bets['home_win_correct'] = result_bets['home_win_correct'] + 1
-                    result_bets['result_profit_bets'] = result_bets['result_profit_bets'] + (bet['odds'] * (1-tax))
-            elif bet['event_id'] == 2:
-                result_bets['draw_bets'] = result_bets['draw_bets'] + 1
-                if row['result'] == 'X':
-                    result_bets['correct_result_bets'] = result_bets['correct_result_bets'] + 1
-                    result_bets['draw_correct'] = result_bets['draw_correct'] + 1
-                    result_bets['result_profit_bets'] = result_bets['result_profit_bets'] + (bet['odds'] * (1-tax))
-            elif bet['event_id'] == 3:
-                result_bets['away_win_bets'] = result_bets['away_win_bets'] + 1
-                if row['result'] == '2':
-                    result_bets['correct_result_bets'] = result_bets['correct_result_bets'] + 1
-                    result_bets['away_win_correct'] = result_bets['away_win_correct'] + 1
-                    result_bets['result_profit_bets'] = result_bets['result_profit_bets'] + (bet['odds'] * (1-tax))
-            elif bet['event_id'] == 6: 
-                btts_bets['btts_yes_bets'] = btts_bets['btts_yes_bets'] + 1
-                if (row['home_goals'] >0 and row['away_goals'] > 0 ):
-                    btts_bets['correct_btts_bets'] = btts_bets['correct_btts_bets'] + 1
-                    btts_bets['btts_yes_correct'] = btts_bets['btts_yes_correct'] + 1
-                    btts_bets['btts_profit_bets'] = btts_bets['btts_profit_bets'] + (bet['odds'] * (1-tax))
-            elif bet['event_id'] == 172:
-                btts_bets['btts_no_bets'] = btts_bets['btts_no_bets'] + 1
-                if not (row['home_goals'] > 0 and row['away_goals'] > 0):
-                    btts_bets['correct_btts_bets'] = btts_bets['correct_btts_bets'] + 1
-                    btts_bets['btts_no_correct'] = btts_bets['btts_no_correct'] + 1
-                    btts_bets['btts_profit_bets'] = btts_bets['btts_profit_bets'] + (bet['odds'] * (1-tax))
-            else:
-                pass
-    show_statistics(no_events, ou_predictions, btts_predictions, result_predictions,
-                    first_round, last_round, ou_bets, btts_bets, result_bets, predictions)
+def generate_statistics(query, tax_flag, conn, EV_plus, stat_type='all'):
+    tax = 0.12 if tax_flag else 0
+    stats_query = f"""
+        SELECT
+            m.id,
+            m.result,
+            m.home_team_goals,
+            m.away_team_goals,
+            p.event_id,
+            fp.outcome AS pred_outcome,
+            b.event_id AS bet_event_id,
+            b.odds,
+            b.EV,
+            b.outcome AS bet_outcome
+        FROM matches m
+        JOIN predictions p ON p.match_id = m.id
+        JOIN final_predictions fp ON fp.predictions_id = p.id
+        JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id
+        WHERE {query}
+    """
+    df = pd.read_sql(stats_query, conn)
+    #if EV_plus:
+    #    df = df[(df['EV'].isnull()) | (df['EV'] >= 0)]
+
+    results = {}
+    if stat_type in ['all', 'ou']:
+        results['ou'] = generate_ou_statistics(df, tax)
+    if stat_type in ['all', 'btts']:
+        results['btts'] = generate_btts_statistics(df, tax)
+    if stat_type in ['all', 'result']:
+        results['result'] = generate_result_statistics(df, tax)
+
+    show_all_statistics(stat_type,
+                        ou_predictions=results.get('ou', {}).get('pred'),
+                        btts_predictions=results.get('btts', {}).get('pred'),
+                        result_predictions=results.get('result', {}).get('pred'),
+                        ou_bets=results.get('ou', {}).get('bets'),
+                        btts_bets=results.get('btts', {}).get('bets'),
+                        result_bets=results.get('result', {}).get('bets'))
     
 def league_charachteristics(conn, league_id, season_id, teams_dict, no_games):
     tab1, tab2, tab3 = st.tabs(["OU", "BTTS", "REZULTAT"])
@@ -496,14 +442,15 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
     for k,v in teams_dict.items():
         #OU - predykcje per team
         query = '''select 
-                        count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
-                        count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
-                        count(case when f.event_id in (8, 12) then 1 end) as ou_predictions,
-                        count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) as ou_correct,
-                        count(case when f.event_id in (6, 172) then 1 end) as btts_predictions,
-                        count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) as btts_correct
-                    from final_predictions f
-                        join matches m on f.match_id = m.id
+                        count(case when p.event_id in (1,2,3) then 1 end) as result_predictions,
+                        count(case when p.event_id in (1,2,3) and fp.outcome = 1 then 1 end) as results_correct,
+                        count(case when p.event_id in (8, 12) then 1 end) as ou_predictions,
+                        count(case when p.event_id in (8, 12) and fp.outcome = 1 then 1 end) as ou_correct,
+                        count(case when p.event_id in (6, 172) then 1 end) as btts_predictions,
+                        count(case when p.event_id in (6, 172) and fp.outcome = 1 then 1 end) as btts_correct
+                    from predictions p
+                        join final_predictions fp on fp.predictions_id = p.id
+                        join matches m on p.match_id = m.id
                         where m.season = {} and m.result != '0'
                             and (m.home_team = {} or m.away_team = {})'''.format(season_id, k, k)
         cursor = conn.cursor()
@@ -514,17 +461,18 @@ def aggregate_team_acc(teams_dict, league_id, season_id, conn):
             predictions_ratio.append([v, round(results[0][1] / results[0][0], 2), round(results[0][3] / results[0][2], 2) ,round(results[0][5] / results[0][4], 2)])
 
     query = ''' select
-                    count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) / count(case when f.event_id in (8, 12) then 1 end) * 100 as ou_avg,
-                    count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) / count(case when f.event_id in (6, 172) then 1 end) * 100 as btts_avg,
-                    count(case when f.event_id in (1, 2, 3) and f.outcome = 1 then 1 end) / count(case when f.event_id in (1, 2, 3) then 1 end) * 100 as result_avg,
-                    count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
-                    count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
-                    count(case when f.event_id in (8, 12) then 1 end) as ou_predictions,
-                    count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) as ou_correct,
-                    count(case when f.event_id in (6, 172) then 1 end) as btts_predictions,
-                    count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) as btts_correct
-                from final_predictions f
-                    join matches m on f.match_id = m.id and m.result != '0'
+                    count(case when p.event_id in (8, 12) and fp.outcome = 1 then 1 end) / count(case when p.event_id in (8, 12) then 1 end) * 100 as ou_avg,
+                    count(case when p.event_id in (6, 172) and fp.outcome = 1 then 1 end) / count(case when p.event_id in (6, 172) then 1 end) * 100 as btts_avg,
+                    count(case when p.event_id in (1, 2, 3) and fp.outcome = 1 then 1 end) / count(case when p.event_id in (1, 2, 3) then 1 end) * 100 as result_avg,
+                    count(case when p.event_id in (1,2,3) then 1 end) as result_predictions,
+                    count(case when p.event_id in (1,2,3) and fp.outcome = 1 then 1 end) as results_correct,
+                    count(case when p.event_id in (8, 12) then 1 end) as ou_predictions,
+                    count(case when p.event_id in (8, 12) and fp.outcome = 1 then 1 end) as ou_correct,
+                    count(case when p.event_id in (6, 172) then 1 end) as btts_predictions,
+                    count(case when p.event_id in (6, 172) and fp.outcome = 1 then 1 end) as btts_correct
+                from predictions p
+                    join final_predictions fp on fp.predictions_id = p.id
+                    join matches m on p.match_id = m.id and m.result != '0'
                     where m.season = {}
                         and m.league = {}'''.format(season_id, league_id) 
     cursor = conn.cursor()
@@ -586,14 +534,15 @@ def aggregate_leagues_acc(season_id, conn):
     predictions_total = []
     for k,v in leagues_dict.items():
         query = '''select 
-                        count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
-                        count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
-                        count(case when f.event_id in (8, 12) then 1 end) as ou_predictions,
-                        count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) as ou_correct,
-                        count(case when f.event_id in (6, 172) then 1 end) as btts_predictions,
-                        count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) as btts_correct
-                    from final_predictions f
-                        join matches m on f.match_id = m.id
+                        count(case when p.event_id in (1,2,3) then 1 end) as result_predictions,
+                        count(case when p.event_id in (1,2,3) and fp.outcome = 1 then 1 end) as results_correct,
+                        count(case when p.event_id in (8, 12) then 1 end) as ou_predictions,
+                        count(case when p.event_id in (8, 12) and fp.outcome = 1 then 1 end) as ou_correct,
+                        count(case when p.event_id in (6, 172) then 1 end) as btts_predictions,
+                        count(case when p.event_id in (6, 172) and fp.outcome = 1 then 1 end) as btts_correct
+                    from predictions p
+                        join final_predictions fp on fp.predictions_id = p.id
+                        join matches m on p.match_id = m.id
                         where m.season = {} and m.result != '0'
                             and m.league = {}'''.format(season_id, k)
         cursor = conn.cursor()
@@ -604,17 +553,18 @@ def aggregate_leagues_acc(season_id, conn):
             predictions_ratio.append([v, round(results[0][1] / results[0][0], 2), round(results[0][3] / results[0][2], 2) ,round(results[0][5] / results[0][4], 2)])
 
     query = ''' select
-                    count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) / count(case when f.event_id in (8, 12) then 1 end) * 100 as ou_avg,
-                    count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) / count(case when f.event_id in (6, 172) then 1 end) * 100 as btts_avg,
-                    count(case when f.event_id in (1, 2, 3) and f.outcome = 1 then 1 end) / count(case when f.event_id in (1, 2, 3) then 1 end) * 100 as result_avg,
-                    count(case when f.event_id in (1,2,3) then 1 end) as result_predictions,
-                    count(case when f.event_id in (1,2,3) and f.outcome = 1 then 1 end) as results_correct,
-                    count(case when f.event_id in (8, 12) then 1 end) as ou_predictions,
-                    count(case when f.event_id in (8, 12) and f.outcome = 1 then 1 end) as ou_correct,
-                    count(case when f.event_id in (6, 172) then 1 end) as btts_predictions,
-                    count(case when f.event_id in (6, 172) and f.outcome = 1 then 1 end) as btts_correct
-                from final_predictions f
-                    join matches m on f.match_id = m.id and m.result != '0'
+                    count(case when p.event_id in (8, 12) and fp.outcome = 1 then 1 end) / count(case when p.event_id in (8, 12) then 1 end) * 100 as ou_avg,
+                    count(case when p.event_id in (6, 172) and fp.outcome = 1 then 1 end) / count(case when p.event_id in (6, 172) then 1 end) * 100 as btts_avg,
+                    count(case when p.event_id in (1, 2, 3) and fp.outcome = 1 then 1 end) / count(case when p.event_id in (1, 2, 3) then 1 end) * 100 as result_avg,
+                    count(case when p.event_id in (1,2,3) then 1 end) as result_predictions,
+                    count(case when p.event_id in (1,2,3) and fp.outcome = 1 then 1 end) as results_correct,
+                    count(case when p.event_id in (8, 12) then 1 end) as ou_predictions,
+                    count(case when p.event_id in (8, 12) and fp.outcome = 1 then 1 end) as ou_correct,
+                    count(case when p.event_id in (6, 172) then 1 end) as btts_predictions,
+                    count(case when p.event_id in (6, 172) and fp.outcome = 1 then 1 end) as btts_correct
+                from predictions p
+                    join final_predictions fp on fp.predictions_id = p.id
+                    join matches m on p.match_id = m.id and m.result != '0'
                     where m.season = {}'''.format(season_id) 
     cursor = conn.cursor()
     cursor.execute(query)
@@ -670,17 +620,17 @@ def aggregate_leagues_profit(season_id, conn):
                         count(case when b.event_id in (6, 172) then 1 end) as btts_bets,
                         count(case when b.event_id in (6, 172) and b.outcome = 1 then 1 end) as btts_correct,
                         sum(case 
-							when b.event_id IN (1, 2, 3) AND b.outcome = 1 THEN b.odds - 1
-							when b.event_id IN (1, 2, 3) AND b.outcome = 0 THEN -1
-							else 0 end ) as result_profit,
+                            when b.event_id IN (1, 2, 3) AND b.outcome = 1 THEN b.odds - 1
+                            when b.event_id IN (1, 2, 3) AND b.outcome = 0 THEN -1
+                            else 0 end ) as result_profit,
                         sum(case 
-							when b.event_id IN (8, 12) AND b.outcome = 1 THEN b.odds - 1
-							when b.event_id IN (8, 12) AND b.outcome = 0 THEN -1
-							else 0 end ) as ou_profit,
+                            when b.event_id IN (8, 12) AND b.outcome = 1 THEN b.odds - 1
+                            when b.event_id IN (8, 12) AND b.outcome = 0 THEN -1
+                            else 0 end ) as ou_profit,
                         sum(case 
-							when b.event_id IN (6, 172) AND b.outcome = 1 THEN b.odds - 1
-							when b.event_id IN (6, 172) AND b.outcome = 0 THEN -1
-							else 0 end ) as btts_profit  
+                            when b.event_id IN (6, 172) AND b.outcome = 1 THEN b.odds - 1
+                            when b.event_id IN (6, 172) AND b.outcome = 0 THEN -1
+                            else 0 end ) as btts_profit  
                     from bets b
                         join matches m on b.match_id = m.id
                         where m.season = {} and m.result != '0'

@@ -51,7 +51,7 @@ class ConfigManager:
         self.model_load_name = None
         
         # Lista ID lig do analizy
-        self.leagues = []
+        self.leagues = [34, 35]
         
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1
@@ -82,7 +82,7 @@ class ConfigManager:
         self.INITIAL_ELO = 1500                     # Początkowa wartość rankingu ELO
         self.SECOND_TIER_COEF = 0.8                 # Współczynnik dla lig drugiej kategorii
         self.LEARNING_RATE = 0.00001                # Domyślna szybkość uczenia
-        self.THRESHOLD_DATE = '2025-07-11'          # Data graniczna dla danych treningowych
+        self.THRESHOLD_DATE = '2025-07-18'          # Data graniczna dla danych treningowych
     def load_from_args(self, args):
         """
         Inicjalizuje konfigurację na podstawie argumentów wiersza poleceń.
@@ -111,10 +111,10 @@ class ConfigManager:
         # Konfiguracja typów ratingów w zależności od typu modelu
         if self.model_type in ['winner', 'exact']:
             # Dla modeli winner i exact używamy wszystkich ratingów
-            self.rating_types = ['elo', 'czech']
+            self.rating_types = ['elo', 'gap', 'czech']
         else:
             # Dla pozostałych modeli tylko gap i czech
-            self.rating_types = ['gap']
+            self.rating_types = ['gap', 'czech']
         
         # Domyślne atrybuty meczu jeśli rating 'gap' jest aktywny
         if 'gap' in self.rating_types:
@@ -188,18 +188,30 @@ class ConfigManager:
         self.elo_columns = ['home_team_elo', 'away_team_elo']
         
         self.czech_columns = [
-            'home_team_home_win_pct', 'home_team_away_win_pct',
-            'home_team_home_draw_pct', 'home_team_away_draw_pct',
-            'home_team_home_gs_avg', 'home_team_away_gs_avg',
-            'home_team_home_gc_avg', 'home_team_away_gc_avg',
-            'home_team_home_gs_std', 'home_team_away_gs_std',
-            'home_team_home_gc_std', 'home_team_away_gc_std',
-            'away_team_home_win_pct', 'away_team_away_win_pct',
-            'away_team_home_draw_pct', 'away_team_away_draw_pct',
-            'away_team_home_gs_avg', 'away_team_away_gs_avg',
-            'away_team_home_gc_avg', 'away_team_away_gc_avg',
-            'away_team_home_gs_std', 'away_team_away_gs_std',
-            'away_team_home_gc_std', 'away_team_away_gc_std',
+            'home_team_home_win_pct', 
+            #'home_team_away_win_pct',
+            'home_team_home_draw_pct', 
+            #'home_team_away_draw_pct',
+            'home_team_home_gs_avg', 
+            #'home_team_away_gs_avg',
+            'home_team_home_gc_avg', 
+            #'home_team_away_gc_avg',
+            'home_team_home_gs_std', 
+            #'home_team_away_gs_std',
+            'home_team_home_gc_std', 
+            #'home_team_away_gc_std',
+            #'away_team_home_win_pct', 
+            'away_team_away_win_pct',
+            #'away_team_home_draw_pct', 
+            'away_team_away_draw_pct',
+            #'away_team_home_gs_avg',
+            'away_team_away_gs_avg',
+            #'away_team_home_gc_avg',
+            'away_team_away_gc_avg',
+            #'away_team_home_gs_std', 
+            'away_team_away_gs_std',
+            #'away_team_home_gc_std', 
+            'away_team_away_gc_std',
             #'home_team_win_pct_last_5',
             #'home_team_draw_pct_last_5',
             #'home_team_gs_avg_last_5',

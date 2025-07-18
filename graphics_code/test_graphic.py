@@ -42,16 +42,14 @@ def draw_match_row(ax, y_offset, match, bar_width=0.6):
     # Nazwy drużyn z odpowiednim kolorem (kolor tylko dla zwycięzcy, przegrany czarny)
     if max_idx == 0:  # Wygrywa gospodarz
         ax.text(-0.05, y_offset + bar_width / 2, match['home_team'], ha='right', va='center',
-                fontsize=10, fontweight='bold', color=home_color,
-                bbox=dict(boxstyle="round,pad=1", edgecolor=home_color, facecolor="none", linewidth=2))
+                fontsize=10, fontweight='bold', color=home_color)
         ax.text(1.05, y_offset + bar_width / 2, match['away_team'], ha='left', va='center',
                 fontsize=10, fontweight='bold', color='black')
     elif max_idx == 2:  # Wygrywa gość
         ax.text(-0.05, y_offset + bar_width / 2, match['home_team'], ha='right', va='center',
                 fontsize=10, fontweight='bold', color='black')
         ax.text(1.05, y_offset + bar_width / 2, match['away_team'], ha='left', va='center',
-                fontsize=10, fontweight='bold', color=away_color,
-                bbox=dict(boxstyle="round,pad=1", edgecolor=away_color, facecolor="none", linewidth=2))
+                fontsize=10, fontweight='bold', color=away_color)
     else:  # Remis
         ax.text(-0.05, y_offset + bar_width / 2, match['home_team'], ha='right', va='center',
                 fontsize=10, fontweight='bold', color='black')
@@ -89,10 +87,10 @@ def main():
     FROM matches m
     JOIN teams t1 ON m.home_team = t1.id
     JOIN teams t2 ON m.away_team = t2.id
-    LEFT JOIN predictions p1 ON p1.match_id = m.id AND p1.event_id = 1
-    LEFT JOIN predictions p2 ON p2.match_id = m.id AND p2.event_id = 2
-    LEFT JOIN predictions p3 ON p3.match_id = m.id AND p3.event_id = 3
-    WHERE m.league = 25 AND m.round = 100 and m.season = 11 and m.game_date >= '2025-07-04'
+    JOIN predictions p1 ON p1.match_id = m.id AND p1.event_id = 1
+    JOIN predictions p2 ON p2.match_id = m.id AND p2.event_id = 2
+    JOIN predictions p3 ON p3.match_id = m.id AND p3.event_id = 3
+    WHERE m.league = 1 AND m.round = 1 and m.season = 12 and m.game_date >= '2025-07-04'
     ORDER BY m.game_date"""
     matches_df = pd.read_sql(query, conn)
     conn.close()
@@ -107,7 +105,7 @@ def main():
             'probs': [round(row['home_win_prob'] * 100, 2), round(row['draw_prob'] * 100, 2), round(row['away_win_prob'] * 100, 2)]
         }
         matches.append(match)
-    matches.sort(key=lambda m: max([p for p in m['probs'] if p is not None]), reverse=True)
+    matches.sort(key=lambda m: m['probs'][0], reverse=True)
     generate_infographic(matches)
     
 if __name__ == "__main__":

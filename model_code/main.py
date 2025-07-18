@@ -1,8 +1,6 @@
 import numpy as np
 import sys
 import json
-import tensorflow as tf
-tf.config.run_functions_eagerly(True)
 
 # Moduły
 import dataprep_module
@@ -324,7 +322,7 @@ def prepare_predictions(config, conn):
     )
 
     # Wczytanie wag modelu i wykonanie predykcji
-    model.load_predict_model(config.rating_config[config.model_type]['model_path'])
+    model.load_predict_model(config)
     predict_matches.predict_games(model, upcoming_df)
     return predict_matches.get_predictions()
 

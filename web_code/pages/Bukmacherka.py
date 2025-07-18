@@ -19,9 +19,10 @@ def generate_dicts(query, conn):
 def generate_button(button_name, conn, type, where_clause):
     if type == -1: #Już zrealizowane
         query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2) as "PEWNOSC MODELU [%]",
-                    case when p.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
+                    case when fp.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
                             from bets b
                                 join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
+                                join final_predictions fp on p.id = fp.predictions_id
                                 join matches m on b.match_id = m.id
                                 join teams t1 on m.home_team = t1.id
                                 join teams t2 on m.away_team = t2.id
@@ -31,6 +32,7 @@ def generate_button(button_name, conn, type, where_clause):
         query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2)  as "PEWNOSC MODELU [%]"
                     from bets b
                         join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
+                        join final_predictions fp on p.id = fp.predictions_id
                         join matches m on b.match_id = m.id
                         join teams t1 on m.home_team = t1.id
                         join teams t2 on m.away_team = t2.id
@@ -91,6 +93,7 @@ def main():
                     ROUND(p.value * 100, 2) AS "PEWNOSC MODELU [%]"
                 FROM bets b
                 JOIN predictions p ON (b.match_id = p.match_id AND b.event_id = p.event_id)
+                JOIN final_predictions fp ON p.id = fp.predictions_id
                 JOIN matches m ON b.match_id = m.id
                 JOIN teams t1 ON m.home_team = t1.id
                 JOIN teams t2 ON m.away_team = t2.id
@@ -106,7 +109,6 @@ def main():
                     AND b.odds >= {odds_range}
                     AND m.league IN ({",".join(str(leagues_dict[v]) for v in chosen_leagues)})
                     AND e.id IN ({",".join(str(events_dict[v]) for v in chosen_events)})
-                    AND p.is_final = 1
                     ORDER BY m.game_date
                 '''
 
