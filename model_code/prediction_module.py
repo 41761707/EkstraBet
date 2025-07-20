@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
-import db_module
 from sklearn.preprocessing import MinMaxScaler
+from typing import Any
 
 class PredictMatch:
-    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn):
+    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn) -> None:
         self.predictions_list = []
         self.conn = conn
         self.matches_df = matches_df
@@ -84,7 +84,7 @@ class PredictMatch:
         else:
             self.insert_predictions_into_db()
 
-    def predict_match_period(self):
+    def predict_match_period(self) -> None:
         #TO-DO: Tu chodzi o to, że jak wyżej możemy tylko jeden mecz przewidzieć
         #To tutaj chcielibysmy móc przewidzieć więcej
         #Docelowo nawet cały sezon do przodu
@@ -92,7 +92,7 @@ class PredictMatch:
         #I na jego podstawie dodać nowy wpis do matches_df
         pass
     
-    def create_probability_list_entry(self, row, prediction):
+    def create_probability_list_entry(self, row, prediction) -> dict[str, Any]:
         entry = {}
         # Formatowanie wyniku w zależności od typu modelu
         probabilities = prediction[0]
@@ -148,38 +148,39 @@ class PredictMatch:
         try:
             for element in self.predictions_list:
                 for i in range(len(element['probabilities'])):
-                    # Insert prediction into predictions table
-                    sql_prediction = """
-                        INSERT INTO predictions(match_id, event_id, model_id, value)
-                        VALUES (%s, %s, %s, %s)
-                    """
-                    values = (
-                        element['match_id'],
-                        element['event_id'][i],
-                        element['model_id'],
-                        element['probabilities'][i]
-                    )
-                    cursor.execute(sql_prediction, values)
-                    prediction_id = cursor.lastrowid
-                    # Jeśli jest to faktyczna predykcja (is_final == 1), dodajemy do final_predictions
-                    if element['is_final'][i] == 1:
-                        sql_final = """
-                            INSERT INTO final_predictions(predictions_id, created_at)
-                            VALUES (%s, NOW())
-                        """
-                        cursor.execute(sql_final, (prediction_id,))
-                    # Print for testing
-                    sql_prediction = f"""
+                    if element['model_id'] is None:
+                        #Jeżeli nie znalazł modelu to znaczy, że jedynie testuję!
+                        sql_prediction = f"""
                         INSERT INTO predictions(match_id, event_id, model_id, value)
                         VALUES ({element['match_id']}, {element['event_id'][i]}, {element['model_id']}, {element['probabilities'][i]})
-                    """
-                    print(sql_prediction)
-                    if element['is_final'][i] == 1:
-                        sql_final = f"""
-                            INSERT INTO final_predictions(predictions_id, created_at)
-                            VALUES ({prediction_id}, NOW())
                         """
-                        print(sql_final)
+                        print(sql_prediction)
+                        if element['is_final'][i] == 1:
+                            sql_final = f"""
+                                INSERT INTO final_predictions(predictions_id, created_at)
+                                VALUES ({prediction_id}, NOW())
+                            """
+                            print(sql_final)
+                    else:
+                        sql_prediction = """
+                            INSERT INTO predictions(match_id, event_id, model_id, value)
+                            VALUES (%s, %s, %s, %s)
+                        """
+                        values = (
+                            element['match_id'],
+                            element['event_id'][i],
+                            element['model_id'],
+                            element['probabilities'][i]
+                        )
+                        cursor.execute(sql_prediction, values)
+                        prediction_id = cursor.lastrowid
+                        # Jeśli jest to faktyczna predykcja (is_final == 1), dodajemy do final_predictions
+                        if element['is_final'][i] == 1:
+                            sql_final = """
+                                INSERT INTO final_predictions(predictions_id, created_at)
+                                VALUES (%s, NOW())
+                            """
+                            cursor.execute(sql_final, (prediction_id,))
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()

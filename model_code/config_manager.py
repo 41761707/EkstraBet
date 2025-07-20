@@ -1,5 +1,6 @@
 import json
 from datetime import date, timedelta
+from typing import Self
 class ConfigManager:
     """
     Klasa zarządzająca konfiguracją aplikacji realizująca wzorzec Singleton.
@@ -11,9 +12,9 @@ class ConfigManager:
         config = ConfigManager()
         config.load_from_args(args)
     """
-    _instance = None  #: Prywatna zmienna klasy przechowująca jedyną instancję
-    
-    def __new__(cls):
+    _instance = None  # Prywatna zmienna klasy przechowująca jedyną instancję
+
+    def __new__(cls) -> Self:
         """
         Metoda tworzenia instancji realizująca wzorzec Singleton.
         
@@ -33,57 +34,58 @@ class ConfigManager:
             cls._instance._initialize()
         return cls._instance
     
-    def _initialize(self):
+    def _initialize(self) -> None:
         """Inicjalizuje domyślne wartości konfiguracyjne dla menedżera."""
         # Typ modelu: 'winner', 'btts', 'goals' lub 'exact' - określa rodzaj predykcji
         self.model_type = None
-        
+
         # Tryb pracy: 'train' (trenowanie) lub 'predict' (predykcja)
         self.model_mode = None
-        
+
         # Flaga określająca czy ładować wagi modelu: '0' - nie, '1' - tak
         self.load_weights = None
-        
+
         # Unikalna nazwa modelu używana do zapisu/odczytu plików
         self.model_name = None
-        
+
         # Nazwa modelu z którego mają być wczytane wagi (używane gdy load_weights == '1')
         self.model_load_name = None
-        
+
         # Lista ID lig do analizy
-        self.leagues = [34, 35]
-        
+        self.leagues = []
+
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1
-        
+
         # Lista krajów do uwzględnienia (pusta - wszystkie kraje)
         self.country = []
-        
+
         # Rozmiar okna czasowego używany do analizy sekwencji
         self.window_size = 5
-        
+
         # Lista kolumn z cechami używanymi do trenowania/predykcji
         self.feature_columns = []
-        
+
         # Typy ratingów używane w modelu: ['elo', 'gap', 'czech']
         self.rating_types = []
-        
+
         # Lista aktywnych atrybutów meczu używanych w obliczeniach rankingu
         self.match_attributes = []
-        
+
         # Konfiguracja ścieżek do modeli dla różnych typów ratingów
         self.rating_config = {}
-        
+
         # Nazwy domyślnie aktywnych atrybutów meczu (wybrane z ALL_MATCH_ATTRIBUTES, GAP rating)
         self.active_match_attributes = []
-        
+
         # Stałe
         self.MODEL_BASE_PATH = 'model_{}_dev/{}.h5'  # Szablon ścieżki do zapisu modelu
-        self.INITIAL_ELO = 1500                     # Początkowa wartość rankingu ELO
-        self.SECOND_TIER_COEF = 0.8                 # Współczynnik dla lig drugiej kategorii
-        self.LEARNING_RATE = 0.00001                # Domyślna szybkość uczenia
-        self.THRESHOLD_DATE = '2025-07-18'          # Data graniczna dla danych treningowych
-    def load_from_args(self, args):
+        self.INITIAL_ELO = 1500  # Początkowa wartość rankingu ELO
+        self.SECOND_TIER_COEF = 0.8  # Współczynnik dla lig drugiej kategorii
+        self.LEARNING_RATE = 0.00001  # Domyślna szybkość uczenia
+        self.THRESHOLD_DATE = '2025-07-19'  # Data graniczna dla danych treningowych
+
+    def load_from_args(self, args) -> None:
         """
         Inicjalizuje konfigurację na podstawie argumentów wiersza poleceń.
 
@@ -101,10 +103,10 @@ class ConfigManager:
         
         # Tryb pracy: 'train' (trenowanie) / 'predict' (predykcja) / 'test' (testowanie)
         self.model_mode = args[2]
-        
+
         # Flaga ładowania wag: '0' - nie, '1' - tak
         self.load_weights = args[3]
-        
+
         # Nazwa modelu (dla nowego modelu) lub modelu do predykcji
         self.model_name = args[4]
         
@@ -135,7 +137,7 @@ class ConfigManager:
         with open(f'model_{self.model_type}_dev/{self.model_load_name}_config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
             self.model_config = config
-            #Nadpisz te zmienne zeby znowu nie wpisal danych ze wzorca
+            # Nadpisz te zmienne zeby znowu nie wpisal danych ze wzorca
             config["model_name"] = self.model_name
             config["model_path"] = f'model_{self.model_type}_dev/{self.model_name}.h5'
             config["training_config"]["threshold_date"] = self.THRESHOLD_DATE
@@ -167,26 +169,26 @@ class ConfigManager:
                     'model_path': f'model_exact_dev/{self.model_name}.h5'
                 }
             }
-            #Ustawienia atrybutów meczu (GAP RATING)
+            # Ustawienia atrybutów meczu (GAP RATING)
             self._setup_match_attributes()
 
     def _setup_configurations(self):
         """Funkcja odpowiedzialna ustawienia wszystkich konfiguracji modelu. """
-        #Ustawienia ratingów
+        # Ustawienia ratingów
         self._setup_rating_columns()
-        #Ustawienia cech, na podstawie których odbywa się trening
+        # Ustawienia cech, na podstawie których odbywa się trening
         self._setup_feature_columns()
-        #Ustawienia atrybutów meczu (GAP RATING)
+        # Ustawienia atrybutów meczu (GAP RATING)
         self._setup_match_attributes()
-        #Ustawienia ratingów (które są aktualnie wykorzystywane)
+        # Ustawienia ratingów (które są aktualnie wykorzystywane)
         self._setup_rating_config()
-        #Ustawienia głównej konfiguracji modelu!
+        # Ustawienia głównej konfiguracji modelu
         self._setup_model_config()
 
     def _setup_rating_columns(self):
         """Definicje kolumn dla różnych typów ratingów."""
         self.elo_columns = ['home_team_elo', 'away_team_elo']
-        
+
         self.czech_columns = [
             'home_team_home_win_pct', 
             #'home_team_away_win_pct',
@@ -230,13 +232,13 @@ class ConfigManager:
     def _setup_feature_columns(self):
         """Dynamiczne tworzenie kolumn features na podstawie wybranych rating_types."""
         self.feature_columns = []
-        
+
         rating_columns_mapping = {
             'elo': self.elo_columns,
             'gap': self.gap_columns,
             'czech': self.czech_columns
         }
-        
+
         for rating_type in self.rating_types:
             if rating_type in rating_columns_mapping:
                 self.feature_columns.extend(rating_columns_mapping[rating_type])
@@ -247,8 +249,8 @@ class ConfigManager:
         Args:
           active_attributes: Lista nazw atrybutów do aktywacji (None = użyj domyślnych)
         """
-            # Definicja wszystkich możliwych atrybutów meczu
-        ALL_MATCH_ATTRIBUTES = {
+        # Definicja wszystkich możliwych atrybutów meczu
+        all_match_attributes = {
             'chances_home': {
                 'calculator': lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])
             },
@@ -271,10 +273,10 @@ class ConfigManager:
         self.match_attributes = [
             {
                 'name': attr_name,
-                'calculator': ALL_MATCH_ATTRIBUTES[attr_name]['calculator']
+                'calculator': all_match_attributes[attr_name]['calculator']
             }
             for attr_name in active_attributes
-            if attr_name in ALL_MATCH_ATTRIBUTES
+            if attr_name in all_match_attributes
         ]
         print("SELF.MATCH_ATTRIBUTES:", self.match_attributes)
 
@@ -319,10 +321,10 @@ class ConfigManager:
         # KONFIGURACJA WARSTW LSTM
         # --------------------------------------------------------------------------
         lstm_layers_config = {
-            "units": [256, 128, 64],           # Liczba neuronów w kolejnych warstwach
+            "units": [256, 128, 64],  # Liczba neuronów w kolejnych warstwach
             "activation": ["tanh", "tanh", "tanh"],  # Funkcje aktywacji
-            "return_sequences": [True, True, False], # Czy zwracać pełną sekwencję
-            "dropout": [0.2, 0.2, 0.0],        # Współczynniki dropout
+            "return_sequences": [True, True, False],  # Czy zwracać pełną sekwencję
+            "dropout": [0.2, 0.2, 0.0],  # Współczynniki dropout
             "batch_normalization": [True, True, False]  # Normalizacja batch
         }
         
@@ -330,20 +332,20 @@ class ConfigManager:
         # KONFIGURACJA WARSTW GĘSTYCH
         # --------------------------------------------------------------------------
         dense_layers_config = [
-            {   # Pierwsza warstwa gęsta
-                "units": 128,                  # Liczba neuronów
-                "activation": "relu",          # Funkcja aktywacji ReLU
-                "regularization_l2": None,     # Brak regularyzacji L2
-                "dropout": 0.2                 # 20% dropout
+            {
+                "units": 128,  # Liczba neuronów
+                "activation": "relu",  # Funkcja aktywacji ReLU
+                "regularization_l2": None,  # Brak regularyzacji L2
+                "dropout": 0.2  # 20% dropout
             },
-            {   # Druga warstwa gęsta
+            {
                 "units": 64,
                 "activation": "relu",
                 "regularization_l2": None
             },
-            {   # Warstwa wyjściowa pre-softmax
+            {
                 "units": 16,
-                "activation": "linear",        # Liniowa przed softmax
+                "activation": "linear",  # Liniowa przed softmax
                 "regularization_l2": None
             }
         ]
@@ -352,9 +354,9 @@ class ConfigManager:
         # KONFIGURACJA WARSTWY WYJŚCIOWEJ
         # --------------------------------------------------------------------------
         output_units_map = {
-            'winner': 3,    # 3 klasy wyjściowe (wygrał gospodarz/remis/gość)
-            'goals': 7,     # 7 przedziałów bramkowych (0/1/2/3/4/5/6+)
-            'btts': 2       # 2 klasy (tak/nie dla obu strzelą)
+            'winner': 3,  # 3 klasy wyjściowe (wygrał gospodarz/remis/gość)
+            'goals': 7,  # 7 przedziałów bramkowych (0/1/2/3/4/5/6+)
+            'btts': 2  # 2 klasy (tak/nie dla obu strzelą)
         }
         output_units = output_units_map.get(self.model_type, 3)  # Domyślnie 3 klasy
         
@@ -363,62 +365,62 @@ class ConfigManager:
         # --------------------------------------------------------------------------
         self.model_config = {
             # Sekcja metadanych modelu
-            "model_name": self.model_name,     # Unikalna nazwa modelu
-            "model_type": self.model_type,     # Typ modelu (winner/goals/btts/exact)
-            "window_size": self.window_size,   # Rozmiar okna czasowego
-            
+            "model_name": self.model_name,  # Unikalna nazwa modelu
+            "model_type": self.model_type,  # Typ modelu (winner/goals/btts/exact)
+            "window_size": self.window_size,  # Rozmiar okna czasowego
+
             # Miejsce na metryki treningowe (inicjalizowane zerami)
             "train_accuracy": 0,
             "train_loss": 0,
             "val_accuracy": 0,
             "val_loss": 0,
-            
+
             # Ścieżka do zapisu/odczytu modelu
             "model_path": self.MODEL_BASE_PATH.format(self.model_type, self.model_name),
-            
+
             # Lista używanych cech
             "feature_columns": self.feature_columns,
-            
+
             # Konfiguracja systemów ratingowych
             "ratings": self._get_ratings_config(self.INITIAL_ELO, self.SECOND_TIER_COEF),
-            
+
             # Szczegółowa architektura modelu
             "model": {
                 "type": "LSTM",
-                
+
                 # Architektura sieci
                 "architecture": {
                     # Podwójny stos warstw LSTM (dla lepszego uczenia sekwencji)
                     "lstm_layers": [lstm_layers_config, lstm_layers_config.copy()],
-                    
+
                     # Warstwy gęste
                     "dense_layers": dense_layers_config,
-                    
+
                     # Warstwa wyjściowa
                     "output": {
-                        "units": output_units, 
-                        "activation": "softmax"     
+                        "units": output_units,
+                        "activation": "softmax"
                     }
                 },
-                
+
                 # Konfiguracja kompilacji modelu
                 "compilation": {
                     "optimizer": {
-                        "type": "Adam",            
+                        "type": "Adam",
                         "learning_rate": self.LEARNING_RATE
                     },
                     "loss": "categorical_crossentropy",  # Funkcja straty
                     "metrics": ["accuracy", "Precision", "Recall"]  # Metryki
                 }
             },
-            
+
             # Konfiguracja procesu treningowego
             "training_config": {
-                "sport_id": 1,                  # ID sportu
-                "leagues": self.leagues,        # Lista lig
-                "country": self.country,        # Lista krajów
+                "sport_id": 1,  # ID sportu
+                "leagues": self.leagues,  # Lista lig
+                "country": self.country,  # Lista krajów
                 "load_weights": self.load_weights,  # Czy wagi były ładowane
-                "threshold_date": self.THRESHOLD_DATE # Data graniczna danych
+                "threshold_date": self.THRESHOLD_DATE  # Data graniczna danych
             }
         }
 
@@ -431,7 +433,7 @@ class ConfigManager:
             ratings_config (dict): Słownik z konfiguracją ratingów
         """
         ratings_config = {}
-        
+
         # Konfiguracja dla elo
         if 'elo' in self.rating_types:
             ratings_config["elo"] = {
@@ -442,20 +444,20 @@ class ConfigManager:
             }
         else:
             ratings_config["elo"] = {"enabled": False}
-        
+
         # Konfiguracja dla gap
         if 'gap' in self.rating_types:
             ratings_config['gap'] = {
                 "enabled": True,
                 "columns": self.gap_columns,
                 "match_attributes": [
-                    {"name": attr["name"], "calculator": attr["calculator"]} 
+                    {"name": attr["name"], "calculator": attr["calculator"]}
                     for attr in self.match_attributes
                 ]
             }
         else:
             ratings_config["gap"] = {"enabled": False}
-        
+
         # Konfiguracja dla czech
         if 'czech' in self.rating_types:
             ratings_config["czech"] = {
@@ -464,5 +466,5 @@ class ConfigManager:
             }
         else:
             ratings_config["czech"] = {"enabled": False}
-        
+
         return ratings_config

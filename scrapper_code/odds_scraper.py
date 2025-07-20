@@ -74,7 +74,6 @@ def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
         (matches_df['away_team'] == match_data['away_team']) &
         (matches_df['game_date'] == match_data['game_date'])]
     if record.empty:
-        print("Nie znaleziono meczu w bazie danych!")
         return -1
 
     try:
@@ -242,11 +241,11 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, to_
         match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
         # Check if odds already exist for this match
         if check_odds_in_db(match_id, conn):
-            print(f"Odds already exist for match_id: {match_id}, skipping...")
+            print(f"Kursy już istnieją dla meczu o id: {match_id}, pomijam...")
             continue
         if match_id == -1:
-            print("Brak meczu w bazie danych, pomijam ligę...")
-            break
+            print(f"Brak meczu w bazie danych, pomijam")
+            continue
         result_inserts = get_1x2_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver)
         ou_inserts = get_over_under_odds(match_id, "{}{}".format(link,'/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver)
         btts_inserts = get_btts_odds(match_id, "{}{}".format(link,'#/zestawienie-kursow/obie-druzyny-strzela/koniec-meczu'), driver)

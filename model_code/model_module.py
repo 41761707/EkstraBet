@@ -1,3 +1,4 @@
+from typing import Any
 from tensorflow.keras.layers import Input, LSTM, Dense, Concatenate, Dropout, LeakyReLU, BatchNormalization
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.regularizers import l2
@@ -221,8 +222,6 @@ class ModelModule:
         y_pred_tmp = np.argmax(y_pred_probs, axis=1)
         y_pred = np.where(y_pred_tmp < 3, 0, 1)
 
-        # Konwersja y_val do postaci klasy (jeśli jest one-hot encoded)
-        # Jeśli y_val jest w formie one-hot
         y_true_tmp = np.argmax(y_val, axis=1)
         y_true = np.where(y_true_tmp < 3, 0, 1)
 
@@ -237,7 +236,26 @@ class ModelModule:
 
         plt.xlabel("Przewidywane")
         plt.ylabel("Prawdziwe")
-        plt.title("Confusion Matrix")
+        plt.title("Confusion Matrix - Klasyfikacja: Under/Over 2.5 (na podstawie argmax)")
+        plt.show()
+
+        # Trzeci wykres: predykcja na podstawie sumy prawdopodobieństw dla 0-2 bramek vs 3+ bramek
+        sum_012 = np.sum(y_pred_probs[:, :3], axis=1)
+        sum_3plus = np.sum(y_pred_probs[:, 3:], axis=1)
+        y_pred_sum = np.where(sum_012 > sum_3plus, 0, 1)
+
+        y_true_sum = np.where(y_true_tmp < 3, 0, 1)
+
+        cm_sum = confusion_matrix(y_true_sum, y_pred_sum)
+        print("\n=== Confusion matrix (sum of probabilities for 0-2 vs 3+ goals) ===")
+        print(classification_report(y_true_sum, y_pred_sum))
+
+        plt.figure(figsize=(6, 5))
+        sns.heatmap(cm_sum, annot=True, fmt="d", cmap="Greens",
+                    xticklabels=["0-2 bramki", "3+ bramki"], yticklabels=["0-2 bramki", "3+ bramki"])
+        plt.xlabel("Przewidywane")
+        plt.ylabel("Prawdziwe")
+        plt.title("Confusion Matrix - Klasyfikacja: Under/Over 2.5 (na podstawie sumy prawdopodobieństw)")
         plt.show()
 
     def load_predict_model(self, config):
@@ -250,7 +268,7 @@ class ModelModule:
             metrics=config.model_config["model"]["compilation"]["metrics"]
         )
 
-    def predict(self, inputs):
+    def predict(self, inputs) -> Any:
         return self.model.predict(inputs)
 
     def print_sample_predictions(self, X_home_val, X_away_val, y_val, num_samples=10000):

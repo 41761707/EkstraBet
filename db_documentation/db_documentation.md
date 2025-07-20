@@ -55,7 +55,11 @@
 | CUSTOM_BET       | INT           | {0, 1}    | 0 jeśli zakład wygenerowany przez model, 1 jeśli zakład dodany ręcznie przez użytkownika | 0 |
 | *MODEL_ID* | INT | INT  | Klucz obcy, powiązanie z tabelą *models* | NULL | 
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli naliczane są w funkcji **bet_all.py**
+
+---
 
 ### BOOKMAKERS 
 (Wszyscy bukmacherzy brani pod uwagę w ramach badania)
@@ -65,7 +69,11 @@ Dane do tabeli naliczane są w funkcji **bet_all.py**
 | **ID**        |  INT       | INT    | ID bukmachera            | AUTOMATYCZNIE GENEROWANY            |
 | NAZWA         |  VARCHAR(45)       | STRING    |   Nazwa bukmachera         | NULL             |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### CONFERENCE_DIVISIONS
 (Dywizje przypisane do konferencji (dotyczy lig północnoamerykańskich))
@@ -75,7 +83,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | *CONFERENCE_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *conferences* | NULL |
 | *DIVISION_ID* | INT           | INT       | Klucz obcy, powiązanie z tabelą *divisions* | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### CONFERENCES
 (Podział lig (głównie północnoamerykańskich) na konferencje)
@@ -85,7 +97,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | *LEAGUE_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *leagues* | NULL |
 | NAME | VARCHAR(45)          | STRING       | Nazwa konferencji| NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### DIVISION_TEAMS
 (Przydział drużyn do dywizji)
@@ -95,7 +111,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | *TEAM_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *teams* | NULL |
 | *DIVISION_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *divisions* | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### DIVISIONS
 (Dywizje w ligach północnoamerykańskich)
@@ -105,7 +125,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | *LEAGUE_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *leagues* | NULL |
 | NAME | VARCHAR(45)          | STRING       | Nazwa dywizji| NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### COUNTRIES 
 (Kraje, z których pochodzą analizowane ligi)
@@ -117,7 +141,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | SHORT | VARCHAR(3) |  STRING | Skrót kraju (max 3 litery) | NULL |
 | EMOJI | VARCHAR(45) | STRING | Napis, który reprezentuje flagę kraju w postaci emotki | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### EVENTS 
 (Typy zakładów)
@@ -127,7 +155,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | **ID**        |  INT       | INT    | ID zdarzenia           | AUTOMATYCZNIE GENEROWANY            |
 | NAME | VARCHAR(45) | STRING | Nazwa zdarzenia | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### EVENTS_PARLAY 
 (Szczegóły kuponów)
@@ -138,7 +170,11 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | *PARLAY_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *gambler_parlays* | NULL |
 | *BET_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *bets*  | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przyszłości przewidywane jest dodawaniez zdarzeń poprzez moduł "Kupony Graczy")
+
+---
 
 ### FINAL_PREDICTIONS
 (Wskaźniki predykcji ostatecznych)
@@ -152,6 +188,12 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przysz
 
 Opis:
 Tabela przechowuje wskaźniki do predykcji uznanych za ostateczne (finalne) dla danego zdarzenia/meczu/modelu. Pozwala na szybkie pobieranie tylko najważniejszych predykcji bez konieczności filtrowania całej tabeli PREDICTIONS. Wpis dodawany jest automatycznie po wygenerowaniu predykcji z flagą is_final=1.
+
+**Sposób generowania danych do tabeli**:
+
+Dane do tabeli generowane są w ramach działania modułu **prediction_module.py**
+
+---
 
 ### FOOTBALL_SPECIAL_ROUND_ADD 
 (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
@@ -167,7 +209,11 @@ Tabela przechowuje wskaźniki do predykcji uznanych za ostateczne (finalne) dla 
 | home_team_pen_score | INT | INT | Liczba trafionych karnych przez gospodarzy w ramach konkursu jedynastek | NULL |
 | away_team_pen_score | INT | INT | Liczba trafionych karnych przez gości w ramach konkursu jedynastek | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli **BĘDĄ** (jeszcze aktualnie nie są) naliczane w ramach scrapperów (głównie **scrapper.py** oraz **update_scrapper.py**)
+
+---
 
 ### GAMBLER_PARLAYS
 (kupony graczy)
@@ -183,7 +229,11 @@ Dane do tabeli **BĘDĄ** (jeszcze aktualnie nie są) naliczane w ramach scrappe
 | PROFIT | FLOAT | {-stake, parlay_odds * stake - stake} | Zysk / Strata gracza w zależności od tego, czy kupon został wygrany czy przegrany. Jeśli kupon wygrany, profitem nazywamy iloczyn stawki oraz kursu kuponu pomniejszonego o jedną stawkę (wkład początkowy nie jest w żadnym wypadku profitem z zakładu). Jeśli kupon przegrany, gracz traci poświęconą stawkę | 0 |
 | CREATION_DATE | TIMESTAMP | TIMESTAMP | Data utworzenia kuponu | CURRENT_TIMESTAMP |
 
+**Sposób generowania danych do tabeli**:
+
 Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przyszłości przewidywane jest dodawaniez zdarzeń poprzez moduł "Kupony Graczy"). Dane aktualizowane są w ramach modułu **recalc_parlay.py** 
+
+---
 
 ### GAMBLERS 
 (zadeklarowani gracze) 
@@ -197,7 +247,11 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przysz
 | BALANCE | FLOAT | FLOAT | Aktualny stan konta typera | 0 |
 | ACTIVE | INT | {0, 1} | Flaga, czy gracz jest aktywny (0 - nie, 1 - tak) | 1 |
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie nowych typerów przez innych ludzi (np. tworzenie kont w serwisie), jednak jest to BARDZO przyszłościowe rozszerzenie)
+
+---
 
 ### HOCKEY_MATCH_EVENTS 
 (zdarzenia występujące w danym meczu hokejowym)
@@ -214,6 +268,11 @@ Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie now
 | PP_FLAG | INT | {0,1} | Czy gol padł w przewadze? (1 - tak, 0 - nie) | NULL |
 | EN_FLAG | INT | {0,1} | Czy gol padł do pustej bramki? (1 - tak, 0 - nie) | NULL |
 | DESCRPTION | VARCHAR(100) | STRING | Opis zdarzenia (np. kto asystował) | NULL |
+
+**Sposób generowania danych do tabeli**:
+Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.py**
+
+---
 
 ### HOCKEY_MATCH_PLAYER_STATS 
 (statystyki każdego gracza w danym meczu)
@@ -243,7 +302,10 @@ Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie now
 | SAVES_ACC | INT | >=0 | Skuteczność obron (TYLKO BRAMKARZE) | NULL |
 | TOI_STR | VARCHAR(10) | STRING | Prezentacja TOI w formie stringa (były problemy z formtowaniem więc załatwiłem to przez dodatkową kolumnę, nieoptymalnie, ale na razie niech będzie) | NULL
 
+**Sposób generowania danych do tabeli**:
 Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.py**
+
+---
 
 ### HOCKEY_MATCH_ROSTERS
 (dodatkowe statystyki specyficzne dla meczu hokejowego)
@@ -257,9 +319,11 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 | LINE | INT | {1,2,3,4} | Linia, w której gra zawodnik | NULL |
 | NUMBER | INT | [0, 99] | Numer na koszulce zawodnika | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.py**
 
-
+---
 
 ### HOCKEY_MATCHES_ADD
 (dodatkowe statystyki specyficzne dla meczu hokejowego)
@@ -296,7 +360,11 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 | OTwinner | INT | {1,2,3} | Wynik dogrywki (1 - gospodarz wygrał, 2 - gość wygrał, 3 - rozstrzygnięcie dopiero w karnych) | NULL |
 | SO winner | INT | {0,1,2} | Wynik karnych (0 - brak karnych, 1 - gospdoarz wygrał, 2 - gość wygrał) | NULL
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.py**
+
+---
 
 ### HOCKEY_ROSTERS
 (aktualne składy drużyn hokejowych)
@@ -311,7 +379,11 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 | PP | INT | {0, 1, 2} | Czy zawodnik jest przypisany do gry w przewadze? (1 - przypisany do pierwszej linii przewagi (1PP), 2 - przypisany do drugiej linii przewagi (PP2), 0 - nieprzypisany do przewagi) | NULL | 
 |IS_INJURED| INT | {0, 1} | Czy zawodnik jest kontuzjowany? (0 - nie, 1 - tak) | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli BĘDĄ dodawane nowym modułem o potencjalnej nazwie **get_projected_lineups.py**
+
+---
 
 ### LEAGUES 
 (spis analizowanych lig)
@@ -326,7 +398,11 @@ Dane do tabeli BĘDĄ dodawane nowym modułem o potencjalnej nazwie **get_projec
 | ACTIVE | INT | {0, 1} | Czy liga aktualnie analizowana przez system? (0 - nie, 1 - tak) | NULL |
 | TIER | INT | {1, 2, 100, 101, 102} | Poziom rozgrywky ligi (100 - Liga Mistrzów, 101 - Liczba Europy, 102 - Liga Konferencji) | NULL |
 
-Dane do tabeli dodawane są ręcznie
+**Sposób generowania danych do tabeli**:
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### MATCHES 
 (wszystkie analizowane mecze)
@@ -364,8 +440,11 @@ Dane do tabeli dodawane są ręcznie
 | HOME_TEAM_RC | INT | INT | Liczba czerwonych kartek gospodarza | NULL |
 | AWAY_TEAM_RC | INT | INT | Liczba czerwonych kartek gościa | NULL |
 
+**Sposób generowania danych do tabeli**:
 
 Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (**scrapper.py**, **scrapper_wrapper.py**, **nhl_all_scrapper.py** )
+
+---
 
 ### ODDS 
 (pobrane kursy dla danego meczu dla danego zdrarzenia)
@@ -376,6 +455,12 @@ Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (*
 | *BOOKMAKER* | INT | INT | Klucz obcy, powiązanie z tabelą *bookmakers* | NULL |
 | *EVENT* | INT | INT | Klucz obcy, powiązanie z tabelą *events*  | NULL |
 | ODDS | FLOAT | >= 1 | Kurs dla danego wpisu | NULL
+
+**Sposób generowania danych do tabeli**:
+
+Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
+
+---
 
 ### PLAYERS
 (lista graczy)
@@ -393,7 +478,11 @@ Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (*
 | EXTERNAL_FLASH_ID | VARCHAR(20) | STRING | ID zawodnika na flashscorze | NULL |
 | ACTIVE | INT | {0, 1} | Flaga, czy gracz jest aktywny (0 - nie, 1 - tak) | 1 |
 
+**Sposób generowania danych do tabeli**:
+
 Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_players.py** (w przyszłości planowane rozszerzenie o inne sporty i inne moduły)
+
+---
 
 ### PREDICTIONS 
 (WSZYSTKIE predykcje dla każdego zdarzenia)
@@ -406,7 +495,11 @@ Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_playe
 | *MODEL_ID*    | INT           | INT>0       | Klucz obcy, powiązanie z tabelą *models* | NULL |
 | VALUE         | FLOAT         | [0,1] | Prawdopodobieństwo danego zdarzenia | NULL |
 
+**Sposób generowania danych do tabeli**:
+
 Dane naliczane w ramach modułu **main.py**
+
+---
 
 ### SEASONS 
 (Tabela z sezonami)
@@ -416,7 +509,11 @@ Dane naliczane w ramach modułu **main.py**
 | **ID**        |  INT       | INT    | ID sezonu       | AUTOMATYCZNIE GENEROWANY        |
 | YEARS | VARCHAR(10) | STRING | Lata sezonu, zawsze w tej samej formie: Rok startu + "/" + dwie ostatnie cyfry następnego roku (wyjątek dla sezonów typu 2099/2100)(przykład: 2024/25) | NULL |
 
-Dane do tabeli dodawane tylko i wyłącznie ręcznie
+**Sposób generowania danych do tabeli**:
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### SPECIAL_ROUNDS
 (Tabela z nazwami rund specjalnych)
@@ -425,6 +522,11 @@ Dane do tabeli dodawane tylko i wyłącznie ręcznie
 | **ID**        |  INT       | INT    | ID rundy specjalnej      | AUTOMATYCZNIE GENEROWANY        |
 | NAME | VARCHAR(45) | STRING | Nazwa rundy specjalnej (np. finał, mecz numer 1). Rundy specjalne wspierają wszystkie typy rozgrywek aż do BO5 | NULL |
 
+**Sposób generowania danych do tabeli**:
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### SPORTS 
 (Tabela z analizowanymi sportami)
@@ -434,7 +536,10 @@ Dane do tabeli dodawane tylko i wyłącznie ręcznie
 | **ID**        |  INT       | INT    | ID sportu       | AUTOMATYCZNIE GENEROWANY        |
 | YNAME | VARCHAR(45) | STRING | Nazwa zwyczajowa sportu | NULL |
 
-Dane do tabeli dodawane tylko i wyłącznie ręcznie
+**Sposób generowania danych do tabeli**:
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
 
 ### TEAMS 
 (Tabela z drużynami)
@@ -446,7 +551,17 @@ Dane do tabeli dodawane tylko i wyłącznie ręcznie
 | NAME | VARCHAR(50) | STRING | Nazwa drużyn | NULL |
 | SHORTCUT | VARCHAR(5) | STRING | Skrótowa nazwa drużyny (z reguły nie więcej niż 3 litery, aczkolwiek bywają wyjątki) | NULL |
 
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `COUNTRY` → `countries(ID)`
+- Klucz obcy: `SPORTS_ID` → `sports(ID)`
+- **Unikalny indeks:** `(NAME, COUNTRY)` – gwarantuje, że nie mogą istnieć dwie drużyny o tej samej nazwie w jednym kraju.
+
+**Sposób generowania danych do tabeli:**
+
 Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. **scrapper.py**)
+
+---
 
 ### TRANSFERS
 (Zapis transferów zawodników między klubami)
@@ -457,6 +572,8 @@ Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. 
 | *OLD_TEAM_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *teams*  | NULL |
 | *NEW_TEAM_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *teams*  | NULL |
 | *SEASON_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *seasons*  | NULL |
+
+**Sposób generowania danych do tabeli**:  
 
 Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencjalne rozszerzenia wkrótce)
 
