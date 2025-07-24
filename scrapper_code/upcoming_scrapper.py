@@ -6,32 +6,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import numpy as np
 import db_module
-
-def parse_match_date(match_date):
-    date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
-
-    date_formatted = date_object.strftime("%Y-%m-%d %H:%M")
-
-    return date_formatted
-
-def update_db(queries, conn):
-    print("HALKO")
-    cursor = conn.cursor()
-    for query in queries:
-        cursor.execute(query)
-        conn.commit()
-    cursor.close()
-
-def get_match_links(games, driver):
-    links = []
-    driver.get(games)
-    time.sleep(15)
-    game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
-    for element in game_divs:
-        id = element.get_attribute('id').split('_')[2]
-        links.append('https://www.flashscore.pl/mecz/{}/#/szczegoly-meczu/statystyki-meczu/0'.format(id))
-    return links
-                
+from utils import parse_match_date, get_match_links, update_db
 
 def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     stats = []
@@ -103,6 +78,7 @@ def get_match_data(driver, league_id, season_id, link, round_to_d, team_id):
     if round_to_d == 0:
         try:
             round_to_d = int(round)
+            max_date = date.today()
         except ValueError as e:
             print(f"Błąd w pobieraniu rundy: {e}")
     if league_id != 25:
@@ -211,7 +187,9 @@ VALUES ({league}, \
         inserts.append(sql)
     update_db(inserts, conn)
     conn.close()
-def main():
+
+def main() -> None:
+    """Główna funkcja do uruchomienia skryptu."""
     #WYWOŁANIE
     #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze> <numer rundy>
     #Link do strony z wynikami

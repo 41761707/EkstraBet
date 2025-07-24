@@ -1,11 +1,16 @@
 import argparse
 
-import automate_odds
+import odds_scrapper
 import upcoming_scrapper
 import update_scraper
 import scrapper
+import bet_all
 
-def launch_historic(links):
+def launch_historic(links) -> None:
+    """Uruchamia scrapowanie historycznych wyników.
+    Args:
+        links (list): Lista linków do lig, które mają być przetwarzane.
+    """
     for link in links:
         current = link + 'wyniki/'
         print(current)
@@ -13,14 +18,22 @@ def launch_historic(links):
         print(args)
         scrapper.to_automate(int(args[0]), int(args[1]), args[2])
 
-def launch_upcoming(links):
+def launch_upcoming(links) -> None:
+    """Uruchamia scrapowanie nadchodzących meczów.
+    Args:
+        links (list): Lista linków do lig, które mają być przetwarzane.
+    """
     for link in links:
         current = link + 'mecze/'
         print(current)
         args = current.split()
         upcoming_scrapper.to_automate(int(args[0]), int(args[1]), args[2], 0)
 
-def launch_update(links):
+def launch_update(links) -> None:
+    """Uruchamia aktualizację meczów do dzisiejszej daty.
+    Args:
+        links (list): Lista linków do lig, które mają być przetwarzane.
+    """
     for link in links:
         current = link + 'wyniki/'
         print(current)
@@ -28,13 +41,27 @@ def launch_update(links):
         print(args)
         update_scraper.to_automate(int(args[0]), int(args[1]), args[2])
 
-def launch_odds(links):
+def launch_odds(links) -> None:
+    """Uruchamia scrapowanie kursów bukmacherskich.
+    Args:
+        links (list): Lista linków do lig, które mają być przetwarzane.
+    """
     for current in links:
         print(current)
         args = current.split()
-        automate_odds.to_automate(int(args[0]), int(args[1]), args[2], 'daily')
+        odds_scrapper.odds_to_automate(int(args[0]), int(args[1]), args[2], 'daily')
 
-def main():
+def launch_bet(links) -> None:
+    """Uruchamia generowanie zakładów.
+    Args:
+        links (list): Lista linków do lig, które mają być przetwarzane.
+    """
+    for current in links:
+        print(current)
+        args = current.split()
+        bet_all.bet_to_automate('today', int(args[0]), int(args[1]))
+
+def main() -> None:
     links = [  
         '1 12 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2025-2026/',
         #'2 12 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2025-2026/', #start: 15.08.2025
@@ -45,7 +72,7 @@ def main():
         #'7 12 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2025-2026/', #start: 10.08.2025
         #'8 12 https://www.flashscore.pl/pilka-nozna/anglia/championship-2025-2026/', #start: 08.08.2025
         #'10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/', #koniec ligi
-        #'11 12 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2025-2026/', #start: 25.07.2025
+        '11 12 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2025-2026/',
         '12 12 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2025-2026/',
         #'13 12 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2025-2026/', #start: 09.08.2025
         #'14 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga2-2025-2026/', #start: 15.08.2025
@@ -55,9 +82,9 @@ def main():
         '19 12 https://www.flashscore.pl/pilka-nozna/meksyk/liga-mx-2025-2026/',
         #'20 12 https://www.flashscore.pl/pilka-nozna/niemcy/2-bundesliga-2025-2026/', #start: 01.08.2025
         '21 12 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2025-2026/',
-        #'23 12 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2025-2026/', #start: 25.07.2025
+        '23 12 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2025-2026/',
         #'24 12 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2025-2026/', #start: 08.08.2025
-        '25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/',
+        #'25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/',
         #'26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/', #koniec ligi
         #'29 12 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2025-2026/', #start: 01.08.2025
         '30 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2025/',
@@ -69,21 +96,35 @@ def main():
         #'36 12 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2-2025-2026/', #start: 10.08.2025
         #'37 12 https://www.flashscore.pl/pilka-nozna/belgia/challenger-pro-league-2025-2026/', #start: 08.08.2025
         #'38 12 https://www.flashscore.pl/pilka-nozna/austria/2-liga-2025-2026/', #start: 01.08.2025
-        #'39 12 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2025-2026/', #start: 25.07.2025
+        '39 12 https://www.flashscore.pl/pilka-nozna/szwajcaria/challenge-league-2025-2026/',
         #'40 12 https://www.flashscore.pl/pilka-nozna/turcja/1-lig-2025-2026/', #start: 10.08.2025
         '41 12 https://www.flashscore.pl/pilka-nozna/czechy/dywizja-2-2025-2026/'
     ]
-    parser = argparse.ArgumentParser(description="Automatyzacja scrapowania danych.")
-    parser.add_argument('mode', choices=['update', 'upcoming', 'odds', 'historic'], help='Tryb uruchomienia programu')
+    parser = argparse.ArgumentParser(
+        description="Automatyzacja scrapowania danych.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        'mode',
+        choices=['update', 'upcoming', 'odds', 'historic', 'bet'],
+        help="Tryb działania programu:\n"
+            "update   - Aktualizuje wszystkie mecze do dzisiejszej daty\n"
+            "upcoming - Pobiera nadchodzące mecze (max 7 dni wprzód)\n"
+            "odds     - Pobiera kursy bukmacherskie\n"
+            "historic - Pobiera historyczne wyniki\n"
+            "bet      - Generuje zakłady"
+    )
     args = parser.parse_args()
+    options = {
+        'update': launch_update,
+        'upcoming': launch_upcoming,
+        'odds': launch_odds,
+        'historic': launch_historic,
+        'bet': launch_bet
+    }
+    if args.mode in options:
+        launch_function = options[args.mode]
+        launch_function(links)
 
-    if args.mode == 'update':
-        launch_update(links)
-    elif args.mode == 'upcoming':
-        launch_upcoming(links)
-    elif args.mode == 'odds':
-        launch_odds(links)
-    elif args.mode == 'historic':
-        launch_historic(links)
 if __name__ == '__main__':
     main()
