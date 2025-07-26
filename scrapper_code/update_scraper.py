@@ -1,184 +1,163 @@
-import time
-import sys
-import numpy as np
+from math import sin
 import pandas as pd
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from datetime import datetime
 import db_module
-from utils import parse_match_date, get_match_links, update_db
-                
+from utils import (
+    MatchData, setup_chrome_driver, get_teams_dict,
+    fetch_match_elements, parse_round, parse_match_info,
+    parse_score, parse_stats, parse_match_date,
+    get_match_links, update_db
+)
+from dataclasses import asdict
+import argparse
 
-def update_match_data(driver, league_id, season_id, link, match_id, team_id):
-    stats = []
-    match_info = []
-    match_data = {
-        'game_date' : 0,
-        'home_team_goals' : 0,
-        'away_team_goals' : 0,
-        'home_team_xg' : 0,
-        'away_team_xg' : 0,
-        'home_team_bp' : 0,
-        'away_team_bp' : 0,
-        'home_team_sc' : 0,
-        'away_team_sc' : 0,
-        'home_team_sog' : 0,
-        'away_team_sog' : 0,
-        'home_team_fk' : 0,
-        'away_team_fk': 0,
-        'home_team_ck' : 0,
-        'away_team_ck' : 0,
-        'home_team_off' : 0,
-        'away_team_off' : 0,
-        'home_team_fouls' : 0,
-        'away_team_fouls' : 0,
-        'home_team_yc' : 0,
-        'away_team_yc' : 0,
-        'home_team_rc' : 0,
-        'away_team_rc' : 0,
-        'result' : 0,
-        'id' : 0}
-    # duelParticipant__startTime - czas rozegrania meczu (timestamp)
-    # participant__participantName - drużyny biorące udział w meczu
-    # detailScore__wrapper - wynik meczu
-    driver.get(link)
-    time.sleep(2) # Let the user actually see something!
-    # Znajdź wszystkie divy o klasie '_row_18zuy_8'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
-    # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
-    time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
-    team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
-    score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
 
-    # Dodaj zawartość divów do listy danych
-    for div in stat_divs:
-        stats.append(div.text.strip())
-    for div in time_divs:
-        match_info.append(div.text.strip())
-    for div in team_divs:
-        match_info.append(div.text.strip())
-    for div in score_divs:
-        match_info.append(div.text.strip())
+def update_match_data(
+    driver: webdriver.Chrome,
+    league_id: int,
+    season_id: int,
+    link: str,
+    match_id: int,
+    team_id: dict[str, int]
+) -> dict:
+    """Aktualizuje dane meczu na podstawie linku do meczu.
 
-    match_data['game_date'] = parse_match_date(match_info[0])
-    score = match_info[5].split('\n')
-    home_goals = int(score[0])
-    away_goals = int(score[2])
-    match_data['id'] = match_id
-    match_data['home_team_goals'] = home_goals
-    match_data['away_team_goals'] = away_goals
+    Args:
+        driver (webdriver.Chrome): Instancja przeglądarki Selenium.
+        league_id (int): ID ligi.
+        season_id (int): ID sezonu.
+        link (str): Link do strony z danymi meczu.
+        match_id (int): ID meczu w bazie danych.
+        team_id (dict[str, int]): Słownik z nazwami drużyn i ich ID.
+
+    Returns:
+        dict: Słownik z zaktualizowanymi danymi meczu.
+    """
+    stat_divs, time_divs, team_divs, score_divs, _ = fetch_match_elements(
+        driver, link)
+    match_info = parse_match_info(time_divs, team_divs, score_divs)
+
+    # Przygotowanie podstawowych danych meczu
+    match_data = MatchData(
+        league=league_id,
+        season=season_id,
+        home_team=team_id[match_info[1]],
+        away_team=team_id[match_info[3]],
+        game_date=parse_match_date(match_info[0])
+    )
+
+    # Parsowanie wyniku meczu
+    score_str = match_info[5] if len(match_info) > 5 else ''
+    home_goals, away_goals = parse_score(score_str)
+    match_data.home_team_goals = home_goals
+    match_data.away_team_goals = away_goals
+
+    # Określenie wyniku
     if home_goals > away_goals:
-        match_data['result'] = '1'
+        match_data.result = '1'
     elif home_goals == away_goals:
-        match_data['result'] = 'X'
+        match_data.result = 'X'
     else:
-        match_data['result'] = '2'
-    for element in stats:
-        stat = element.split('\n')
-        if(stat[1] == 'Oczekiwane gole (xG)'):
-            match_data['home_team_xg'] = stat[0]
-            match_data['away_team_xg'] = stat[2]
-        elif(stat[1] == 'Posiadanie piłki'):
-            match_data['home_team_bp'] = int(stat[0][:-1])
-            match_data['away_team_bp'] = int(stat[2][:-1])
-        elif(stat[1] == 'Strzały łącznie'):
-            match_data['home_team_sc'] = int(stat[0])
-            match_data['away_team_sc'] = int(stat[2])
-        elif(stat[1] == 'Strzały na bramkę'):
-            match_data['home_team_sog'] = int(stat[0])
-            match_data['away_team_sog'] = int(stat[2])
-        elif(stat[1] == 'Rzuty wolne'):
-            match_data['home_team_fk'] = int(stat[0])
-            match_data['away_team_fk'] = int(stat[2])
-        elif(stat[1] == 'Rzuty rożne'):
-            match_data['home_team_ck'] = int(stat[0])
-            match_data['away_team_ck'] = int(stat[2])
-        elif(stat[1] == 'Spalone'):
-            match_data['home_team_off'] = int(stat[0])
-            match_data['away_team_off'] = int(stat[2])
-        elif(stat[1] == 'Faule'):
-            match_data['home_team_fouls'] = int(stat[0])
-            match_data['away_team_fouls'] = int(stat[2])
-        elif(stat[1] == 'Żółte kartki'):
-            match_data['home_team_yc'] = int(stat[0])
-            match_data['away_team_yc'] = int(stat[2])
-        elif(stat[1] == 'Czerwone kartki'):
-            match_data['home_team_rc'] = int(stat[0])
-            match_data['away_team_rc'] = int(stat[2])
-    return match_data
+        match_data.result = '2'
 
-def get_match_id(link, driver, matches_df, league_id, season_id, team_id):
-    id = -1
-    driver.get(link)
-    time.sleep(2)
-    match_info = []
-    match_data = {
-        'league': 0,
-        'season': 0,
-        'home_team' : 0,
-        'away_team' : 0,
-        'game_date' : 0}
-    # Znajdź wszystkie divy o klasie 'wcl-row_OFViZ'
-    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
-    # Znajdź wszystkie divy o klasie 'duelParticipant__startTime'
-    time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
-    team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
-    # Dodaj zawartość divów do listy danych
-    for div in time_divs:
-        match_info.append(div.text.strip())
-    for div in team_divs:
-        match_info.append(div.text.strip())
+    # Parsowanie statystyk
+    stats = [div.text.strip() for div in stat_divs]
+    match_data = parse_stats(stats, match_data)
 
-    #print(match_info)
-    match_data['league'] = league_id #id ligi
-    match_data['season'] = season_id #id sezonu
-    match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
-    match_data['away_team'] = team_id[match_info[3]]
-    match_data['game_date'] = parse_match_date(match_info[0])
-    record = matches_df.loc[(matches_df['home_team'] == match_data['home_team']) & (matches_df['away_team'] == match_data['away_team']) & (matches_df['game_date'] == match_data['game_date'])]
+    # Dodanie ID meczu do słownika
+    match_dict = asdict(match_data)
+    match_dict['id'] = match_id
+
+    return match_dict
+
+
+def get_match_id(
+    link: str,
+    driver: webdriver.Chrome,
+    matches_df: pd.DataFrame,
+    team_id: dict[str, int]
+) -> int:
+    """Pobiera ID meczu z bazy danych na podstawie linku.
+
+    Args:
+        link (str): Link do strony z meczem.
+        driver (webdriver.Chrome): Instancja przeglądarki Selenium.
+        matches_df (pd.DataFrame): DataFrame z meczami z bazy danych.
+        team_id (dict[str, int]): Słownik z nazwami drużyn i ich ID.
+
+    Returns:
+        int: ID meczu z bazy danych lub -1, jeśli nie znaleziono.
+    """
+    _, time_divs, team_divs, score_divs, _ = fetch_match_elements(
+        driver, link)
+    match_info = parse_match_info(time_divs, team_divs, score_divs)
+
+    try:
+        home_team = team_id[match_info[1]]
+        away_team = team_id[match_info[3]]
+        game_date = parse_match_date(match_info[0])
+    except (IndexError, KeyError):
+        print("#Nie udało się sparsować danych meczu!")
+        return -1
+
+    # Wyszukanie meczu w DataFrame
+    record = matches_df.loc[
+        (matches_df['home_team'] == home_team) &
+        (matches_df['away_team'] == away_team) &
+        (matches_df['game_date'] == game_date)
+    ]
+
     if not record.empty:
-        id = record.iloc[0]['id']
+        return record.iloc[0]['id']
     else:
-        id = -1
-        print("#Nie udalo sie znalezc meczu!")
-    return id
+        print("#Nie udało się znaleźć meczu!")
+        return -1
 
-def to_automate(league_id, season_id, games, one_link = 0):
+
+def to_automate(league_id: int, season_id: int, games: str, single_match: bool = False, automate: bool = False) -> None:
+    """Automatyzuje aktualizację danych meczów w bazie danych.
+
+    Args:
+        league_id (int): ID ligi.
+        season_id (int): ID sezonu.
+        games (str): Link do strony z meczami lub pojedynczy link do meczu.
+        single_match (bool): Czy aktualizować tylko jeden mecz (True) czy wszystkie z listy (False).
+        automate (bool): Czy automatycznie zapisywać zmiany do bazy danych (True) czy tylko wyświetlać (False).
+    """
     conn = db_module.db_connect()
-    query = "select round from matches where league = {} and season = {} and cast(game_date as date) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by game_date limit 1".format(league_id, season_id)
-    cursor = conn.cursor()
-    cursor.execute(query)
-    results = cursor.fetchall()
-    if len(results) == 0:
+    # Pobranie meczów do aktualizacji
+    query = """
+        SELECT * FROM matches 
+        WHERE league = %s AND season = %s AND result = '0' 
+    """
+    if not single_match:
+        query += "AND CAST(game_date AS DATE) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+    matches_df = pd.read_sql(query, conn, params=(league_id, season_id))
+    if matches_df.empty and not single_match:
         print("BRAK SPOTKAŃ")
+        conn.close()
         return
-    round_to_d = results[0][0]
-    print("RUNDA: ",round_to_d)
-    query = "SELECT * FROM matches where league = {} and season = {} and result = '0' and cast(game_date as date) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY) ".format(league_id, season_id, round_to_d)
-    matches_df = pd.read_sql(query, conn)
-    if len(matches_df) == 0:
-        print("BRAK SPOTKAŃ")
-        return
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    driver = webdriver.Chrome(options=options)
-    query = "select country from leagues where id = {}".format(league_id)
-    country_df = pd.read_sql(query,conn)
-    country = country_df.values.flatten() 
-    query = "select name, id from teams where country = {}".format(country[0])
-    teams_df = pd.read_sql(query, conn)
-    team_id = teams_df.set_index('name')['id'].to_dict()
-    print(team_id)
-    if one_link == 1:
-        links = [games]
-    else:
-        links = get_match_links(games, driver)
-    inserts = []
-    no_matches = len(matches_df)
-    for link in links[:]:
-        match_id = get_match_id(link, driver, matches_df, league_id, season_id, team_id)
-        match_data = update_match_data(driver, league_id, season_id, link, match_id, team_id)
-        if match_data['id'] != -1:
+    driver = setup_chrome_driver()
+    try:
+        team_id = get_teams_dict(league_id, conn)
+        print(f"Znalezione drużyny: {team_id}")
+
+        # Wybór trybu pobierania linków
+        if single_match:
+            links = [games]
+        else:
+            links = get_match_links(games, driver)
+
+        inserts = []
+        no_matches = len(matches_df)
+
+        for link in links:
+            match_id = get_match_id(
+                link, driver, matches_df, team_id)
+            if match_id == -1:
+                continue
+            match_data = update_match_data(
+                driver, league_id, season_id, link, match_id, team_id)
             sql = '''UPDATE `ekstrabet`.`matches` SET  `game_date` = '{game_date}', \
 `home_team_goals` = '{home_team_goals}', \
 `away_team_goals` = '{away_team_goals}', \
@@ -209,17 +188,54 @@ WHERE (`id` = '{id}');'''.format(**match_data)
             no_matches = no_matches - 1
             if no_matches == 0:
                 break
-    update_db(inserts, conn)
-    conn.close()    
+        if inserts:
+            if automate:
+                update_db(inserts, conn)
+        else:
+            print("Brak danych do aktualizacji.")
 
-def main():
-    #WYWOŁANIE
-    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze> <czy pobrac tylko jeden mecz z linka>
-    league_id = int(sys.argv[1])
-    season_id = int(sys.argv[2])
-    games = sys.argv[3]
-    one_link = int(sys.argv[4])
-    to_automate(league_id, season_id, games, one_link)
+    except ValueError as e:
+        print(f"Błąd: {e}")
+    finally:
+        driver.quit()
+        conn.close()
+
+
+def main() -> None:
+    """Główna funkcja uruchamiająca skrypt."""
+    parser = argparse.ArgumentParser(
+        description="""Skrypt do aktualizacji danych meczów w bazie na podstawie danych z Flashscore.
+
+Przykłady użycia:
+- Aktualizacja meczów (tryb testowy):
+  python update_scraper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki/
+
+- Aktualizacja meczów z automatycznym zapisem do bazy:
+  python update_scraper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki/ --automate
+
+- Aktualizacja pojedynczego meczu:
+  python update_scraper.py 33 11 https://www.flashscore.pl/mecz/pilka-nozna/4GPWXVlS/#/szczegoly-meczu/statystyki-meczu/0 --match --automate
+
+Parametry:
+  <id_ligi>         ID ligi w bazie danych
+  <id_sezonu>       ID sezonu w bazie danych
+  <link>            Link do strony z wynikami lub do konkretnego meczu na Flashscore
+
+Uwaga: Bez flagi --automate dane będą tylko wyświetlane, ale nie zapisywane do bazy.""",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('league_id', type=int, help='ID ligi')
+    parser.add_argument('season_id', type=int, help='ID sezonu')
+    parser.add_argument(
+        'games', help='Link do strony z wynikami lub do konkretnego meczu na Flashscore')
+    parser.add_argument('--match', action='store_true',
+                        help='Tryb pojedynczego meczu - parametr "games" powinien zawierać bezpośredni link do meczu')
+    parser.add_argument('--automate', action='store_true',
+                        help='Automatycznie zapisuj zmiany do bazy danych (bez tej flagi dane będą tylko wyświetlane)')
+    args = parser.parse_args()
+    to_automate(args.league_id, args.season_id,
+                args.games, args.match, args.automate)
+
 
 if __name__ == '__main__':
     main()

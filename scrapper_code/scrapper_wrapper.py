@@ -16,7 +16,7 @@ def launch_historic(links) -> None:
         print(current)
         args = current.split()
         print(args)
-        scrapper.to_automate(int(args[0]), int(args[1]), args[2])
+        scrapper.to_automate(int(args[0]), int(args[1]), args[2], single_match=False, automate=True)
 
 def launch_upcoming(links) -> None:
     """Uruchamia scrapowanie nadchodzących meczów.
@@ -27,7 +27,7 @@ def launch_upcoming(links) -> None:
         current = link + 'mecze/'
         print(current)
         args = current.split()
-        upcoming_scrapper.to_automate(int(args[0]), int(args[1]), args[2], 0)
+        upcoming_scrapper.to_automate(int(args[0]), int(args[1]), args[2], single_match=False, automate=True)
 
 def launch_update(links) -> None:
     """Uruchamia aktualizację meczów do dzisiejszej daty.
@@ -39,7 +39,7 @@ def launch_update(links) -> None:
         print(current)
         args = current.split()
         print(args)
-        update_scraper.to_automate(int(args[0]), int(args[1]), args[2])
+        update_scraper.to_automate(int(args[0]), int(args[1]), args[2], single_match=False, automate=True)
 
 def launch_odds(links) -> None:
     """Uruchamia scrapowanie kursów bukmacherskich.
@@ -49,7 +49,7 @@ def launch_odds(links) -> None:
     for current in links:
         print(current)
         args = current.split()
-        odds_scrapper.odds_to_automate(int(args[0]), int(args[1]), args[2], 'daily')
+        odds_scrapper.odds_to_automate(int(args[0]), int(args[1]), args[2], 'daily', skip=0, automate=True)
 
 def launch_bet(links) -> None:
     """Uruchamia generowanie zakładów.
@@ -84,7 +84,7 @@ def main() -> None:
         '21 12 https://www.flashscore.pl/pilka-nozna/polska/betclic-1-liga-2025-2026/',
         '23 12 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2025-2026/',
         #'24 12 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2025-2026/', #start: 08.08.2025
-        #'25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/',
+        '25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/',
         #'26 11 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2024-2025/', #koniec ligi
         #'29 12 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2025-2026/', #start: 01.08.2025
         '30 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2025/',

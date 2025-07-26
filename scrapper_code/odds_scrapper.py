@@ -239,7 +239,7 @@ def get_links(game_divs) -> list:
     return links
 
 
-def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mode, to_automate, skip=0) -> None:
+def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mode, automate, skip=0) -> None:
     """Pobiera dane o kursach bukmacherskich dla meczów.
     Args:
         games: Lista gier do przetworzenia.
@@ -250,7 +250,7 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mod
         team_id: ID drużyny.
         conn: Połączenie z bazą danych.
         mode: Tryb działania (daily, historical, match).
-        to_automate: Flaga informująca, czy automatyzować proces.
+        automate: Czy automatycznie zapisywać kursy do bazy danych.
         skip: Liczba meczów do pominięcia.
     """
     #Nie pobieraj meczow jesli mam go podanego doslownie jako jedyny link
@@ -286,13 +286,13 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mod
             link, '#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver, bookie_dict, 'result')
         ou_inserts = get_odds(match_id, "{}{}".format(
             link, '/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver, bookie_dict, 'ou')
-        if to_automate:
+        if automate:
             update_db(result_inserts, conn)
             update_db(ou_inserts, conn)
             update_db(btts_inserts, conn)
 
 
-def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip: int = 0) -> None:
+def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip: int = 0, automate: bool = False) -> None:
     """Automatyzuje proces pobierania kursów bukmacherskich dla wybranej ligi i sezonu.
 
     Funkcja łączy się z bazą danych, inicjalizuje przeglądarkę i pobiera kursy w zależności od wybranego trybu.
@@ -303,6 +303,7 @@ def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip
         games (str): Link do strony z meczami na Flashscore
         mode (str): Tryb działania ('daily', 'historical', 'match')
         skip (int, optional): Liczba najwcześniejszych meczów do pominięcia. Defaults to 0.
+        automate (bool): Czy automatycznie zapisywać kursy do bazy danych (True) czy tylko wyświetlać (False).
 
     Note:
         Tryby działania:
@@ -311,7 +312,6 @@ def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip
         - 'match': pobiera kursy dla konkretnego meczu
     """
     # Inicjalizacja parametrów i połączenia z bazą danych
-    to_automate = 0
     conn = db_module.db_connect()
 
     try:
@@ -340,7 +340,7 @@ def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip
                 print("Brak meczów na dziś")
                 return
             get_data(games, driver, matches_df, league_id,
-                     season_id, team_id, conn, mode, to_automate)
+                     season_id, team_id, conn, mode, automate)
         elif mode == 'historical':
             if matches_df.empty:
                 print("Brak meczów w bazie danych")
@@ -350,7 +350,7 @@ def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip
                 print("Liczba do pominięcia przekracza liczbę meczów")
                 return
             get_data(games, driver, matches_df, league_id,
-                     season_id, team_id, conn, mode, to_automate, skip)
+                     season_id, team_id, conn, mode, automate, skip)
         elif mode == 'match':
             match_id = get_match_id(
                 games, driver, matches_df, league_id, season_id, team_id)
@@ -359,7 +359,7 @@ def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip
                 return
             matches_df = matches_df[matches_df['id'] == match_id]
             get_data(games, driver, matches_df, league_id,
-                     season_id, team_id, conn, mode, to_automate)
+                     season_id, team_id, conn, mode, automate)
     except Exception as e:
         print(f"Wystąpił błąd podczas pobierania kursów: {str(e)}")
     finally:
@@ -373,12 +373,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="""Skrypt do pobierania kursów bukmacherskich z Flashscore.
         Przykłady użycia:
-        - Dla kursów dziennych:
-          python odds_scraper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/ daily
+        - Dla kursów dziennych (tryb testowy):
+          python odds_scrapper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/ daily
+        - Dla kursów dziennych z zapisem do bazy:
+          python odds_scrapper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/ daily --automate
         - Dla kursów historycznych:
-          python odds_scraper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki historical --skip 5
+          python odds_scrapper.py 4 11 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2024-2025/wyniki historical --skip 5 --automate
         - Dla konkretnego meczu:
-          python odds_scraper.py 19 11 https://www.flashscore.pl/mecz/pilka-nozna/W4853zVH/ match""",
+          python odds_scrapper.py 19 11 https://www.flashscore.pl/mecz/pilka-nozna/W4853zVH/ match --automate""",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument('league_id', type=int, help='ID ligi')
@@ -388,13 +390,22 @@ def main() -> None:
                         help='Tryb działania: daily (mecze dzisiejsze), historical (mecze historyczne), match (konkretny mecz)')
     parser.add_argument('--skip', type=int, default=0,
                         help='Liczba najwcześniejszych meczów do pominięcia (działa tylko w trybie historical)')
+    parser.add_argument('--automate', action='store_true',
+                        help='Automatyczny zapis kursów do bazy danych (domyślnie tryb testowy)')
     args = parser.parse_args()
     # Sprawdzenie czy parametr skip jest używany tylko w trybie historical
     if args.skip != 0 and args.mode != 'historical':
         parser.error(
             "Parametr --skip może być używany tylko w trybie historical")
+    
+    # Informowanie o trybie działania
+    if args.automate:
+        print("Tryb produkcyjny - kursy będą zapisywane do bazy danych.")
+    else:
+        print("Tryb testowy - kursy będą tylko wyświetlane.")
+    
     odds_to_automate(args.league_id, args.season_id,
-                     args.games, args.mode, args.skip)
+                     args.games, args.mode, args.skip, args.automate)
 
 
 if __name__ == '__main__':
