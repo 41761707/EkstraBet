@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from typing import Self
 class ConfigManager:
     """
@@ -83,7 +83,7 @@ class ConfigManager:
         self.INITIAL_ELO = 1500  # Początkowa wartość rankingu ELO
         self.SECOND_TIER_COEF = 0.8  # Współczynnik dla lig drugiej kategorii
         self.LEARNING_RATE = 0.00001  # Domyślna szybkość uczenia
-        self.THRESHOLD_DATE = '2025-07-19'  # Data graniczna dla danych treningowych
+        self.THRESHOLD_DATE = str(datetime.today())  # Data graniczna dla danych treningowych
 
     def load_from_args(self, args) -> None:
         """

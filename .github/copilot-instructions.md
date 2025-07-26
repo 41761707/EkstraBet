@@ -53,3 +53,61 @@
 
 ---
 For questions or unclear conventions, review `Home.py`, `main.py`, and the database schema, or ask the project author (see contact info in the UI).
+
+# Zasady Pisania Kodu w Pythonie dla Ekstrabet
+
+## 1. Styl kodowania
+
+- Stosuj konwencję PEP8 (wcięcia 4 spacje, czytelne nazwy zmiennych, spójność stylu).
+- Nazwy zmiennych, funkcji i klas powinny być opisowe i jednoznaczne.
+- Funkcje i klasy dokumentuj za pomocą docstringów w stylu Google lub NumPy.
+- Komentarze pisz wyłącznie po polsku, wyjaśniając logikę, założenia i nietypowe rozwiązania.
+
+## 2. Struktura projektu
+
+- Moduły dziel według funkcjonalności (np. web_code, model_code).
+- Każdy plik powinien mieć nagłówek z krótkim opisem przeznaczenia.
+- Funkcje pomocnicze umieszczaj w osobnych plikach (np. utils.py).
+
+## 3. Wzorce projektowe
+
+- Stosuj wzorzec „pipeline” do przetwarzania danych (kolejne etapy: ekstrakcja, przygotowanie, obliczenia, predykcja).
+- Używaj wzorca „factory” do mapowania funkcji kalkulujących ratingi (patrz: get_calculator_func).
+- Konfiguracje przekazuj przez argumenty funkcji lub dedykowane klasy (np. ConfigManager).
+
+## 4. Obsługa błędów
+
+- W przypadku obsługi wyjątków zawsze wyświetlaj pełny stack trace (`traceback.print_exc()`).
+- Komunikaty błędów pisz po polsku i dodawaj informację o kontekście.
+
+## 5. Praca z bazą danych
+
+- Wszystkie operacje na bazie realizuj przez moduł `db_module`.
+- Wyniki zapytań SQL zawsze przetwarzaj przez Pandas (`pd.read_sql`).
+- Po zakończeniu pracy z bazą zawsze zamykaj połączenie (`conn.close()`).
+
+## 6. Testowanie i walidacja
+
+- Twórz testy jednostkowe dla kluczowych funkcji (np. test_parse_score).
+- Testy umieszczaj w osobnych plikach (np. test_module.py).
+- Wyniki testów opisuj w komentarzach po polsku.
+
+## 7. Dokumentacja i UI
+
+- Wszystkie opisy, komentarze i komunikaty w interfejsie użytkownika pisz po polsku.
+- Dokumentację techniczną umieszczaj w plikach README.md oraz docstringach.
+- W przypadku Streamlit używaj `unsafe_allow_html=True` do customizacji UI.
+
+## 8. Przykłady i workflow
+
+- Przykłady użycia kodu umieszczaj w docstringach oraz README.md.
+- Opisuj typowe workflow (np. trenowanie modelu, dodawanie ligi) krok po kroku.
+
+## 9. Integracja i rozszerzalność
+
+- Nowe ligi dodawaj przez wpis do bazy i utworzenie pliku w `pages/`.
+- Nowe typy ratingów i modeli dodawaj przez rozbudowę odpowiednich słowników i funkcji mapujących.
+
+---
+
+**Pamiętaj:** Kod powinien być czytelny, modularny, łatwy do testowania i zgodny z architekturą projektu Ekstrabet. Komentarze i dokumentacja zawsze po polsku!
