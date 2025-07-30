@@ -128,10 +128,10 @@ def to_automate(league_id: int, season_id: int, games: str, single_match: bool =
     # Pobranie meczów do aktualizacji
     query = """
         SELECT * FROM matches 
-        WHERE league = %s AND season = %s AND result = '0' 
+        WHERE league = %s AND season = %s 
     """
     if not single_match:
-        query += "AND CAST(game_date AS DATE) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+        query += " AND result = '0' AND CAST(game_date AS DATE) <= DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
     matches_df = pd.read_sql(query, conn, params=(league_id, season_id))
     if matches_df.empty and not single_match:
         print("BRAK SPOTKAŃ")

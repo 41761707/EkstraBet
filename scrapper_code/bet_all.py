@@ -39,15 +39,15 @@ def calc_ev(pred: float, odds: list) -> float:
     """
     return round((pred or 0) * max(odds[1:], default=0) - 1, 2)
 
-def generate_predictions(conn, query: str, to_automate: int) -> None:
+def generate_predictions(conn, query: str, automate: bool) -> None:
     """
     Generuje predykcje i wylicza EV dla wszystkich meczów danej ligi i sezonu rozgrywanych dzisiaj.
-    Wyniki zapisuje do tabeli bets, jeśli to_automate == 1.
+    Wyniki zapisuje do tabeli bets, jeśli automate == True.
 
     Args:
         conn: Połączenie do bazy danych.
         query (str): Zapytanie SQL do pobrania meczów.
-        to_automate (int): Flaga automatycznego zapisu do bazy (1 = zapisuj).
+        automate (bool): Flaga automatycznego zapisu do bazy (True = zapisuj).
     """
     # Pobierz wszystkie mecze dzisiaj dla danej ligi i sezonu
     matches_id = pd.read_sql(query, conn)["id"].tolist()
@@ -180,11 +180,10 @@ def generate_predictions(conn, query: str, to_automate: int) -> None:
             )
             print(sql)
             inserts.append(sql)
-    if to_automate:
-        pass
+    if automate:
         update_db(inserts, conn)
 
-def bet_to_automate(mode: str, league_id: int, season_id: int, round_num: int = None, date_from: str = None, date_to: str = None, match_id: int = None) -> None:
+def bet_to_automate(mode: str, league_id: int, season_id: int, round_num: int = None, date_from: str = None, date_to: str = None, match_id: int = None, automate: bool = False) -> None:
     """
     Generuje zakłady według wybranego trybu:
     - 'today': generuje zakłady na dziś
@@ -200,8 +199,8 @@ def bet_to_automate(mode: str, league_id: int, season_id: int, round_num: int = 
         date_from (str, optional): Data początkowa (format 'YYYY-MM-DD')
         date_to (str, optional): Data końcowa (format 'YYYY-MM-DD')
         match_id (int, optional): ID meczu (dla trybu 'match')
+        automate (bool): Czy automatycznie zapisywać zmiany do bazy danych
     """
-    to_automate = 1
     warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
     conn = db_module.db_connect()
     if mode == 'today':
@@ -212,7 +211,7 @@ def bet_to_automate(mode: str, league_id: int, season_id: int, round_num: int = 
         query = f"SELECT id FROM matches WHERE league = {league_id} AND season = {season_id} AND CAST(game_date AS DATE) BETWEEN '{date_from}' AND '{date_to}'"
     elif mode == 'match':
         query = f"SELECT id FROM matches WHERE id = {match_id}" #Trochę redundancja, ale niech będzie
-    generate_predictions(conn, query, to_automate)
+    generate_predictions(conn, query, automate)
     conn.close()
 
 def main() -> None:
@@ -222,9 +221,14 @@ def main() -> None:
             "Generuje zakłady według wybranego trybu dla wybranej ligi i sezonu.\n"
             "\nPrzykłady użycia:\n"
             "  python bet_all.py today 1 11\n"
+            "  python bet_all.py today 1 11 --automate\n"
             "  python bet_all.py round 1 11 --round_num 5\n"
+            "  python bet_all.py round 1 11 --round_num 5 --automate\n"
             "  python bet_all.py date_range 1 11 --date_from 2024-07-01 --date_to 2024-07-20\n"
+            "  python bet_all.py date_range 1 11 --date_from 2024-07-01 --date_to 2024-07-20 --automate\n"
             "  python bet_all.py match 1 11 --match 12345\n"
+            "  python bet_all.py match 1 11 --match 12345 --automate\n"
+            "\nUwaga: Bez flagi --automate zakłady będą tylko wyświetlane, ale nie zapisywane do bazy.\n"
         ),
         formatter_class=argparse.RawTextHelpFormatter
     )
@@ -235,6 +239,7 @@ def main() -> None:
     parser.add_argument("--date_from", type=str, default=None, help="Data początkowa (format 'YYYY-MM-DD', wymagane dla trybu 'date_range')")
     parser.add_argument("--date_to", type=str, default=None, help="Data końcowa (format 'YYYY-MM-DD', wymagane dla trybu 'date_range')")
     parser.add_argument("--match", type=int, default=None, help="ID meczu (wymagane dla trybu 'match')")
+    parser.add_argument("--automate", action="store_true", help="Automatycznie zapisuj zakłady do bazy danych (bez tej flagi będą tylko wyświetlane)")
 
     args = parser.parse_args()
 
@@ -243,8 +248,8 @@ def main() -> None:
         parser.error("W trybie 'round' wymagany jest parametr --round_num.")
     if args.mode == "date_range" and (args.date_from is None or args.date_to is None):
         parser.error("W trybie 'date_range' wymagane są parametry --date_from oraz --date_to.")
-    if args.mode == "match" and args.match_id is None:
-        parser.error("W trybie 'match' wymagany jest parametr --match_id (pojedynczy id meczu).")
+    if args.mode == "match" and args.match is None:
+        parser.error("W trybie 'match' wymagany jest parametr --match (pojedynczy id meczu).")
 
     bet_to_automate(
         mode=args.mode,
@@ -253,7 +258,8 @@ def main() -> None:
         round_num=args.round_num,
         date_from=args.date_from,
         date_to=args.date_to,
-        match_id=args.match_id
+        match_id=args.match,
+        automate=args.automate
     )
 
 if __name__ == "__main__":
