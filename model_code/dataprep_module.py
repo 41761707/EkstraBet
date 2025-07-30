@@ -128,7 +128,7 @@ class DataPrep:
             query = f"""
                 SELECT * 
                 FROM matches 
-                WHERE game_date < '{self.input_date}'
+                WHERE game_date < cast('{self.input_date}' as date)
                 AND sport_id = {self.sport_id}
                 AND result != '0'
             order by game_date asc
@@ -137,7 +137,7 @@ class DataPrep:
             query = f"""
                 SELECT * 
                 FROM matches 
-                WHERE game_date < '{self.input_date}'
+                WHERE game_date < cast('{self.input_date}' as date)
                 AND league IN ({self.leagues_str})
                 AND sport_id = {self.sport_id}
                 AND result != '0'
@@ -199,7 +199,7 @@ class DataPrep:
             query = f"""
                 SELECT id, home_team, game_date, away_team, league, round, season, home_team_goals, away_team_goals, result
                 FROM matches 
-                WHERE cast(game_date as date) >= '{self.input_date}'
+                WHERE cast(game_date as date) >= cast('{self.input_date}' as date)
                 AND sport_id = {self.sport_id}
                 order by game_date asc
         """
@@ -207,9 +207,10 @@ class DataPrep:
             query = f"""
                 SELECT id, home_team, away_team, game_date, round, league, season, home_team_goals, away_team_goals, result
                 FROM matches 
-                WHERE cast(game_date as date) >= '{self.input_date}'
+                WHERE cast(game_date as date) >= cast('{self.input_date}' as date)
                 AND league IN ({self.leagues_str})
                 AND sport_id = {self.sport_id}
+                and league != 35
                 order by game_date asc
             """
         try:
