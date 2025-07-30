@@ -657,77 +657,8 @@ class Game:
             current_line = current_line + 1
         
         return match_roster
-    
-        '''
-        odkomentowac dla meczow, ktore nie maja skladu z podzialem na linie
-        def get_match_roster(self, link, match_id, home_team, away_team):
-        self.driver.get(link)
-        time.sleep(2)
-        columns_roster = [
-            'match_id',
-            'player_id',
-            'team_id',
-            'position',
-            'line',
-            'number'
-        ]
-        match_roster = []
-        current_index = -1
-        current_line = 1
-        positions = ['D', 'D', 'RW', 'C', 'LW']
-        lineup_div = self.driver.find_element(By.CLASS_NAME, 'lf__lineUp')
-        sections = [lineup_div.find_elements(By.CLASS_NAME, 'section')[0]]
-        for section in sections:
-            current_player_info = []
-            sides = section.find_elements(By.CLASS_NAME, 'lf__side')  
-            #home_team = [player.text for player in sides[0].find_elements(By.CLASS_NAME, 'lf__participantNew') if player.text.strip()]
-            #away_team = [player.text for player in sides[1].find_elements(By.CLASS_NAME, 'lf__participantNew') if player.text.strip()]  
-            for player in sides[0].find_elements(By.CLASS_NAME, 'lf__participantNew'):
-                player_info = player.text.strip().split('\n')
-                flash_id_div = player.find_element(By.TAG_NAME, 'a')
-                flash_id_link = flash_id_div.get_attribute('href')
-                flash_id = flash_id_link.split('/')[-1]
-                if len(player_info) < 2:
-                    player_info.insert(0, '00')
-                if len(flash_id) < 2:
-                    flash_id = flash_id.insert(0, '00')
-                player_id = self.get_player_id(player_info[1], flash_id)
-                position = []
-                if current_index < 0:
-                    position = 'NN'
-                else:
-                    position = positions[current_index]
-                current_player_info = [match_id, player_id, home_team, position, current_line, player_info[0]]
-                #current_index = current_index + 1
-                match_roster.append(dict(zip(columns_roster, current_player_info)))
 
-            current_index = -1 if current_line == 1 else 0
-
-            for player in sides[1].find_elements(By.CLASS_NAME, 'lf__participantNew'):
-                player_info = player.text.strip().split('\n')
-                flash_id_div = player.find_element(By.TAG_NAME, 'a')
-                flash_id_link = flash_id_div.get_attribute('href')
-                flash_id = flash_id_link.split('/')[-1]
-                if len(player_info) < 2:
-                    player_info.insert(0, '00')
-                if len(flash_id) < 2:
-                    flash_id = flash_id.insert(0, '00')
-                player_id = self.get_player_id(player_info[1], flash_id)
-                position = []
-                if current_index < 0:
-                    position = 'NN'
-                else:
-                    position = positions[current_index]
-                current_player_info = [match_id, player_id, away_team, position, current_line, player_info[0]]
-                #current_index = current_index + 1
-                match_roster.append(dict(zip(columns_roster, current_player_info)))
-            current_index = 0
-            current_line = current_line + 1
-        
-        return match_roster
-    '''
-
-    def human_print(self, match_data, match_stats_add, match_events, match_boxscore, match_rosters):
+    def pretty_print(self, match_data, match_stats_add, match_events, match_boxscore, match_rosters):
         #Pretty print do logów, na razie jako słowniki, potem jako inserty
         print("GŁÓWNE DANE MECZOWE")
         for key,value in match_data.items():
@@ -828,7 +759,7 @@ class Game:
         match_rosters = self.get_match_roster("{}sklady/0".format(link), match_stats_add['match_id'], match_data['home_team'], match_data['away_team'])
         self.insert_match_details(match_events, match_boxscore, match_rosters)
 
-        #self.human_print(match_data, match_stats_add, match_events, match_boxscore, match_rosters)
+        #self.pretty_print(match_data, match_stats_add, match_events, match_boxscore, match_rosters)
         print(f"#Import meczu o ID {match_stats_add['match_id']} zakończony sukcesem")
         return match_data, match_stats_add, match_events, match_boxscore, match_rosters
 
