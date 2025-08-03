@@ -11,6 +11,7 @@ import prediction_module
 import config_manager
 import test_module
 import db_module
+import arg_parser
 
 # @package main
 def get_calculator_func(name):
@@ -91,9 +92,7 @@ def get_matches(config):
         4. Łączy wszystkie obliczone ratingi w jeden DataFrame
         5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
     """
-    input_date = config.model_config["training_config"]["threshold_date"]
-    print(input_date)
-    data = dataprep_module.DataPrep(input_date, config.leagues, config.sport_id, config.country)
+    data = dataprep_module.DataPrep(config.THRESHOLD_DATE, config.leagues, config.sport_id, config.country, config.leagues_upcoming)
     matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
     data.close_connection()
     initial_rating, second_tier_coef, match_attributes = get_rating_params(config)
@@ -111,6 +110,7 @@ def get_matches(config):
     for rating in rating_factory:
         print(f'Tworzenie rankingu dla: {type(rating).__name__}')
         rating.calculate_rating()
+        rating.print_rating()
         temp_matches_df, _ = rating.get_data()
         # Znajdujemy nowe kolumny dodane przez aktualny rating
         new_columns = [col for col in temp_matches_df.columns if col not in merged_matches_df.columns]
@@ -282,7 +282,7 @@ def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
         print(f"{result_mapping[result]}: {count} ({percentage:.2f}%)")
 
 
-def prepare_predictions(config, conn):
+def prepare_predictions(config, prediction_automate: bool, conn) -> list:
     """
     Przygotowuje predykcje dla nadchodzących meczów na podstawie konfiguracji
 
@@ -296,6 +296,13 @@ def prepare_predictions(config, conn):
             - feature_columns: Lista kolumn z cechami
             - window_size: Rozmiar okna czasowego
             - match_attributes: Atrybuty meczu do analizy
+        prediction_automate (bool): Flaga określająca, czy predykcje mają być automatycznie zapisywane do bazy danych
+        conn: Połączenie z bazą danych
+    Returns:
+        list: Lista przewidywań meczów zawierająca:
+            - match_id: ID meczu
+            - event_id: ID zdarzenia
+            - is_final: Czy wynik jest ostateczny
 
     Proces:
         1. Pobiera dane historyczne i nadchodzące mecze
@@ -303,12 +310,8 @@ def prepare_predictions(config, conn):
         3. Wczytuje wytrenowane wagi modelu
         4. Generuje predykcje dla nadchodzących meczów
     """
-    # Pobranie danych meczowych
     matches_df, teams_df, upcoming_df = get_matches(config)
-
-    # Inicjalizacja modelu
     model = model_module.ModelModule([], [], [], [], [], [])
-    # Utworzenie instancji klasy do przewidywania
     predict_matches = prediction_module.PredictMatch(
         matches_df,
         upcoming_df,
@@ -318,7 +321,8 @@ def prepare_predictions(config, conn):
         config.model_type,
         config.model_name,
         config.window_size,
-        conn
+        conn,
+        prediction_automate=prediction_automate
     )
 
     # Wczytanie wag modelu i wykonanie predykcji
@@ -340,22 +344,20 @@ def run_tests(matches_predictions, analized_event, conn):
     tests = test_module.TestModule(matches_predictions, analized_event, conn)
     tests.calculate_predictions_profit()
 
-def main():
+
+def main() -> None:
     '''
         Funkcja odpowiedzialna za rozruch oraz kontrolowanie przepływu programu
-        Przykłady wywołania:
-        python .\main.py winner predict 1 alpha_0_0_result - przewidywanie meczów dla zdarzenia typu winner
-        python .\main.py goals train 1 alpha_0_0_result - trenowanie modelu dla zdarzenia typu goals
     '''
     conn = db_module.db_connect()
     config = config_manager.ConfigManager()
-    config.load_from_args(sys.argv)
+    args_dict = arg_parser.parse_arguments()
+    config.load_from_args(args_dict)
+    prediction_automate = args_dict.get('prediction_automate', False)
     if config.model_mode == 'train':
         prepare_training(config)
     elif config.model_mode == 'predict':
-        matches_predictions = prepare_predictions(config, conn)
-        for element in matches_predictions:
-            print(element)
+        matches_predictions = prepare_predictions(config, prediction_automate, conn)
     elif config.model_mode == 'test':
         run_tests(matches_predictions, config.model_type, conn)
     conn.close()
