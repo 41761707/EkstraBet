@@ -15,14 +15,16 @@ import db_module
 
 class DataPrep:
     # Konstruktor klasy DataPrep
-    def __init__(self, input_date, leagues, sport_id, country):
+    def __init__(self, input_date, leagues, sport_id, country, leagues_upcoming):
         # data w formacie YYYY-MM-DD rozgraniczająca co przewidujemy (upcoming) a co analizujemy (matches)
         self.input_date = input_date
-        self.leagues = leagues  # przekazanie pustej tablicy oznacza chęć pobrania wszystkich lig
-        self.leagues_str = ",".join(map(str, self.leagues))  # string z id lig
+        self.leagues = leagues  # przekazanie pustej tablicy oznacza chęć pobrania wszystkich lig do treningu
+        self.leagues_str = ",".join(map(str, self.leagues))  # string z id lig do treningu
+        self.leagues_upcoming = leagues_upcoming if leagues_upcoming is not None else leagues.copy() # Liga/ligi dla których generujemy predykcje (domyślnie te same co leagues)
+        self.leagues_upcoming_str = ",".join(map(str, self.leagues_upcoming))  # string z id lig dla predykcji
         self.sport_id = sport_id  # id sportu używane do filtrowania danych
         self.country = country  # pusta tablica oznacza wszystkie kraje
-        self.country_str = ",".join(map(str, self.leagues))  # string z id krajow
+        self.country_str = ",".join(map(str, self.country))  # string z id krajow
         # lista lig pierwszej klasy (np. Ekstraklasa)
         self.first_tier_leagues = []
         self.second_tier_leagues = []  # lista lig drugiej klasy (np. I liga)
@@ -153,12 +155,12 @@ class DataPrep:
 
     def get_upcoming_data(self):
         """
-        Pobiera nadchodzące mecze z bazy danych i przygotowuje je do analizy.
+        Pobiera nadchodzące mecze z bazy danych na podstawie leagues_upcoming i przygotowuje je do analizy.
 
         Metoda wykonuje następujące operacje:
-        1. Buduje zapytanie SQL w zależności od tego czy określono listę lig:
+        1. Buduje zapytanie SQL w zależności od tego czy określono listę lig do predykcji:
         - Dla pustej listy lig pobiera wszystkie nadchodzące mecze dla danego sportu
-        - Dla określonych lig pobiera tylko mecze z wybranych lig
+        - Dla określonych lig pobiera tylko mecze z wybranych lig (leagues_upcoming)
         2. Filtruje mecze według kryteriów:
         - Data meczu równa lub późniejsza niż input_date
         - Określony sport_id
@@ -183,19 +185,11 @@ class DataPrep:
             ale nie przerywa działania programu.
 
         Uwagi:
-            - Wymaga wcześniejszego ustawienia:
-            * self.input_date - data graniczna od której pobierane są mecze
-            * self.sport_id - identyfikator sportu
-            * self.leagues_str - sformatowana lista lig jako string dla SQL
-            * self.conn - aktywne połączenie do bazy danych
-            - Różni się od get_historical_data() tym że:
-            * Pobiera mecze z przyszłości (>= input_date)
-            * Nie filtruje wyników (może zawierać null/0)
-            * Wybiera ograniczony zestaw kolumn
-            * Nie modyfikuje danych wynikowych
+            - Używa self.leagues_upcoming zamiast self.leagues do filtrowania nadchodzących meczów
+            - Pozwala to na generowanie predykcji dla innych lig niż te używane do trenowania
         """
 
-        if self.leagues == []:
+        if self.leagues_upcoming == []:
             query = f"""
                 SELECT id, home_team, game_date, away_team, league, round, season, home_team_goals, away_team_goals, result
                 FROM matches 
@@ -208,9 +202,8 @@ class DataPrep:
                 SELECT id, home_team, away_team, game_date, round, league, season, home_team_goals, away_team_goals, result
                 FROM matches 
                 WHERE cast(game_date as date) >= cast('{self.input_date}' as date)
-                AND league IN ({self.leagues_str})
+                AND league IN ({self.leagues_upcoming_str})
                 AND sport_id = {self.sport_id}
-                and league != 35
                 order by game_date asc
             """
         try:

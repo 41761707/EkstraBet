@@ -54,6 +54,9 @@ class ConfigManager:
         # Lista ID lig do analizy
         self.leagues = []
 
+        # Lista ID lig dla których generujemy predykcje (używane tylko w trybie predict)
+        self.leagues_upcoming = []
+
         # ID sportu (1 - piłka nożna, 2 - hokej, 3 - koszykówka, 4 - esport)
         self.sport_id = 1
 
@@ -85,30 +88,28 @@ class ConfigManager:
         self.LEARNING_RATE = 0.00001  # Domyślna szybkość uczenia
         self.THRESHOLD_DATE = str(datetime.today())  # Data graniczna dla danych treningowych
 
-    def load_from_args(self, args) -> None:
+    def load_from_args(self, args_dict) -> None:
         """
-        Inicjalizuje konfigurację na podstawie argumentów wiersza poleceń.
+        Inicjalizuje konfigurację na podstawie słownika argumentów z wiersza poleceń.
 
         Args:
-            args (list): Lista argumentów przekazanych z wiersza poleceń w kolejności:
-                [0] - nazwa skryptu
-                [1] - typ modelu
-                [2] - tryb pracy
-                [3] - flaga ładowania wag (0 - nie ładuj, 1 - załaduj)
-                [4] - nazwa modelu (jeżeli tryb pracy to predict to tutaj nazwa modelu, z którego wczytujemy wagi do predykcji) (lekka niespójność)
-                [5] - (opcjonalnie) nazwa modelu źródłowego do ładowania wag ([3] musi byc na 1)
+            args_dict (dict): Słownik argumentów z kluczami:
+                - model_type: typ modelu ('winner', 'btts', 'goals', 'exact')
+                - mode: tryb pracy ('train', 'predict', 'test')
+                - load_weights: flaga ładowania wag (0 - nie, 1 - tak)
+                - model_name: nazwa modelu (obowiązkowy)
+                - model_load_name: nazwa modelu źródłowego (opcjonalny)
+                - prediction_config: ścieżka do pliku z konfiguracją predykcji (opcjonalny)
         """
-        # Typ modelu: 'winner', 'btts', 'goals' lub 'exact'
-        self.model_type = args[1]
+        # Argumenty obowiązkowe
+        self.model_type = args_dict['model_type']
+        self.model_mode = args_dict['mode']
+        self.load_weights = args_dict['load_weights']
+        self.model_name = args_dict['model_name']
         
-        # Tryb pracy: 'train' (trenowanie) / 'predict' (predykcja) / 'test' (testowanie)
-        self.model_mode = args[2]
-
-        # Flaga ładowania wag: '0' - nie, '1' - tak
-        self.load_weights = args[3]
-
-        # Nazwa modelu (dla nowego modelu) lub modelu do predykcji
-        self.model_name = args[4]
+        # Argumenty opcjonalne
+        self.model_load_name = args_dict.get('model_load_name')
+        self.prediction_config_path = args_dict.get('prediction_config')
         
         # Konfiguracja typów ratingów w zależności od typu modelu
         if self.model_type in ['winner', 'exact']:
@@ -124,13 +125,16 @@ class ConfigManager:
         
         # Obsługa ładowania wag z istniejącego modelu
         if (self.model_mode == 'train' and self.load_weights == '1') or self.model_mode == 'predict':
-            # Nazwa modelu źródłowego do ładowania wag (argument opcjonalny)
-            self.model_load_name = args[5]
+            if not self.model_load_name:
+                raise ValueError(f"Tryb {self.model_mode} z load_weights={self.load_weights} wymaga model_load_name")
             # Wczytanie pełnej konfiguracji z pliku modelu
             self._setup_configurations_from_model()
         else:
             # Standardowa inicjalizacja konfiguracji
             self._setup_configurations()
+        
+        # Logowanie załadowanej konfiguracji
+        self._log_configuration()
 
     def _setup_configurations_from_model(self):
         """Wczytuje całą konfigurację modelu z pliku JSON i synchronizuje atrybuty klasy. """
@@ -140,9 +144,7 @@ class ConfigManager:
             # Nadpisz te zmienne zeby znowu nie wpisal danych ze wzorca
             config["model_name"] = self.model_name
             config["model_path"] = f'model_{self.model_type}_dev/{self.model_name}.h5'
-            config["training_config"]["threshold_date"] = self.THRESHOLD_DATE
-            #self.model_name = config.get("model_name")
-            #self.model_type = config.get("model_type")
+
             self.window_size = config.get("window_size")
             self.feature_columns = config.get("feature_columns", [])
             self.rating_types = []
@@ -171,7 +173,22 @@ class ConfigManager:
             }
             # Ustawienia atrybutów meczu (GAP RATING)
             self._setup_match_attributes()
-
+        
+        if self.prediction_config_path is not None:
+            with open(self.prediction_config_path, 'r', encoding='utf-8') as f:
+                training_config = json.load(f)
+                self.leagues = training_config.get("leagues", [])
+                self.leagues_upcoming = training_config.get("leagues_upcoming", [])
+                self.country = training_config.get("country", [])
+                self.sport_id = training_config.get("sport_id", 1)
+                self.THRESHOLD_DATE = training_config.get("threshold_date", str(datetime.today()))
+        else:
+            # Optionally, set default values or log a warning
+            self.leagues = []
+            self.leagues_upcoming = []
+            self.country = []
+            self.sport_id = 1
+            self.THRESHOLD_DATE = str(datetime.today())
     def _setup_configurations(self):
         """Funkcja odpowiedzialna ustawienia wszystkich konfiguracji modelu. """
         # Ustawienia ratingów
@@ -417,7 +434,8 @@ class ConfigManager:
             # Konfiguracja procesu treningowego
             "training_config": {
                 "sport_id": 1,  # ID sportu
-                "leagues": self.leagues,  # Lista lig
+                "leagues": self.leagues,  # Lista lig do trenowania/rankingów
+                "leagues_upcoming": self.leagues_upcoming,  # Lista lig do predykcji
                 "country": self.country,  # Lista krajów
                 "load_weights": self.load_weights,  # Czy wagi były ładowane
                 "threshold_date": self.THRESHOLD_DATE  # Data graniczna danych
@@ -468,3 +486,30 @@ class ConfigManager:
             ratings_config["czech"] = {"enabled": False}
 
         return ratings_config
+    
+    def _log_configuration(self) -> None:
+        """
+        Loguje załadowaną konfigurację do konsoli w stylu Ekstrabet.
+        """
+        print("=" * 60)
+        print("KONFIGURACJA EKSTRABET")
+        print("=" * 60)
+        print(f"Typ modelu: {self.model_type}")
+        print(f"Tryb pracy: {self.model_mode}")
+        print(f"Nazwa modelu: {self.model_name}")
+        
+        if self.model_load_name:
+            print(f"Model źródłowy: {self.model_load_name}")
+        
+        print(f"Ładowanie wag: {'TAK' if self.load_weights == 1 else 'NIE'}")
+        print(f"Sport ID: {self.sport_id}")
+        print(f"Ligi treningowe: {self.leagues if self.leagues else 'WSZYSTKIE'}")
+        print(f"Ligi predykcji: {self.leagues_upcoming if self.leagues_upcoming else 'WSZYSTKIE'}")
+        print(f"Data graniczna: {self.THRESHOLD_DATE}")
+        print(f"Rozmiar okna: {self.window_size}")
+        print(f"Typy ratingów: {self.rating_types}")
+        
+        if self.prediction_config_path:
+            print(f"Konfiguracja predykcji: {self.prediction_config_path}")
+        
+        print("=" * 60)

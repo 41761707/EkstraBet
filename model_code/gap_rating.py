@@ -149,8 +149,43 @@ class GapRating(rating_strategy.RatingStrategy):
         pass
     
     def print_rating(self):
-        #TO-DO: Sensowne printowanie ratingu gap dla druzyn
-        pass
+        """
+        Wyświetla ranking drużyn w formie tabeli, pokazując wszystkie atrybuty powerów dla każdej drużyny.
+        Tabela zawiera:
+        - ID drużyny
+        - Nazwę drużyny
+        - Power ataku/obrony (dom/wyjazd)
+        - Średnie gole z ostatnich 5 meczów
+        """
+        from tabulate import tabulate
+        # Przygotowanie listy drużyn
+        table_data = []
+        headers = [
+            "ID", "Nazwa", "Home ATT", "Home DEF", "Away ATT", "Away DEF", "Śr. gole dom", "Śr. gole wyjazd"
+        ]
+        for _, team in self.teams_df.iterrows():
+            tid = team['id']
+            tname = team['name']
+            h_att = self.powers.get(f"{tid}h_att", 0)
+            h_def = self.powers.get(f"{tid}h_def", 0)
+            a_att = self.powers.get(f"{tid}a_att", 0)
+            a_def = self.powers.get(f"{tid}a_def", 0)
+            # Średnie gole z ostatnich 5 meczów
+            main_attr = self.match_attributes[0]['name'] if self.match_attributes else None
+            home_last5 = self.last_five_matches.get(tid, {}).get(main_attr, [])
+            sr_gole_dom = sum(home_last5)/max(len(home_last5),1) if home_last5 else 0.0
+            # Analogicznie dla wyjazdu (jeśli jest atrybut 'away')
+            away_attr = None
+            for attr in self.match_attributes:
+                if 'away' in attr['name']:
+                    away_attr = attr['name']
+                    break
+            away_last5 = self.last_five_matches.get(tid, {}).get(away_attr, []) if away_attr else []
+            sr_gole_wyjazd = sum(away_last5)/max(len(away_last5),1) if away_last5 else 0.0
+            row = [tid, tname, f"{h_att:.2f}", f"{h_def:.2f}", f"{a_att:.2f}", f"{a_def:.2f}", f"{sr_gole_dom:.2f}", f"{sr_gole_wyjazd:.2f}"]
+            table_data.append(row)
+        print("\nGap Rating - podsumowanie drużyn:")
+        print(tabulate(table_data, headers=headers, tablefmt='grid', stralign='left', numalign='right', floatfmt='.2f'))
     
     def get_data(self):
         return self.matches_df, self.teams_df

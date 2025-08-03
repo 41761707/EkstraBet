@@ -4,7 +4,7 @@ from sklearn.preprocessing import MinMaxScaler
 from typing import Any
 
 class PredictMatch:
-    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn) -> None:
+    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn, prediction_automate: bool = False) -> None:
         self.predictions_list = []
         self.conn = conn
         self.matches_df = matches_df
@@ -16,7 +16,7 @@ class PredictMatch:
         self.model_name = model_name
         self.sequence_length = window_size
         self.scaler = MinMaxScaler()
-        self.pretty_print = 0 #TMP do weryfikacji czy wszystko generuje się poprawnie
+        self.prediction_automate = prediction_automate
         self.events, self.model_id = self.get_additional_prediction_info()
 
     def get_additional_prediction_info(self):
@@ -61,17 +61,13 @@ class PredictMatch:
         for _, row in upcoming_df.iterrows():
             # Sekwencja dla gospodarza
             home_seq = self.get_sequences(row['home_team'], row['game_date'])
-            
             # Sekwencja dla gościa
             away_seq = self.get_sequences(row['away_team'], row['game_date'])
-            
             if home_seq is None or away_seq is None or len(home_seq) != self.sequence_length or len(away_seq) != self.sequence_length:
                 continue
-                
             # Przekształcenie sekwencji do odpowiedniego formatu
             home_seq = np.array([home_seq]) 
             away_seq = np.array([away_seq])
-            
             # Normalizacja danych
             n_samples, n_timesteps, n_features = home_seq.shape
             home_seq_normalized = self.scaler.fit_transform(home_seq.reshape(-1, n_features)).reshape(n_samples, n_timesteps, n_features)
@@ -79,10 +75,10 @@ class PredictMatch:
             # Predykcja
             prediction = model.predict([home_seq_normalized, away_seq_normalized])
             self.predictions_list.append(self.create_probability_list_entry(row, prediction))
-        if self.pretty_print == 1:
-            self.print_predictions()
-        else:
+        if self.prediction_automate:
             self.insert_predictions_into_db()
+        else:
+            self.print_predictions()
 
     def predict_match_period(self) -> None:
         #TO-DO: Tu chodzi o to, że jak wyżej możemy tylko jeden mecz przewidzieć
@@ -112,7 +108,7 @@ class PredictMatch:
             result = f"Wynik {home_team_goals}:{away_team_goals}"
 
         # Dodanie wyniku do listy - wersja czytelna dla człowieka
-        if self.pretty_print == 1:
+        if not self.prediction_automate:
             entry =  {
             'home_team': self.teams_df.loc[self.teams_df['id'] == row['home_team'], 'name'].iloc[0],
             'away_team': self.teams_df.loc[self.teams_df['id'] == row['away_team'], 'name'].iloc[0],
