@@ -174,14 +174,21 @@ class ConfigManager:
             # Ustawienia atrybutów meczu (GAP RATING)
             self._setup_match_attributes()
         
-        with open(self.prediction_config_path, 'r', encoding='utf-8') as f:
-            training_config = json.load(f)
-            self.leagues = training_config.get("leagues", [])
-            self.leagues_upcoming = training_config.get("leagues_upcoming", [])
-            self.country = training_config.get("country", [])
-            self.sport_id = training_config.get("sport_id", 1)
-            self.THRESHOLD_DATE = training_config.get("threshold_date", str(datetime.today()))
-
+        if self.prediction_config_path is not None:
+            with open(self.prediction_config_path, 'r', encoding='utf-8') as f:
+                training_config = json.load(f)
+                self.leagues = training_config.get("leagues", [])
+                self.leagues_upcoming = training_config.get("leagues_upcoming", [])
+                self.country = training_config.get("country", [])
+                self.sport_id = training_config.get("sport_id", 1)
+                self.THRESHOLD_DATE = training_config.get("threshold_date", str(datetime.today()))
+        else:
+            # Optionally, set default values or log a warning
+            self.leagues = []
+            self.leagues_upcoming = []
+            self.country = []
+            self.sport_id = 1
+            self.THRESHOLD_DATE = str(datetime.today())
     def _setup_configurations(self):
         """Funkcja odpowiedzialna ustawienia wszystkich konfiguracji modelu. """
         # Ustawienia ratingów

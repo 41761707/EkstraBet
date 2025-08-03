@@ -24,7 +24,7 @@ class DataPrep:
         self.leagues_upcoming_str = ",".join(map(str, self.leagues_upcoming))  # string z id lig dla predykcji
         self.sport_id = sport_id  # id sportu używane do filtrowania danych
         self.country = country  # pusta tablica oznacza wszystkie kraje
-        self.country_str = ",".join(map(str, self.leagues))  # string z id krajow
+        self.country_str = ",".join(map(str, self.country))  # string z id krajow
         # lista lig pierwszej klasy (np. Ekstraklasa)
         self.first_tier_leagues = []
         self.second_tier_leagues = []  # lista lig drugiej klasy (np. I liga)
