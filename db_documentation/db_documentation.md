@@ -684,7 +684,7 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
 | :---:         |  :---:        | :---:     | :---:             | :---:             |
 | **ID**        |  INT       | INT    | ID sportu       | AUTOMATYCZNIE GENEROWANY        |
-| YNAME | VARCHAR(45) | STRING | Nazwa zwyczajowa sportu | NULL |
+| NAME | VARCHAR(45) | STRING | Nazwa zwyczajowa sportu | NULL |
 
 **Ograniczenia/Indeksy:**
 
@@ -701,14 +701,14 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 | :---:         |  :---:        | :---:     | :---:             | :---:             |
 | **ID**        |  INT       | INT    | ID drużyny      | AUTOMATYCZNIE GENEROWANY        |
 | *COUNTRY* | INT | INT | Klucz obcy, powiązanie z tabelą *countries* | NULL |
-| *SPORTS_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *sports* | NULL |
+| *SPORT_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *sports* | NULL |
 | NAME | VARCHAR(50) | STRING | Nazwa drużyn | NULL |
 | SHORTCUT | VARCHAR(5) | STRING | Skrótowa nazwa drużyny (z reguły nie więcej niż 3 litery, aczkolwiek bywają wyjątki) | NULL |
 
 **Ograniczenia/Indeksy:**
 - Klucz główny: `ID`
 - Klucz obcy: `COUNTRY` → `countries(ID)`
-- Klucz obcy: `SPORTS_ID` → `sports(ID)`
+- Klucz obcy: `SPORT_ID` → `sports(ID)`
 - **Unikalny indeks:** `(NAME, COUNTRY)` – gwarantuje, że nie mogą istnieć dwie drużyny o tej samej nazwie w jednym kraju.
 
 **Sposób generowania danych do tabeli:**

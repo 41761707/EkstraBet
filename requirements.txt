@@ -9,3 +9,6 @@ pip install tqdm
 pip install tabulate
 pip install tensorflow
 pip install scikit-learn
+pip install fastapi
+pip install uvicorn
+pip install pydantic
