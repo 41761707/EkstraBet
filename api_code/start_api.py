@@ -83,7 +83,7 @@ def create_app() -> FastAPI:
         return {
             "status": "healthy" if db_status == "healthy" else "unhealthy",
             "database": db_status,
-            "timestamp": "2025-08-02T00:00:00Z"  # W produkcji użyj datetime.now()
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
     
     # Rejestracja routerów modułów
