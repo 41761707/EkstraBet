@@ -37,7 +37,12 @@ def create_app() -> FastAPI:
     # Konfiguracja CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # W produkcji należy ograniczyć
+        allow_origins=[
+            "http://localhost",
+            "http://localhost:8000",
+            "http://127.0.0.1",
+            "http://127.0.0.1:8000"
+        ],  # W produkcji należy ograniczyć do domeny produkcyjnej
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
