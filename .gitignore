@@ -20,3 +20,7 @@ pages/nhl_funcs/__pycache__/
 /graphics_code/db_module
 /graphics_code/__pycache__/
 /web_code/pages/nhl_funcs/__pycache__/
+/api_code/__pycache__/  
+/api_code/.env
+/api_code/.env.example
+/api_code/db_module.py
