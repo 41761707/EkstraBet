@@ -48,7 +48,6 @@ def get_match_data(
             max_date = date.today()
         except ValueError as e:
             print(f"Błąd w pobieraniu rundy: {e}")
-            return -1
     
     # Specjalna logika dla ligi 25
     if league_id != 25:
@@ -57,9 +56,8 @@ def get_match_data(
     else:
         round_val = 100
         today = date.today()
-        max_date = today + timedelta(days=3)
+        max_date = today + timedelta(days=4)
         game_date_obj = datetime.strptime(game_date, "%Y-%m-%d %H:%M").date()
-        
         if game_date_obj > max_date:
             return -1
     
