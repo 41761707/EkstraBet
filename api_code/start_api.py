@@ -5,11 +5,14 @@ import os
 import sys
 import uvicorn
 import logging
+import datetime
 import mysql.connector
 from pathlib import Path
+import warnings
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from api_teams import router as teams_router
+from api_helper import router as helper_router
 
 # Dodaj bieżący katalog do ścieżki Python
 current_dir = Path(__file__).parent
@@ -58,6 +61,7 @@ def create_app() -> FastAPI:
             "description": "Kompleksowe API systemu EkstraBet",
             "modules": [
                 "teams - Zarządzanie drużynami",
+                "helper - Dane pomocnicze (kraje, sporty, sezony)",
                 # Tutaj będą dodawane kolejne moduły
                 # "leagues - Zarządzanie ligami",
                 # "matches - Zarządzanie meczami",
@@ -93,6 +97,7 @@ def create_app() -> FastAPI:
     
     # Rejestracja routerów modułów
     app.include_router(teams_router)
+    app.include_router(helper_router)
     
     # Tutaj będą dodawane kolejne moduły:
     # app.include_router(leagues_router)
@@ -119,7 +124,13 @@ app = create_app()
 
 def main():
     """Główna funkcja startowa"""
-    print("🚀 Uruchamianie EkstraBet API...")
+    # Wyłączenie ostrzeżenia Pandas o SQLAlchemy connectable
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message="pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy."
+    )
+    print("Uruchamianie EkstraBet API...")
     print("=" * 60)
     
     # Konfiguracja serwera
@@ -131,12 +142,15 @@ def main():
         "access_log": True
     }
     
-    print(f"🌐 Serwer będzie dostępny pod adresem: http://localhost:{config['port']}")
-    print(f"📚 Dokumentacja API: http://localhost:{config['port']}/docs")
-    print(f"📖 ReDoc: http://localhost:{config['port']}/redoc")
-    print(f"💚 Health Check: http://localhost:{config['port']}/health")
-    print("📋 Dostępne moduły:")
+    print(f"Serwer będzie dostępny pod adresem: http://localhost:{config['port']}")
+    print(f"Dokumentacja API: http://localhost:{config['port']}/docs")
+    print(f"ReDoc: http://localhost:{config['port']}/redoc")
+    print(f"Health Check: http://localhost:{config['port']}/health")
+    print("Dostępne moduły:")
     print("   • /teams - Zarządzanie drużynami")
+    print("   • /countries - Lista krajów")
+    print("   • /sports - Lista sportów") 
+    print("   • /seasons - Lista sezonów")
     # print("   • /leagues - Zarządzanie ligami")  # Przyszłe moduły
     # print("   • /matches - Zarządzanie meczami")
     # print("   • /predictions - Predykcje")

@@ -6,6 +6,7 @@ Modularny system API do zarządzania danymi systemu EkstraBet, zbudowany z wykor
 
 API składa się z modułów:
 - **Teams** (`api_teams.py`) - Zarządzanie drużynami
+- **Helper** (`api_helper.py`) - Dane pomocnicze (kraje, sporty, sezony)
 - **Główny** (`start_api.py`) - Inicjalizacja i orkiestracja wszystkich modułów
 
 W przyszłości planowane są moduły:
@@ -67,6 +68,91 @@ Po uruchomieniu serwera dostępne są automatycznie generowane dokumentacje:
 
 ### GET `/teams/`
 **Opis**: Informacje o module zarządzania drużynami.
+
+## Moduł Helper - Endpointy pomocnicze
+
+### 1. GET `/helper/countries`
+**Opis**: Pobiera listę wszystkich krajów w systemie z liczbą drużyn.
+
+**Przykład zapytania**:
+```bash
+curl "http://localhost:8000/helper/countries"
+```
+
+**Przykład odpowiedzi**:
+```json
+{
+  "countries": [
+    {
+      "id": 2,
+      "name": "Anglia",
+      "short_name": "ENG",
+      "emoji": "🇬🇧",
+      "teams_count": 56
+    }
+  ],
+  "total_countries": 15
+}
+```
+
+### 2. GET `/helper/sports`
+**Opis**: Pobiera listę wszystkich sportów w systemie z liczbą drużyn.
+
+**Przykład zapytania**:
+```bash
+curl "http://localhost:8000/helper/sports"
+```
+
+**Przykład odpowiedzi**:
+```json
+{
+  "sports": [
+    {
+      "id": 2,
+      "name": "Hokej na lodzie",
+      "teams_count": 34
+    },
+    {
+      "id": 3,
+      "name": "Koszykówka",
+      "teams_count": 30
+    },
+    {
+      "id": 1,
+      "name": "Piłka nożna",
+      "teams_count": 863
+    }
+  ],
+  "total_sports": 3
+}
+```
+
+### 3. GET `/helper/seasons`
+**Opis**: Pobiera listę wszystkich sezonów w systemie z liczbą meczów.
+
+**Przykład zapytania**:
+```bash
+curl "http://localhost:8000/helper/seasons"
+```
+
+**Przykład odpowiedzi**:
+```json
+{
+  "seasons": [
+    {
+      "id": 5,
+      "years": "2024/25",
+      "matches_count": 1245
+    },
+    {
+      "id": 4,
+      "years": "2023/24",
+      "matches_count": 2156
+    }
+  ],
+  "total_seasons": 8
+}
+```
 
 ## Moduł Teams - Endpointy
 
@@ -136,10 +222,22 @@ curl "http://localhost:8000/teams/search?country_id=2&sport_id=1&team_name=Arsen
 
 **Parametry**:
 - `team_id` (int): ID drużyny
+- `season_id` (int, opcjonalny): ID sezonu do filtrowania
+- `last_n_matches` (int, opcjonalny): Ostatnie N meczów (1-100)
 
-**Przykład zapytania**:
+**Przykłady zapytań**:
 ```bash
+# Podstawowe statystyki
 curl "http://localhost:8000/teams/15/stats"
+
+# Statystyki w konkretnym sezonie
+curl "http://localhost:8000/teams/15/stats?season_id=3"
+
+# Ostatnie 5 meczów
+curl "http://localhost:8000/teams/15/stats?last_n_matches=5"
+
+# Ostatnie 3 mecze w konkretnym sezonie
+curl "http://localhost:8000/teams/15/stats?season_id=3&last_n_matches=3"
 ```
 
 **Przykład odpowiedzi**:
@@ -147,71 +245,97 @@ curl "http://localhost:8000/teams/15/stats"
 {
   "team_id": 15,
   "team_name": "Warta Poznań",
-  "total_matches": 236,
-  "home_matches": 119,
-  "away_matches": 117,
-  "wins": 81,
-  "draws": 53,
-  "losses": 102,
-  "goals_scored": 246,
-  "goals_conceded": 282
+  "season_id": 3,
+  "season_years": "2023/24",
+  "last_n_matches": 5,
+  "total_matches": 5,
+  "home_matches": 3,
+  "away_matches": 2,
+  "wins": 2,
+  "draws": 1,
+  "losses": 2,
+  "goals_scored": 8,
+  "goals_conceded": 7
 }
 ```
 
-### 4. GET `/teams/countries`
-**Opis**: Pobiera listę wszystkich krajów w systemie z liczbą drużyn.
+### 4. GET `/teams/{team_id}/btts`
+**Opis**: Pobiera statystyki BTTS (Both Teams To Score) dla konkretnej drużyny.
 
-**Przykład zapytania**:
+**Parametry**:
+- `team_id` (int): ID drużyny
+- `season_id` (int, opcjonalny): ID sezonu do filtrowania
+- `last_n_matches` (int, opcjonalny): Ostatnie N meczów (1-100)
+
+**Przykłady zapytań**:
 ```bash
-curl "http://localhost:8000/teams/countries"
+# Podstawowe statystyki BTTS
+curl "http://localhost:8000/teams/15/btts"
+
+# BTTS dla ostatnich 10 meczów
+curl "http://localhost:8000/teams/15/btts?last_n_matches=10"
+
+# BTTS w konkretnym sezonie
+curl "http://localhost:8000/teams/15/btts?season_id=3"
 ```
 
 **Przykład odpowiedzi**:
 ```json
 {
-  "countries": [
-    {
-      "id": 2,
-      "name": "Anglia",
-      "short_name": "ENG",
-      "emoji": "🇬🇧",
-      "teams_count": 56
-    }
-  ],
-  "total_countries": 15
+  "team_id": 15,
+  "team_name": "Warta Poznań",
+  "season_id": null,
+  "season_years": null,
+  "last_n_matches": null,
+  "total_matches": 236,
+  "btts_yes": 142,
+  "btts_no": 94,
+  "btts_yes_percentage": 60.17,
+  "btts_no_percentage": 39.83
 }
 ```
 
-### 5. GET `/teams/sports`
-**Opis**: Pobiera listę wszystkich sportów w systemie z liczbą drużyn.
+## Najnowsze rozszerzenia API (2025)
 
-**Przykład zapytania**:
-```bash
-curl "http://localhost:8000/teams/sports"
-```
+### Zaawansowane filtrowanie statystyk
+API zostało rozszerzone o zaawansowane możliwości filtrowania statystyk drużyn:
 
-```json
-{
-  "sports": [
-    {
-      "id": 2,
-      "name": "Hokej na lodzie",
-      "teams_count": 34
-    },
-    {
-      "id": 3,
-      "name": "Koszykówka",
-      "teams_count": 30
-    },
-    {
-      "id": 1,
-      "name": "Piłka nożna",
-      "teams_count": 863
-    }
-  ],
-  "total_sports": 3
-}
-```
+#### Filtr sezonu
+Wszystkie endpointy statystyk (`/stats` i `/btts`) obsługują filtrowanie według konkretnego sezonu:
+- Parametr `season_id` pozwala analizować wyniki tylko z określonego sezonu
+- W odpowiedzi zwracane są informacje o sezonie (ID i lata)
+
+#### Filtr ostatnich N meczów  
+Możliwość ograniczenia analizy do ostatnich N spotkań drużyny:
+- Parametr `last_n_matches` (zakres: 1-100) 
+- Przydatne do analizy aktualnej formy drużyny
+- Mecze sortowane według daty malejąco
+
+#### Kombinowanie filtrów
+Filtry można łączyć dla precyzyjnej analizy:
+- Najpierw filtrowanie według sezonu
+- Następnie ograniczenie do ostatnich N meczów z tego sezonu
+- Przykład: ostatnie 5 meczów z sezonu 2023/24
+
+### Statystyki BTTS (Both Teams To Score)
+Nowy typ analizy meczów pod kątem strzelania bramek przez obie drużyny:
+- Liczba meczów BTTS Tak/Nie
+- Procentowe wskaźniki skuteczności
+- Obsługa wszystkich filtrów (sezon, ostatnie N meczów)
+- Szczególnie przydatne dla analiz zakładowych
+
+### Rozszerzone modele danych
+Modele odpowiedzi zostały wzbogacone o nowe pola:
+- `season_id`, `season_years` - informacje o filtrowanym sezonie
+- `last_n_matches` - liczba ostatnich meczów w analizie
+- Nowy model `TeamBTTSResponse` dla statystyk BTTS
+
+### Walidacja parametrów
+Implementacja solidnej walidacji wejścia:
+- `last_n_matches`: zakres 1-100 z walidacją FastAPI
+- `season_id`: weryfikacja istnienia w bazie danych  
+- `team_id`: sprawdzanie dostępności drużyny
+- Odpowiednie kody błędów HTTP (422, 404)
 
 ## Kody statusów HTTP
 
@@ -300,6 +424,64 @@ Planowane rozszerzenia API:
 - System uwierzytelniania
 - Cache'owanie wyników
 - Rate limiting
+
+## Testowanie API
+
+### Uruchamianie testów
+```bash
+# Uruchom kompletny zestaw testów
+python test_api.py
+
+# Lub uruchom testy w trybie verbose
+python -v test_api.py
+```
+
+### Zakres testów
+Testy pokrywają wszystkie funkcjonalności API:
+
+#### Testy systemowe
+- Podstawowe połączenie z API
+- Health check i status aplikacji
+- Informacje o modułach
+
+#### Testy funkcjonalne podstawowe
+- Pobieranie wszystkich drużyn z paginacją
+- Wyszukiwanie drużyn z różnymi filtrami
+- Endpointy pomocnicze (kraje, sporty, sezony)
+
+#### Testy funkcjonalności zaawansowanych
+- **Statystyki drużyn** - podstawowe i z filtrami
+- **Statystyki BTTS** - wszystkie warianty filtrowania
+- **Filtrowanie sezonowe** - kombinacje parametrów
+- **Ostatnie N meczów** - walidacja i funkcjonalność
+
+#### Testy przypadków brzegowych
+- Walidacja parametrów (wartości nieprawidłowe, graniczne)
+- Obsługa nieistniejących zasobów (404)
+- Nieprawidłowe typy danych (422)
+- Kombinacje nieprawidłowych parametrów
+
+#### Testy wydajnościowe
+- Pomiar czasu odpowiedzi endpointów
+- Test wszystkich głównych funkcjonalności
+- Monitorowanie performance
+
+### Przykład uruchomienia testów
+```bash
+🚀 Rozpoczynam testy API EkstraBet
+============================================================
+✅ Połączenie z API działa
+✅ Status aplikacji: healthy
+✅ Pobrano 50 drużyn
+✅ Statystyki dla Śląsk Wrocław: 236 meczów
+✅ Statystyki BTTS: 142 tak (60.17%), 94 nie (39.83%)
+✅ Test ostatnich 5 meczów: 5 meczów
+✅ Test filtrowania według sezonu 2023/24
+✅ Test przypadków brzegowych: wszystkie prawidłowe
+⚡ Wydajność: średni czas odpowiedzi 45ms
+============================================================
+✅ Wszystkie testy zakończone
+```
 
 ## Kontakt
 
