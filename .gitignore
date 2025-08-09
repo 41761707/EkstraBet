@@ -24,3 +24,5 @@ pages/nhl_funcs/__pycache__/
 /api_code/.env
 /api_code/.env.example
 /api_code/db_module.py
+model_code/prediction_configs/prediction_config.json
+model_code/prediction_configs/prediction_daily.json
