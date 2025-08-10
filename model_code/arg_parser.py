@@ -39,7 +39,7 @@ Przykłady użycia:
   python main.py winner test 1 test_run alpha_v1
 
 Argumenty pozycyjne (w kolejności):
-  1. model_type: typ modelu (winner, btts, goals, exact)
+  1. model_type: typ modelu (winner, btts, goals, goals-6-classes, exact)
   2. mode: tryb pracy (train, predict, test)
   3. load_weights: flaga ładowania wag (0 lub 1)
   4. model_name: nazwa modelu
@@ -53,7 +53,7 @@ Argumenty nazwane (opcjonalne):
     # Argumenty pozycyjne (wymagane)
     parser.add_argument(
         'model_type', 
-        choices=['winner', 'btts', 'goals', 'exact'],
+        choices=['winner', 'btts', 'goals', 'exact', 'goals-6-classes'],
         help='Typ modelu do trenowania/predykcji'
     )
     

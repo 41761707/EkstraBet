@@ -53,6 +53,11 @@ class ProcessData:
                 if goals > 6:
                     goals = 6
                 self.y.append(goals)
+            elif self.model_type == "goals-6-classes":
+                goals = int(row['home_team_goals']) + int(row['away_team_goals'])
+                if goals > 5:
+                    goals = 5
+                self.y.append(goals)
             elif self.model_type == "btts":
                 if row['home_team_goals'] > 0 and row['away_team_goals'] > 0:
                     self.y.append(1)
@@ -76,6 +81,8 @@ class ProcessData:
             self.y = to_categorical(self.y, num_classes=3)
         elif self.model_type == "goals":
             self.y = to_categorical(self.y, num_classes=7)
+        elif self.model_type == "goals-6-classes":
+            self.y = to_categorical(self.y, num_classes=6)
         elif self.model_type == "btts":
             self.y = to_categorical(self.y, num_classes=2)
         elif self.model_type == "exact":
