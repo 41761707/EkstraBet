@@ -27,3 +27,4 @@ pages/nhl_funcs/__pycache__/
 model_code/prediction_configs/prediction_config.json
 model_code/prediction_configs/prediction_daily.json
 /db_funcs/db_module.py
+model_code/model_goals-6-classes_dev
