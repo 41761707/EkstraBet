@@ -13,7 +13,7 @@ def delete_match_by_ids(id_list):
         print("Brak przekazanych ID do usunięcia.")
         return
     try:
-        conn = db_module.get_connection()
+        conn = db_module.db_connect()
         cursor = conn.cursor()
         # Zamiana listy na string do zapytania SQL
         ids_str = ','.join(str(i) for i in id_list)
