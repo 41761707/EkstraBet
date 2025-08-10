@@ -15,24 +15,24 @@ def delete_match_by_ids(id_list):
     try:
         conn = db_module.db_connect()
         cursor = conn.cursor()
-        # Zamiana listy na string do zapytania SQL
-        ids_str = ','.join(str(i) for i in id_list)
+        # Przygotowanie placeholderów dla zapytań SQL
+        placeholders = ','.join(['%s'] * len(id_list))
         # Usuwanie z tabeli final_predictions
         cursor.execute(f"""
             DELETE FROM final_predictions WHERE predictions_id IN (
-                SELECT id FROM predictions WHERE match_id IN ({ids_str})
+                SELECT id FROM predictions WHERE match_id IN ({placeholders})
             )
-        """)
+        """, tuple(id_list))
         # Usuwanie z tabeli bets
-        cursor.execute(f"DELETE FROM bets WHERE match_id IN ({ids_str})")
+        cursor.execute(f"DELETE FROM bets WHERE match_id IN ({placeholders})", tuple(id_list))
         # Usuwanie z tabeli odds
-        cursor.execute(f"DELETE FROM odds WHERE match_id IN ({ids_str})")
+        cursor.execute(f"DELETE FROM odds WHERE match_id IN ({placeholders})", tuple(id_list))
         # Usuwanie z tabeli predictions
-        cursor.execute(f"DELETE FROM predictions WHERE match_id IN ({ids_str})")
+        cursor.execute(f"DELETE FROM predictions WHERE match_id IN ({placeholders})", tuple(id_list))
         # Usuwanie z tabeli matches
-        cursor.execute(f"DELETE FROM matches WHERE id IN ({ids_str})")
+        cursor.execute(f"DELETE FROM matches WHERE id IN ({placeholders})", tuple(id_list))
         conn.commit()
-        print(f"Usunięto mecze i powiązane rekordy dla ID: {ids_str}")
+        print(f"Usunięto mecze i powiązane rekordy dla ID: {', '.join(str(i) for i in id_list)}")
     except Exception as e:
         print("Błąd podczas usuwania meczów i powiązanych rekordów:")
         traceback.print_exc()
@@ -51,8 +51,18 @@ def main():
     parser = argparse.ArgumentParser(description="Usuwa mecze i powiązane rekordy na podstawie listy ID.")
     parser.add_argument('--ids', type=str, required=True, help='ID meczów oddzielone przecinkami, np. "123,456,789"')
     args = parser.parse_args()
-    # Parsowanie stringa na listę intów
-    id_list = [int(x.strip()) for x in args.ids.split(',') if x.strip().isdigit()]
+    # Parsowanie stringa na listę intów z obsługą błędów
+    id_list = []
+    invalid_ids = []
+    for x in args.ids.split(','):
+        s = x.strip()
+        try:
+            id_list.append(int(s))
+        except ValueError:
+            if s:  # ignore empty strings
+                invalid_ids.append(s)
+    if invalid_ids:
+        print(f"Nieprawidłowe ID meczów: {', '.join(invalid_ids)}. Podaj tylko liczby całkowite.")
     if not id_list:
         print("Nie podano poprawnych ID meczów do usunięcia.")
         return
