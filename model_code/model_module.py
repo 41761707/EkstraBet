@@ -204,20 +204,13 @@ class ModelModule:
         cm = confusion_matrix(y_true, y_pred)
         print(classification_report(y_true, y_pred))
 
-        xticklabels = []
-        yticklabels = []
-        if self.model_type == 'goals-6-classes':
-            xticklabels = ['0', '1', '2', '3', '4', '5+']
-            yticklabels = ['0', '1', '2', '3', '4', '5+']
-        if self.model_type == 'goals':
-            xticklabels = ['0', '1', '2', '3', '4', '5', '6']
-            yticklabels = ['0', '1', '2', '3', '4', '5', '6']
-        if self.model_type == 'btts':
-            xticklabels = ['0', '1']
-            yticklabels = ['0', '1']
-        if self.model_type == 'winner':
-            xticklabels = ['X', '1', '2']
-            yticklabels = ['X', '1', '2']
+        label_map = {
+            'goals-6-classes': (['0', '1', '2', '3', '4', '5+'], ['0', '1', '2', '3', '4', '5+']),
+            'goals': (['0', '1', '2', '3', '4', '5', '6'], ['0', '1', '2', '3', '4', '5', '6']),
+            'btts': (['0', '1'], ['0', '1']),
+            'winner': (['X', '1', '2'], ['X', '1', '2']),
+        }
+        xticklabels, yticklabels = label_map.get(self.model_type, ([], []))
         # Wizualizacja macierzy błędów
         plt.figure(figsize=(6, 5))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",

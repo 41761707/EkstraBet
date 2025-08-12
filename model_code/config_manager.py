@@ -149,7 +149,7 @@ class ConfigManager:
             self.feature_columns = config.get("feature_columns", [])
             self.rating_types = []
             ratings = config.get("ratings", {})
-            for rating_type in ["elo", "gap", "czech", "goals-6-classes"]:
+            for rating_type in ["elo", "gap", "czech"]:
                 if ratings.get(rating_type, {}).get("enabled"):
                     self.rating_types.append(rating_type)
             # Synchronizacja rating_config
