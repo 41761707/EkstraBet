@@ -181,7 +181,7 @@ class ModelModule:
 
         # Confusion matrix
         self.confusion_matrix(X_home_val, X_away_val, y_val)
-        if self.model_type == 'goals':
+        if self.model_type == 'goals' or self.model_type == 'goals-6-classes':
             self.confusion_matrix_over_under(X_home_val, X_away_val, y_val)
         # self.print_sample_predictions(X_home_val, X_away_val, y_val)
         # Zapisz ostateczny model
@@ -204,10 +204,17 @@ class ModelModule:
         cm = confusion_matrix(y_true, y_pred)
         print(classification_report(y_true, y_pred))
 
+        label_map = {
+            'goals-6-classes': (['0', '1', '2', '3', '4', '5+'], ['0', '1', '2', '3', '4', '5+']),
+            'goals': (['0', '1', '2', '3', '4', '5', '6'], ['0', '1', '2', '3', '4', '5', '6']),
+            'btts': (['0', '1'], ['0', '1']),
+            'winner': (['X', '1', '2'], ['X', '1', '2']),
+        }
+        xticklabels, yticklabels = label_map.get(self.model_type, ([], []))
         # Wizualizacja macierzy błędów
         plt.figure(figsize=(6, 5))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
-                    xticklabels=[0, 1, 2], yticklabels=[0, 1, 2])
+                    xticklabels=xticklabels, yticklabels=yticklabels)
 
         plt.xlabel("Przewidywane")
         plt.ylabel("Prawdziwe")

@@ -36,7 +36,7 @@ class ConfigManager:
     
     def _initialize(self) -> None:
         """Inicjalizuje domyślne wartości konfiguracyjne dla menedżera."""
-        # Typ modelu: 'winner', 'btts', 'goals' lub 'exact' - określa rodzaj predykcji
+        # Typ modelu: 'winner', 'btts', 'goals', 'exact', 'goals-6-classes' - określa rodzaj predykcji
         self.model_type = None
 
         # Tryb pracy: 'train' (trenowanie) lub 'predict' (predykcja)
@@ -161,6 +161,10 @@ class ConfigManager:
                 'goals': {
                     'rating_type': self.rating_types,
                     'model_path': f'model_goals_dev/{self.model_name}.h5'
+                },
+                'goals-6-classes': {
+                    'rating_type': self.rating_types,
+                    'model_path': f'model_goals_6_classes_dev/{self.model_name}.h5'
                 },
                 'btts': {
                     'rating_type': self.rating_types,
@@ -308,6 +312,10 @@ class ConfigManager:
                 'rating_type': self.rating_types,
                 'model_path': f'model_goals_dev/{self.model_name}.h5'
             },
+            'goals-6-classes': {
+                'rating_type': self.rating_types,
+                'model_path': f'model_goals_6_classes_dev/{self.model_name}.h5'
+            },
             'btts': {
                 'rating_type': self.rating_types,
                 'model_path': f'model_btts_dev/{self.model_name}.h5'
@@ -373,6 +381,7 @@ class ConfigManager:
         output_units_map = {
             'winner': 3,  # 3 klasy wyjściowe (wygrał gospodarz/remis/gość)
             'goals': 7,  # 7 przedziałów bramkowych (0/1/2/3/4/5/6+)
+            'goals-6-classes': 6,  # 6 klas (0/1/2/3/4/5+)
             'btts': 2  # 2 klasy (tak/nie dla obu strzelą)
         }
         output_units = output_units_map.get(self.model_type, 3)  # Domyślnie 3 klasy
