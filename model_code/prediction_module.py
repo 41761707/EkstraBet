@@ -34,9 +34,10 @@ class PredictMatch:
                 events = [2, 1, 3]  # Remis, WIN Gospo, WIN Gość
             elif self.model_type == 'btts':
                 events = [172, 6]   # NO BTTS, BTTS
-            elif self.model_type == 'goals':
+            elif self.model_type == 'goals' or self.model_type == 'goals-6-classes':
                 events = [174, 175, 176, 177, 178, 179, 180, 12, 8, 173] #Dużo by pisać
             
+            print(f"MODEL ID: {model_id}")
             return events, model_id
             
         except Exception as e:
@@ -92,9 +93,10 @@ class PredictMatch:
         entry = {}
         # Formatowanie wyniku w zależności od typu modelu
         probabilities = prediction[0]
+        result = ""
         if self.model_type == "winner":
             result = ["Remis", "Wygrana gospodarzy", "Wygrana gości"][np.argmax(prediction[0])]
-        elif self.model_type == "goals":
+        elif self.model_type == "goals" or self.model_type == "goals-6-classes":
             result = f"{np.argmax(prediction[0])} goli"
             #dodajemy OU
             under_2_5 = sum(prediction[0][:3])  # Sum of probabilities for 0, 1, 2 goals
@@ -106,7 +108,6 @@ class PredictMatch:
             home_team_goals = np.argmax(prediction[0]) // 10 
             away_team_goals = np.argmax(prediction[0]) % 10
             result = f"Wynik {home_team_goals}:{away_team_goals}"
-
         # Dodanie wyniku do listy - wersja czytelna dla człowieka
         if not self.prediction_automate:
             entry =  {
