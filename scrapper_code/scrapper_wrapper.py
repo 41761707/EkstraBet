@@ -80,18 +80,18 @@ def launch_bet(links) -> None:
 def main() -> None:
     links = [
         '1 12 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2025-2026/',
-        # '2 12 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2025-2026/', #start: 15.08.2025
-        # '3 12 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2025-2026/', #start: 17.08.2025
+        '2 12 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2025-2026/',
+        '3 12 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2025-2026/',
         # '4 12 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2025-2026/', #start: 22.08.2025
         # '5 12 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2025-2026/', #start: 23.08.2025
-        # '6 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga-2025-2026/', #start: 17.08.2025
+        '6 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga-2025-2026/',
         '7 12 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2025-2026/',
         '8 12 https://www.flashscore.pl/pilka-nozna/anglia/championship-2025-2026/',
         # '10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/', #koniec ligi
         '11 12 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2025-2026/',
         '12 12 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2025-2026/',
         '13 12 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2025-2026/',
-        # '14 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga2-2025-2026/', #start: 15.08.2025
+        '14 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga2-2025-2026/',
         '15 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-1-2025/',
         '16 12 https://www.flashscore.pl/pilka-nozna/holandia/eredivisie-2025-2026/',
         '17 11 https://www.flashscore.pl/pilka-nozna/japonia/j1-league-2025/',

@@ -5,6 +5,7 @@ from selenium.webdriver.common.by import By
 from datetime import datetime
 import pandas as pd
 import re
+from utils import check_if_in_db
 
 import db_module
 
@@ -16,19 +17,6 @@ class Game:
         self.season_id = season_id
         self.conn = conn
         self.shortcuts = shortcuts
-
-    def check_if_in_db(self, home_team, away_team, game_date):
-        cursor = self.conn.cursor()
-        query = """
-            SELECT m.id 
-            FROM matches m 
-            WHERE m.home_team = %s AND m.away_team = %s AND m.game_date = %s
-        """
-
-        cursor.execute(query, (home_team, away_team, game_date))
-        result = cursor.fetchone()
-        cursor.close()
-        return result[0] if result else -1
         
         
     def extract_round(self, round_div, game_div):
@@ -160,7 +148,7 @@ class Game:
         match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
         match_data['away_team'] = team_id[match_info[3]]
         match_data['game_date'] = self.parse_match_date(match_info[0])
-        check_id = self.check_if_in_db(match_data['home_team'], match_data['away_team'], match_data['game_date'])
+        check_id = check_if_in_db(match_data['home_team'], match_data['away_team'], game_date=match_data['game_date'])
         if check_id != -1:
             print(f"#Ten mecz znajduje się już w bazie danych!, ID:{check_id}")
             return -1, -1
