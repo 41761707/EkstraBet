@@ -41,8 +41,8 @@ def check_if_in_db(home_team: str, away_team: str, round_num: str, season: int, 
     Args:
         home_team (str): Nazwa drużyny gospodarzy.
         away_team (str): Nazwa drużyny gości.
-        round_num (st): Numer kolejki
-        season (int) ID sezonu
+        round_num (str): Numer kolejki
+        season (int): ID sezonu
         conn: Połączenie do bazy danych.
     Returns:
         int: ID meczu, jeśli istnieje, -1 w przeciwnym razie.
