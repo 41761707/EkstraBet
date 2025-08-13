@@ -52,7 +52,7 @@ def get_match_data(
         round=round_val
     )
     
-    match_id = check_if_in_db(match_data.home_team, match_data.away_team, match_data.game_date, conn)
+    match_id = check_if_in_db(match_data.home_team, match_data.away_team, game_date=match_data.game_date, conn=conn)
     #if match_id != -1:
     #    return -1
     

@@ -129,7 +129,7 @@ def fetch_match_elements(driver: webdriver.Chrome, link: str) -> tuple[list, lis
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
     score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
-    round_divs = driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_0pkdl")
+    round_divs = driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_KIU9F")
     return stat_divs, time_divs, team_divs, score_divs, round_divs
 
 
@@ -249,25 +249,48 @@ def generate_insert_sql(match_data: MatchData) -> str:
     )
 
 
-def check_if_in_db(home_team: str, away_team: str, game_date: str, conn) -> int:
+def check_if_in_db(home_team: str, away_team: str, game_date: str = None, round_num: str = None, season: int = None, conn=None) -> int:
     """Sprawdza, czy mecz jest już w bazie danych.
+    
+    Funkcja umożliwia wyszukiwanie meczu na dwa sposoby:
+    1. Według daty meczu (parametr game_date)
+    2. Według kolejki i sezonu (parametry round_num i season)
+    
     Args:
         home_team (str): Nazwa drużyny gospodarzy.
         away_team (str): Nazwa drużyny gości.
-        game_date (str): Data meczu.
+        game_date (str, opcjonalny): Data meczu. Wymagana, jeśli nie podano round_num i season.
+        round_num (str, opcjonalny): Numer kolejki. Wymagana, jeśli nie podano game_date.
+        season (int, opcjonalny): ID sezonu. Wymagany wraz z round_num.
+        conn: Połączenie do bazy danych.
+        
     Returns:
         int: ID meczu, jeśli istnieje, -1 w przeciwnym razie.
     """
     cursor = conn.cursor()
-    query = """
-        SELECT m.id 
-        FROM matches m 
-        WHERE m.home_team = %s AND m.away_team = %s AND m.game_date = %s
-        """
-    cursor.execute(query, (home_team, away_team, game_date))
-    result = cursor.fetchone()
-    cursor.close()
-    return result[0] if result else -1
+    try:
+        if game_date is not None:
+            # Wyszukiwanie według daty
+            query = """
+                SELECT m.id 
+                FROM matches m 
+                WHERE m.home_team = %s AND m.away_team = %s AND m.game_date = %s
+                """
+            cursor.execute(query, (home_team, away_team, game_date))
+        else:
+            # Wyszukiwanie według kolejki i sezonu
+            # game_date może byc None wiec nie wiem czemu to jest wyszarzone?
+            query = """
+                SELECT m.id 
+                FROM matches m 
+                WHERE m.home_team = %s AND m.away_team = %s AND m.round = %s AND m.season = %s
+                """
+            cursor.execute(query, (home_team, away_team, round_num, season))
+        
+        result = cursor.fetchone()
+        return result[0] if result else -1
+    finally:
+        cursor.close()
 
 def update_db(queries: list, conn) -> bool:
     """Wykonuje listę zapytań SQL w transakcji. Zatwierdza zmiany tylko, jeśli wszystkie zapytania się powiodą.

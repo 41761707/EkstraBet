@@ -95,7 +95,7 @@ For questions or unclear conventions, review `Home.py`, `main.py`, and the datab
 ## 7. Dokumentacja i UI
 
 - Wszystkie opisy, komentarze i komunikaty w interfejsie użytkownika pisz po polsku.
-- Dokumentację techniczną umieszczaj w plikach README.md oraz docstringach.
+- Dokumentację techniczną umieszczaj w plikach README.md oraz docstringach. Jeżeli w danym folderze istnieje już plik README.md to go rozszerz - nigdy sam nie twórz nowego, chyba, że zostałeś o to dosłownie poproszony
 - W przypadku Streamlit używaj `unsafe_allow_html=True` do customizacji UI.
 
 ## 8. Przykłady i workflow

@@ -1132,7 +1132,7 @@ class Base:
                     col1, col2 = st.columns(2)
                     with col1:
                         with st.container():
-                            graphs_module.goals_bar_chart(team_data['date'],
+                            graphs_module.vertical_bar_chart(team_data['date'],
                                 team_data['opponent_shortcut'],
                                 team_data['goals'],
                                 team_data['team_name'],

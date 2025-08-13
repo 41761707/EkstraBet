@@ -14,6 +14,7 @@
 - [EVENTS](#events) (Typy zakładów)
 - [EVENTS_PARLAY](#events_parlay) (Szczegóły kuponów)
 - [FINAL_PREDICTIONS](#final_predictions) (Wskaźniki predykcji ostatecznych)
+- [FOOTBALL_PLAYER_STATS](#football_player_stats) (Boxscore meczowy w piłce nożnej)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
 - [GAMBLER_PARLAYS](#gambler_parlays) (kupony graczy)
 - [GAMBLERS](#gamblers) (zadeklarowani gracze)
@@ -37,6 +38,7 @@
 
 - Pole **pogrubione** oznacza KLUCZ GŁÓWNY w tabeli
 - Pole *kursywą* oznacza KLUCZ OBCY w tabeli
+- Wartości domyslne **-1** w miejscach, gdzie zbiór wartości to [0, +inf) oznaczają "brak danych"
 
 ## Opisy poszczególnych tabel
 
@@ -243,6 +245,46 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przysz
 **Sposób generowania danych do tabeli**:
 
 Dane do tabeli generowane są w ramach działania modułu **prediction_module.py**
+
+---
+
+### FOOTBALL_PLAYER_STATS
+(Boxscore meczowy w piłce nożnej)
+
+| POLE            | DOMENA   | ZAKRES   | UWAGI                                                          | WARTOŚĆ DOMYŚLNA |
+| :---:           | :---:    | :---:    | :---:                                                          | :---:            |
+| **ID**          | INT      | INT>0    | Klucz główny, automatycznie generowany                         | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*      | INT      | INT>0    | Klucz obcy, powiązanie z tabelą *matches*                      | NULL             |
+| *PLAYER_ID*     | INT      | INT>0    | Klucz obcy, powiązanie z tabelą *players*                      | NULL             |
+| *TEAM_ID*       | INT      | INT>0    | Klucz obcy, powiązanie z tabelą *teams*                        | NULL             |
+| GOALS           | INT      | INT>0    | Liczba goli strzelonych przez zawodnika w meczu                | -1               |
+| ASSISTS         | INT      | INT>0    | Liczba asyst wykonanych przez zawodnika w meczu                | -1               |
+| RED_CARDS       | INT      | {0,1}    | Liczba czerwonych kartek otrzymanych przez zawodnika w meczu   | -1               |
+| YELLOW_CARDS    | INT      | {0,1,2}  | Liczba żółtych kartek otrzymanych przez zawodnika w meczu      | -1               |
+| CORNERS_WON     | INT      | INT>0    | Liczba rzutów rożnych wygranych przez zawodnika                | -1               |
+| SHOTS           | INT      | INT>0    | Liczba strzałów oddanych przez zawodnika                       | -1               |
+| SHOTS_ON_TARGET | INT      | INT>0    | Liczba strzałów na bramkę oddanych przez zawodnika             | -1               |
+| BLOCKED_SHOTS   | INT      | INT>0    | Liczba zablokowanych strzałów przez zawodnika                  | -1               |
+| PASSES          | INT      | INT>0    | Liczba wszystkich podań wykonanych przez zawodnika             | -1               |
+| CROSSES         | INT      | INT>0    | Liczba wrzutek wykonanych przez zawodnika                      | -1               |
+| TACKLES         | INT      | INT>0    | Liczba wślizgów wykonanych przez zawodnika                     | -1               |
+| OFFSIDES        | INT      | INT>0    | Liczba sytuacji, w których zawodnik znalazł się na pozycji spalonej  | -1               |
+| FOULS_CONCEDED  | INT      | INT>0    | Liczba poprzełnionych fauli przez zawodnika                    | -1               |
+| FOULS_WON       | INT      | INT>0    | Liczba fauli popełnionych na zawodniku                         | -1               |
+| SAVES           | INT      | INT>0    | Liczba obronionych strzałów (dotyczy jedynie bramkarzy)        | -1               |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- **Unikalny indeks:** `MATCH_ID`, `PLAYER_ID`, `TEAM_ID` (zapobiega duplikatom statystyk dla tego samego zawodnika w danym meczu)
+
+**Sposób generowania danych do tabeli**:
+
+Dane do tabeli generowane są w ramach działania modułu **opta_scrapper.py**
 
 ---
 
