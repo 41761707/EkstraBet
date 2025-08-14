@@ -11,6 +11,9 @@
 - [COUNTRIES](#countries) (Kraje, z których pochodzą analizowane ligi)
 - [DIVISION_TEAMS](#division_teams) (Przydział drużyn do dywizji)
 - [DIVISIONS](#divisions) (Dywizje w ligach północnoamerykańskich)
+- [EVENT_FAMILIES](#event_families) (Rodziny typów zdarzeń w systemie)
+- [EVENT_FAMILY_MAPPINGS](#event_family_mappings) (Mapowania zdarzeń do rodzin zdarzeń)
+- [EVENT_MODEL_FAMILIES](#event_model_families) (Powiązania modeli z rodzinami zdarzeń)
 - [EVENTS](#events) (Typy zakładów)
 - [EVENTS_PARLAY](#events_parlay) (Szczegóły kuponów)
 - [FINAL_PREDICTIONS](#final_predictions) (Wskaźniki predykcji ostatecznych)
@@ -129,6 +132,26 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 
 ---
 
+### COUNTRIES 
+(Kraje, z których pochodzą analizowane ligi)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        |  INT       | INT    | ID kraju           | AUTOMATYCZNIE GENEROWANY            |
+| NAME | VARCHAR(45) | STRING | Nazwa kraju (PL) | NULL |
+| SHORT | VARCHAR(3) |  STRING | Skrót kraju (max 3 litery) | NULL |
+| EMOJI | VARCHAR(45) | STRING | Napis, który reprezentuje flagę kraju w postaci emotki | NULL |
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+
+**Sposób generowania danych do tabeli**:
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
+
 ### DIVISION_TEAMS
 (Przydział drużyn do dywizji)
 | POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
@@ -168,19 +191,65 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 
 ---
 
-### COUNTRIES 
-(Kraje, z których pochodzą analizowane ligi)
+### EVENT_FAMILIES
+(Rodziny typów zdarzeń w systemie)
 
 | POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
 | :---:         |  :---:        | :---:     | :---:             | :---:             |
-| **ID**        |  INT       | INT    | ID kraju           | AUTOMATYCZNIE GENEROWANY            |
-| NAME | VARCHAR(45) | STRING | Nazwa kraju (PL) | NULL |
-| SHORT | VARCHAR(3) |  STRING | Skrót kraju (max 3 litery) | NULL |
-| EMOJI | VARCHAR(45) | STRING | Napis, który reprezentuje flagę kraju w postaci emotki | NULL |
+| **ID**        |  INT       | INT    | ID rodziny zdarzeń           | AUTOMATYCZNIE GENEROWANY            |
+| *SPORT_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *sports* | NULL |
+| NAME | VARCHAR(45) | STRING | Nazwa rodziny zdarzeń (np. REZULTAT, OU, BTTS, EXACT) | NULL |
+| DESCRIPTION | VARCHAR(200) | STRING | Opis rodziny zdarzeń | NULL |
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
+- Klucz obcy: `SPORT_ID` → `sports(ID)`
+- **Unikalny indeks**: `SPORT_ID`, `NAME` (zapobiega duplikatom nazw rodzin w ramach tego samego sportu)
+
+**Sposób generowania danych do tabeli**:
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
+
+### EVENT_FAMILY_MAPPINGS
+(Mapowania zdarzeń do rodzin zdarzeń)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        |  INT       | INT    | ID mapowania           | AUTOMATYCZNIE GENEROWANY            |
+| *EVENT_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *events* | NULL |
+| *EVENT_FAMILY_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *event_families* | NULL |
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `EVENT_ID` → `events(ID)`
+- Klucz obcy: `EVENT_FAMILY_ID` → `event_families(ID)`
+- **Unikalny indeks**: `EVENT_ID`, `EVENT_FAMILY_ID` (zapobiega duplikatom mapowań tego samego zdarzenia do tej samej rodziny)
+
+**Sposób generowania danych do tabeli**:
+
+Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
+
+### EVENT_MODEL_FAMILIES
+(Powiązania modeli z rodzinami zdarzeń)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        |  INT       | INT    | ID powiązania           | AUTOMATYCZNIE GENEROWANY            |
+| *MODEL_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *models* | NULL |
+| *EVENT_FAMILY_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *event_families* | NULL |
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MODEL_ID` → `models(ID)`
+- Klucz obcy: `EVENT_FAMILY_ID` → `event_families(ID)`
+- **Unikalny indeks**: `MODEL_ID`, `EVENT_FAMILY_ID` (zapobiega duplikatom powiązań tego samego modelu z tą samą rodziną zdarzeń)
 
 **Sposób generowania danych do tabeli**:
 
