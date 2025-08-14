@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from api_teams import router as teams_router
 from api_helper import router as helper_router
+from api_models import router as models_router
 
 # Dodaj bieżący katalog do ścieżki Python
 current_dir = Path(__file__).parent
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
             "modules": [
                 "teams - Zarządzanie drużynami",
                 "helper - Dane pomocnicze (kraje, sporty, sezony)",
+                "models - Lista modeli",
                 # Tutaj będą dodawane kolejne moduły
                 # "leagues - Zarządzanie ligami",
                 # "matches - Zarządzanie meczami",
@@ -98,6 +100,7 @@ def create_app() -> FastAPI:
     # Rejestracja routerów modułów
     app.include_router(teams_router)
     app.include_router(helper_router)
+    app.include_router(models_router)
     
     # Tutaj będą dodawane kolejne moduły:
     # app.include_router(leagues_router)
@@ -148,9 +151,8 @@ def main():
     print(f"Health Check: http://localhost:{config['port']}/health")
     print("Dostępne moduły:")
     print("   • /teams - Zarządzanie drużynami")
-    print("   • /countries - Lista krajów")
-    print("   • /sports - Lista sportów") 
-    print("   • /seasons - Lista sezonów")
+    print("   • /helper - Informacje z tabel pomocniczych (kraje, sezony itd.)")
+    print("   • /models - Lista modeli")
     # print("   • /leagues - Zarządzanie ligami")  # Przyszłe moduły
     # print("   • /matches - Zarządzanie meczami")
     # print("   • /predictions - Predykcje")

@@ -78,7 +78,7 @@ def execute_query(query: str, params: tuple = None) -> pd.DataFrame:
 async def helper_info():
     """Endpoint główny - informacje o module helper"""
     return {
-        "module": "EkstraBet Teams API",
+        "module": "EkstraBet Helper API",
         "version": "1.0.0",
         "description": "API do zarządzania pomocniczymi danymi",
         "endpoints": [
