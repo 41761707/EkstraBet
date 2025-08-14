@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime, timedelta
+import requests #Przygotowanie pod rozszerzenie frontu o API
 
 import db_module
 import graphs_module
@@ -14,6 +13,7 @@ class Base:
     def __init__(self, league, season, name):
         """ Inicjalizacja klasy bazowej dla analizy lig piłkarskich."""
         self.league = league #ID ligi
+        self.sport_id = 1 #Na sztywno base_site jest do piłki
         self.season = -1 #ID sezonu
         self.round = -1 #Numer kolejki
         self.rounds_list = [] #Lista kolejki
@@ -23,6 +23,7 @@ class Base:
         self.EV_plus = 0 #EV dla zakładów
         self.teams_dict = {} #Słownik z drużynami
         self.special_rounds = {} #Słownik z nazwami specjalnych kolejek
+        self.filter_by_date = False #Czy filtrować po dacie zamiast po kolejce
         self.date = datetime.today().strftime('%Y-%m-%d') # Data w formacie YYYY-MM-DD
         self.conn = db_module.db_connect() # Połączenie z bazą danych
         self.set_config() # Ustawienie konfiguracji na podstawie wybranej ligi
@@ -57,8 +58,10 @@ class Base:
         Umożliwia użytkownikowi wybór sezonu przez UI i zapisuje wybór w obiekcie.
         """
         seasons_dict = self.get_available_seasons()
-        selected_year = st.selectbox("Sezon", list(seasons_dict.keys()))
-        self.season = seasons_dict[selected_year]  # Tylko tutaj modyfikujemy stan!
+        selected_year = st.selectbox(label="Sezon", 
+                                     options=list(seasons_dict.keys()), 
+                                     help="Wybierz sezon prezentowanych danych")
+        self.season = seasons_dict[selected_year]
         self.years = selected_year
 
     def get_available_rounds(self) -> list:
@@ -82,7 +85,6 @@ class Base:
             self.special_rounds[round_id] if round_id > 100 else round_id
             for round_id, _ in cursor.fetchall()
         ]
-        rounds_tmp.append(0)  # Dodajemy 0 jako domyślną kolejkę dla dat
         for item in rounds_tmp:
             if item not in rounds:
                 rounds.append(item)
@@ -103,7 +105,9 @@ class Base:
         """
         available_rounds = self.get_available_rounds()
         # Interaktywny wybór
-        selected_round = st.selectbox("Kolejka", available_rounds)
+        selected_round = st.selectbox(label="Kolejka", 
+                                      options=available_rounds,
+                                      help="Wybierz kolejkę prezentowanych danych")
         # Konwersja nazwy specjalnej kolejki na ID
         if isinstance(selected_round, str):
             selected_round = next(
@@ -151,8 +155,8 @@ class Base:
     def set_date_range(self) -> tuple:
         """
         Tworzy interfejs wyboru zakresu dat w Streamlit i zwraca wybrany okres.
-        Funkcja działa tylko gdy kolejka nie jest wybrana (wartość 0). Generuje domyślny zakres
-        7-dniowy od bieżącej daty i umożliwia jego modyfikację przez użytkownika.
+        Generuje domyślny zakres 7-dniowy od bieżącej daty i umożliwia jego modyfikację przez użytkownika.
+        Zapewnia że zawsze zwracana jest poprawna krotka z dwoma datami.
 
         Returns:
             tuple: Krotka zawierająca:
@@ -166,14 +170,25 @@ class Base:
 
         # Utworzenie interaktywnego komponentu wyboru dat w Streamlit
         date_range = st.date_input(
-            label="Zakres dat (działa tylko, gdy kolejka = 0)",
+            label="Zakres dat",
             value=(today.date(), end_date.date()),  # Domyślny zakres
             min_value=pd.to_datetime('2015-01-01'),  # Ograniczenie dolne
             max_value=pd.to_datetime('2030-12-31'),  # Ograniczenie górne
-            format="YYYY-MM-DD"  # Format wyświetlania
+            format="YYYY-MM-DD",  # Format wyświetlania
+            help="Wybierz zakres dat dla analizowanych spotkań",
+            label_visibility="collapsed"
         )
 
-        return date_range
+        # Walidacja zakresu dat - zapewnienie że zawsze mamy krotkę z dwoma datami
+        if isinstance(date_range, tuple) and len(date_range) == 2:
+            return date_range
+        elif isinstance(date_range, (list, tuple)) and len(date_range) == 1:
+            # Jeśli użytkownik wybrał tylko jedną datę, używamy jej jako początek i koniec
+            single_date = date_range[0]
+            return (single_date, single_date)
+        else:
+            # Jeśli coś poszło nie tak, zwracamy domyślny zakres
+            return (today.date(), end_date.date())
 
     def set_config(self) -> None:
         """
@@ -234,7 +249,24 @@ class Base:
         with col5:
             self.set_round()  # Ustawia self.round i self.rounds_list      
         with col6:
-            self.date_range = self.set_date_range()  # Ustawia zakres dat
+            # Checkbox do filtrowania po dacie
+            self.filter_by_date = st.checkbox(
+                "Filtrowanie po dacie",
+                value=False,
+                help="Zaznacz aby filtrować mecze według wybranego zakresu dat zamiast kolejki"
+            )
+            
+            # Pole wyboru daty (ukryte gdy checkbox nie jest zaznaczony)
+            if self.filter_by_date:
+                self.date_range = self.set_date_range()  # Ustawia zakres dat
+                # Sprawdzenie czy użytkownik wybrał pełny zakres dat
+                if not (isinstance(self.date_range, tuple) and len(self.date_range) >= 2):
+                    st.info("Wybierz dwie daty aby zobaczyć mecze w wybranym zakresie")
+            else:
+                # Ustawienie domyślnego zakresu dat gdy nie jest używany
+                today = datetime.today()
+                end_date = today + timedelta(days=7)
+                self.date_range = (today.date(), end_date.date())
 
     def get_teams(self) -> None:
         """
@@ -272,21 +304,23 @@ class Base:
         Wyświetla terminarz meczów w rozwijanych sekcjach w zależności od wybranej kolejki/dat.
         
         Logika prezentacji:
-        1. Dla wybranej kolejki > 1 pokazuje dodatkowo terminarz poprzedniej kolejki
-        2. Dla specjalnych kolejek (ID >= 100) używa nazw zamiast numerów
-        3. Dla kolejki = 0 (wybór po dacie) pokazuje mecze w wybranym zakresie dat
-        4. Dodatkowo wyświetla panel z listą wszystkich drużyn w sezonie
+        1. Gdy filtrowanie po dacie jest włączone, pokazuje mecze w wybranym zakresie dat
+        2. Gdy filtrowanie po dacie jest wyłączone, pokazuje mecze dla wybranej kolejki
+        3. Dla wybranej kolejki > 1 pokazuje dodatkowo terminarz poprzedniej kolejki
+        4. Dla specjalnych kolejek (ID >= 100) używa nazw zamiast numerów
+        5. Dodatkowo wyświetla panel z listą wszystkich drużyn w sezonie
 
         Args:
             None (wykorzystuje atrybuty klasy):
-                - self.round: numer bieżącej kolejki (0 dla wyboru po dacie)
+                - self.filter_by_date: czy filtrować po dacie zamiast kolejki
+                - self.round: numer bieżącej kolejki
                 - self.special_rounds: słownik specjalnych kolejek {id: nazwa}
                 - self.date_range: krotka (start_date, end_date)
                 - self.years: opis sezonu
                 - self.teams_dict: słownik drużyn {id: nazwa}
         """
-        # 1. Wyświetlenie poprzedniej kolejki (jeśli aktualna > 1)
-        if self.round > 1:
+        # 1. Wyświetlenie poprzedniej kolejki (jeśli aktualna > 1 i nie filtrujemy po dacie)
+        if not self.filter_by_date and self.round > 1:
             prev_round = self.round - 1
             round_title = (
                 self.special_rounds.get(prev_round, prev_round) 
@@ -294,21 +328,25 @@ class Base:
                 else prev_round
             ) 
             with st.expander(f"Terminarz, poprzednia kolejka: {round_title}"):
-                self.generate_schedule(prev_round, self.date_range)
+                self.generate_schedule(prev_round, self.date_range, use_date_filter=False)
 
         # 2. Wyświetlenie aktualnego terminarza
-        current_round_title = (
-            self.special_rounds.get(self.round, self.round) 
-            if self.round >= 100 
-            else self.round
-        )
-        expander_title = (
-            f"Terminarz, mecze dla dat: {self.date_range[0]} - {self.date_range[1]}" 
-            if self.round == 0 
-            else f"Terminarz, aktualna kolejka: {current_round_title}"
-        )
+        if self.filter_by_date:
+            # Walidacja zakresu dat przed użyciem
+            if isinstance(self.date_range, tuple) and len(self.date_range) >= 2:
+                expander_title = f"Terminarz, mecze dla dat: {self.date_range[0]} - {self.date_range[1]}"
+            else:
+                expander_title = "Terminarz, mecze - wybierz zakres dat"
+        else:
+            current_round_title = (
+                self.special_rounds.get(self.round, self.round) 
+                if self.round >= 100 
+                else self.round
+            )
+            expander_title = f"Terminarz, aktualna kolejka: {current_round_title}"
+            
         with st.expander(expander_title):
-            self.generate_schedule(self.round, self.date_range)
+            self.generate_schedule(self.round, self.date_range, use_date_filter=self.filter_by_date)
 
         # 3. Panel z listą drużyn
         with st.expander(f"Zespoły w sezonie {self.years}"):
@@ -924,12 +962,13 @@ class Base:
 
 
 
-    def generate_schedule(self, round, date_range):
+    def generate_schedule(self, round, date_range, use_date_filter=False):
         """Generuje harmonogram meczów dla wybranej rundy lub zakresu dat.
         
         Args:
-            round (int): Numer rundy (0 dla wyboru według daty)
-            date_range (tuple): Krotka (start_date, end_date) używana gdy round=0
+            round (int): Numer rundy
+            date_range (tuple): Krotka (start_date, end_date) używana gdy use_date_filter=True
+            use_date_filter (bool): Czy filtrować po dacie zamiast po rundzie
             
         Wyświetla listę meczów z przyciskami do szczegółów każdego spotkania.
         """
@@ -952,10 +991,15 @@ class Base:
         params = [self.league, self.season]
         
         # Dodanie warunków w zależności od trybu (wybór rundy lub daty)
-        if round == 0:
-            start_date, end_date = date_range
-            query += " AND m.game_date BETWEEN %s AND %s"
-            params.extend([start_date, end_date])
+        if use_date_filter:
+            # Walidacja zakresu dat przed użyciem
+            if isinstance(date_range, tuple) and len(date_range) >= 2:
+                start_date, end_date = date_range
+                query += " AND m.game_date BETWEEN %s AND %s"
+                params.extend([start_date, end_date])
+            else:
+                # Jeśli zakres dat jest niepoprawny, nie wyświetlamy żadnych meczów
+                query += " AND 1=0"  # Warunek który zawsze zwróci pusty wynik
         else:
             query += " AND m.round = %s"
             params.append(round)
