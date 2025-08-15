@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import requests #Przygotowanie pod rozszerzenie frontu o API
-
+from collections import OrderedDict
 import db_module
 import graphs_module
 import tables_module
@@ -31,7 +31,7 @@ class Base:
         self.ou_model = 2 # ID Modelu dla Over/Under
         
         # Inicjalizacja session_state dla cache'owania danych API
-        self._init_session_state()
+        self.init_session_state()
         
         self.set_config() # Ustawienie konfiguracji na podstawie wybranej ligi
         self.get_teams() # Pobranie drużyn z bazy danych dla danej ligi i sezonu
@@ -40,46 +40,35 @@ class Base:
         self.get_league_stats() # Pobranie statystyk ligowych dla danej ligi i sezonu
         self.conn.close() # Zamknięcie połączenia z bazą danych
 
-    def _init_session_state(self) -> None:
+    def init_session_state(self) -> None:
         """
         Inicjalizuje zmienne session_state potrzebne do cache'owania danych API.
         Ustawia domyślne wartości jeśli nie istnieją.
         """
-        # Cache dla danych modeli z API
-        if 'models_cache' not in st.session_state:
-            st.session_state.models_cache = {}
-        
-        # Cache dla poprzednich wyborów użytkownika w selectboxach
-        if 'previous_model_selections' not in st.session_state:
-            st.session_state.previous_model_selections = {
-                'result_model': None,
-                'ou_model': None, 
-                'btts_model': None
-            }
-            
-        # Flaga czy modele zostały już załadowane dla tej ligi
-        if 'models_loaded_for_league' not in st.session_state:
-            st.session_state.models_loaded_for_league = None
-            
+        # Cache dla danych modeli z API - GLOBALNY dla wszystkich lig
+        if 'global_models_cache' not in st.session_state:
+            st.session_state.global_models_cache = {}
+        # Timestamp ostatniego pobrania modeli
+        if 'models_cache_timestamp' not in st.session_state:
+            st.session_state.models_cache_timestamp = None
+        # Cache dla poprzednich wyborów użytkownika w selectboxach - PER LIGA
+        if 'model_selections_per_league' not in st.session_state:
+            st.session_state.model_selections_per_league = {}
         # Cache dla sezonów z API
         if 'seasons_cache' not in st.session_state:
             st.session_state.seasons_cache = {}
-            
         # Cache dla specjalnych kolejek z API
         if 'special_rounds_cache' not in st.session_state:
             st.session_state.special_rounds_cache = {}
-            
         # Cache dla kolejek (zależny od ligi i sezonu)
         if 'rounds_cache' not in st.session_state:
             st.session_state.rounds_cache = {}
-            
         # Cache dla poprzednich wyborów sezonów i kolejek
         if 'previous_season_round_selections' not in st.session_state:
             st.session_state.previous_season_round_selections = {
                 'season': None,
                 'round': None
             }
-            
         # Flagi czy dane zostały już załadowane
         if 'data_loaded_flags' not in st.session_state:
             st.session_state.data_loaded_flags = {
@@ -97,19 +86,16 @@ class Base:
         try:
             # Wywołanie API dla sezonów
             response = requests.get("http://localhost:8000/helper/seasons")
-            
             if response.status_code != 200:
                 st.warning(f"Błąd podczas pobierania sezonów z API: {response.status_code}")
                 return self.get_available_seasons()  # Fallback do bazy danych
-            
             data = response.json()
             seasons_list = data.get('seasons', [])
-            
-            # Konwersja na słownik {lata: id}
-            seasons_dict = {season['years']: season['id'] for season in seasons_list}
-            
+            # Sortuj sezony po kolumnie 'years' malejąco (najnowsze pierwsze)
+            seasons_list_sorted = sorted(seasons_list, key=lambda x: x['years'], reverse=True)
+            # Konwersja na OrderedDict żeby zachować kolejność sortowania
+            seasons_dict = OrderedDict((season['years'], season['id']) for season in seasons_list_sorted)
             return seasons_dict
-                
         except requests.exceptions.RequestException as e:
             st.warning(f"Nie można połączyć z API sezonów: {e}")
             return self.get_available_seasons()  # Fallback do bazy danych
@@ -132,7 +118,6 @@ class Base:
                 cursor.execute("SELECT id, name FROM special_rounds")
                 special_rounds = dict(cursor.fetchall())
             return special_rounds
-                
         except Exception as e:
             st.warning(f"Błąd podczas pobierania specjalnych kolejek: {e}")
             return {}
@@ -140,9 +125,10 @@ class Base:
     def get_available_seasons(self) -> dict:
         """
         Pobiera dostępne sezony z bazy danych dla obecnej ligi.
+        Sortuje po kolumnie years (od najnowszego do najstarszego).
         
         Returns:
-            dict: Słownik w formacie {lata: id_sezonu}, np. {'2022/2023': 1}
+            dict: Słownik w formacie {lata: id_sezonu}, np. {'2023/2024': 1, '2022/2023': 2}
         """
         season_query = f"""
             SELECT distinct m.season, s.years 
@@ -153,7 +139,8 @@ class Base:
         """
         cursor = self.conn.cursor()
         cursor.execute(season_query)
-        seasons = {years: season_id for season_id, years in cursor.fetchall()}
+        # Użyj OrderedDict żeby zachować kolejność z zapytania SQL
+        seasons = OrderedDict((years, season_id) for season_id, years in cursor.fetchall())
         cursor.close()
         return seasons
 
@@ -164,7 +151,6 @@ class Base:
         """
         # Sprawdź czy trzeba załadować dane z API
         need_api_call = not st.session_state.data_loaded_flags.get('seasons_loaded', False)
-        
         if need_api_call:
             with st.spinner("Ładowanie dostępnych sezonów..."):
                 seasons_dict = self.get_seasons_from_api()
@@ -173,15 +159,12 @@ class Base:
         else:
             # Użyj cache'owanych danych
             seasons_dict = st.session_state.seasons_cache
-            
         # Jeśli cache jest pusty, użyj fallback
         if not seasons_dict:
             seasons_dict = self.get_available_seasons()
-            
         # Wybór poprzedniej wartości jeśli dostępna
         default_index = 0
         options_list = list(seasons_dict.keys())
-
         # Znajdź sezon odpowiadający self.season (ID sezonu z konstruktora)
         default_season_years = None
         for years, season_id in seasons_dict.items():
@@ -190,24 +173,19 @@ class Base:
                 break
         if default_season_years and default_season_years in options_list:
             default_index = options_list.index(default_season_years)
-            
         # Użyj unikalnego klucza dla każdej ligi
         unique_key = f"season_select_{self.league}"
-            
         selected_year = st.selectbox(label="Sezon", 
                                      options=options_list,
                                      index=default_index,
                                      help="Wybierz sezon prezentowanych danych",
                                      key=unique_key)
-        
         # Sprawdź czy wybór rzeczywiście się zmienił
         previous_season = getattr(self, 'season', None)
         new_season = seasons_dict[selected_year]
-        
         self.season = new_season
         self.years = selected_year
         st.session_state.previous_season_round_selections['season'] = selected_year
-        
         # Jeśli sezon się zmienił, wyczyść cache kolejek
         if previous_season is not None and previous_season != new_season:
             if 'rounds_cache' in st.session_state:
@@ -448,22 +426,20 @@ class Base:
                 end_date = today + timedelta(days=7)
                 self.date_range = (today.date(), end_date.date())
 
-        #5. Wybór modeli dla zdarzeń - optymalizacja API
-        # Sprawdź czy trzeba odpytać API (nowa liga lub brak cache)
+        #5. Wybór modeli dla zdarzeń - ZOPTYMALIZOWANY
+        # Sprawdź czy trzeba odpytać API (tylko jeśli brak globalnego cache lub TTL wygasł)
         need_api_call = (
-            st.session_state.models_loaded_for_league != self.league or 
-            'models_cache' not in st.session_state or 
-            not st.session_state.models_cache
+            not st.session_state.global_models_cache or 
+            st.session_state.models_cache_timestamp is None or
+            (datetime.now() - st.session_state.models_cache_timestamp).seconds >= 3600
         )
         
         if need_api_call:
             with st.spinner("Ładowanie dostępnych modeli..."):
                 models_data = self.get_available_models_with_families()
-                st.session_state.models_cache = models_data
-                st.session_state.models_loaded_for_league = self.league
         else:
-            # Użyj cache'owanych danych
-            models_data = st.session_state.models_cache
+            # Użyj globalnego cache - BEZ PONOWNEGO ŁADOWANIA!
+            models_data = st.session_state.global_models_cache
             
         # Wyświetl UI wyboru modeli
         self._display_model_selection_ui(models_data)
@@ -1433,6 +1409,7 @@ class Base:
     def get_available_models_with_families(self) -> dict:
         """
         Pobiera dostępne modele z API wraz z ich rodzinami zdarzeń.
+        Cache'uje wyniki globalnie z TTL (1 godzina).
         
         Returns:
             dict: Słownik w formacie {
@@ -1440,13 +1417,25 @@ class Base:
                 "families": {model_id: [family_id1, family_id2, ...]}
             }
         """
+        # Sprawdź czy cache jest ważny (1 godzina = 3600 sekund)
+        now = datetime.now()
+        cache_valid = (
+            st.session_state.models_cache_timestamp is not None and
+            st.session_state.global_models_cache and
+            (now - st.session_state.models_cache_timestamp).seconds < 3600
+        )
+        
+        if cache_valid:
+            return st.session_state.global_models_cache
+        
         try:
             # Wywołanie API dla podstawowych modeli
             response = requests.get("http://localhost:8000/models/models")
             
             if response.status_code != 200:
                 st.warning(f"Błąd podczas pobierania modeli z API: {response.status_code}")
-                return {"models": {}, "families": {}}
+                # Zwróć stary cache jeśli API nie działa
+                return st.session_state.global_models_cache if st.session_state.global_models_cache else {"models": {}, "families": {}}
             
             data = response.json()
             models = data.get('models', [])
@@ -1476,14 +1465,24 @@ class Base:
                 except requests.exceptions.RequestException:
                     model_families[model_id] = []
             
-            return {
+            result = {
                 "models": filtered_models,
                 "families": model_families
             }
+            
+            # Zapisz w globalnym cache z timestampem
+            st.session_state.global_models_cache = result
+            st.session_state.models_cache_timestamp = now
+            
+            return result
                 
         except requests.exceptions.RequestException as e:
             st.warning(f"Nie można połączyć z API modeli: {e}")
-            return {"models": {}, "families": {}}
+            # Zwróć stary cache jeśli jest dostępny
+            return st.session_state.global_models_cache if st.session_state.global_models_cache else {"models": {}, "families": {}}
+        except Exception as e:
+            st.warning(f"Błąd podczas pobierania modeli: {e}")
+            return st.session_state.global_models_cache if st.session_state.global_models_cache else {"models": {}, "families": {}}
         except Exception as e:
             st.warning(f"Błąd podczas pobierania modeli: {e}")
             return {"models": {}, "families": {}}
@@ -1555,11 +1554,22 @@ class Base:
     def _display_model_selection_ui(self, models_data: dict) -> None:
         """
         Wyświetla interfejs użytkownika do wyboru modeli dla różnych rodzin zdarzeń.
-        Używa cache'owanych danych i wykrywa zmiany w wyborach użytkownika.
+        CACHE WYBORÓW PER LIGA - każda liga zapamiętuje swoje wybory.
         
         Args:
             models_data: Cache'owane dane modeli z API
         """
+        # Uzyskaj unikalne klucze dla tej ligi
+        league_key = f"league_{self.league}"
+        
+        # Inicjalizuj cache wyborów dla tej ligi jeśli nie istnieje
+        if league_key not in st.session_state.model_selections_per_league:
+            st.session_state.model_selections_per_league[league_key] = {
+                'result_model': None,
+                'ou_model': None,
+                'btts_model': None
+            }
+        
         col7, col8, col9 = st.columns(3)
         
         with col7:
@@ -1572,13 +1582,13 @@ class Base:
                     options=["Brak dostępnych modeli"],
                     disabled=True,
                     help="Brak aktywnych modeli dla rezultatu meczu",
-                    key="result_model_disabled"
+                    key=f"result_model_disabled_{self.league}"
                 )
             else:
                 model_options = list(family_models.keys())
-                # Użyj poprzedniego wyboru jeśli dostępny
+                # Użyj poprzedniego wyboru DLA TEJ LIGI jeśli dostępny
                 default_index = 0
-                prev_selection = st.session_state.previous_model_selections.get('result_model')
+                prev_selection = st.session_state.model_selections_per_league[league_key].get('result_model')
                 if prev_selection and prev_selection in model_options:
                     default_index = model_options.index(prev_selection)
                     
@@ -1587,10 +1597,10 @@ class Base:
                     options=model_options,
                     index=default_index,
                     help="Wybierz model do predykcji rezultatu meczu",
-                    key="result_model_select"
+                    key=f"result_model_select_{self.league}"
                 )
                 self.result_model = family_models[selected_model_name]
-                st.session_state.previous_model_selections['result_model'] = selected_model_name
+                st.session_state.model_selections_per_league[league_key]['result_model'] = selected_model_name
                 
         with col8:
             # Modele dla rodziny zdarzeń 3 (Over/Under)
@@ -1602,13 +1612,13 @@ class Base:
                     options=["Brak dostępnych modeli"],
                     disabled=True,
                     help="Brak aktywnych modeli dla Over/Under",
-                    key="ou_model_disabled"
+                    key=f"ou_model_disabled_{self.league}"
                 )
             else:
                 model_options = list(family_models.keys())
-                # Użyj poprzedniego wyboru jeśli dostępny
+                # Użyj poprzedniego wyboru DLA TEJ LIGI jeśli dostępny
                 default_index = 0
-                prev_selection = st.session_state.previous_model_selections.get('ou_model')
+                prev_selection = st.session_state.model_selections_per_league[league_key].get('ou_model')
                 if prev_selection and prev_selection in model_options:
                     default_index = model_options.index(prev_selection)
                     
@@ -1617,10 +1627,10 @@ class Base:
                     options=model_options,
                     index=default_index,
                     help="Wybierz model do predykcji Over/Under",
-                    key="ou_model_select"
+                    key=f"ou_model_select_{self.league}"
                 )
                 self.ou_model = family_models[selected_model_name]
-                st.session_state.previous_model_selections['ou_model'] = selected_model_name
+                st.session_state.model_selections_per_league[league_key]['ou_model'] = selected_model_name
                 
         with col9:
             # Modele dla rodziny zdarzeń 4 (BTTS)
@@ -1632,13 +1642,13 @@ class Base:
                     options=["Brak dostępnych modeli"],
                     disabled=True,
                     help="Brak aktywnych modeli dla BTTS",
-                    key="btts_model_disabled"
+                    key=f"btts_model_disabled_{self.league}"
                 )
             else:
                 model_options = list(family_models.keys())
-                # Użyj poprzedniego wyboru jeśli dostępny
+                # Użyj poprzedniego wyboru DLA TEJ LIGI jeśli dostępny
                 default_index = 0
-                prev_selection = st.session_state.previous_model_selections.get('btts_model')
+                prev_selection = st.session_state.model_selections_per_league[league_key].get('btts_model')
                 if prev_selection and prev_selection in model_options:
                     default_index = model_options.index(prev_selection)
                     
@@ -1647,21 +1657,20 @@ class Base:
                     options=model_options,
                     index=default_index,
                     help="Wybierz model do predykcji BTTS",
-                    key="btts_model_select"
+                    key=f"btts_model_select_{self.league}"
                 )
                 self.btts_model = family_models[selected_model_name]
-                st.session_state.previous_model_selections['btts_model'] = selected_model_name
+                st.session_state.model_selections_per_league[league_key]['btts_model'] = selected_model_name
 
     def refresh_all_cache(self) -> None:
         """
-        Czyści wszystkie cache (modele, sezony, specjalne kolejki, kolejki) i wymusza ponowne załadowanie z API.
-        Użyj tej metody gdy dane zostały zaktualizowane w API lub bazie danych.
+        Czyści GLOBALNY cache modeli i wymusza ponowne załadowanie z API.
         """
-        # Wyczyść cache modeli
-        if 'models_cache' in st.session_state:
-            del st.session_state.models_cache
-        if 'models_loaded_for_league' in st.session_state:
-            del st.session_state.models_loaded_for_league
+        # Wyczyść GLOBALNY cache modeli
+        if 'global_models_cache' in st.session_state:
+            del st.session_state.global_models_cache
+        if 'models_cache_timestamp' in st.session_state:
+            del st.session_state.models_cache_timestamp
             
         # Wyczyść cache sezonów i kolejek
         if 'seasons_cache' in st.session_state:
@@ -1692,12 +1701,12 @@ class Base:
 
     def refresh_models_cache(self) -> None:
         """
-        Czyści cache modeli i wymusza ponowne załadowanie z API.
+        Czyści GLOBALNY cache modeli i wymusza ponowne załadowanie z API.
         Użyj tej metody gdy modele zostały zaktualizowane w API.
         """
-        if 'models_cache' in st.session_state:
-            del st.session_state.models_cache
-        if 'models_loaded_for_league' in st.session_state:
-            del st.session_state.models_loaded_for_league
+        if 'global_models_cache' in st.session_state:
+            del st.session_state.global_models_cache
+        if 'models_cache_timestamp' in st.session_state:
+            del st.session_state.models_cache_timestamp
         st.rerun()  # Odśwież stronę aby załadować nowe dane
                 
