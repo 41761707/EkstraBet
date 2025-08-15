@@ -34,8 +34,10 @@ class PredictMatch:
                 events = [2, 1, 3]  # Remis, WIN Gospo, WIN Gość
             elif self.model_type == 'btts':
                 events = [172, 6]   # NO BTTS, BTTS
-            elif self.model_type == 'goals' or self.model_type == 'goals-6-classes':
-                events = [174, 175, 176, 177, 178, 179, 180, 12, 8, 173] #Dużo by pisać
+            elif self.model_type == 'goals':
+                events = [174, 175, 176, 177, 178, 179, 180, 12, 8, 173]
+            elif self.model_type == 'goals-6-classes':
+                events = [174, 175, 176, 177, 178, 179, 12, 8, 173]
             
             print(f"MODEL ID: {model_id}")
             return events, model_id
@@ -121,7 +123,7 @@ class PredictMatch:
         #Dodanie wyniku do listy - wersja do automatyzacji procesu
         else:
             # Indeks wartości z największym prawdopodobieństwem
-            if self.model_type == "goals":
+            if self.model_type == "goals" or self.model_type == "goals-6-classes":
                 # W przypadku modelu 'goals' na końcu jest przewidywana liczba bramek, więc nie bierzemy jej pod uwagę przy określaniu indeksu
                 max_prob_index = np.argmax(probabilities[:-1])
             else:
