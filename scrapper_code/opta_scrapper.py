@@ -15,7 +15,8 @@ from utils import setup_chrome_driver
 def parse_arguments():
     """Funkcja do parsowania argumentów wiersza poleceń."""
     parser = argparse.ArgumentParser(
-        description='Scraper statystyk Opta - pobiera dane ze strony i zapisuje do bazy danych.',
+        description="""Scraper statystyk Opta - pobiera dane ze strony i zapisuje do bazy danych.
+        Przykład użycia: python .\opta_scrapper.py --bulk --automate 1 3 https://optaplayerstats.statsperform.com/en_GB/soccer/ekstraklasa-2021-2022/3yted6kra6v27o4jyr87n3m6s/results""",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 

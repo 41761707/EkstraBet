@@ -103,7 +103,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    with st.expander("ℹ️ Notatka odnośnie danych"):
+    with st.expander("ℹ️ Informacja prawna dotycząca danych"):
         st.markdown(
             """
             <style>
@@ -123,15 +123,18 @@ def main():
             }
             </style>
             <div class="note-box">
-                <p>📚 Wszystkie dane wykorzystane w serwisie pochodzą ze stron o charakterze kronikarskim. Wykorzystywane są jedynie do celów edukacyjno-badawczych i nie mają na celu naruszenia praw autorskich.</p>
-                <p>💡 Przedstawione zakłady wykonywane są głównie hipotetycznie w celu sprawdzenia osiągnięć modeli. Przybliżają jedynie potencjalne zyski bądź straty wynikające z udziału w zakładach bukmacherskich stosując przedstawione wytyczne i nie stanowią oferty w rozumieniu prawa.</p>
-                <p>📊 Dane odnośnie spotkań meczowych pochodzą z serwisu <a href="https://www.flashscore.pl" target="_blank">flashscore.pl</a> oraz <a href="https://optaplayerstats.statsperform.com/">opta.com</a>. 
-                    Dodatkowe dane hokejowe zostały zaczerpnięte z <a href="https://api-web.nhle.com/" target="_blank">NHL API</a>.</p>
-                <p>🧥 Zdjęcia koszulek hokejowych zapożyczono ze strony <a href="https://www.dailyfaceoff.com/" target="_blank">dailyfaceoff.com</a>.</p>
+                <p>📚 Wszystkie wyniki i statystyki prezentowane w serwisie stanowią fakty powszechnie dostępne i zostały zaczerpnięte z publicznych źródeł o charakterze kronikarskim. Opracowanie tych danych ma charakter wyłącznie edukacyjny i badawczy. Serwis nie rości sobie żadnych praw autorskich do danych ani materiałów pochodzących z podanych źródeł, a wszelkie prawa do nich należą do ich właścicieli.</p>
+                <p>💡 Symulacje zakładów mają charakter czysto hipotetyczny, służą wyłącznie do testowania modeli i analiz statystycznych. Nie stanowią oferty ani zachęty do udziału w grach hazardowych w rozumieniu przepisów prawa.</p>   
+                <p>📊 Źródła danych:
+                    <br>– Mecze i statystyki piłkarskie: <a href="https://www.flashscore.pl" target="_blank">flashscore.pl</a>, <a href="https://optaplayerstats.statsperform.com/" target="_blank">opta.com</a>
+                    <br>– Dane hokejowe: <a href="https://api-web.nhle.com/" target="_blank">NHL API</a>
+                </p> 
+                <p>🧥 Materiały graficzne (koszulki hokejowe) pochodzą z <a href="https://www.dailyfaceoff.com/" target="_blank">dailyfaceoff.com</a> i pozostają własnością ich autorów. Zostały użyte wyłącznie w celach informacyjnych i ilustracyjnych.</p>
             </div>
             """,
             unsafe_allow_html=True
         )
+
     conn.close()
 
 if __name__ == '__main__':

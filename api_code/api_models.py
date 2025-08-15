@@ -1,3 +1,4 @@
+import time
 from fastapi import APIRouter, HTTPException
 import mysql.connector
 import db_module
@@ -326,6 +327,7 @@ async def get_model_details(model_id: int):
         Szczegółowe informacje o modelu
     """
     try:
+        start_time = time.time()
         # Pobierz podstawowe informacje o modelu
         basic_info = get_model_basic_info(model_id)
         
@@ -336,6 +338,9 @@ async def get_model_details(model_id: int):
         supported_events = get_model_supported_events(model_id)
         
         # Złóż kompletną odpowiedź
+
+        end_time = time.time() - start_time
+        print(f"Czas wykonania: {end_time:.2f} sekund")
         return {
             **basic_info,  # Rozpakuj podstawowe informacje
             "event_families": event_families,
