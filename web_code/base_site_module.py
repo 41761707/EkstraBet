@@ -14,7 +14,7 @@ class Base:
         """ Inicjalizacja klasy bazowej dla analizy lig piłkarskich."""
         self.league = league #ID ligi
         self.sport_id = 1 #Na sztywno base_site jest do piłki
-        self.season = -1 #ID sezonu
+        self.season = season #ID sezonu
         self.round = -1 #Numer kolejki
         self.rounds_list = [] #Lista kolejki
         self.season_list = [] #Lista sezonów
@@ -26,12 +26,116 @@ class Base:
         self.filter_by_date = False #Czy filtrować po dacie zamiast po kolejce
         self.date = datetime.today().strftime('%Y-%m-%d') # Data w formacie YYYY-MM-DD
         self.conn = db_module.db_connect() # Połączenie z bazą danych
+        self.result_model = 1 # ID Modelu dla rezultatu (1X2)
+        self.btts_model = 3 # ID Modelu dla BTTS
+        self.ou_model = 2 # ID Modelu dla Over/Under
+        
+        # Inicjalizacja session_state dla cache'owania danych API
+        self._init_session_state()
+        
         self.set_config() # Ustawienie konfiguracji na podstawie wybranej ligi
         self.get_teams() # Pobranie drużyn z bazy danych dla danej ligi i sezonu
         self.get_schedule()  # Pobranie terminarza meczów dla danej ligi i sezonu
         self.get_league_tables() # Pobranie tabeli ligowej dla danej ligi i sezonu
         self.get_league_stats() # Pobranie statystyk ligowych dla danej ligi i sezonu
         self.conn.close() # Zamknięcie połączenia z bazą danych
+
+    def _init_session_state(self) -> None:
+        """
+        Inicjalizuje zmienne session_state potrzebne do cache'owania danych API.
+        Ustawia domyślne wartości jeśli nie istnieją.
+        """
+        # Cache dla danych modeli z API
+        if 'models_cache' not in st.session_state:
+            st.session_state.models_cache = {}
+        
+        # Cache dla poprzednich wyborów użytkownika w selectboxach
+        if 'previous_model_selections' not in st.session_state:
+            st.session_state.previous_model_selections = {
+                'result_model': None,
+                'ou_model': None, 
+                'btts_model': None
+            }
+            
+        # Flaga czy modele zostały już załadowane dla tej ligi
+        if 'models_loaded_for_league' not in st.session_state:
+            st.session_state.models_loaded_for_league = None
+            
+        # Cache dla sezonów z API
+        if 'seasons_cache' not in st.session_state:
+            st.session_state.seasons_cache = {}
+            
+        # Cache dla specjalnych kolejek z API
+        if 'special_rounds_cache' not in st.session_state:
+            st.session_state.special_rounds_cache = {}
+            
+        # Cache dla kolejek (zależny od ligi i sezonu)
+        if 'rounds_cache' not in st.session_state:
+            st.session_state.rounds_cache = {}
+            
+        # Cache dla poprzednich wyborów sezonów i kolejek
+        if 'previous_season_round_selections' not in st.session_state:
+            st.session_state.previous_season_round_selections = {
+                'season': None,
+                'round': None
+            }
+            
+        # Flagi czy dane zostały już załadowane
+        if 'data_loaded_flags' not in st.session_state:
+            st.session_state.data_loaded_flags = {
+                'seasons_loaded': False,
+                'special_rounds_loaded': False
+            }
+
+    def get_seasons_from_api(self) -> dict:
+        """
+        Pobiera dostępne sezony z API z cache'owaniem.
+        
+        Returns:
+            dict: Słownik w formacie {lata: id_sezonu}, np. {'2022/2023': 1}
+        """
+        try:
+            # Wywołanie API dla sezonów
+            response = requests.get("http://localhost:8000/helper/seasons")
+            
+            if response.status_code != 200:
+                st.warning(f"Błąd podczas pobierania sezonów z API: {response.status_code}")
+                return self.get_available_seasons()  # Fallback do bazy danych
+            
+            data = response.json()
+            seasons_list = data.get('seasons', [])
+            
+            # Konwersja na słownik {lata: id}
+            seasons_dict = {season['years']: season['id'] for season in seasons_list}
+            
+            return seasons_dict
+                
+        except requests.exceptions.RequestException as e:
+            st.warning(f"Nie można połączyć z API sezonów: {e}")
+            return self.get_available_seasons()  # Fallback do bazy danych
+        except Exception as e:
+            st.warning(f"Błąd podczas pobierania sezonów: {e}")
+            return self.get_available_seasons()  # Fallback do bazy danych
+
+    def get_special_rounds_from_api(self) -> dict:
+        """
+        Pobiera specjalne kolejki z API lub bazy danych jako fallback.
+        
+        Returns:
+            dict: Słownik specjalnych kolejek {id: nazwa}
+        """
+        try:
+            # Na razie nie ma dedykowanego endpointu dla special_rounds w API
+            # Używamy bezpośredniego zapytania do bazy jako fallback
+            # TODO: Dodać endpoint /helper/special-rounds do API
+            with self.conn.cursor() as cursor:
+                cursor.execute("SELECT id, name FROM special_rounds")
+                special_rounds = dict(cursor.fetchall())
+            return special_rounds
+                
+        except Exception as e:
+            st.warning(f"Błąd podczas pobierania specjalnych kolejek: {e}")
+            return {}
 
     def get_available_seasons(self) -> dict:
         """
@@ -56,13 +160,58 @@ class Base:
     def set_season(self) -> None:
         """
         Umożliwia użytkownikowi wybór sezonu przez UI i zapisuje wybór w obiekcie.
+        Używa cache'owanych danych z API z fallbackiem do bazy danych.
         """
-        seasons_dict = self.get_available_seasons()
+        # Sprawdź czy trzeba załadować dane z API
+        need_api_call = not st.session_state.data_loaded_flags.get('seasons_loaded', False)
+        
+        if need_api_call:
+            with st.spinner("Ładowanie dostępnych sezonów..."):
+                seasons_dict = self.get_seasons_from_api()
+                st.session_state.seasons_cache = seasons_dict
+                st.session_state.data_loaded_flags['seasons_loaded'] = True
+        else:
+            # Użyj cache'owanych danych
+            seasons_dict = st.session_state.seasons_cache
+            
+        # Jeśli cache jest pusty, użyj fallback
+        if not seasons_dict:
+            seasons_dict = self.get_available_seasons()
+            
+        # Wybór poprzedniej wartości jeśli dostępna
+        default_index = 0
+        options_list = list(seasons_dict.keys())
+
+        # Znajdź sezon odpowiadający self.season (ID sezonu z konstruktora)
+        default_season_years = None
+        for years, season_id in seasons_dict.items():
+            if season_id == self.season:
+                default_season_years = years
+                break
+        if default_season_years and default_season_years in options_list:
+            default_index = options_list.index(default_season_years)
+            
+        # Użyj unikalnego klucza dla każdej ligi
+        unique_key = f"season_select_{self.league}"
+            
         selected_year = st.selectbox(label="Sezon", 
-                                     options=list(seasons_dict.keys()), 
-                                     help="Wybierz sezon prezentowanych danych")
-        self.season = seasons_dict[selected_year]
+                                     options=options_list,
+                                     index=default_index,
+                                     help="Wybierz sezon prezentowanych danych",
+                                     key=unique_key)
+        
+        # Sprawdź czy wybór rzeczywiście się zmienił
+        previous_season = getattr(self, 'season', None)
+        new_season = seasons_dict[selected_year]
+        
+        self.season = new_season
         self.years = selected_year
+        st.session_state.previous_season_round_selections['season'] = selected_year
+        
+        # Jeśli sezon się zmienił, wyczyść cache kolejek
+        if previous_season is not None and previous_season != new_season:
+            if 'rounds_cache' in st.session_state:
+                del st.session_state['rounds_cache']
 
     def get_available_rounds(self) -> list:
         """
@@ -95,6 +244,7 @@ class Base:
         """
         Umożliwia interaktywny wybór kolejki przez użytkownika i aktualizuje stan obiektu.
         Przetwarza wybór użytkownika (w tym specjalne kolejki) na odpowiadające ID.
+        Używa cache'a dla lepszej wydajności.
 
         Args:
             None (korzysta z atrybutów klasy: self.league, self.season, self.special_rounds)
@@ -103,11 +253,34 @@ class Base:
             self.rounds_list: lista wszystkich dostępnych kolejek
             self.round: ID wybranej kolejki (int)
         """
-        available_rounds = self.get_available_rounds()
+        # Sprawdź czy trzeba załadować dane kolejek (cache zależny od sezonu)
+        cache_key = f"rounds_{self.league}_{self.season}"
+        need_rounds_call = cache_key not in st.session_state.get('rounds_cache', {})
+        
+        if need_rounds_call:
+            available_rounds = self.get_available_rounds()
+            if 'rounds_cache' not in st.session_state:
+                st.session_state.rounds_cache = {}
+            st.session_state.rounds_cache[cache_key] = available_rounds
+        else:
+            # Użyj cache'owanych danych
+            available_rounds = st.session_state.rounds_cache[cache_key]
+            
+        # Wybór poprzedniej wartości jeśli dostępna
+        default_index = 0
+        prev_selection = st.session_state.previous_season_round_selections.get('round')
+        if prev_selection and prev_selection in available_rounds:
+            default_index = available_rounds.index(prev_selection)
+            
+        # Użyj unikalnego klucza dla każdej ligi i sezonu
+        unique_key = f"round_select_{self.league}_{self.season}"
+        
         # Interaktywny wybór
         selected_round = st.selectbox(label="Kolejka", 
                                       options=available_rounds,
-                                      help="Wybierz kolejkę prezentowanych danych")
+                                      index=default_index,
+                                      help="Wybierz kolejkę prezentowanych danych",
+                                      key=unique_key)
         # Konwersja nazwy specjalnej kolejki na ID
         if isinstance(selected_round, str):
             selected_round = next(
@@ -118,12 +291,13 @@ class Base:
         # Aktualizacja stanu
         self.rounds_list = available_rounds 
         self.round = selected_round
+        st.session_state.previous_season_round_selections['round'] = selected_round
 
     def set_db_queries(self) -> None:
         """
         Pobiera i ustawia specjalne kolejki oraz informacje o lidze z bazy danych.    
         Wykonuje dwa główne zadania:
-        1. Ładuje słownik specjalnych kolejek (id: nazwa) do self.special_rounds
+        1. Ładuje słownik specjalnych kolejek (id: nazwa) z cache'a lub API
         2. Ustawia datę ostatniej aktualizacji (self.update) i nazwę ligi (self.name)
 
         Sets:
@@ -134,12 +308,18 @@ class Base:
         Raises:
             implicit DatabaseError: jeśli wystąpi błąd podczas wykonywania zapytań SQL
         """
-        # Pobranie specjalnych kolejek
-        with self.conn.cursor() as cursor:  # Context manager dla automatycznego zamknięcia kursora
-            cursor.execute("SELECT id, name FROM special_rounds")
-            self.special_rounds = dict(cursor.fetchall())  # Bezpośrednia konwersja na słownik
+        # Pobranie specjalnych kolejek z cache'a lub API
+        need_special_rounds_call = not st.session_state.data_loaded_flags.get('special_rounds_loaded', False)
+        
+        if need_special_rounds_call:
+            self.special_rounds = self.get_special_rounds_from_api()
+            st.session_state.special_rounds_cache = self.special_rounds
+            st.session_state.data_loaded_flags['special_rounds_loaded'] = True
+        else:
+            # Użyj cache'owanych danych
+            self.special_rounds = st.session_state.special_rounds_cache
 
-        # Pobranie informacji o lidze
+        # Pobranie informacji o lidze (to zostaje bez zmian, bo dotyczy konkretnej ligi)
         with self.conn.cursor() as cursor:
             cursor.execute(
                 "SELECT last_update, name FROM leagues WHERE id = %s", 
@@ -267,6 +447,31 @@ class Base:
                 today = datetime.today()
                 end_date = today + timedelta(days=7)
                 self.date_range = (today.date(), end_date.date())
+
+        #5. Wybór modeli dla zdarzeń - optymalizacja API
+        # Sprawdź czy trzeba odpytać API (nowa liga lub brak cache)
+        need_api_call = (
+            st.session_state.models_loaded_for_league != self.league or 
+            'models_cache' not in st.session_state or 
+            not st.session_state.models_cache
+        )
+        
+        if need_api_call:
+            with st.spinner("Ładowanie dostępnych modeli..."):
+                models_data = self.get_available_models_with_families()
+                st.session_state.models_cache = models_data
+                st.session_state.models_loaded_for_league = self.league
+        else:
+            # Użyj cache'owanych danych
+            models_data = st.session_state.models_cache
+            
+        # Wyświetl UI wyboru modeli
+        self._display_model_selection_ui(models_data)
+        
+        # Przycisk do odświeżania całej konfiguracji
+        #if st.button("🔄 Odśwież konfigurację", 
+        #             help="Ponownie załaduj wszystkie dane z API (modele, sezony, kolejki)"):
+        #    self.refresh_all_cache()
 
     def get_teams(self) -> None:
         """
@@ -712,11 +917,12 @@ class Base:
         else:
             st.header("Brak bezpośrednich spotkań między drużynami w bazie danych")
 
-    def get_match_predictions(self, match_id: int) -> dict:
+    def get_match_predictions(self, match_id: int, models: list) -> dict:
         """Pobiera predykcje dla meczu z bazy danych.
         Args:
             match_id: ID meczu
-            
+            models: Lista modeli do uwzględnienia w zapytaniu
+
         Returns:
             Słownik z predykcjami lub None jeśli brak danych
         """
@@ -746,6 +952,7 @@ class Base:
                 FROM predictions 
                 WHERE match_id = {match_id} 
                 AND event_id = {event_id}
+                AND model_id IN ({','.join(map(str, models))})
             """
             result = pd.read_sql(query, self.conn).to_numpy()
             if len(result) > 0:
@@ -755,17 +962,31 @@ class Base:
     
     def display_prediction_charts(self, predictions: dict) -> None:
         """Wyświetla wykresy predykcji dla meczu.
-            Args:   
-                predictions: Słownik z predykcjami meczu
+        
+        Obsługuje zarówno modele 6-klasowe jak i 7-klasowe do przewidywania bramek:
+        - Modele 7-klasowe: zawierają klucz 'six_plus_goals' (prawdopodobieństwo 6+ goli)
+        - Modele 6-klasowe: brak klucza 'six_plus_goals' (maksymalnie 5 goli, 6+ = 0)
+        
+        Args:   
+            predictions: Słownik z predykcjami meczu
         """
         if predictions is not None:
+            # Logika obsługi modeli 6-klasowych (bez six_plus_goals) vs 7-klasowych (z six_plus_goals)
             goals_no = [predictions['zero_goals'], 
                         predictions['one_goal'], 
                         predictions['two_goals'], 
                         predictions['three_goals'], 
                         predictions['four_goals'], 
-                        predictions['five_goals'], 
-                        predictions['six_plus_goals']]
+                        predictions['five_goals']]
+            
+            # Sprawdź czy model obsługuje 7 klas (zawiera klucz 'six_plus_goals')
+            if 'six_plus_goals' in predictions:
+                # Model 7-klasowy - dodaj prawdopodobieństwo dla 6+ goli
+                goals_no.append(predictions['six_plus_goals'])
+            else:
+                # Model 6-klasowy - dodaj 0 jako wartość dla 6+ goli
+                goals_no.append(0)
+                
             col1, col2 = st.columns(2)
             with col1:
                 graphs_module.graph_winner(predictions['home_win'], predictions['draw'], predictions['guest_win'])
@@ -931,7 +1152,7 @@ class Base:
             id (int): ID meczu
             result (str): Wynik meczu (1, X, 2)
             """
-        predictions = self.get_match_predictions(id)
+        predictions = self.get_match_predictions(id, [self.result_model, self.btts_model, self.ou_model])
         #Jeżeli nie ma predykcji - poinformuj o tym użytkownika
         if predictions is None:
             st.header("Na chwilę obecną brak przewidywań dla wskazanego spotkania")
@@ -1208,4 +1429,275 @@ class Base:
                 # Zakładka 2: Statystyki predykcji
                 with tab2:
                     self.predicts_per_team(team_data['team_name'], team_id)
+
+    def get_available_models_with_families(self) -> dict:
+        """
+        Pobiera dostępne modele z API wraz z ich rodzinami zdarzeń.
+        
+        Returns:
+            dict: Słownik w formacie {
+                "models": {model_id: {"name": str, "sport_id": int, "active": int}},
+                "families": {model_id: [family_id1, family_id2, ...]}
+            }
+        """
+        try:
+            # Wywołanie API dla podstawowych modeli
+            response = requests.get("http://localhost:8000/models/models")
+            
+            if response.status_code != 200:
+                st.warning(f"Błąd podczas pobierania modeli z API: {response.status_code}")
+                return {"models": {}, "families": {}}
+            
+            data = response.json()
+            models = data.get('models', [])
+            
+            # Filtruj modele według sport_id i active=1
+            filtered_models = {
+                model['id']: {
+                    "name": model['name'],
+                    "sport_id": model['sport_id'],
+                    "active": model['active']
+                }
+                for model in models 
+                if model['sport_id'] == self.sport_id and model['active'] == 1
+            }
+            
+            # Pobierz szczegóły rodzin zdarzeń dla każdego modelu
+            model_families = {}
+            for model_id in filtered_models.keys():
+                try:
+                    detail_response = requests.get(f"http://localhost:8000/models/models/{model_id}/details")
+                    if detail_response.status_code == 200:
+                        detail_data = detail_response.json()
+                        event_families = detail_data.get('event_families', [])
+                        model_families[model_id] = [family['id'] for family in event_families]
+                    else:
+                        model_families[model_id] = []
+                except requests.exceptions.RequestException:
+                    model_families[model_id] = []
+            
+            return {
+                "models": filtered_models,
+                "families": model_families
+            }
+                
+        except requests.exceptions.RequestException as e:
+            st.warning(f"Nie można połączyć z API modeli: {e}")
+            return {"models": {}, "families": {}}
+        except Exception as e:
+            st.warning(f"Błąd podczas pobierania modeli: {e}")
+            return {"models": {}, "families": {}}
+
+    def filter_models_by_family(self, models_data: dict, target_family_id: int) -> dict:
+        """
+        Filtruje modele według konkretnej rodziny zdarzeń.
+        
+        Args:
+            models_data: Dane modeli z get_available_models_with_families()
+            target_family_id: ID rodziny zdarzeń do filtrowania
+            
+        Returns:
+            dict: Słownik {nazwa_modelu: id_modelu} dla modeli obsługujących daną rodzinę
+        """
+        filtered = {}
+        
+        for model_id, model_info in models_data["models"].items():
+            # Sprawdź czy model obsługuje docelową rodzinę zdarzeń
+            if target_family_id in models_data["families"].get(model_id, []):
+                filtered[model_info["name"]] = model_id
+                
+        return filtered
+
+    def set_event_models(self, models_data: dict) -> None:
+        """
+        Ustawia modele dla różnych rodzin zdarzeń przez selectboxy.
+        
+        Args:
+            models_data: Dane modeli z API zawierające informacje o modelach i ich rodzinach
+        """
+        # Mapa rodzin zdarzeń na nazwy i atrybuty
+        family_config = {
+            2: {"label": "Model rezultatu (1X2)", "attr": "result_model"},
+            3: {"label": "Model Over/Under", "attr": "ou_model"}, 
+            4: {"label": "Model BTTS", "attr": "btts_model"}
+        }
+        
+        # Iteracja przez kolumny i konfigurację rodzin
+        for family_id, config in family_config.items():
+            # Filtrowanie modeli dla konkretnej rodziny zdarzeń
+            family_models = self.filter_models_by_family(models_data, family_id)
+            
+            if not family_models:
+                # Jeśli brak modeli, ustaw None i wyświetl ostrzeżenie w selectboxie
+                setattr(self, config["attr"], None)
+                st.selectbox(
+                    label=config["label"],
+                    options=["Brak dostępnych modeli"],
+                    disabled=True,
+                    help=f"Brak aktywnych modeli dla rodziny zdarzeń {family_id}"
+                )
+            else:
+                # Dodaj opcję "Brak wyboru" i utwórz selectbox
+                model_options = ["Brak wyboru"] + list(family_models.keys())
+                
+                selected_model_name = st.selectbox(
+                    label=config["label"],
+                    options=model_options,
+                    help=f"Wybierz model do predykcji dla rodziny zdarzeń {family_id}"
+                )
+                
+                # Zapisz wybór do odpowiedniego atrybutu
+                if selected_model_name == "Brak wyboru":
+                    setattr(self, config["attr"], None)
+                else:
+                    setattr(self, config["attr"], family_models[selected_model_name])
+
+    def _display_model_selection_ui(self, models_data: dict) -> None:
+        """
+        Wyświetla interfejs użytkownika do wyboru modeli dla różnych rodzin zdarzeń.
+        Używa cache'owanych danych i wykrywa zmiany w wyborach użytkownika.
+        
+        Args:
+            models_data: Cache'owane dane modeli z API
+        """
+        col7, col8, col9 = st.columns(3)
+        
+        with col7:
+            # Modele dla rodziny zdarzeń 2 (rezultat)
+            family_models = self.filter_models_by_family(models_data, 2)
+            if not family_models:
+                self.result_model = None
+                st.selectbox(
+                    label="Model rezultatu (1X2)",
+                    options=["Brak dostępnych modeli"],
+                    disabled=True,
+                    help="Brak aktywnych modeli dla rezultatu meczu",
+                    key="result_model_disabled"
+                )
+            else:
+                model_options = list(family_models.keys())
+                # Użyj poprzedniego wyboru jeśli dostępny
+                default_index = 0
+                prev_selection = st.session_state.previous_model_selections.get('result_model')
+                if prev_selection and prev_selection in model_options:
+                    default_index = model_options.index(prev_selection)
+                    
+                selected_model_name = st.selectbox(
+                    label="Model rezultatu (1X2)",
+                    options=model_options,
+                    index=default_index,
+                    help="Wybierz model do predykcji rezultatu meczu",
+                    key="result_model_select"
+                )
+                self.result_model = family_models[selected_model_name]
+                st.session_state.previous_model_selections['result_model'] = selected_model_name
+                
+        with col8:
+            # Modele dla rodziny zdarzeń 3 (Over/Under)
+            family_models = self.filter_models_by_family(models_data, 3)
+            if not family_models:
+                self.ou_model = None
+                st.selectbox(
+                    label="Model Over/Under",
+                    options=["Brak dostępnych modeli"],
+                    disabled=True,
+                    help="Brak aktywnych modeli dla Over/Under",
+                    key="ou_model_disabled"
+                )
+            else:
+                model_options = list(family_models.keys())
+                # Użyj poprzedniego wyboru jeśli dostępny
+                default_index = 0
+                prev_selection = st.session_state.previous_model_selections.get('ou_model')
+                if prev_selection and prev_selection in model_options:
+                    default_index = model_options.index(prev_selection)
+                    
+                selected_model_name = st.selectbox(
+                    label="Model Over/Under",
+                    options=model_options,
+                    index=default_index,
+                    help="Wybierz model do predykcji Over/Under",
+                    key="ou_model_select"
+                )
+                self.ou_model = family_models[selected_model_name]
+                st.session_state.previous_model_selections['ou_model'] = selected_model_name
+                
+        with col9:
+            # Modele dla rodziny zdarzeń 4 (BTTS)
+            family_models = self.filter_models_by_family(models_data, 4)
+            if not family_models:
+                self.btts_model = None
+                st.selectbox(
+                    label="Model BTTS",
+                    options=["Brak dostępnych modeli"],
+                    disabled=True,
+                    help="Brak aktywnych modeli dla BTTS",
+                    key="btts_model_disabled"
+                )
+            else:
+                model_options = list(family_models.keys())
+                # Użyj poprzedniego wyboru jeśli dostępny
+                default_index = 0
+                prev_selection = st.session_state.previous_model_selections.get('btts_model')
+                if prev_selection and prev_selection in model_options:
+                    default_index = model_options.index(prev_selection)
+                    
+                selected_model_name = st.selectbox(
+                    label="Model BTTS",
+                    options=model_options,
+                    index=default_index,
+                    help="Wybierz model do predykcji BTTS",
+                    key="btts_model_select"
+                )
+                self.btts_model = family_models[selected_model_name]
+                st.session_state.previous_model_selections['btts_model'] = selected_model_name
+
+    def refresh_all_cache(self) -> None:
+        """
+        Czyści wszystkie cache (modele, sezony, specjalne kolejki, kolejki) i wymusza ponowne załadowanie z API.
+        Użyj tej metody gdy dane zostały zaktualizowane w API lub bazie danych.
+        """
+        # Wyczyść cache modeli
+        if 'models_cache' in st.session_state:
+            del st.session_state.models_cache
+        if 'models_loaded_for_league' in st.session_state:
+            del st.session_state.models_loaded_for_league
+            
+        # Wyczyść cache sezonów i kolejek
+        if 'seasons_cache' in st.session_state:
+            del st.session_state.seasons_cache
+        if 'special_rounds_cache' in st.session_state:
+            del st.session_state.special_rounds_cache
+        if 'rounds_cache' in st.session_state:
+            del st.session_state.rounds_cache
+        if 'data_loaded_flags' in st.session_state:
+            st.session_state.data_loaded_flags['seasons_loaded'] = False
+            st.session_state.data_loaded_flags['special_rounds_loaded'] = False
+            
+        st.rerun()  # Odśwież stronę aby załadować nowe dane
+
+    def refresh_seasons_cache(self) -> None:
+        """
+        Czyści cache sezonów i specjalnych kolejek i wymusza ponowne załadowanie z API.
+        Użyj tej metody gdy dane zostały zaktualizowane w API lub bazie danych.
+        """
+        if 'seasons_cache' in st.session_state:
+            del st.session_state.seasons_cache
+        if 'special_rounds_cache' in st.session_state:
+            del st.session_state.special_rounds_cache
+        if 'data_loaded_flags' in st.session_state:
+            st.session_state.data_loaded_flags['seasons_loaded'] = False
+            st.session_state.data_loaded_flags['special_rounds_loaded'] = False
+        st.rerun()  # Odśwież stronę aby załadować nowe dane
+
+    def refresh_models_cache(self) -> None:
+        """
+        Czyści cache modeli i wymusza ponowne załadowanie z API.
+        Użyj tej metody gdy modele zostały zaktualizowane w API.
+        """
+        if 'models_cache' in st.session_state:
+            del st.session_state.models_cache
+        if 'models_loaded_for_league' in st.session_state:
+            del st.session_state.models_loaded_for_league
+        st.rerun()  # Odśwież stronę aby załadować nowe dane
                 

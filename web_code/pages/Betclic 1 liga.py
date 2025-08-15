@@ -5,7 +5,7 @@ import base_site_module
 
 def main():
     #league, season, name
-    base = base_site_module.Base(21, 11, "Betclic 1 Liga")
+    base = base_site_module.Base(21, 12, "Betclic 1 Liga")
 
 if __name__ == '__main__':
     main()
