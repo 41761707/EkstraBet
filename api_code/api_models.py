@@ -1,25 +1,21 @@
 import time
 from fastapi import APIRouter, HTTPException
-import mysql.connector
-import db_module
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
-from contextlib import contextmanager
 from typing import Optional
+from utils import get_db_connection, execute_query
 
-# Konfiguracja logowania
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
-# Dodajemy nowe modele do istniejącego pliku
 
 class EventFamilyResponse(BaseModel):
     """Model odpowiedzi dla pojedynczej rodziny zdarzeń"""
     id: int = Field(..., description="ID rodziny zdarzeń")
     sport_id: int = Field(..., description="ID sportu")
     name: str = Field(..., description="Nazwa rodziny zdarzeń")
+
 
 class EventFamilyMappingResponse(BaseModel):
     """Model odpowiedzi dla mapowania zdarzenia do rodziny"""
@@ -29,6 +25,7 @@ class EventFamilyMappingResponse(BaseModel):
     event_name: Optional[str] = Field(None, description="Nazwa zdarzenia")
     family_name: Optional[str] = Field(None, description="Nazwa rodziny")
 
+
 class ModelFamilyResponse(BaseModel):
     """Model odpowiedzi dla powiązania modelu z rodziną zdarzeń"""
     id: int = Field(..., description="ID powiązania")
@@ -37,6 +34,7 @@ class ModelFamilyResponse(BaseModel):
     model_name: Optional[str] = Field(None, description="Nazwa modelu")
     family_name: Optional[str] = Field(None, description="Nazwa rodziny")
 
+
 class DetailedModelResponse(BaseModel):
     """Szczegółowy model odpowiedzi dla modelu z wszystkimi powiązaniami"""
     id: int = Field(..., description="ID modelu")
@@ -44,45 +42,22 @@ class DetailedModelResponse(BaseModel):
     active: int = Field(..., description="Status aktywności modelu")
     sport_id: int = Field(..., description="ID sportu")
     sport_name: Optional[str] = Field(None, description="Nazwa sportu")
-    event_families: list[EventFamilyResponse] = Field(default=[], description="Rodziny zdarzeń obsługiwane przez model")
-    supported_events: list[dict] = Field(default=[], description="Wszystkie zdarzenia obsługiwane przez model")
-    total_events: int = Field(0, description="Łączna liczba obsługiwanych zdarzeń")
+    event_families: list[EventFamilyResponse] = Field(
+        default=[], description="Rodziny zdarzeń obsługiwane przez model")
+    supported_events: list[dict] = Field(
+        default=[], description="Wszystkie zdarzenia obsługiwane przez model")
+    total_events: int = Field(
+        0, description="Łączna liczba obsługiwanych zdarzeń")
 
-@contextmanager
-def get_db_connection():
-    """Context manager do zarządzania połączeniami z bazą danych"""
-    conn = None
-    try:
-        conn = db_module.db_connect()
-        yield conn
-    except mysql.connector.Error as e:
-        logger.error(f"Błąd połączenia z bazą danych: {e}")
-        raise HTTPException(status_code=500, detail="Błąd połączenia z bazą danych")
-    finally:
-        if conn and conn.is_connected():
-            conn.close()
-
-def execute_query(query: str, params: tuple = None) -> pd.DataFrame:
-    """Wykonuje zapytanie SQL i zwraca wynik jako DataFrame"""
-    with get_db_connection() as conn:
-        try:
-            return pd.read_sql(query, conn, params=params)
-        except Exception as e:
-            logger.error(f"Błąd wykonania zapytania: {e}")
-            raise HTTPException(status_code=500, detail="Błąd wykonania zapytania")
-        
 # ==================== FUNKCJE POMOCNICZE ====================
 
 def get_model_basic_info(model_id: int) -> dict:
     """
     Pobiera podstawowe informacje o modelu
-    
     Args:
         model_id: ID modelu
-        
     Returns:
         dict: Podstawowe informacje o modelu
-        
     Raises:
         HTTPException: Gdy model nie zostanie znaleziony
     """
@@ -93,14 +68,11 @@ def get_model_basic_info(model_id: int) -> dict:
         LEFT JOIN sports s ON m.SPORT_ID = s.ID
         WHERE m.ID = %s
         """
-        
         model_df = execute_query(query, (model_id,))
-        
         if model_df.empty:
-            raise HTTPException(status_code=404, detail="Model nie został znaleziony")
-        
+            raise HTTPException(
+                status_code=404, detail="Model nie został znaleziony")
         model_row = model_df.iloc[0]
-        
         return {
             "id": int(model_row['ID']),
             "name": str(model_row['NAME']),
@@ -108,20 +80,21 @@ def get_model_basic_info(model_id: int) -> dict:
             "sport_id": int(model_row['SPORT_ID']),
             "sport_name": str(model_row['sport_name']) if pd.notna(model_row['sport_name']) else None
         }
-        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Błąd w get_model_basic_info dla model_id {model_id}: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania podstawowych informacji o modelu")
+        logger.error(
+            f"Błąd w get_model_basic_info dla model_id {model_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania podstawowych informacji o modelu")
+
 
 def get_model_event_families(model_id: int) -> list[dict]:
     """
     Pobiera rodziny zdarzeń obsługiwane przez model
-    
     Args:
         model_id: ID modelu
-        
+
     Returns:
         list[dict]: Lista rodzin zdarzeń przypisanych do modelu
     """
@@ -133,9 +106,7 @@ def get_model_event_families(model_id: int) -> list[dict]:
         WHERE emf.MODEL_ID = %s
         ORDER BY ef.NAME
         """
-        
         families_df = execute_query(query, (model_id,))
-        
         event_families = []
         for _, family in families_df.iterrows():
             event_families.append({
@@ -143,20 +114,19 @@ def get_model_event_families(model_id: int) -> list[dict]:
                 "sport_id": int(family['SPORT_ID']),
                 "name": str(family['NAME'])
             })
-        
         return event_families
-        
     except Exception as e:
-        logger.error(f"Błąd w get_model_event_families dla model_id {model_id}: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania rodzin zdarzeń modelu")
+        logger.error(
+            f"Błąd w get_model_event_families dla model_id {model_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania rodzin zdarzeń modelu")
+
 
 def get_model_supported_events(model_id: int) -> list[dict]:
     """
     Pobiera wszystkie zdarzenia obsługiwane przez model
-    
     Args:
         model_id: ID modelu
-        
     Returns:
         list[dict]: Lista wszystkich zdarzeń obsługiwanych przez model
     """
@@ -170,9 +140,7 @@ def get_model_supported_events(model_id: int) -> list[dict]:
         WHERE emf.MODEL_ID = %s
         ORDER BY ef.NAME, e.NAME
         """
-        
         events_df = execute_query(query, (model_id,))
-        
         supported_events = []
         for _, event in events_df.iterrows():
             supported_events.append({
@@ -180,14 +148,15 @@ def get_model_supported_events(model_id: int) -> list[dict]:
                 "name": str(event['NAME']),
                 "family_name": str(event['family_name'])
             })
-        
         return supported_events
-        
     except Exception as e:
-        logger.error(f"Błąd w get_model_supported_events dla model_id {model_id}: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania zdarzeń obsługiwanych przez model")
-        
+        logger.error(
+            f"Błąd w get_model_supported_events dla model_id {model_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania zdarzeń obsługiwanych przez model")
+
 # ==================== ENDPOINTY  =======================
+
 
 @router.get("/models", tags=["Modele"])
 async def helper_info():
@@ -203,6 +172,7 @@ async def helper_info():
             "models/detailed-models - Lista szczegółowych modeli"
         ]
     }
+
 
 @router.get("/models/event-families", tags=["Modele"])
 async def get_event_families(sport_id: Optional[int] = None):
@@ -240,8 +210,10 @@ async def get_event_families(sport_id: Optional[int] = None):
         }
     except Exception as e:
         logger.error(f"Błąd w get_event_families: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania rodzin zdarzeń")
-    
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania rodzin zdarzeń")
+
+
 @router.get("/models/event-family-mappings/{family_id}", tags=["Modele"])
 async def get_family_events(family_id: int):
     """
@@ -274,16 +246,17 @@ async def get_family_events(family_id: int):
         return {
             "family_events": mappings,
             "total_events": len(mappings)
-        } 
+        }
     except Exception as e:
         logger.error(f"Błąd w get_family_events: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania zdarzeń rodziny")
-    
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania zdarzeń rodziny")
+
+
 @router.get("/models/models", response_model=dict, tags=["Modele"])
 async def get_models():
     """
     Pobiera listę dostępnych modeli predykcyjnych
-    
     Returns:
         Lista dostępnych modeli z podstawowymi informacjami
     """
@@ -295,7 +268,6 @@ async def get_models():
         ORDER BY m.NAME
         """
         models_df = execute_query(query)
-        
         models = []
         for _, row in models_df.iterrows():
             models.append({
@@ -305,52 +277,41 @@ async def get_models():
                 "sport_id": int(row['SPORT_ID']),
                 "sport_name": str(row['sport_name']) if pd.notna(row['sport_name']) else None
             })
-        
         return {
             "models": models,
             "total_models": len(models)
         }
-        
     except Exception as e:
         logger.error(f"Błąd w get_models: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania listy modeli")
-    
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania listy modeli")
+
+
 @router.get("/models/models/{model_id}/details", tags=["Modele"])
 async def get_model_details(model_id: int):
     """
     Pobiera szczegółowe informacje o modelu wraz z obsługiwanymi rodzinami zdarzeń
-    
     Args:
         model_id: ID modelu
-    
     Returns:
         Szczegółowe informacje o modelu
     """
     try:
-        start_time = time.time()
         # Pobierz podstawowe informacje o modelu
         basic_info = get_model_basic_info(model_id)
-        
         # Pobierz rodziny zdarzeń dla modelu
         event_families = get_model_event_families(model_id)
-        
         # Pobierz wszystkie obsługiwane zdarzenia
         supported_events = get_model_supported_events(model_id)
-        
-        # Złóż kompletną odpowiedź
-
-        end_time = time.time() - start_time
-        print(f"Czas wykonania: {end_time:.2f} sekund")
         return {
             **basic_info,  # Rozpakuj podstawowe informacje
             "event_families": event_families,
             "supported_events": supported_events,
             "total_events": len(supported_events)
         }
-        
     except HTTPException:
-        # Przepuść błędy HTTP dalej (np. 404 dla nieistniejącego modelu)
         raise
     except Exception as e:
         logger.error(f"Błąd w get_model_details dla model_id {model_id}: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania szczegółów modelu")
+        raise HTTPException(
+            status_code=500, detail="Błąd pobierania szczegółów modelu")

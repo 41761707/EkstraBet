@@ -7,11 +7,14 @@ Modularny system API do zarządzania danymi systemu EkstraBet, zbudowany z wykor
 API składa się z modułów:
 - **Teams** (`api_teams.py`) - Zarządzanie drużynami
 - **Helper** (`api_helper.py`) - Dane pomocnicze (kraje, sporty, sezony)
+- **Matches** (`api_matches.py`) - Zarządzanie meczami
+- **Odds** (`api_odds.py`) - Kursy bukmacherskie
+- **Predictions** (`api_predictions.py`) - Predykcje modeli
 - **Główny** (`start_api.py`) - Inicjalizacja i orkiestracja wszystkich modułów
 
 W przyszłości planowane są moduły:
 - **Leagues** - Zarządzanie ligami
-- **Matches** - Zarządzanie meczami  
+- **Predictions** - System predykcji  
 - **Predictions** - System predykcji
 itd.
 
@@ -481,6 +484,307 @@ Testy pokrywają wszystkie funkcjonalności API:
 ⚡ Wydajność: średni czas odpowiedzi 45ms
 ============================================================
 ✅ Wszystkie testy zakończone
+```
+
+## Moduł Matches - Endpointy
+
+### 1. GET `/matches/seasons/{league_id}`
+**Opis**: Pobiera wszystkie sezony dla danej ligi.
+
+**Parametry**:
+- `league_id` (int, wymagany): ID ligi
+
+**Przykład zapytania**:
+```bash
+curl "http://localhost:8000/matches/seasons/1"
+```
+
+**Przykład odpowiedzi**:
+```json
+{
+  "seasons": [
+    {
+      "season_id": 8,
+      "years": "2023/24"
+    },
+    {
+      "season_id": 7,
+      "years": "2022/23"
+    },
+    {
+      "season_id": 6,
+      "years": "2021/22"
+    }
+  ],
+  "total_count": 3
+}
+```
+
+### 2. GET `/matches/rounds/{league_id}/{season_id}`
+**Opis**: Pobiera wszystkie rundy dla danego sezonu w lidze.
+
+**Parametry**:
+- `league_id` (int, wymagany): ID ligi
+- `season_id` (int, wymagany): ID sezonu
+
+**Przykład zapytania**:
+```bash
+curl "http://localhost:8000/matches/rounds/1/8"
+```
+
+**Przykład odpowiedzi**:
+```json
+{
+  "rounds": [
+    {
+      "round_number": 34,
+      "game_date": "2024-05-25"
+    },
+    {
+      "round_number": 33,
+      "game_date": "2024-05-18"
+    },
+    {
+      "round_number": 32,
+      "game_date": "2024-05-11"
+    }
+  ],
+  "total_count": 34
+}
+```
+
+### 3. GET `/matches/`
+**Opis**: Informacje o module matches.
+
+**Przykład zapytania**:
+```bash
+curl "http://localhost:8000/matches/"
+```
+
+**Przykład odpowiedzi**:
+```json
+{
+  "module": "EkstraBet Matches API",
+  "version": "1.0.0",
+  "description": "API do zarządzania danymi meczów",
+  "endpoints": [
+    "/matches/seasons/{league_id} - Sezony dla danej ligi",
+    "/matches/rounds/{league_id}/{season_id} - Rundy dla danego sezonu w lidze"
+  ]
+}
+```
+
+---
+
+## Moduł Odds
+
+Moduł do zarządzania kursami bukmacherskimi.
+
+### Dostępne endpointy:
+
+### 1. GET `/odds/match/{match_id}`
+
+Pobiera wszystkie kursy dla określonego meczu.
+
+**Parametry:**
+- `match_id` (int) - ID meczu
+
+**Przykład użycia:**
+```bash
+curl "http://localhost:8000/odds/match/1"
+```
+
+**Odpowiedź:**
+```json
+{
+  "odds": [
+    {
+      "bookmaker": "Fortuna",
+      "event": "Winner",
+      "odds": 2.15
+    },
+    {
+      "bookmaker": "Fortuna", 
+      "event": "Over 2.5",
+      "odds": 1.85
+    }
+  ],
+  "total_count": 2,
+  "match_id": 1
+}
+```
+
+### 2. GET `/odds/`
+
+Informacje o module odds.
+
+**Odpowiedź:**
+```json
+{
+  "module": "EkstraBet Odds API",
+  "version": "1.0.0",
+  "description": "Moduł API do obsługi kursów bukmacherskich",
+  "endpoints": [
+    "/odds/match/{match_id} - Wszystkie kursy dla danego meczu"
+  ]
+}
+```
+
+---
+
+## Moduł Predictions
+
+Moduł do zarządzania predykcjami modeli.
+
+### Dostępne endpointy:
+
+### 1. GET `/predictions/search`
+
+Wyszukuje predykcje z opcjonalnymi filtrami. Wszystkie filtry są opcjonalne.
+
+**Parametry query:**
+- `match_id` (int, opcjonalny) - ID meczu
+- `event_id` (int, opcjonalny) - ID zdarzenia
+- `model_ids` (string, opcjonalny) - Lista ID modeli oddzielona przecinkami (np. "1,2,3")
+- `page` (int, domyślnie 1) - Numer strony
+- `page_size` (int, domyślnie 50, max 500) - Rozmiar strony
+
+**Przykłady użycia:**
+
+```bash
+# Wszystkie predykcje (pierwsza strona)
+curl "http://localhost:8000/predictions/search"
+
+# Predykcje dla meczu o ID 1
+curl "http://localhost:8000/predictions/search?match_id=1"
+
+# Predykcje dla zdarzenia o ID 2
+curl "http://localhost:8000/predictions/search?event_id=2"
+
+# Predykcje dla modeli 1 i 3
+curl "http://localhost:8000/predictions/search?model_ids=1,3"
+
+# Kombinacja filtrów - mecz 1, zdarzenie 2, modele 1,2,3
+curl "http://localhost:8000/predictions/search?match_id=1&event_id=2&model_ids=1,2,3"
+
+# Z paginacją - strona 2, 20 wyników na stronę
+curl "http://localhost:8000/predictions/search?page=2&page_size=20"
+```
+
+**Odpowiedź:**
+```json
+{
+  "predictions": [
+    {
+      "id": 1,
+      "match_id": 1,
+      "event_id": 2,
+      "event_name": "Winner",
+      "model_id": 1,
+      "value": 0.75
+    },
+    {
+      "id": 2,
+      "match_id": 1,
+      "event_id": 2,
+      "event_name": "Winner",
+      "model_id": 2,
+      "value": 0.68
+    }
+  ],
+  "total_count": 2,
+  "filters_applied": {
+    "match_id": 1,
+    "event_id": 2,
+    "model_ids": [1, 2],
+    "page": 1,
+    "page_size": 50
+  }
+}
+```
+
+### 2. GET `/predictions/team/{team_id}/{season_id}`
+
+Pobiera predykcje dla określonej drużyny w danym sezonie, wraz z wynikami (poprawne/niepoprawne).
+
+**Parametry:**
+- `team_id` (int) - ID drużyny
+- `season_id` (int) - ID sezonu
+
+**Przykład użycia:**
+```bash
+curl "http://localhost:8000/predictions/team/1/8"
+```
+
+**Odpowiedź:**
+```json
+{
+  "team_predictions": [
+    {
+      "event_id": 1,
+      "outcome": 1
+    },
+    {
+      "event_id": 2,
+      "outcome": null
+    }
+  ],
+  "total_count": 2,
+  "team_id": 1,
+  "season_id": 8
+}
+```
+
+### 3. GET `/predictions/match/{match_id}`
+
+Pobiera końcowe predykcje dla pojedynczego meczu wraz z wynikami (poprawne/niepoprawne).
+
+**Parametry:**
+- `match_id` (int) - ID meczu
+
+**Przykład użycia:**
+```bash
+curl "http://localhost:8000/predictions/match/106538"
+```
+
+**Odpowiedź:**
+```json
+{
+  "match_predictions": [
+    {
+      "event_id": 1,
+      "name": "Winner",
+      "outcome": 1,
+      "model_id": 1
+    },
+    {
+      "event_id": 2,
+      "name": "Over 2.5",
+      "outcome": null,
+      "model_id": 1
+    }
+  ],
+  "total_count": 2,
+  "match_id": 106538
+}
+```
+
+### 4. GET `/predictions/`
+
+Informacje o module predictions.
+
+**Odpowiedź:**
+```json
+{
+  "module": "EkstraBet Predictions API",
+  "version": "1.0.0",
+  "description": "Moduł API do obsługi predykcji modeli",
+  "endpoints": [
+    "/predictions/search - Wyszukiwanie predykcji z opcjonalnymi filtrami",
+    "/predictions/team/{team_id}/{season_id} - Predykcje dla drużyny w danym sezonie",
+    "/predictions/match/{match_id} - Końcowe predykcje dla pojedynczego meczu"
+  ]
+}
 ```
 
 ## Kontakt

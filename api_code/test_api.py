@@ -618,6 +618,453 @@ def test_edge_cases():
     except Exception as e:
         print(f"❌ Błąd testu przypadków brzegowych: {e}")
 
+def test_matches_info():
+    """Test endpointu informacji o module matches"""
+    print("\n🔍 Test: GET /matches/")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/matches/")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Info modułu matches: {data['module']}")
+            print(f"   Wersja: {data['version']}")
+            print(f"   Liczba endpointów: {len(data['endpoints'])}")
+        else:
+            print(f"❌ Błąd info matches: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Błąd testu info matches: {e}")
+
+def test_get_seasons_for_league():
+    """Test pobierania sezonów dla ligi"""
+    print("\n🔍 Test: GET /matches/seasons/{league_id}")
+    
+    # Test dla kilku popularnych lig
+    test_leagues = [1, 2, 5]  # Przykładowe ID lig
+    
+    for league_id in test_leagues:
+        try:
+            response = requests.get(f"{BASE_URL}/matches/seasons/{league_id}")
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ Liga {league_id}: {data['total_count']} sezonów")
+                if data['seasons']:
+                    latest_season = data['seasons'][0]
+                    print(f"   Najnowszy sezon: {latest_season['years']} (ID: {latest_season['season_id']})")
+            else:
+                print(f"❌ Błąd dla ligi {league_id}: {response.status_code}")
+        except Exception as e:
+            print(f"❌ Błąd testu sezonów dla ligi {league_id}: {e}")
+
+def test_get_rounds_for_season():
+    """Test pobierania rund dla sezonu w lidze"""
+    print("\n🔍 Test: GET /matches/rounds/{league_id}/{season_id}")
+    
+    # Najpierw pobierz sezon dla ligi
+    test_league_id = 1
+    try:
+        seasons_response = requests.get(f"{BASE_URL}/matches/seasons/{test_league_id}")
+        if seasons_response.status_code == 200:
+            seasons_data = seasons_response.json()
+            if seasons_data['seasons']:
+                latest_season = seasons_data['seasons'][0]
+                season_id = latest_season['season_id']
+                
+                # Teraz pobierz rundy
+                rounds_response = requests.get(f"{BASE_URL}/matches/rounds/{test_league_id}/{season_id}")
+                if rounds_response.status_code == 200:
+                    rounds_data = rounds_response.json()
+                    print(f"✅ Liga {test_league_id}, sezon {latest_season['years']}: {rounds_data['total_count']} rund")
+                    if rounds_data['rounds']:
+                        latest_round = rounds_data['rounds'][0]
+                        print(f"   Najnowsza runda: {latest_round['round_number']} (data: {latest_round['game_date']})")
+                else:
+                    print(f"❌ Błąd pobierania rund: {rounds_response.status_code}")
+            else:
+                print("⚠️ Brak sezonów dla testowej ligi")
+        else:
+            print(f"❌ Błąd pobierania sezonów: {seasons_response.status_code}")
+    except Exception as e:
+        print(f"❌ Błąd testu rund: {e}")
+
+def test_matches_edge_cases():
+    """Test przypadków brzegowych dla API matches"""
+    print("\n🔍 Test: Przypadki brzegowe API matches")
+    
+    # Test nieistniejącej ligi
+    try:
+        response = requests.get(f"{BASE_URL}/matches/seasons/999999")
+        if response.status_code == 200:
+            data = response.json()
+            if data['total_count'] == 0:
+                print("✅ Poprawna obsługa nieistniejącej ligi")
+            else:
+                print(f"⚠️ Nieoczekiwany wynik dla nieistniejącej ligi: {data['total_count']} sezonów")
+        else:
+            print(f"❌ Błąd dla nieistniejącej ligi: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Błąd testu nieistniejącej ligi: {e}")
+    
+    # Test nieistniejącego sezonu
+    try:
+        response = requests.get(f"{BASE_URL}/matches/rounds/1/999999")
+        if response.status_code == 200:
+            data = response.json()
+            if data['total_count'] == 0:
+                print("✅ Poprawna obsługa nieistniejącego sezonu")
+            else:
+                print(f"⚠️ Nieoczekiwany wynik dla nieistniejącego sezonu: {data['total_count']} rund")
+        else:
+            print(f"❌ Błąd dla nieistniejącego sezonu: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Błąd testu nieistniejącego sezonu: {e}")
+
+def test_odds_info():
+    """Test endpointu informacji o module odds"""
+    print("\n🔍 Test: GET /odds/")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/odds/")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Informacje o module odds: {data['module']}")
+            print(f"   Opis: {data['description']}")
+            print(f"   Dostępne endpointy: {len(data['endpoints'])}")
+        else:
+            print(f"❌ Błąd pobrania informacji o module odds: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Błąd testu odds info: {e}")
+
+def test_get_odds_for_match():
+    """Test endpointu pobierania kursów dla meczu"""
+    print("\n🔍 Test: GET /odds/match/{match_id}")
+    
+    # Test z istniejącym meczem (ID 1)
+    try:
+        match_id = 1
+        response = requests.get(f"{BASE_URL}/odds/match/{match_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pobrano kursy dla meczu {match_id}")
+            print(f"   Liczba kursów: {data['total_count']}")
+            print(f"   ID meczu: {data['match_id']}")
+            
+            if data['odds']:
+                first_odds = data['odds'][0]
+                print(f"   Przykładowy kurs: {first_odds['bookmaker']} - {first_odds['event']} - {first_odds['odds']}")
+            else:
+                print("   Brak kursów dla tego meczu")
+                
+        elif response.status_code == 404:
+            print(f"ℹ️  Mecz {match_id} nie istnieje lub nie ma kursów")
+        else:
+            print(f"❌ Błąd pobrania kursów: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu get odds for match: {e}")
+
+def test_odds_edge_cases():
+    """Test przypadków brzegowych dla modułu odds"""
+    print("\n🔍 Test: Przypadki brzegowe - odds")
+    
+    # Test z nieistniejącym meczem
+    try:
+        match_id = 999999
+        response = requests.get(f"{BASE_URL}/odds/match/{match_id}")
+        
+        if response.status_code == 404:
+            print(f"✅ Poprawna obsługa nieistniejącego meczu (ID: {match_id})")
+        else:
+            print(f"❌ Niepoprawna obsługa nieistniejącego meczu: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu edge cases odds: {e}")
+    
+    # Test z nieprawidłowym ID meczu
+    try:
+        response = requests.get(f"{BASE_URL}/odds/match/abc")
+        
+        if response.status_code == 422:  # Validation error
+            print("✅ Poprawna obsługa nieprawidłowego formatu ID meczu")
+        else:
+            print(f"❌ Niepoprawna obsługa błędnego formatu ID: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu invalid match ID: {e}")
+
+def test_predictions_info():
+    """Test endpointu informacji o module predictions"""
+    print("\n🔍 Test: GET /predictions/")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/predictions/")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Informacje o module predictions: {data['module']}")
+            print(f"   Opis: {data['description']}")
+            print(f"   Dostępne endpointy: {len(data['endpoints'])}")
+        else:
+            print(f"❌ Błąd pobrania informacji o module predictions: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Błąd testu predictions info: {e}")
+
+def test_search_predictions_without_filters():
+    """Test wyszukiwania predykcji bez filtrów"""
+    print("\n🔍 Test: GET /predictions/search (bez filtrów)")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/predictions/search")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pobrano predykcje bez filtrów")
+            print(f"   Liczba predykcji: {data['total_count']}")
+            print(f"   Zwrócono na stronie: {len(data['predictions'])}")
+            print(f"   Zastosowane filtry: {data['filters_applied']}")
+            
+            if data['predictions']:
+                first_pred = data['predictions'][0]
+                print(f"   Przykładowa predykcja: ID={first_pred['id']}, Match={first_pred['match_id']}, Event={first_pred['event_id']} ({first_pred['event_name']}), Model={first_pred['model_id']}, Value={first_pred['value']}")
+                
+        else:
+            print(f"❌ Błąd wyszukiwania predykcji: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu search predictions without filters: {e}")
+
+def test_search_predictions_with_filters():
+    """Test wyszukiwania predykcji z filtrami"""
+    print("\n🔍 Test: GET /predictions/search (z filtrami)")
+    
+    try:
+        # Test z filtrem match_id
+        params = {
+            "match_id": 1,
+            "page_size": 10
+        }
+        response = requests.get(f"{BASE_URL}/predictions/search", params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pobrano predykcje z filtrem match_id=1")
+            print(f"   Liczba predykcji: {data['total_count']}")
+            print(f"   Zastosowane filtry: {data['filters_applied']}")
+            
+            # Sprawdzenie czy wszystkie predykcje mają match_id=1
+            if data['predictions']:
+                all_match_correct = all(pred['match_id'] == 1 for pred in data['predictions'])
+                if all_match_correct:
+                    print("   ✅ Filtr match_id działa poprawnie")
+                else:
+                    print("   ❌ Filtr match_id nie działa poprawnie")
+                    
+        else:
+            print(f"❌ Błąd wyszukiwania z filtrem: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu search predictions with filters: {e}")
+
+def test_search_predictions_with_model_ids():
+    """Test wyszukiwania predykcji z filtrem model_ids"""
+    print("\n🔍 Test: GET /predictions/search (z model_ids)")
+    
+    try:
+        # Test z filtrem model_ids
+        params = {
+            "model_ids": "1,2",
+            "page_size": 10
+        }
+        response = requests.get(f"{BASE_URL}/predictions/search", params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pobrano predykcje z filtrem model_ids='1,2'")
+            print(f"   Liczba predykcji: {data['total_count']}")
+            print(f"   Zastosowane filtry: {data['filters_applied']}")
+            
+            # Sprawdzenie czy wszystkie predykcje mają model_id in [1,2]
+            if data['predictions']:
+                all_models_correct = all(pred['model_id'] in [1, 2] for pred in data['predictions'])
+                if all_models_correct:
+                    print("   ✅ Filtr model_ids działa poprawnie")
+                else:
+                    print("   ❌ Filtr model_ids nie działa poprawnie")
+                    
+        else:
+            print(f"❌ Błąd wyszukiwania z filtrem model_ids: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu search predictions with model_ids: {e}")
+
+def test_predictions_edge_cases():
+    """Test przypadków brzegowych dla modułu predictions"""
+    print("\n🔍 Test: Przypadki brzegowe - predictions")
+    
+    # Test z nieprawidłowym formatem model_ids
+    try:
+        params = {"model_ids": "abc,def"}
+        response = requests.get(f"{BASE_URL}/predictions/search", params=params)
+        
+        if response.status_code == 400:
+            print("✅ Poprawna obsługa nieprawidłowego formatu model_ids")
+        else:
+            print(f"❌ Niepoprawna obsługa błędnego formatu model_ids: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu invalid model_ids: {e}")
+    
+    # Test z nieistniejącym match_id
+    try:
+        params = {"match_id": 999999}
+        response = requests.get(f"{BASE_URL}/predictions/search", params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data['total_count'] == 0:
+                print("✅ Poprawna obsługa nieistniejącego match_id")
+            else:
+                print(f"⚠️ Nieoczekiwany wynik dla nieistniejącego match_id: {data['total_count']} predykcji")
+        else:
+            print(f"❌ Błąd dla nieistniejącego match_id: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu nieistniejącego match_id: {e}")
+
+def test_get_team_predictions():
+    """Test endpointu pobierania predykcji dla drużyny"""
+    print("\n🔍 Test: GET /predictions/team/{team_id}/{season_id}")
+    
+    try:
+        # Test z istniejącą drużyną i sezonem (ID 1, sezon 1)
+        team_id = 1
+        season_id = 1
+        response = requests.get(f"{BASE_URL}/predictions/team/{team_id}/{season_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pobrano predykcje dla drużyny {team_id} w sezonie {season_id}")
+            print(f"   Liczba predykcji: {data['total_count']}")
+            print(f"   ID drużyny: {data['team_id']}")
+            print(f"   ID sezonu: {data['season_id']}")
+            
+            if data['team_predictions']:
+                first_pred = data['team_predictions'][0]
+                outcome_str = "nie oceniona" if first_pred['outcome'] is None else first_pred['outcome']
+                print(f"   Przykładowa predykcja: Event={first_pred['event_id']}, Outcome={outcome_str}")
+            else:
+                print("   Brak predykcji dla tej drużyny w tym sezonie")
+                
+        elif response.status_code == 404:
+            print(f"ℹ️  Drużyna {team_id} lub sezon {season_id} nie istnieje")
+        else:
+            print(f"❌ Błąd pobrania predykcji drużyny: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu get team predictions: {e}")
+
+def test_team_predictions_edge_cases():
+    """Test przypadków brzegowych dla predykcji drużyny"""
+    print("\n🔍 Test: Przypadki brzegowe - team predictions")
+    
+    # Test z nieistniejącą drużyną
+    try:
+        team_id = 999999
+        season_id = 1
+        response = requests.get(f"{BASE_URL}/predictions/team/{team_id}/{season_id}")
+        
+        if response.status_code == 404:
+            print(f"✅ Poprawna obsługa nieistniejącej drużyny (ID: {team_id})")
+        else:
+            print(f"❌ Niepoprawna obsługa nieistniejącej drużyny: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu nieistniejącej drużyny: {e}")
+    
+    # Test z nieistniejącym sezonem
+    try:
+        team_id = 1
+        season_id = 999999
+        response = requests.get(f"{BASE_URL}/predictions/team/{team_id}/{season_id}")
+        
+        if response.status_code == 404:
+            print(f"✅ Poprawna obsługa nieistniejącego sezonu (ID: {season_id})")
+        else:
+            print(f"❌ Niepoprawna obsługa nieistniejącego sezonu: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu nieistniejącego sezonu: {e}")
+    
+    # Test z nieprawidłowymi parametrami
+    try:
+        response = requests.get(f"{BASE_URL}/predictions/team/abc/def")
+        
+        if response.status_code == 422:  # Validation error
+            print("✅ Poprawna obsługa nieprawidłowych parametrów")
+        else:
+            print(f"❌ Niepoprawna obsługa błędnych parametrów: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu invalid parameters: {e}")
+
+def test_get_match_predictions():
+    """Test endpointu pobierania predykcji dla meczu"""
+    print("\n🔍 Test: GET /predictions/match/{match_id}")
+    
+    try:
+        # Test z istniejącym meczem (ID 1)
+        match_id = 1
+        response = requests.get(f"{BASE_URL}/predictions/match/{match_id}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pobrano predykcje dla meczu {match_id}")
+            print(f"   Liczba predykcji: {data['total_count']}")
+            print(f"   ID meczu: {data['match_id']}")
+            
+            if data['match_predictions']:
+                first_pred = data['match_predictions'][0]
+                outcome_str = "nie oceniona" if first_pred['outcome'] is None else first_pred['outcome']
+                print(f"   Przykładowa predykcja: Event={first_pred['event_id']} ({first_pred['name']}), Model={first_pred['model_id']}, Outcome={outcome_str}")
+            else:
+                print("   Brak predykcji dla tego meczu")
+                
+        elif response.status_code == 404:
+            print(f"ℹ️  Mecz {match_id} nie istnieje lub nie ma predykcji")
+        else:
+            print(f"❌ Błąd pobrania predykcji meczu: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu get match predictions: {e}")
+
+def test_match_predictions_edge_cases():
+    """Test przypadków brzegowych dla predykcji meczu"""
+    print("\n🔍 Test: Przypadki brzegowe - match predictions")
+    
+    # Test z nieistniejącym meczem
+    try:
+        match_id = 999999
+        response = requests.get(f"{BASE_URL}/predictions/match/{match_id}")
+        
+        if response.status_code == 404:
+            print(f"✅ Poprawna obsługa nieistniejącego meczu (ID: {match_id})")
+        else:
+            print(f"❌ Niepoprawna obsługa nieistniejącego meczu: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu nieistniejącego meczu: {e}")
+    
+    # Test z nieprawidłowym parametrem
+    try:
+        response = requests.get(f"{BASE_URL}/predictions/match/abc")
+        
+        if response.status_code == 422:  # Validation error
+            print("✅ Poprawna obsługa nieprawidłowego formatu ID meczu")
+        else:
+            print(f"❌ Niepoprawna obsługa błędnego formatu ID: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Błąd testu invalid match parameter: {e}")
+
 def run_all_tests():
     """Uruchom wszystkie testy"""
     print("🚀 Rozpoczynam testy API EkstraBet")
@@ -631,11 +1078,28 @@ def run_all_tests():
     # Testy systemowe
     test_health_check()
     test_teams_info()
+    test_matches_info()
+    test_odds_info()
+    test_predictions_info()
     
     # Testy funkcjonalne podstawowe
     test_get_all_teams()
     test_search_teams()
     test_helper_endpoints()
+    
+    # Testy funkcjonalne matches
+    test_get_seasons_for_league()
+    test_get_rounds_for_season()
+    
+    # Testy funkcjonalne odds
+    test_get_odds_for_match()
+    
+    # Testy funkcjonalne predictions
+    test_search_predictions_without_filters()
+    test_search_predictions_with_filters()
+    test_search_predictions_with_model_ids()
+    test_get_team_predictions()
+    test_get_match_predictions()
     
     # Testy funkcjonalne zaawansowane (nowe funkcjonalności)
     test_team_stats()
@@ -648,6 +1112,11 @@ def run_all_tests():
     
     # Testy przypadków brzegowych
     test_edge_cases()
+    test_matches_edge_cases()
+    test_odds_edge_cases()
+    test_predictions_edge_cases()
+    test_team_predictions_edge_cases()
+    test_match_predictions_edge_cases()
     
     # Test wydajności
     test_api_performance()
