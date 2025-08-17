@@ -14,6 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from api_teams import router as teams_router
 from api_helper import router as helper_router
 from api_models import router as models_router
+from api_matches import router as matches_router
+from api_odds import router as odds_router
+from api_predictions import router as predictions_router
 
 # Dodaj bieżący katalog do ścieżki Python
 current_dir = Path(__file__).parent
@@ -64,10 +67,11 @@ def create_app() -> FastAPI:
                 "teams - Zarządzanie drużynami",
                 "helper - Dane pomocnicze (kraje, sporty, sezony)",
                 "models - Lista modeli",
+                "matches - Zarządzanie meczami",
+                "odds - Kursy bukmacherskie",
+                "predictions - Predykcje modeli",
                 # Tutaj będą dodawane kolejne moduły
                 # "leagues - Zarządzanie ligami",
-                # "matches - Zarządzanie meczami",
-                # "predictions - Predykcje",
             ],
             "documentation": {
                 "swagger": "/docs",
@@ -101,11 +105,12 @@ def create_app() -> FastAPI:
     app.include_router(teams_router)
     app.include_router(helper_router)
     app.include_router(models_router)
+    app.include_router(matches_router)
+    app.include_router(odds_router)
+    app.include_router(predictions_router)
     
     # Tutaj będą dodawane kolejne moduły:
     # app.include_router(leagues_router)
-    # app.include_router(matches_router)
-    # app.include_router(predictions_router)
     
     # Globalna obsługa błędów
     @app.exception_handler(mysql.connector.Error)
@@ -153,9 +158,10 @@ def main():
     print("   • /teams - Zarządzanie drużynami")
     print("   • /helper - Informacje z tabel pomocniczych (kraje, sezony itd.)")
     print("   • /models - Lista modeli")
+    print("   • /matches - Zarządzanie meczami")
+    print("   • /odds - Kursy bukmacherskie")
+    print("   • /predictions - Predykcje modeli")
     # print("   • /leagues - Zarządzanie ligami")  # Przyszłe moduły
-    # print("   • /matches - Zarządzanie meczami")
-    # print("   • /predictions - Predykcje")
     print("=" * 60)
     
     try:

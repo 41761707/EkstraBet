@@ -2,12 +2,10 @@
 # Skopiuj ten plik i dostosuj do konkretnego modułu
 
 from fastapi import APIRouter, HTTPException, Query
-import mysql.connector
-import db_module
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
-from contextlib import contextmanager
+from utils import get_db_connection, execute_query
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -28,30 +26,7 @@ class ExampleListResponse(BaseModel):
     page_size: int = Field(..., description="Rozmiar strony")
 
 # === FUNKCJE POMOCNICZE ===
-# Wykorzystuj te same funkcje co w api_teams.py
-
-@contextmanager
-def get_db_connection():
-    """Context manager dla połączenia z bazą danych"""
-    conn = None
-    try:
-        conn = db_module.db_connect()
-        yield conn
-    except mysql.connector.Error as e:
-        logger.error(f"Błąd połączenia z bazą danych: {e}")
-        raise HTTPException(status_code=500, detail="Błąd połączenia z bazą danych")
-    finally:
-        if conn and conn.is_connected():
-            conn.close()
-
-def execute_query(query: str, params: tuple = None) -> pd.DataFrame:
-    """Wykonuje zapytanie SQL i zwraca wynik jako DataFrame"""
-    with get_db_connection() as conn:
-        try:
-            return pd.read_sql(query, conn, params=params)
-        except Exception as e:
-            logger.error(f"Błąd wykonania zapytania: {e}")
-            raise HTTPException(status_code=500, detail="Błąd wykonania zapytania")
+# Funkcje pomocnicze są importowane z utils.py
 
 # === ROUTER ===
 # Zmień prefix na odpowiedni dla tego modułu (np. "/leagues", "/matches")

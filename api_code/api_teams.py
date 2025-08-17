@@ -3,13 +3,11 @@
 # Autor: System EkstraBet
 
 from fastapi import APIRouter, HTTPException, Query
-import mysql.connector
-import db_module
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
-from contextlib import contextmanager
 from typing import Optional, List
+from utils import get_db_connection, execute_query
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -107,43 +105,8 @@ class HockeyTeamRosterResponse(BaseModel):
 class HeadToHeadResponse(BaseModel):
     """Model statystyk H2H"""
     team_1_id: int = Field(..., description="ID pierwszej drużyny")
-    team_1_name: str = Field(..., description="Nazwa pierwszej drużyny")
     team_2_id: int = Field(..., description="ID drugiej drużyny")
-    team_2_name: str = Field(..., description="Nazwa drugiej drużyny")
-    total_matches: int = Field(..., description="Całkowita liczba meczów")
-    team_1_wins: int = Field(..., description="Zwycięstwa drużyny 1")
-    team_2_wins: int = Field(..., description="Zwycięstwa drużyny 2")
-    draws: int = Field(..., description="Remisy")
-    last_5_meetings: List[dict] = Field(..., description="Ostatnie 5 spotkań")
-    avg_goals_per_match: float = Field(..., description="Średnia bramek na mecz")
-    btts_percentage: float = Field(..., description="Procent meczów BTTS")
-
-# Połączenie z bazą danych
-@contextmanager
-def get_db_connection():
-    """Context manager dla połączenia z bazą danych"""
-    conn = None
-    try:
-        conn = db_module.db_connect()
-        yield conn
-    except mysql.connector.Error as e:
-        logger.error(f"Błąd połączenia z bazą danych: {e}")
-        raise HTTPException(status_code=500, detail="Błąd połączenia z bazą danych")
-    finally:
-        if conn and conn.is_connected():
-            conn.close()
-
-# Funkcje pomocnicze
-def execute_query(query: str, params: tuple = None) -> pd.DataFrame:
-    """Wykonuje zapytanie SQL i zwraca wynik jako DataFrame"""
-    with get_db_connection() as conn:
-        try:
-            print(query)
-            print(params)
-            return pd.read_sql(query, conn, params=params)
-        except Exception as e:
-            logger.error(f"Błąd wykonania zapytania: {e}")
-            raise HTTPException(status_code=500, detail="Błąd wykonania zapytania")
+    last_meetings: List[dict] = Field(..., description="Ostatnie 5 spotkań")
 
 # Inicjalizacja routera dla modułu teams
 router = APIRouter(prefix="/teams", tags=["Drużyny"])
@@ -727,43 +690,6 @@ async def get_head_to_head_stats(
     - last_n_meetings: Opcjonalna liczba ostatnich spotkań do uwzględnienia w statystykach (domyślnie 5)
     """
     try:
-        # Sprawdzenie istnienia drużyn
-        teams_query = """
-        SELECT ID, NAME
-        FROM teams
-        WHERE ID IN (%s, %s)
-        """
-        
-        teams_df = execute_query(teams_query, (team_1_id, team_2_id))
-        
-        if teams_df.shape[0] != 2:
-            raise HTTPException(status_code=404, detail="Jedna z drużyn nie została znaleziona")
-        
-        team_1_name = teams_df[teams_df['ID'] == team_1_id].iloc[0]['NAME']
-        team_2_name = teams_df[teams_df['ID'] == team_2_id].iloc[0]['NAME']
-        
-        # Zapytanie o statystyki H2H
-        h2h_query = """
-        SELECT 
-            COUNT(*) as total_matches,
-            SUM(CASE WHEN (HOME_TEAM = %s AND AWAY_TEAM = %s) OR (HOME_TEAM = %s AND AWAY_TEAM = %s) THEN 1 ELSE 0 END) as total_h2h,
-            SUM(CASE WHEN (HOME_TEAM = %s AND AWAY_TEAM = %s) THEN 1 ELSE 0 END) as team_1_wins,
-            SUM(CASE WHEN (HOME_TEAM = %s AND AWAY_TEAM = %s) THEN 1 ELSE 0 END) as team_2_wins,
-            SUM(CASE WHEN RESULT = 'X' THEN 1 ELSE 0 END) as draws
-        FROM matches
-        WHERE (HOME_TEAM = %s AND AWAY_TEAM = %s) OR (HOME_TEAM = %s AND AWAY_TEAM = %s)
-        """
-        
-        h2h_df = execute_query(h2h_query, (team_1_id, team_2_id, team_2_id, team_1_id, team_1_id, team_2_id, team_2_id, team_1_id, team_1_id, team_2_id, team_2_id, team_1_id))
-        
-        if h2h_df.empty:
-            raise HTTPException(status_code=404, detail="Brak danych H2H dla tych drużyn")
-        
-        total_matches = int(h2h_df.iloc[0]['total_matches'] or 0)
-        team_1_wins = int(h2h_df.iloc[0]['team_1_wins'] or 0)
-        team_2_wins = int(h2h_df.iloc[0]['team_2_wins'] or 0)
-        draws = int(h2h_df.iloc[0]['draws'] or 0)
-        
         # Zapytanie o ostatnie N spotkań
         last_meetings_query = """
         SELECT 
@@ -774,14 +700,12 @@ async def get_head_to_head_stats(
             AWAY_TEAM_GOALS,
             RESULT
         FROM matches
-        WHERE (HOME_TEAM = %s AND AWAY_TEAM = %s) OR (HOME_TEAM = %s AND AWAY_TEAM = %s)
+        WHERE ((HOME_TEAM = %s AND AWAY_TEAM = %s) OR (HOME_TEAM = %s AND AWAY_TEAM = %s)) AND RESULT != '0'
         ORDER BY GAME_DATE DESC
         LIMIT %s
         """
-        
         last_meetings_df = execute_query(last_meetings_query, (team_1_id, team_2_id, team_2_id, team_1_id, last_n_meetings))
-        
-        last_5_meetings = []
+        last_meetings = []
         for _, row in last_meetings_df.iterrows():
             meeting = {
                 "date": row['GAME_DATE'],
@@ -791,26 +715,12 @@ async def get_head_to_head_stats(
                 "away_team_goals": row['AWAY_TEAM_GOALS'],
                 "result": row['RESULT']
             }
-            last_5_meetings.append(meeting)
-        
-        # Obliczenia dodatkowych statystyk
-        avg_goals_per_match = round((team_1_wins + team_2_wins + draws) / total_matches, 2) if total_matches > 0 else 0.0
-        btts_yes = sum(1 for x in last_5_meetings if x['home_team_goals'] > 0 and x['away_team_goals'] > 0)
-        btts_no = sum(1 for x in last_5_meetings if x['home_team_goals'] == 0 or x['away_team_goals'] == 0)
-        btts_percentage = round((btts_yes / len(last_5_meetings) * 100), 2) if len(last_5_meetings) > 0 else 0.0
-        
+            last_meetings.append(meeting)
+
         return HeadToHeadResponse(
             team_1_id=team_1_id,
-            team_1_name=team_1_name,
             team_2_id=team_2_id,
-            team_2_name=team_2_name,
-            total_matches=total_matches,
-            team_1_wins=team_1_wins,
-            team_2_wins=team_2_wins,
-            draws=draws,
-            last_5_meetings=last_5_meetings,
-            avg_goals_per_match=avg_goals_per_match,
-            btts_percentage=btts_percentage
+            last_meetings=last_meetings,
         )
         
     except Exception as e:
