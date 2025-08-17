@@ -97,27 +97,22 @@ async def get_seasons_for_league(
         Lista sezonów posortowana od najnowszych
     """
     try:
-        # Zapytanie o sezony dla danej ligi
-        season_query = f"""
+        # Zapytanie o sezony dla danej ligi (parametryzowane)
+        season_query = """
             SELECT distinct m.season, s.years 
             FROM matches m 
             JOIN seasons s ON m.season = s.id 
-            WHERE m.league = {league_id} 
+            WHERE m.league = %s 
             ORDER BY s.years DESC
-        """
-        
+        """ 
         logger.info(f"Wykonuję zapytanie o sezony dla ligi {league_id}")
-        
-        # Wykonanie zapytania
-        seasons_df = execute_query(season_query)
-        
+        seasons_df = execute_query(season_query, params=(league_id,))
         if seasons_df.empty:
-            logger.warning(f"Brak sezonów dla ligi {league_id}")
-            return SeasonsListResponse(
-                seasons=[],
-                total_count=0
-            )
-        
+                logger.warning(f"Brak sezonów dla ligi {league_id}")
+                return SeasonsListResponse(
+                    seasons=[],
+                    total_count=0
+                )
         # Konwersja wyników
         seasons_list = []
         for _, row in seasons_df.iterrows():
@@ -126,16 +121,12 @@ async def get_seasons_for_league(
                 years=str(row['years'])
             )
             seasons_list.append(season)
-        
         total_count = len(seasons_list)
-        
         logger.info(f"Znaleziono {total_count} sezonów dla ligi {league_id}")
-        
         return SeasonsListResponse(
             seasons=seasons_list,
             total_count=total_count
         )
-        
     except Exception as e:
         logger.error(f"Błąd w get_seasons_for_league dla ligi {league_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Błąd pobierania sezonów dla ligi {league_id}")
@@ -156,19 +147,19 @@ async def get_rounds_for_season(
         Lista rund posortowana chronologicznie (najnowsza kolejka na początku, najstarsza na końcu)
     """
     try:
-        # Zapytanie o rundy dla danego sezonu w lidze
-        rounds_query = f"""
+        # Zapytanie o rundy dla danego sezonu w lidze (parametryzowane)
+        rounds_query = """
             SELECT round, cast(game_date as date) as game_date
             FROM matches 
-            WHERE league = {league_id} AND season = {season_id} 
+            WHERE league = %s AND season = %s 
             ORDER BY game_date DESC
         """
         
         logger.info(f"Wykonuję zapytanie o rundy dla ligi {league_id}, sezonu {season_id}")
-        
-        # Wykonanie zapytania
-        rounds_df = execute_query(rounds_query)
-        
+            
+        # Wykonanie zapytania z parametrami
+        rounds_df = execute_query(rounds_query, params=(league_id, season_id))
+            
         if rounds_df.empty:
             logger.warning(f"Brak rund dla ligi {league_id}, sezonu {season_id}")
             return RoundsListResponse(
