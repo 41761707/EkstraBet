@@ -125,7 +125,7 @@ def fetch_match_elements(driver: webdriver.Chrome, link: str) -> tuple[list, lis
     """
     driver.get(link)
     time.sleep(3)
-    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_OFViZ")
+    stat_divs = driver.find_elements(By.CLASS_NAME, "wcl-row_2oCpS")
     time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
     team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
     score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")

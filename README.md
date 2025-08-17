@@ -1,26 +1,52 @@
-# EkstraBet
+# EkstraBet — system analityczny do predykcji zdarzeń sportowych
 
 ## Wersja polska
-Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich z wykorzystaniem sztucznej inteligencji
+EkstraBet to modularny projekt Pythonowy łączący scraping, analizę danych, modele predykcyjne oraz wygodną warstwę prezentacji. Projekt powstał jako rozszerzenie pracy magisterskiej i jest rozwijany pod kątem analizy meczów, generowania predykcji i symulacji zakładów bukmacherskich.
 
-## Wykorzystane technologie
-1. Silnik bazodanowy: <b>MySQL</b>
-2. Frontend: Framework <b> streamlit (Python)</b> pozwalajacy na ładne oraz schludne prezentowanie danych analitycznych
-3. Backend: <b> Python </b>
+## Główne funkcjonalności
+- Pobieranie i aktualizacja danych meczowych (historyczne i nadchodzące) — moduły scrapperów ([scrapper_code/README_scrappers.md](scrapper_code/README_scrappers.md)).
+- Pobieranie kursów bukmacherskich i powiązanie ich z predykcjami (odds).
+- Pipeline trenowania i predykcji modeli (winner / btts / goals / exact) z możliwością zapisu/ładowania wag — moduł modelowy ([model_code/main.py](model_code/main.py)).
+- Generowanie propozycji zakładów i ocena Value (EV) — narzędzia typu `bet_all`.
+- Interfejs webowy oparty o Streamlit do eksploracji wyników, wizualizacji i nawigacji po ligach ([web_code/Home.py](web_code/Home.py), [`Base.set_config`](web_code/base_site_module.py)).
+- Lekki REST API z dokumentacją Swagger/Redoc do integracji zewnętrznej ([api_code/start_api.py](api_code/start_api.py), [api_code/README.md](api_code/README.md)).
+- Kompleksowa dokumentacja schematu bazy danych ([db_documentation/db_documentation.md](db_documentation/db_documentation.md)).
 
-## Zawartość strony
-1. Graficzne przedstawienie przewidywań modelów nauczania głębokiego odnośnie rozpatrywanych zdarzeń (lista zdarzeń poniżej)
-2. Graficzne przedstawienie zaawansowanych statystyk zespołów (zwycięstwa / porażki / remisy / zdobyte i stracone bramki itd.)
-3. Tabele ligowe z podziałem na dom i wyjazd zgodnie z analizowanymi zdarzeniami
-4. Graficzne przedstawienie osiągnięć modelu w zakładach z podziałem na procent poprawnych predykcji oraz zysk (bądź stratę) względem bukmacherów
-5. Przedstawienie charakterystyk ligowych pomagających w analizie przyszłych spotkań
-4. (NOWE) Informacje o osiągnięciach poszczególnych zawodników w lidze NHL + pełen game log oraz boxscore
+## Struktura repozytorium (logiczne części)
+- api_code/ — serwer API i moduły FastAPI (teams, helper, matches, models, itp.). Zajrzyj do [api_code/README.md](api_code/README.md).
+- web_code/ — aplikacja Streamlit i moduły UI/wykresów/tabel. Punkt wejścia: [web_code/Home.py](web_code/Home.py).
+- scrapper_code/ — moduły do pobierania danych z serwisów (Flashscore, NHL API itd.), konfiguracja scrapperów i wrapper do batchowania.
+- model_code/ — pipeline treningu i predykcji, przygotowanie danych, mapowanie kalkulatorów ratingów ([model_code/main.py](model_code/main.py), [model_code/README.md](model_code/README.md)).
+- db_funcs/ — funkcje pomocnicze związane z bazą (skrypty i migracje).
+- db_documentation/ — pełna dokumentacja schematu bazy danych i opis tabel ([db_documentation/db_documentation.md](db_documentation/db_documentation.md)).
+- graphics_code/ — narzędzia i zasoby graficzne używane w UI.
+- models/ oraz latest_backup/ — katalogi z wytrenowanymi wagami i backupami.
+- .github/, .devcontainer/ — konfiguracje CI / devcontainer / instrukcje Copilot itp.
+
+## Szybki start
+- Aplikacja Streamlit:
+  - Przejdź do katalogu `web_code/`.
+  - Uruchom: `streamlit run Home.py`
+  - Interfejs wykorzystuje lokalne połączenie do bazy danych za pomocą `db_module`.
+
+- API:
+  - Skonfiguruj `.env` w `api_code/` kopiując `.env.example`.
+  - Uruchom: `python start_api.py` lub `uvicorn start_api:app --reload`.
+  - Sprawdź dokumentację: /docs i /redoc (np. http://localhost:8000/redoc).
+
+- Modele:
+  - Instrukcje w [model_code/README.md](model_code/README.md).
+  - Typowy przykład: `python main.py winner train 0 alpha_0_0_result` (uruchamiane z katalogu `model_code/`).
+
+- Scrappery:
+  - Przykłady i tryby działania w [scrapper_code/README_scrappers.md](scrapper_code/README_scrappers.md).
+  - Tryb testowy (bez --automate) domyślnie nie zapisuje do bazy.
 
 ## Aktualnie obsługiwane zdarzenia
 1. 1X2
 2. BTTS
 3. Dokładna liczba bramek
-4. (NOWE) Rozkład prawdopodobieństwa bramek, na podstawie którego generowany jest Over / Under 2.5
+4. Rozkład prawdopodobieństwa bramek, na podstawie którego generowany jest Over / Under 2.5
 
 ## Aktualnie obsługiwane ligi
 1. Ekstraklasa + 1. Liga (Polska)
@@ -45,32 +71,12 @@ Rozszerzenie pracy magisterskiej, przewidywanie zdarzeń w meczach piłkarskich 
 20. (NOWE) NHL (Hokej, NA)
 
 ## Planowane rozszerzenia
-3. Premiership i 1 Dywizja (Szkocja)
-4. NBA (Koszykówka, NA)
+1. Premiership i 1 Dywizja (Szkocja)
+2. NBA (Koszykówka, NA)
+3. Dane z OPTY o zawodnikach
 
-## Jak poprawnie definiować linki w modułach do pobierania meczów
-W pliku <i> scrapper_wrapper.py </i> w liście <i> links </i> zdefiniuj ligi, dla których chcesz pobrać mecze. Ligi definiujemy poprzez podanie stringa o następującej formule \
-```[id ligi] [id sezonu] [link do strony z meczami] [tryb działania]```
-
-## Opis przebiegu pobierania przyszłych meczów
-Umieść odpowiednie linki w tablicy oraz uruchom skrypt zgodnie z poniższym wzorcem: \
-```[id ligi] [id sezonu] [link do strony z meczami] [upcoming]``` \
-Upcoming jest wymaganym parametrem przekazującym informację do skrytpu o potrzebie pobrania nadchodzących meczów
-Istotnym jest, że skrypt pobiera tylko mecze NADCHODZĄCEJ KOLEJKI - aktualnie pobieranie i przewidywanie więcej niż jednego meczu wprzód jest niewspierane
-
-## Opis przebieg pobierania przeszłych meczów
-Umieść odpowiednie linki w tablicy oraz uruchom skrypt zgodnie z poniższym wzorcem: \
-```[id ligi] [id sezonu] [link do strony z meczami] [historic]``` \
-Historic jest wymaganym parametrem informującym skrypt o pobraniu spotkań, które już się odbyły oraz które nie mają swoich wpisów w bazie danych. Skrypt kończy działanie gdy natrafi na spotkanie, które już znajduje się w bazie danych.
-
-## Opis przebiegu aktualizowania spotkań
-Umieść odpowiednie linki w tablicy oraz uruchom skrypt zgodnie z poniższym wzorcem: \
-```[id ligi] [id sezonu] [link do strony z meczami] update``` \
-Skrypt aktualizuje spotkania, które odbyły się wcześniej niż data uruchomienia skryptu. (Np. gdy skrypt uruchomiono 22.10.2025 to zaktualizowane zostaną mecze rozegrane 21.10.2025 i wcześniej). Skrypt kończy działanie dopiero, gdy zaktualizuje wszystkie mecze
-
-## Opis przebiegu generowania predykcji oraz zakładów
-TO-DO (opis po poprawkach)
-
-## Opis przebiegu trenowania modelów
-TO-DO (opis po poprawkach)
-
+## Dokumentacja techniczna
+- Schemat bazy i opisy tabel: [db_documentation/db_documentation.md](db_documentation/db_documentation.md).
+- Dokumentacja API: [api_code/README.md](api_code/README.md).
+- Instrukcje scrapperów: [scrapper_code/README_scrappers.md](scrapper_code/README_scrappers.md).
+- Instrukcje modeli: [model_code/README.md](model_code/README.md).

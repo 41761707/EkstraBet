@@ -21,7 +21,7 @@ def generate_button(button_name, conn, type, where_clause):
         query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2) as "PEWNOSC MODELU [%]",
                     case when fp.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
                             from bets b
-                                join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
+                                join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id and b.model_id = p.model_id)
                                 join final_predictions fp on p.id = fp.predictions_id
                                 join matches m on b.match_id = m.id
                                 join teams t1 on m.home_team = t1.id
@@ -31,7 +31,7 @@ def generate_button(button_name, conn, type, where_clause):
     else: #1 - przyszłe
         query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2)  as "PEWNOSC MODELU [%]"
                     from bets b
-                        join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id)
+                        join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id and b.model_id = p.model_id)
                         join final_predictions fp on p.id = fp.predictions_id
                         join matches m on b.match_id = m.id
                         join teams t1 on m.home_team = t1.id
@@ -92,7 +92,7 @@ def main():
                     b.EV AS VB,
                     ROUND(p.value * 100, 2) AS "PEWNOSC MODELU [%]"
                 FROM bets b
-                JOIN predictions p ON (b.match_id = p.match_id AND b.event_id = p.event_id)
+                JOIN predictions p ON (b.match_id = p.match_id AND b.event_id = p.event_id and b.model_id = p.model_id)
                 JOIN final_predictions fp ON p.id = fp.predictions_id
                 JOIN matches m ON b.match_id = m.id
                 JOIN teams t1 ON m.home_team = t1.id

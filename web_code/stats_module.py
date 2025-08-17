@@ -306,7 +306,7 @@ def generate_statistics(query, tax_flag, conn, EV_plus, stat_type='all'):
         FROM matches m
         JOIN predictions p ON p.match_id = m.id
         JOIN final_predictions fp ON fp.predictions_id = p.id
-        JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id
+        JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id and b.model_id = p.model_id
         WHERE {query}
     """
     df = pd.read_sql(stats_query, conn)
