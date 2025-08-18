@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import requests #Przygotowanie pod rozszerzenie frontu o API
 
 import db_module
 import graphs_module
 import tables_module
 import stats_module
+from base_site_components import football_stats 
 
 class Base:
     def __init__(self, league, season, name):
@@ -1028,15 +1028,20 @@ class Base:
         
         # Wyświetlenie przycisku i paneli szczegółów
         if st.button(button_label, use_container_width=True, key=f"match_{row.id}"):
-            tab1, tab2, tab3 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe", "Dla developerów"])
+            tab1, tab2, tab3, tab4 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe", "Boxscore - statystyki zawodników", "Dla developerów"])
             with tab1:
                 self.show_predictions(row.h_g, row.a_g, row.id, row.result)     
             with tab2:
-                status_msg = "Statystyki pomeczowe" if row.result != '0' else "Statystyki pomeczowe dostępne po zakończeniu spotkania"
-                st.header(status_msg)
                 if row.result != '0':
-                    self.display_match_statistics()      
+                    football_stats.display_match_statistics(row.id, self.conn)
+                else:
+                    st.warning("Statystyki pomeczowe dostępne po zakończeniu spotkania")
             with tab3:
+                if row.result != '0':
+                    football_stats.display_match_players_stats(row.id, row.home, row.home_id, row.guest, row.guest_id, self.conn)    
+                else:
+                    st.warning("Statystyki zawodników dostępne po zakończeniu spotkania")
+            with tab4:
                 self.display_dev_data(row)
 
     def display_match_statistics(self):
