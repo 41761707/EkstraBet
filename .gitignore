@@ -1,6 +1,5 @@
 /model_code/db_module.py
 /model_code_old/db_module.py
-/web_code/db_module.py
 /model_container_dev/
 /model_code_old/__pycache__/
 /model_code_old/tests/
@@ -29,3 +28,4 @@ model_code/prediction_configs/prediction_daily.json
 /db_funcs/db_module.py
 /db_funcs/__pycache__/
 model_code/model_goals-6-classes_dev
+/.streamlit/secrets.toml
