@@ -25,7 +25,7 @@ def generate_half_circle(x_center, y_center, radius, direction="right"):
 
 def draw_hockey_rink(lineup, team_name):
     fig = go.Figure()
-    team_shirt = Image.open(f"./pages/shirts/{team_name}.jpg")
+    team_shirt = Image.open(f"web_code/pages/shirts/{team_name}.jpg")
     # Boisko
     fig.add_shape(type="rect", x0=0, y0=0, x1=40, y1=60,
                   line=dict(color="white", width=5),

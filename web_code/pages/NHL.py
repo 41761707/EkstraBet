@@ -70,7 +70,7 @@ class HockeySite:
         col1, col2, col3 = st.columns(3)
         cursor = self.conn.cursor()
         with col1:
-            seasons_query = "SELECT id, years from SEASONS where id in (select distinct(season) from matches m where m.sport_id = 2) order by years desc"
+            seasons_query = "SELECT id, years from seasons where id in (select distinct(season) from matches m where m.sport_id = 2) order by years desc"
             cursor.execute(seasons_query)
             self.seasons = {years: season_id for season_id, years in cursor.fetchall()}
             seasons_list = [season for season in self.seasons.keys()]
