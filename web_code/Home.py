@@ -21,7 +21,7 @@ def main():
     st.page_link("pages/Bukmacherka.py", label="Kącik bukmacherski", icon="💸")
     with st.expander("Lista obsługiwanych lig"):
         for key, value in leagues_dict.items():
-            st.page_link("pages/{}.py".format(value), label=value, icon = league_country_dict[key])
+            st.page_link("pages/{}.py".format(value.replace(" ", "_")), label=value, icon=league_country_dict[key])
     with st.expander("O projekcie"):
         st.markdown("""
         <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
