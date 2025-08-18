@@ -1,14 +1,18 @@
-python 3.11.9
-pip install streamlit
-pip install mysql-connector-python
-pip install matplotlib
-pip install seaborn
-pip install plotly
-pip install selenium
-pip install tqdm
-pip install tabulate
-pip install tensorflow
-pip install scikit-learn
-pip install fastapi
-pip install uvicorn
-pip install pydantic
+# Rekomendowana wersja Python: 3.11.9
+# Program testowany i zoptymalizowany pod tę wersję
+# Aby sprawdzić aktualną wersję: python --version
+# Aby zainstalować konkretną wersję, użyj pyenv lub pobierz z python.org
+
+streamlit
+mysql-connector-python
+matplotlib
+seaborn
+plotly
+selenium
+tqdm
+tabulate
+tensorflow
+scikit-learn
+fastapi
+uvicorn
+pydantic
