@@ -14,9 +14,9 @@ def launch_historic(links) -> None:
     """
     for link in links:
         current = link + 'wyniki/'
-        print(current)
+        print(f"# {current}")
         args = current.split()
-        print(args)
+        print(f"# {args}")
         scrapper.to_automate(int(args[0]), int(
             args[1]), args[2], single_match=False, automate=True)
 
@@ -28,7 +28,7 @@ def launch_upcoming(links) -> None:
     """
     for link in links:
         current = link + 'mecze/'
-        print(current)
+        print(f"# {current}")
         args = current.split()
         upcoming_scrapper.to_automate(int(args[0]), int(args[1]), args[2], 0, single_match=False, automate=True)
 
@@ -40,9 +40,9 @@ def launch_update(links) -> None:
     """
     for link in links:
         current = link + 'wyniki/'
-        print(current)
+        print(f"# {current}")
         args = current.split()
-        print(args)
+        print(f"# {args}")
         update_scraper.to_automate(int(args[0]), int(
             args[1]), args[2], single_match=False, automate=True)
 
@@ -53,7 +53,7 @@ def launch_odds(links) -> None:
         links (list): Lista linków do lig, które mają być przetwarzane.
     """
     for current in links:
-        print(current)
+        print(f"# {current}")
         args = current.split()
         odds_scrapper.odds_to_automate(int(args[0]), int(
             args[1]), args[2], 'daily', skip=0, automate=True)
@@ -65,7 +65,7 @@ def launch_bet(links) -> None:
         links (list): Lista linków do lig, które mają być przetwarzane.
     """
     for current in links:
-        print(current)
+        print(f"# {current}")
         args = current.split()
         bet_all.bet_to_automate('today',
                                 int(args[0]),
@@ -82,8 +82,8 @@ def main() -> None:
         '1 12 https://www.flashscore.pl/pilka-nozna/polska/pko-bp-ekstraklasa-2025-2026/',
         '2 12 https://www.flashscore.pl/pilka-nozna/anglia/premier-league-2025-2026/',
         '3 12 https://www.flashscore.pl/pilka-nozna/francja/ligue-1-2025-2026/',
-        # '4 12 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2025-2026/', #start: 22.08.2025
-        # '5 12 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2025-2026/', #start: 23.08.2025
+        '4 12 https://www.flashscore.pl/pilka-nozna/niemcy/bundesliga-2025-2026/',
+        '5 12 https://www.flashscore.pl/pilka-nozna/wlochy/serie-a-2025-2026/',
         '6 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga-2025-2026/',
         '7 12 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2025-2026/',
         '8 12 https://www.flashscore.pl/pilka-nozna/anglia/championship-2025-2026/',
@@ -101,7 +101,7 @@ def main() -> None:
         '23 12 https://www.flashscore.pl/pilka-nozna/szwajcaria/super-league-2025-2026/',
         '24 12 https://www.flashscore.pl/pilka-nozna/turcja/super-lig-2025-2026/',
         '25 11 https://www.flashscore.pl/pilka-nozna/usa/mls-2025/',
-        # '26 12 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2025-2026/', #start: 22.08.2025
+        '26 12 https://www.flashscore.pl/pilka-nozna/wlochy/serie-b-2025-2026/',
         '29 12 https://www.flashscore.pl/pilka-nozna/austria/bundesliga-2025-2026/',
         '30 11 https://www.flashscore.pl/pilka-nozna/korea-poludniowa/k-league-2-2025/',
         '31 12 https://www.flashscore.pl/pilka-nozna/holandia/eerste-divisie-2025-2026/',

@@ -30,3 +30,5 @@ model_code/prediction_configs/prediction_daily.json
 model_code/model_goals-6-classes_dev
 /.streamlit/secrets.toml
 /web_code/base_site_components/__pycache__/
+scrapper_code/db_module.py
+graphics_code/db_module.py
