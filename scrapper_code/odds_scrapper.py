@@ -141,11 +141,11 @@ def get_1x2_odds(id: int, book_divs: list, bookies: list, bookie_dict: dict) -> 
         text = book_divs[i].text.strip()
         text_tab = text.split('\n')
         if len(text_tab) >= 3 and all(x != '-' for x in text_tab):
-            text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+            text_1 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                 id, bookie_dict[bookies[i]], 1, text_tab[0])
-            text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+            text_2 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                 id, bookie_dict[bookies[i]], 2, text_tab[1])
-            text_3 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+            text_3 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                 id, bookie_dict[bookies[i]], 3, text_tab[2])
             print(text_1)
             print(text_2)
@@ -157,7 +157,7 @@ def get_1x2_odds(id: int, book_divs: list, bookies: list, bookie_dict: dict) -> 
             # Dodajemy tylko te kursy, które nie są "-"
             for idx, event in enumerate([1, 2, 3]):
                 if len(text_tab) > idx and text_tab[idx] != '-':
-                    text_sql = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+                    text_sql = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                         id, bookie_dict.get(bookies[i]), event, text_tab[idx])
                     print(text_sql)
                     inserts.append(text_sql)
@@ -183,12 +183,12 @@ def get_over_under_odds(id: int, book_divs: list, bookies: list, bookie_dict: di
         if len(text_tab) >= 3 and text_tab[0] == '2.5':
             # Sprawdzamy czy kursy są dostępne
             if text_tab[1] != '-':
-                text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+                text_1 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                     id, bookie_dict.get(bookies[i]), 8, text_tab[1])
                 print(text_1)
                 inserts.append(text_1)
             if text_tab[2] != '-':
-                text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+                text_2 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                     id, bookie_dict.get(bookies[i]), 12, text_tab[2])
                 print(text_2)
                 inserts.append(text_2)
@@ -213,12 +213,12 @@ def get_btts_odds(id: int, book_divs: list, bookies: list, bookie_dict: dict) ->
         text_tab = text.split('\n')
         if len(text_tab) >= 2:
             if text_tab[0] != '-':
-                text_1 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+                text_1 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                     id, bookie_dict.get(bookies[i]), 6, text_tab[0])
                 print(text_1)
                 inserts.append(text_1)
             if text_tab[1] != '-':
-                text_2 = "INSERT INTO ODDS(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
+                text_2 = "INSERT INTO odds(match_id, bookmaker, event, odds) VALUES({}, {}, {}, {}) AS new ON DUPLICATE KEY UPDATE odds = new.odds;".format(
                     id, bookie_dict.get(bookies[i]), 172, text_tab[1])
                 print(text_2)
                 inserts.append(text_2)
