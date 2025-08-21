@@ -33,7 +33,7 @@ def get_leagues_by_country(country_id: int):
         country_id (int): ID kraju
     """
     conn = db_module.db_connect()
-    query = f"SELECT id FROM leagues WHERE country = %s"
+    query = "SELECT id FROM leagues WHERE country = %s"
     cursor = conn.cursor()
     cursor.execute(query, (country_id,))
     leagues = cursor.fetchall()

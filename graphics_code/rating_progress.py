@@ -17,7 +17,7 @@ def plot_rating_progress(top_teams=None):
     Funkcja:
     1. Wczytuje wszystkie pliki z obecnego folderu zaczynające się od 'ratings_elo'
     2. Tworzy listę słowników z danymi drużyn i ich ratingami w poszczególnych datach
-    3. Przedstawia graficznie progres każdej drużyny - na osi X daty, na osi Y ratinki
+    3. Przedstawia graficznie progres każdej drużyny - na osi X daty, na osi Y ratingi
     4. Każda drużyna ma inny kolor, kolejność determinowana przez najnowszy rating
     """
     
