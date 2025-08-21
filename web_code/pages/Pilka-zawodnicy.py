@@ -59,7 +59,15 @@ def get_players_for_season(season_id):
                         AND p.common_name IS NOT NULL
                         AND p.common_name != ''
                         ORDER BY p.common_name'''
-    players_df = pd.read_sql(query_players, conn)
+    query_players = '''SELECT distinct p.id, p.common_name, fps.team_id as current_club
+                        FROM players p
+                        JOIN football_player_stats fps ON p.id = fps.player_id
+                        JOIN matches m ON fps.match_id = m.id
+                        WHERE m.season = %s
+                        AND p.common_name IS NOT NULL
+                        AND p.common_name != ''
+                        ORDER BY p.common_name'''
+    players_df = pd.read_sql(query_players, conn, params=(season_id,))
     conn.close()
     return players_df
 
@@ -79,7 +87,11 @@ def get_player_season_stats_cached(player_id, season_id, limit_games):
         ORDER BY m.game_date desc
         LIMIT {limit_games}
     """
-    stats_df = pd.read_sql(query, conn)
+        WHERE stat.player_id = %s and m.season = %s
+        ORDER BY m.game_date desc
+        LIMIT {limit_games}
+    """.format(limit_games=limit_games_int)
+    stats_df = pd.read_sql(query, conn, params=(player_id, season_id))
     stats_df.fillna(0, inplace=True)
     stats_df.reset_index(drop=True, inplace=True)
     conn.close()
