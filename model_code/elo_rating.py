@@ -95,8 +95,15 @@ class EloRating(rating_strategy.RatingStrategy):
         elo_list = list(self.elo_dict.items())
         elo_list.sort(key=lambda x: x[1], reverse=True)
         for element in elo_list:
-            print(
-                f"{self.teams_df.loc[self.teams_df['id'] == element[0]]['name'].values[0]}: {element[1]}")
+            print(f"{self.teams_df.loc[self.teams_df['id'] == element[0]]['name'].values[0]}: {element[1]}")
+            
+    def get_rating(self) -> dict:
+        """Zwraca słownik z aktualnymi rankingami drużyn"""
+        elo_dict_with_team_names = {}
+        for team_id, elo in self.elo_dict.items():
+            team_name = self.teams_df.loc[self.teams_df['id'] == team_id]['name'].values[0]
+            elo_dict_with_team_names[team_name] = elo
+        return dict(sorted(elo_dict_with_team_names.items(), key=lambda item: item[0]))
 
     def get_data(self):
         return self.matches_df, self.teams_df
