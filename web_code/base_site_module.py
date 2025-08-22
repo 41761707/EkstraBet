@@ -7,7 +7,23 @@ import db_module
 import graphs_module
 import tables_module
 import stats_module
-from base_site_components import football_stats 
+from base_site_components import football_stats
+
+@st.cache_data(ttl=300)
+def get_models_for_family_base(sport_id, family_name):
+    """Pobiera modele dla danej rodziny zdarzeń w base_site_module"""
+    conn = db_module.db_connect()
+    query = f"""SELECT DISTINCT m.ID, m.NAME
+                FROM models m
+                JOIN event_model_families emf ON m.ID = emf.MODEL_ID
+                JOIN event_families ef ON emf.EVENT_FAMILY_ID = ef.ID
+                WHERE m.active = 1 
+                AND m.SPORT_ID = {sport_id}
+                AND ef.NAME = '{family_name}'
+                ORDER BY m.ID"""
+    models_df = pd.read_sql(query, conn)
+    conn.close()
+    return dict(zip(models_df['NAME'], models_df['ID'])) if not models_df.empty else {} 
 
 class Base:
     def __init__(self, league, season, name):
@@ -25,6 +41,10 @@ class Base:
         self.special_rounds = {} #Słownik z nazwami specjalnych kolejek
         self.filter_by_date = False #Czy filtrować po dacie zamiast po kolejce
         self.date = datetime.today().strftime('%Y-%m-%d') # Data w formacie YYYY-MM-DD
+        # Wybrane modele dla rodzin predykcji
+        self.model_result = None
+        self.model_ou = None 
+        self.model_btts = None
         self.conn = db_module.db_connect() # Połączenie z bazą danych
         self.set_config() # Ustawienie konfiguracji na podstawie wybranej ligi
         self.get_teams() # Pobranie drużyn z bazy danych dla danej ligi i sezonu
@@ -268,6 +288,38 @@ class Base:
                 end_date = today + timedelta(days=7)
                 self.date_range = (today.date(), end_date.date())
 
+        # 5. Wybór modeli dla rodzin predykcji
+        st.subheader("Modele predykcji")
+        
+        # Pobieranie modeli dla każdej rodziny zdarzeń
+        models_result = get_models_for_family_base(self.sport_id, 'REZULTAT')
+        models_ou = get_models_for_family_base(self.sport_id, 'OU')
+        models_btts = get_models_for_family_base(self.sport_id, 'BTTS')
+        
+        # Selectboxy dla modeli w układzie kolumnowym
+        col7, col8, col9 = st.columns(3)
+        with col7:
+            if models_result:
+                selected_result_model = st.selectbox("Model REZULTAT:", list(models_result.keys()), key='base_result_model')
+                self.model_result = models_result[selected_result_model]
+            else:
+                st.info("Brak dostępnych modeli REZULTAT")
+                self.model_result = None
+        with col8:
+            if models_ou:
+                selected_ou_model = st.selectbox("Model OU:", list(models_ou.keys()), key='base_ou_model')
+                self.model_ou = models_ou[selected_ou_model]
+            else:
+                st.info("Brak dostępnych modeli OU")
+                self.model_ou = None
+        with col9:
+            if models_btts:
+                selected_btts_model = st.selectbox("Model BTTS:", list(models_btts.keys()), key='base_btts_model')
+                self.model_btts = models_btts[selected_btts_model]
+            else:
+                st.info("Brak dostępnych modeli BTTS")
+                self.model_btts = None
+
     def get_teams(self) -> None:
         """
         Pobiera listę drużyn dla wybranej ligi i sezonu z bazy danych.
@@ -450,12 +502,15 @@ class Base:
                     AND season = {self.season}
                     AND round IN ({rounds_str}) 
                     AND result != '0' """
-            # Wywołanie funkcji generującej statystyki
+            # Wywołanie funkcji generującej statystyki z wybranymi modelami
             stats_module.generate_statistics(query, 
                                              tax_flag, 
                                              self.conn, 
                                              self.EV_plus,
-                                             'all')
+                                             'all',
+                                             [self.model_result] if self.model_result else None,
+                                             [self.model_ou] if self.model_ou else None,
+                                             [self.model_btts] if self.model_btts else None)
         # Statystyki porównawcze między drużynami
         with st.expander(f"Statystyki predykcji w sezonie {self.years} - porównania między drużynami"):
             stats_module.aggregate_team_acc(self.teams_dict, 
@@ -713,13 +768,35 @@ class Base:
             st.header("Brak bezpośrednich spotkań między drużynami w bazie danych")
 
     def get_match_predictions(self, match_id: int) -> dict:
-        """Pobiera predykcje dla meczu z bazy danych.
+        """Pobiera predykcje dla meczu z bazy danych, filtrując po wybranych modelach.
         Args:
             match_id: ID meczu
             
         Returns:
             Słownik z predykcjami lub None jeśli brak danych
         """
+        # Mapowanie zdarzeń na modele
+        event_model_mapping = {
+            # Rezultat meczu - używa model_result
+            1: self.model_result,   # home_win
+            2: self.model_result,   # draw  
+            3: self.model_result,   # guest_win
+            # BTTS - używa model_btts
+            6: self.model_btts,     # btts_yes
+            172: self.model_btts,   # btts_no
+            # OU i bramki - używa model_ou
+            8: self.model_ou,       # over_2_5
+            12: self.model_ou,      # under_2_5
+            173: self.model_ou,     # exact_goals
+            174: self.model_ou,     # zero_goals
+            175: self.model_ou,     # one_goal
+            176: self.model_ou,     # two_goals
+            177: self.model_ou,     # three_goals
+            178: self.model_ou,     # four_goals
+            179: self.model_ou,     # five_goals
+            180: self.model_ou      # six_plus_goals
+        }
+        
         # Definicja identyfikatorów zdarzeń predykcji
         prediction_events = {
             'home_win': 1,
@@ -741,11 +818,17 @@ class Base:
         
         predictions = {}
         for name, event_id in prediction_events.items():
+            # Sprawdzenie czy mamy wybrany model dla tego typu zdarzenia
+            required_model = event_model_mapping.get(event_id)
+            if required_model is None:
+                continue  # Pomijamy jeśli nie ma wybranego modelu
+                
             query = f"""
                 SELECT value 
                 FROM predictions 
                 WHERE match_id = {match_id} 
                 AND event_id = {event_id}
+                AND model_id = {required_model}
             """
             result = pd.read_sql(query, self.conn).to_numpy()
             if len(result) > 0:
@@ -759,25 +842,47 @@ class Base:
                 predictions: Słownik z predykcjami meczu
         """
         if predictions is not None:
-            goals_no = [predictions['zero_goals'], 
-                        predictions['one_goal'], 
-                        predictions['two_goals'], 
-                        predictions['three_goals'], 
-                        predictions['four_goals'], 
-                        predictions['five_goals'], 
-                        predictions['six_plus_goals']]
+            # Obsługa przypadku gdy brakuje klucza 'six_plus_goals' (model 6-klasowy)
+            six_plus_goals_value = predictions.get('six_plus_goals', 0)
+            
+            goals_no = [predictions.get('zero_goals', 0), 
+                        predictions.get('one_goal', 0), 
+                        predictions.get('two_goals', 0), 
+                        predictions.get('three_goals', 0), 
+                        predictions.get('four_goals', 0), 
+                        predictions.get('five_goals', 0), 
+                        six_plus_goals_value]
+            
+            # Sprawdzenie czy mamy wystarczające dane do wyświetlenia wykresów
+            has_result_data = all(key in predictions for key in ['home_win', 'draw', 'guest_win'])
+            has_btts_data = all(key in predictions for key in ['btts_no', 'btts_yes'])
+            has_goals_data = any(predictions.get(key, 0) > 0 for key in ['zero_goals', 'one_goal', 'two_goals', 'three_goals', 'four_goals', 'five_goals'])
+            has_ou_data = all(key in predictions for key in ['over_2_5', 'under_2_5'])
+            
             col1, col2 = st.columns(2)
             with col1:
-                graphs_module.graph_winner(predictions['home_win'], predictions['draw'], predictions['guest_win'])
+                if has_result_data:
+                    graphs_module.graph_winner(predictions['home_win'], predictions['draw'], predictions['guest_win'])
+                else:
+                    st.info("Brak predykcji wyniku dla wybranego modelu")
             with col2:
-                graphs_module.graph_btts(predictions['btts_no'], predictions['btts_yes'])
+                if has_btts_data:
+                    graphs_module.graph_btts(predictions['btts_no'], predictions['btts_yes'])
+                else:
+                    st.info("Brak predykcji BTTS dla wybranego modelu")
 
             col3, col4 = st.columns(2)
             with col3:
-                graphs_module.graph_exact_goals(goals_no)
+                if has_goals_data:
+                    graphs_module.graph_exact_goals(goals_no)
+                else:
+                    st.info("Brak predykcji liczby goli dla wybranego modelu")
             with col4:
-                under_prob, over_prob, label = self.calculate_ou_probabilities(goals_no)
-                graphs_module.graph_ou(under_prob, over_prob, label)
+                if has_ou_data:
+                    under_prob, over_prob, label = self.calculate_ou_probabilities(goals_no)
+                    graphs_module.graph_ou(under_prob, over_prob, label)
+                else:
+                    st.info("Brak predykcji OU dla wybranego modelu")
     
     def calculate_ou_probabilities(self, goals_no : list) -> tuple:
         """Oblicza prawdopodobieństwa under/over dla różnych linii.
@@ -1106,7 +1211,21 @@ class Base:
         Returns:
             None: Funkcja wyświetla wyniki bez zwracania wartości
         """
-        # Zapytanie SQL pobierające predykcje dla drużyny
+        # Zapytanie SQL pobierające predykcje dla drużyny z filtrowaniem po wybranych modelach
+        model_conditions = []
+        if self.model_result is not None:
+            model_conditions.append(f"(p.event_id IN (1, 2, 3) AND p.model_id = {self.model_result})")
+        if self.model_ou is not None:
+            model_conditions.append(f"(p.event_id IN (8, 12) AND p.model_id = {self.model_ou})")
+        if self.model_btts is not None:
+            model_conditions.append(f"(p.event_id IN (6, 172) AND p.model_id = {self.model_btts})")
+        
+        if not model_conditions:
+            st.warning("Brak wybranych modeli - nie można wyświetlić statystyk predykcji")
+            return
+            
+        model_filter = " OR ".join(model_conditions)
+        
         query = f"""
             SELECT event_id, outcome 
             FROM predictions p 
@@ -1114,6 +1233,7 @@ class Base:
             JOIN matches m ON m.id = p.match_id 
             WHERE (m.home_team = {key} OR m.away_team = {key}) and m.season = {self.season}
             AND m.result != '0' 
+            AND ({model_filter})
             ORDER BY m.game_date DESC
         """
         predicts_df = pd.read_sql(query, self.conn)
@@ -1146,13 +1266,16 @@ class Base:
             with col3:
                 self.prediction_accuracy(result_outcomes, "Rezultat meczu")
             
-            # Generowanie dodatkowych statystyk
+            # Generowanie dodatkowych statystyk z wybranymi modelami
             stats_query = f"""(home_team = {key} OR away_team = {key}) AND result != '0' """
             stats_module.generate_statistics(stats_query, 
                                              0, 
                                              self.conn, 
                                              self.EV_plus,
-                                             'all')
+                                             'all',
+                                             [self.model_result] if self.model_result else None,
+                                             [self.model_ou] if self.model_ou else None,
+                                             [self.model_btts] if self.model_btts else None)
 
     def show_teams(self, teams_dict: dict) -> None:
         """

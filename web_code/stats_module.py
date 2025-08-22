@@ -289,37 +289,77 @@ def generate_result_statistics(df, tax):
         }
     }
 
-def generate_statistics(query, tax_flag, conn, EV_plus, stat_type='all'):
+def generate_statistics(query, tax_flag, conn, EV_plus, stat_type='all', model_result=None, model_ou=None, model_btts=None):
     tax = 0.12 if tax_flag else 0
-    stats_query = f"""
-        SELECT
-            m.id,
-            m.result,
-            m.home_team_goals,
-            m.away_team_goals,
-            p.event_id,
-            fp.outcome AS pred_outcome,
-            b.event_id AS bet_event_id,
-            b.odds,
-            b.EV,
-            b.outcome AS bet_outcome
-        FROM matches m
-        JOIN predictions p ON p.match_id = m.id
-        JOIN final_predictions fp ON fp.predictions_id = p.id
-        JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id and b.model_id = p.model_id
-        WHERE {query}
-    """
-    df = pd.read_sql(stats_query, conn)
-    #if EV_plus:
-    #    df = df[(df['EV'].isnull()) | (df['EV'] >= 0)]
-
+    
     results = {}
-    if stat_type in ['all', 'ou']:
-        results['ou'] = generate_ou_statistics(df, tax)
-    if stat_type in ['all', 'btts']:
-        results['btts'] = generate_btts_statistics(df, tax)
-    if stat_type in ['all', 'result']:
-        results['result'] = generate_result_statistics(df, tax)
+    
+    # Generuj statystyki dla każdej rodziny predykcji z odpowiednim modelem
+    if stat_type in ['all', 'ou'] and model_ou:
+        ou_query = f"""
+            SELECT
+                m.id,
+                m.result,
+                m.home_team_goals,
+                m.away_team_goals,
+                p.event_id,
+                fp.outcome AS pred_outcome,
+                b.event_id AS bet_event_id,
+                b.odds,
+                b.EV,
+                b.outcome AS bet_outcome
+            FROM matches m
+            JOIN predictions p ON p.match_id = m.id
+            JOIN final_predictions fp ON fp.predictions_id = p.id
+            JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id and b.model_id = p.model_id
+            WHERE {query} AND p.model_id IN ({','.join(map(str, model_ou))})
+        """
+        df_ou = pd.read_sql(ou_query, conn)
+        results['ou'] = generate_ou_statistics(df_ou, tax)
+    
+    if stat_type in ['all', 'btts'] and model_btts:
+        btts_query = f"""
+            SELECT
+                m.id,
+                m.result,
+                m.home_team_goals,
+                m.away_team_goals,
+                p.event_id,
+                fp.outcome AS pred_outcome,
+                b.event_id AS bet_event_id,
+                b.odds,
+                b.EV,
+                b.outcome AS bet_outcome
+            FROM matches m
+            JOIN predictions p ON p.match_id = m.id
+            JOIN final_predictions fp ON fp.predictions_id = p.id
+            JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id and b.model_id = p.model_id
+            WHERE {query} AND p.model_id IN ({','.join(map(str, model_btts))})
+        """
+        df_btts = pd.read_sql(btts_query, conn)
+        results['btts'] = generate_btts_statistics(df_btts, tax)
+    
+    if stat_type in ['all', 'result'] and model_result:
+        result_query = f"""
+            SELECT
+                m.id,
+                m.result,
+                m.home_team_goals,
+                m.away_team_goals,
+                p.event_id,
+                fp.outcome AS pred_outcome,
+                b.event_id AS bet_event_id,
+                b.odds,
+                b.EV,
+                b.outcome AS bet_outcome
+            FROM matches m
+            JOIN predictions p ON p.match_id = m.id
+            JOIN final_predictions fp ON fp.predictions_id = p.id
+            JOIN bets b ON b.match_id = m.id AND b.event_id = p.event_id and b.model_id = p.model_id
+            WHERE {query} AND p.model_id IN ({','.join(map(str, model_result))})
+        """
+        df_result = pd.read_sql(result_query, conn)
+        results['result'] = generate_result_statistics(df_result, tax)
 
     show_all_statistics(stat_type,
                         ou_predictions=results.get('ou', {}).get('pred'),
