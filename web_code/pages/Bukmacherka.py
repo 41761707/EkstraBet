@@ -19,20 +19,24 @@ def generate_dicts(query, conn):
 def generate_button(button_name, conn, type, where_clause):
     if type == -1: #Już zrealizowane
         query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2) as "PEWNOSC MODELU [%]",
+                    ml.name as MODEL,
                     case when fp.outcome then 'WYGRANA' else 'PRZEGRANA' end as Wynik
                             from bets b
                                 join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id and b.model_id = p.model_id)
                                 join final_predictions fp on p.id = fp.predictions_id
+                                join models ml on p.model_id = ml.id
                                 join matches m on b.match_id = m.id
                                 join teams t1 on m.home_team = t1.id
                                 join teams t2 on m.away_team = t2.id
                                 join events e on b.event_id = e.id
                                 join leagues l on m.league = l.id'''
     else: #1 - przyszłe
-        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2)  as "PEWNOSC MODELU [%]"
+        query = '''select l.name as LIGA, t1.name as GOSPODARZ, t2.name as GOŚĆ, e.name as ZDARZENIE, m.game_date as "DATA SPOTKANIA", b.odds as KURS, b.EV as VB, ROUND(p.value * 100, 2)  as "PEWNOSC MODELU [%]",
+                    ml.name as MODEL
                     from bets b
                         join predictions p on (b.match_id = p.match_id and b.event_id = p.event_id and b.model_id = p.model_id)
                         join final_predictions fp on p.id = fp.predictions_id
+                        join models ml on p.model_id = ml.id
                         join matches m on b.match_id = m.id
                         join teams t1 on m.home_team = t1.id
                         join teams t2 on m.away_team = t2.id
@@ -59,6 +63,12 @@ def main():
     "Wybrane zdarzenia",
     [k for k in events_dict.keys()], default = [k for k in events_dict.keys()], placeholder="Wybierz zdarzenia z listy")
 
+    query = "select id, name from models where active = 1 order by name"
+    models_dict = generate_dicts(query, conn)
+    chosen_models = st.multiselect(
+    "Wybrane modele",
+    [k for k in models_dict.keys()], default = [k for k in models_dict.keys()], placeholder="Wybierz modele z listy")
+
     with st.expander("Poprzednie zakłady"):
         generate_button("Wczorajsze zakłady", conn, -1,
                         " where cast(m.game_date as date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) order by p.value desc".format(odds_range))
@@ -81,6 +91,8 @@ def main():
                 st.subheader("Nie wybrano żadnych lig")
             elif len(chosen_events) == 0:
                 st.subheader("Nie wybrano żadnych zdarzeń")
+            elif len(chosen_models) == 0:
+                st.subheader("Nie wybrano żadnych modeli")
             else:
                 base_query = '''SELECT 
                     l.name AS LIGA,
@@ -90,10 +102,12 @@ def main():
                     m.game_date AS "DATA SPOTKANIA",
                     b.odds AS KURS,
                     b.EV AS VB,
-                    ROUND(p.value * 100, 2) AS "PEWNOSC MODELU [%]"
+                    ROUND(p.value * 100, 2) AS "PEWNOSC MODELU [%]",
+                    ml.name AS MODEL
                 FROM bets b
                 JOIN predictions p ON (b.match_id = p.match_id AND b.event_id = p.event_id and b.model_id = p.model_id)
                 JOIN final_predictions fp ON p.id = fp.predictions_id
+                JOIN models ml ON p.model_id = ml.id
                 JOIN matches m ON b.match_id = m.id
                 JOIN teams t1 ON m.home_team = t1.id
                 JOIN teams t2 ON m.away_team = t2.id
@@ -109,6 +123,7 @@ def main():
                     AND b.odds >= {odds_range}
                     AND m.league IN ({",".join(str(leagues_dict[v]) for v in chosen_leagues)})
                     AND e.id IN ({",".join(str(events_dict[v]) for v in chosen_events)})
+                    AND ml.id IN ({",".join(str(models_dict[v]) for v in chosen_models)})
                     ORDER BY m.game_date
                 '''
 
