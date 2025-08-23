@@ -90,7 +90,7 @@ def main():
     JOIN predictions p1 ON p1.match_id = m.id AND p1.event_id = 1
     JOIN predictions p2 ON p2.match_id = m.id AND p2.event_id = 2
     JOIN predictions p3 ON p3.match_id = m.id AND p3.event_id = 3
-    WHERE m.league = 1 AND m.round = 1 and m.season = 12 and m.game_date >= '2025-07-04'
+    WHERE m.league = 1 and m.season = 12 and m.game_date >= '2025-08-22'
     ORDER BY m.game_date"""
     matches_df = pd.read_sql(query, conn)
     conn.close()

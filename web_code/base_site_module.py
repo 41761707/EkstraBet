@@ -320,6 +320,15 @@ class Base:
                 st.info("Brak dostępnych modeli BTTS")
                 self.model_btts = None
 
+        # 6. Wybór statystyk do wyświetlania
+        st.subheader("Statystyki do wyświetlania")
+        self.selected_stats = st.multiselect(
+            "Wybierz statystyki, które chcesz wyświetlać:",
+            options=["Bramki", "Rezultaty", "Faule", "Strzały"],
+            default=["Bramki", "Rezultaty"],
+            help="Możesz wybrać kilka opcji jednocześnie"
+        )
+
     def get_teams(self) -> None:
         """
         Pobiera listę drużyn dla wybranej ligi i sezonu z bazy danych.
@@ -542,6 +551,10 @@ class Base:
                 'home_goals': [],
                 'away_teams': [],
                 'away_goals': [],
+                'team_fouls': [],
+                'opponent_fouls': [],
+                'team_shots': [],
+                'opponent_shots': [],
                 'results': []
             }
 
@@ -562,6 +575,10 @@ class Base:
             'home_goals': data['home_goals'].tolist(),
             'away_teams': data['guest'].tolist(),
             'away_goals': data['away_goals'].tolist(),
+            'team_fouls': data['team_fouls'].tolist(),
+            'opponent_fouls': data['opponent_fouls'].tolist(),
+            'team_shots': data['team_shots'].tolist(),
+            'opponent_shots': data['opponent_shots'].tolist(),
             'results': data['result'].tolist()
         }
     
@@ -578,6 +595,22 @@ class Base:
                 DATE_FORMAT(CAST(m.game_date AS date), '%d.%m') AS date, 
                 m.home_team_goals AS home_goals, 
                 m.away_team_goals AS away_goals, 
+                CASE 
+                    WHEN m.home_team = %s THEN m.home_team_fouls 
+                    ELSE m.away_team_fouls 
+                END AS team_fouls,
+                CASE 
+                    WHEN m.home_team = %s THEN m.away_team_fouls 
+                    ELSE m.home_team_fouls 
+                END AS opponent_fouls,
+                CASE 
+                    WHEN m.home_team = %s THEN m.home_team_sc
+                    ELSE m.away_team_sc
+                END AS team_shots,
+                CASE 
+                    WHEN m.home_team = %s THEN m.away_team_sc
+                    ELSE m.home_team_sc
+                END AS opponent_shots,
                 m.result AS result
             FROM matches m 
             JOIN teams t1 ON t1.id = m.home_team 
@@ -592,7 +625,7 @@ class Base:
         return pd.read_sql(
             query, 
             self.conn, 
-            params=(self.date, team_id, team_id, self.season, self.games))
+            params=(team_id, team_id, team_id, team_id, self.date, team_id, team_id, self.season, self.games))
 
     def single_team_data(self, team_id: int) -> dict:
         """
@@ -1300,39 +1333,81 @@ class Base:
                 tab1, tab2 = st.tabs(["Statystyki drużyny", "Statystyki predykcji"])
                 # Zakładka 1: Statystyki historyczne
                 with tab1:
-                    # Układ dwukolumnowy dla wykresów
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        with st.container():
-                            graphs_module.vertical_bar_chart(team_data['date'],
-                                team_data['opponent_shortcut'],
-                                team_data['goals'],
-                                team_data['team_name'],
-                                self.ou_line,
-                                "Bramki w meczach")        
-                    with col2:
-                        with st.container():
-                            graphs_module.btts_bar_chart(team_data['date'],
-                                team_data['opponent_shortcut'],
-                                team_data['btts'],
-                                team_data['team_name'])
-                    # Drugi rząd kolumn
-                    col3, col4 = st.columns(2)
-                    with col3:
-                        with st.container():
-                            graphs_module.winner_bar_chart(team_data['opponent'],
-                                team_data['home_teams'],
-                                team_data['results'],
-                                team_data['team_name'])
-                    with col4:
-                        with st.container():
-                            tables_module.matches_list(team_data['date'],
-                                team_data['home_teams'],
-                                team_data['home_goals'],
-                                team_data['away_teams'],
-                                team_data['away_goals'],
-                                team_data['team_name'])
-                
+                    # Bramki - col1 i col2
+                    if "Bramki" in self.selected_stats:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['goals'],
+                                    team_data['team_name'],
+                                    self.ou_line,
+                                    "Bramki w meczach")        
+                        with col2:
+                            with st.container():
+                                graphs_module.btts_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['btts'],
+                                    team_data['team_name'])
+                    
+                    # Rezultaty - col3 i col4
+                    if "Rezultaty" in self.selected_stats:
+                        col3, col4 = st.columns(2)
+                        with col3:
+                            with st.container():
+                                graphs_module.winner_bar_chart(team_data['opponent'],
+                                    team_data['home_teams'],
+                                    team_data['results'],
+                                    team_data['team_name'])
+                        with col4:
+                            with st.container():
+                                tables_module.matches_list(team_data['date'],
+                                    team_data['home_teams'],
+                                    team_data['home_goals'],
+                                    team_data['away_teams'],
+                                    team_data['away_goals'],
+                                    team_data['team_name'])
+                    
+                    # Faule - col5 i col6
+                    if "Faule" in self.selected_stats:
+                        col5, col6 = st.columns(2)
+                        with col5:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['team_fouls'],
+                                    team_data['team_name'],
+                                    13.5, #TMP
+                                    "Faule drużyny w meczach")
+                        with col6:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['opponent_fouls'],
+                                    team_data['team_name'],
+                                    13.5, #TMP
+                                    "Faule przeciwnika w meczach")
+                    
+                    # Strzały - col7 i col8
+                    if "Strzały" in self.selected_stats:
+                        col7, col8 = st.columns(2)
+                        with col7:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['team_shots'],
+                                    team_data['team_name'],
+                                    13.5, #TMP
+                                    "Strzały drużyny w meczach")
+                        with col8:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['opponent_shots'],
+                                    team_data['team_name'],
+                                    13.5, #TMP
+                                    "Strzały przeciwnika w meczach")
                 # Zakładka 2: Statystyki predykcji
                 with tab2:
                     self.predicts_per_team(team_data['team_name'], team_id)

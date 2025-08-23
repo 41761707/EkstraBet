@@ -69,7 +69,7 @@ def get_player_season_stats_cached(player_id, season_id, limit_games):
     conn = db_module.db_connect()
     query = f"""
         SELECT t1.name as Gospodarz, t2.name as Gość, date_format(cast(m.game_date as date), '%d.%m') AS Data, 
-               stat.goals, stat.assists, stat.shots, stat.shots_on_target,
+               stat.goals, stat.assists, stat.shots, stat.shots_on_target, stat.fouls_conceded, stat.yellow_cards,
                CASE WHEN t1.id = stat.team_id THEN t2.shortcut WHEN t2.id = stat.team_id THEN t1.shortcut END AS opponent
         FROM football_player_stats stat
         JOIN matches m on stat.match_id = m.id
@@ -96,6 +96,7 @@ class FootballPlayers:
         self.assists_line = 0.5
         self.shots_line = 0.5
         self.shots_on_target_line = 0.5
+        self.fouls_conceded_line = 0.5
         st.markdown("""
             <style>
             .tile {
@@ -134,7 +135,9 @@ class FootballPlayers:
             'goals': 'Bramki',
             'assists': 'Asysty',
             'shots': 'Strzały',
-            'shots_on_target': 'Strzały celne'
+            'shots_on_target': 'Strzały celne',
+            'fouls_conceded': 'Faule popełnione',
+            'yellow_cards': 'Żółte kartki'
         }
         
         # Create a copy of the DataFrame with renamed columns
@@ -185,8 +188,24 @@ class FootballPlayers:
                                         self.player_full_name,
                                         self.shots_on_target_line,
                                         "Liczba strzałów celnych")
-        
-    
+        col5, col6 = st.columns(2)
+        with col5:
+            # Wykres fauli popełnionych
+            graphs_module.vertical_bar_chart(self.current_player_stats['Data'],
+                                        self.current_player_stats['opponent'],
+                                        self.current_player_stats['fouls_conceded'],
+                                        self.player_full_name,
+                                        self.fouls_conceded_line,
+                                        "Liczba fauli popełnionych")
+        with col6:
+            # Wykres żółtych kartek
+            graphs_module.vertical_bar_chart(self.current_player_stats['Data'],
+                                        self.current_player_stats['opponent'],
+                                        self.current_player_stats['yellow_cards'],
+                                        self.player_full_name,
+                                        0.5,
+                                        "Liczba żółtych kartek")
+
     def show_players(self, players_df):
         for _, player in players_df.iterrows():
             button_label = player['common_name']
@@ -255,7 +274,7 @@ class FootballPlayers:
     
     def get_config_lines(self):
         # Pierwszy wiersz sliderów: bramki i asysty
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4, col5, = st.columns(5)
         with col1:
             self.goals_line = st.slider("Linia bramkowa", 0.0, 4.0, 0.5, 0.5)
         with col2:
@@ -265,8 +284,7 @@ class FootballPlayers:
         with col4:
             self.shots_on_target_line = st.slider("Linia strzałów celnych", 0.0, 6.0, 0.5, 0.5)
         with col5:
-            # Pusta kolumna dla zachowania spójności layoutu
-            st.write("")
+            self.fouls_conceded_line = st.slider("Linia fauli popełnionych", 0.0, 6.0, 0.5, 0.5)
         
     def player_stats_summary(self):
         # CSS for centering the content

@@ -5,27 +5,40 @@ from datetime import datetime
 import glob
 import argparse
 
-def plot_rating_progress(top_teams=None):
+def plot_rating_progress(top_teams=None, csv_path=None):
     """
-    Funkcja wczytująca wszystkie pliki ratings_elo_*.csv z obecnego folderu
+    Funkcja wczytująca wszystkie pliki ratings_elo_*.csv z określonego folderu
     i przedstawiająca graficznie progres ratingów ELO każdej drużyny w czasie.
     
     Args:
         top_teams (int, optional): Liczba najlepszych drużyn do wyświetlenia. 
                                  Jeśli None, wyświetla wszystkie drużyny.
+        csv_path (str, optional): Ścieżka do folderu z plikami CSV.
+                                Jeśli None, używa obecnego folderu.
     
     Funkcja:
-    1. Wczytuje wszystkie pliki z obecnego folderu zaczynające się od 'ratings_elo'
+    1. Wczytuje wszystkie pliki z określonego folderu zaczynające się od 'ratings_elo'
     2. Tworzy listę słowników z danymi drużyn i ich ratingami w poszczególnych datach
     3. Przedstawia graficznie progres każdej drużyny - na osi X daty, na osi Y ratingi
     4. Każda drużyna ma inny kolor, kolejność determinowana przez najnowszy rating
     """
     
-    # Pobranie ścieżki obecnego folderu
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Pobranie ścieżki folderu z plikami CSV
+    if csv_path is not None:
+        target_dir = os.path.abspath(csv_path)
+        if not os.path.exists(target_dir):
+            print(f"Błąd: Podana ścieżka nie istnieje: {target_dir}")
+            return
+        if not os.path.isdir(target_dir):
+            print(f"Błąd: Podana ścieżka nie jest folderem: {target_dir}")
+            return
+    else:
+        target_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    print(f"Szukanie plików CSV w folderze: {target_dir}")
     
     # Znalezienie wszystkich plików ratings_elo_*.csv
-    pattern = os.path.join(current_dir, "ratings_elo_*.csv")
+    pattern = os.path.join(target_dir, "ratings_elo_*.csv")
     rating_files = glob.glob(pattern)
     
     if not rating_files:
@@ -120,22 +133,25 @@ def plot_rating_progress(top_teams=None):
             
             color = colors[i % len(colors)]
             
+            # Dodanie numeru porządkowego do etykiety w legendzie
+            legend_label = f"{i+1}. {team}"
+            
             plt.plot(dates, ratings, 
                     color=color, 
                     marker='o', 
                     linewidth=2, 
                     markersize=4,
-                    label=team)
+                    label=legend_label)
             
             # Dodanie etykiety z nazwą drużyny na końcu linii (najnowsza data)
             if len(dates) > 0:
                 last_date = dates[-1]
                 last_rating = ratings[-1]
-                team_labels.append((last_date, last_rating, team, color))
+                team_labels.append((last_date, last_rating, team, color, i+1))
     
     # Konfiguracja wykresu
     title_suffix = f" (Top {len(team_order)})" if top_teams is not None else ""
-    plt.title(f'Progres Ratingów ELO Drużyn w Czasie{title_suffix}', fontsize=16, fontweight='bold', pad=20)
+    plt.title(f'Progres Ratingów drużyn w czasie{title_suffix}', fontsize=16, fontweight='bold', pad=20)
     plt.xlabel('Data', fontsize=12)
     plt.ylabel('Rating', fontsize=12)
     plt.grid(True, alpha=0.3)
@@ -155,15 +171,15 @@ def plot_rating_progress(top_teams=None):
         ax.set_xlim(xlim[0], xlim[1] + x_range * 0.15)  # Dodanie 15% miejsca z prawej strony
         
         # Dodanie etykiet z nazwami drużyn
-        for last_date, last_rating, team_name, color in team_labels:
-            plt.text(last_date, last_rating, f' {team_name}', 
+        for last_date, last_rating, team_name, color, team_rank in team_labels:
+            plt.text(last_date, last_rating, f' {team_rank}. {team_name}', 
                     fontsize=10,  # Zwiększono z 8 do 10
                     color=color,
                     verticalalignment='center',
                     fontweight='bold')
     
     # Legenda (opcjonalnie można ją wyłączyć jeśli jest za dużo drużyn)
-    if len(team_order) <= 20: 
+    if len(team_order) <= 21: 
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
     else:
         print(f"Za dużo drużyn ({len(team_order)}) do wyświetlenia legendy - używam etykiet na wykresie")
@@ -185,7 +201,7 @@ def plot_rating_progress(top_teams=None):
     
     # Zapisanie wykresu
     filename_suffix = f"_top{len(team_order)}" if top_teams is not None else ""
-    output_path = os.path.join(current_dir, f'elo_progress_chart{filename_suffix}.png')
+    output_path = os.path.join(target_dir, f'elo_progress_chart{filename_suffix}.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Wykres zapisany jako: {output_path}")
     
@@ -199,16 +215,18 @@ def main():
     parser = argparse.ArgumentParser(description='Generowanie wykresu progresu ratingów drużyn')
     parser.add_argument('--top', '-t', type=int, default=None,
                        help='Liczba najlepszych drużyn do wyświetlenia (domyślnie: wszystkie)')
+    parser.add_argument('--path', '-p', type=str, default=None,
+                       help='Ścieżka do folderu z plikami CSV ratings_elo_*.csv (domyślnie: obecny folder)')
     
     args = parser.parse_args()
     
-    # Walidacja argumentu
+    # Walidacja argumentu top
     if args.top is not None and args.top <= 0:
         print("Błąd: Parametr --top musi być liczbą dodatnią!")
         return
     
-    # Uruchomienie funkcji z odpowiednim parametrem
-    plot_rating_progress(top_teams=args.top)
+    # Uruchomienie funkcji z odpowiednimi parametrami
+    plot_rating_progress(top_teams=args.top, csv_path=args.path)
 
 if __name__ == "__main__":
     # Uruchomienie funkcji z obsługą argumentów wiersza poleceń
