@@ -5,35 +5,43 @@ from PIL import Image
 import db_module
 import graphs_module
 
-st.set_page_config(page_title = "Piłka nożna", page_icon = "🧑", layout="wide")
+st.set_page_config(page_title="Piłka nożna", page_icon="🧑", layout="wide")
 
 # Cache'owane funkcje dla zapytań do bazy danych
+
+
 @st.cache_data(ttl=300)  # Cache na 5 minut
-def get_teams_data():
-    """Pobiera listę drużyn z krajami - rzadko się zmienia, więc można cache'ować na dłużej"""
+def get_teams_data(countries_dict: dict):
+    """Pobiera listę drużyn z krajami - rzadko się zmienia, więc można cache'ować na dłużej
+    Args:
+        countries_dict (dict): Słownik z mapowaniem nazw krajów które mają statystyki zawodników na ich ID
+    """
     conn = db_module.db_connect()
-    query_teams = """SELECT t.id, t.name, t.opta_name, c.id as country
+    query_teams = f"""SELECT t.id, t.name, t.opta_name, c.id as country
                      FROM teams t 
                      JOIN countries c on t.country = c.id
-                     WHERE t.sport_id = 1 
+                     WHERE t.sport_id = 1 and c.id in ({','.join(map(str, countries_dict.values()))})
                      ORDER BY t.name"""
     teams_df = pd.read_sql(query_teams, conn)
     conn.close()
     return teams_df
 
+
 @st.cache_data(ttl=300)  # Cache na 5 minut
 def get_countries_data():
-    """Pobiera listę krajów z drużynami piłkarskimi - zwraca mapowanie nazwa -> ID"""
+    """Pobiera listę krajów z drużynami piłkarskimi, które mają ligi z OPTY - zwraca mapowanie nazwa -> ID"""
     conn = db_module.db_connect()
     query_countries = """SELECT DISTINCT c.id, c.name
                         FROM teams t 
                         JOIN countries c ON t.country = c.id
-                        WHERE t.sport_id = 1 
+                        JOIN leagues l ON c.id = l.country
+                        WHERE t.sport_id = 1 and l.has_player_stats = 1
                         ORDER BY c.name"""
     countries_df = pd.read_sql(query_countries, conn)
     conn.close()
     # Zwracamy słownik {nazwa_kraju: id_kraju}
     return dict(zip(countries_df['name'], countries_df['id']))
+
 
 @st.cache_data(ttl=300)  # Cache na 5 minut
 def get_seasons_data():
@@ -46,6 +54,7 @@ def get_seasons_data():
     cursor.close()
     conn.close()
     return seasons_dict
+
 
 @st.cache_data(ttl=60)  # Cache na 1 minutę - może się zmieniać częściej
 def get_players_for_season(season_id):
@@ -62,6 +71,7 @@ def get_players_for_season(season_id):
     players_df = pd.read_sql(query_players, conn)
     conn.close()
     return players_df
+
 
 @st.cache_data(ttl=60)  # Cache na 1 minutę
 def get_player_season_stats_cached(player_id, season_id, limit_games):
@@ -85,11 +95,13 @@ def get_player_season_stats_cached(player_id, season_id, limit_games):
     conn.close()
     return stats_df
 
+
 class FootballPlayers:
-    def __init__(self, conn):
-        self.conn = conn
+    def __init__(self):
+        #self.conn = conn
         self.season = 1
-        self.games_limit = 50  # Domyślnie ostatnie 50 meczów (cały sezon dla większości lig)
+        # Domyślnie ostatnie 50 meczów (cały sezon dla większości lig)
+        self.games_limit = 50
         self.current_player_stats = pd.DataFrame()
         self.player_full_name = ""
         self.goals_line = 0.5
@@ -97,6 +109,7 @@ class FootballPlayers:
         self.shots_line = 0.5
         self.shots_on_target_line = 0.5
         self.fouls_conceded_line = 0.5
+        self.selected_player_stats = []  # Lista wybranych statystyk do wyświetlania
         st.markdown("""
             <style>
             .tile {
@@ -123,132 +136,165 @@ class FootballPlayers:
         """, unsafe_allow_html=True)
 
     def get_player_season_stats(self, player_id):
-        # Używamy cache'owanej wersji
+        ''' Funkcja realizująca pobranie statystyk sezonowych zawodnika 
+        Args:
+            player_id (int): ID zawodnika
+        '''
         return get_player_season_stats_cached(player_id, self.season, self.limit_games)
 
     def player_game_log(self):
-        # Create a dictionary mapping original column names to display names
-        column_names = {
+        ''' Funkcja realizująca przedstawienie logów meczowych zawodnika w formie tabeli'''
+        stat_column_mapping = {
+            'Bramki': 'goals',
+            'Asysty': 'assists',
+            'Strzały': 'shots',
+            'Strzały celne': 'shots_on_target',
+            'Faule': 'fouls_conceded',
+            'Żółte kartki': 'yellow_cards'
+        }
+        base_columns = ['Gospodarz', 'Gość', 'Data']
+        columns_to_display = base_columns.copy()
+        display_names = {
             'Gospodarz': 'Gospodarz',
             'Gość': 'Gość',
-            'Data': 'Data',
-            'goals': 'Bramki',
-            'assists': 'Asysty',
-            'shots': 'Strzały',
-            'shots_on_target': 'Strzały celne',
-            'fouls_conceded': 'Faule popełnione',
-            'yellow_cards': 'Żółte kartki'
+            'Data': 'Data'
         }
-        
-        # Create a copy of the DataFrame with renamed columns
-        display_df = self.current_player_stats.drop(['opponent'], axis=1).rename(columns=column_names)
-        
-        # Reset index to start from 1
+        for stat in self.selected_player_stats:
+            if stat in stat_column_mapping:
+                column_name = stat_column_mapping[stat]
+                columns_to_display.append(column_name)
+                display_names[column_name] = stat
+        if not self.selected_player_stats:
+            st.info("Wybierz statystyki do wyświetlenia w tabeli")
+            return
+        display_df = self.current_player_stats[columns_to_display].rename(
+            columns=display_names)
+        # Reset indeksu na numerację od 1
         display_df.index = range(1, len(display_df) + 1)
         display_df.index.name = 'L.P.'
-        
-        # Display the DataFrame with the new column names
         st.dataframe(display_df, use_container_width=True)
 
     def player_graphs(self):
-        # Pierwszy wiersz: bramki i asysty
-        col1, col2 = st.columns(2)
-        with col1:
-            # Wykres bramek
-            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
-                                        self.current_player_stats['opponent'],
-                                        self.current_player_stats['goals'],
-                                        self.player_full_name,
-                                        self.goals_line,
-                                        "Liczba bramek")
-        with col2:
-            # Wykres asyst
-            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
-                                        self.current_player_stats['opponent'],
-                                        self.current_player_stats['assists'],
-                                        self.player_full_name,
-                                        self.assists_line,
-                                        "Liczba asyst")
-        
-        # Drugi wiersz: strzały i strzały celne
-        col3, col4 = st.columns(2)
-        with col3:
-            # Wykres strzałów
-            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
-                                        self.current_player_stats['opponent'],
-                                        self.current_player_stats['shots'],
-                                        self.player_full_name,
-                                        self.shots_line,
-                                        "Liczba strzałów")
-        with col4:
-            # Wykres strzałów celnych
-            graphs_module.vertical_bar_chart(self.current_player_stats['Data'], 
-                                        self.current_player_stats['opponent'],
-                                        self.current_player_stats['shots_on_target'],
-                                        self.player_full_name,
-                                        self.shots_on_target_line,
-                                        "Liczba strzałów celnych")
-        col5, col6 = st.columns(2)
-        with col5:
-            # Wykres fauli popełnionych
-            graphs_module.vertical_bar_chart(self.current_player_stats['Data'],
-                                        self.current_player_stats['opponent'],
-                                        self.current_player_stats['fouls_conceded'],
-                                        self.player_full_name,
-                                        self.fouls_conceded_line,
-                                        "Liczba fauli popełnionych")
-        with col6:
-            # Wykres żółtych kartek
-            graphs_module.vertical_bar_chart(self.current_player_stats['Data'],
-                                        self.current_player_stats['opponent'],
-                                        self.current_player_stats['yellow_cards'],
-                                        self.player_full_name,
-                                        0.5,
-                                        "Liczba żółtych kartek")
+        ''' Funkcja realizująca przedstawienie wykresów dla wybranych statystyk '''
+        if not self.selected_player_stats:
+            st.info(
+                "Wybierz statystyki do wyświetlenia w sekcji konfiguracji powyżej")
+            return
+        # Organizacja wykresów w zależności od liczby wybranych statystyk
+        num_stats = len(self.selected_player_stats)
+        if num_stats == 1:
+            # Jeden wykres na całą szerokość
+            cols = [st.container()]
+        elif num_stats == 2:
+            # Dwa wykresy w jednym rzędzie
+            cols = st.columns(2)
+        else:
+            # Więcej niż 2 - maksymalnie 2 w rzędzie
+            cols = []
+            for i in range(0, num_stats, 2):
+                row_cols = st.columns(min(2, num_stats - i))
+                cols.extend(row_cols)
+        for i, stat in enumerate(self.selected_player_stats):
+            with cols[i]:
+                if stat == "Bramki":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'],
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['goals'],
+                        self.player_full_name,
+                        self.goals_line,
+                        "Liczba bramek"
+                    )
+                elif stat == "Asysty":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'],
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['assists'],
+                        self.player_full_name,
+                        self.assists_line,
+                        "Liczba asyst"
+                    )
+                elif stat == "Strzały":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'],
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['shots'],
+                        self.player_full_name,
+                        self.shots_line,
+                        "Liczba strzałów"
+                    )
+                elif stat == "Strzały celne":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'],
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['shots_on_target'],
+                        self.player_full_name,
+                        self.shots_on_target_line,
+                        "Liczba strzałów celnych"
+                    )
+                elif stat == "Faule":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'],
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['fouls_conceded'],
+                        self.player_full_name,
+                        self.fouls_conceded_line,
+                        "Liczba fauli popełnionych"
+                    )
+                elif stat == "Żółte kartki":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'],
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['yellow_cards'],
+                        self.player_full_name,
+                        0.5,
+                        "Liczba żółtych kartek"
+                    )
 
     def show_players(self, players_df):
+        ''' Funkcja realizująca przedstawienie graczy'''
         for _, player in players_df.iterrows():
             button_label = player['common_name']
             self.player_full_name = button_label
             if st.button(button_label, key=f"player_{player['id']}", use_container_width=True):
-                self.current_player_stats = self.get_player_season_stats(player['id'])
+                self.current_player_stats = self.get_player_season_stats(
+                    player['id'])
                 self.player_stats_summary()
                 self.player_graphs()
                 self.player_game_log()
 
     def get_players(self):
-        # Używamy cache'owanych danych
-        teams_df = get_teams_data()
-        countries_dict = get_countries_data()  # {nazwa_kraju: id_kraju}
+        ''' Pobierz zawodników na podstawie wybranych filtrów '''
+        countries_dict = get_countries_data()
+        teams_df = get_teams_data(countries_dict)
         seasons_dict = get_seasons_data()
-        
+
         col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:  
+        with col1:
             # Filtr kraju - wyświetlamy nazwy krajów
-            countries_names = ["Wszystkie kraje"] + list(countries_dict.keys())
-            selected_country_name = st.selectbox("Wybierz kraj:", countries_names, key='selected_country')
-            
-            # Filtruj drużyny według wybranego kraju
-            if selected_country_name == "Wszystkie kraje":
-                filtered_teams_df = teams_df
-            else:
-                # Używamy ID kraju do filtrowania
-                selected_country_id = countries_dict[selected_country_name]
-                filtered_teams_df = teams_df[teams_df['country'] == selected_country_id]
-        
+            countries_names = list(countries_dict.keys())
+            selected_country_name = st.selectbox(
+                "Wybierz kraj:", countries_names, key='selected_country')
+            # Używamy ID kraju do filtrowania
+            selected_country_id = countries_dict[selected_country_name]
+            filtered_teams_df = teams_df[teams_df['country']
+                                            == selected_country_id]
+
         with col2:
-            selected_team = st.selectbox("Wybierz drużynę:", filtered_teams_df['name'])
-            # Pobierz ID wybranej drużyny
-            team_id = filtered_teams_df[filtered_teams_df['name'] == selected_team]['id'].values[0]
+            selected_team = st.selectbox(
+                "Wybierz drużynę:", filtered_teams_df['name'])
+            team_id = filtered_teams_df[filtered_teams_df['name']
+                                        == selected_team]['id'].values[0]
         with col3:
             seasons_list = [season for season in seasons_dict.keys()]
-            self.selected_season = st.selectbox("Sezon", seasons_list, key='selected_season')
+            self.selected_season = st.selectbox(
+                "Sezon", seasons_list, key='selected_season')
             self.season = seasons_dict[self.selected_season]
         with col4:
             limit_options = {
                 "Cały sezon": 50,
                 "Ostatnie 5 meczów": 5,
-                "Ostatnie 10 meczów": 10, 
+                "Ostatnie 10 meczów": 10,
                 "Ostatnie 15 meczów": 15
             }
             self.limit_games = st.selectbox(
@@ -259,33 +305,53 @@ class FootballPlayers:
             self.limit_games = limit_options[self.limit_games]
         with col5:
             player_name = st.text_input("Wpisz nazwę zawodnika")
-        
-        # Używamy cache'owanej funkcji do pobierania zawodników
         players_df = get_players_for_season(self.season)
-        
-        # Filtrowanie zawodników
         if player_name:
             players_df = players_df[
-                players_df['common_name'].str.contains(player_name, case=False, na=False)
+                players_df['common_name'].str.contains(
+                    player_name, case=False, na=False)
             ]
         else:
             players_df = players_df[players_df['current_club'] == team_id]
         return players_df
-    
+
     def get_config_lines(self):
-        # Pierwszy wiersz sliderów: bramki i asysty
-        col1, col2, col3, col4, col5, = st.columns(5)
-        with col1:
-            self.goals_line = st.slider("Linia bramkowa", 0.0, 4.0, 0.5, 0.5)
-        with col2:
-            self.assists_line = st.slider("Linia asystowa", 0.0, 4.0, 0.5, 0.5)
-        with col3:
-            self.shots_line = st.slider("Linia strzałów", 0.0, 10.0, 0.5, 0.5)
-        with col4:
-            self.shots_on_target_line = st.slider("Linia strzałów celnych", 0.0, 6.0, 0.5, 0.5)
-        with col5:
-            self.fouls_conceded_line = st.slider("Linia fauli popełnionych", 0.0, 6.0, 0.5, 0.5)
-        
+        ''' Wybór statystyk do wyświetlania '''
+        st.subheader("Statystyki do wyświetlania")
+        self.selected_player_stats = st.multiselect(
+            "Wybierz statystyki zawodników, które chcesz wyświetlać:",
+            options=["Bramki", "Asysty", "Strzały",
+                     "Strzały celne", "Faule", "Żółte kartki"],
+            default=["Bramki", "Asysty"],
+            help="Możesz wybrać kilka opcji jednocześnie"
+        )
+
+        # Slidery dla linii progowych - tylko dla wybranych statystyk (z wyjątkiem żółtych kartek)
+        stats_with_sliders = [
+            stat for stat in self.selected_player_stats if stat != "Żółte kartki"]
+
+        if stats_with_sliders:
+            st.subheader("Linie progowe dla wykresów")
+            cols = st.columns(len(stats_with_sliders))
+
+            for i, stat in enumerate(stats_with_sliders):
+                with cols[i]:
+                    if stat == "Bramki":
+                        self.goals_line = st.slider(
+                            "Linia bramkowa", 0.0, 4.0, 0.5, 0.5, key="goals_slider")
+                    elif stat == "Asysty":
+                        self.assists_line = st.slider(
+                            "Linia asystowa", 0.0, 4.0, 0.5, 0.5, key="assists_slider")
+                    elif stat == "Strzały":
+                        self.shots_line = st.slider(
+                            "Linia strzałów", 0.0, 10.0, 0.5, 0.5, key="shots_slider")
+                    elif stat == "Strzały celne":
+                        self.shots_on_target_line = st.slider(
+                            "Linia strzałów celnych", 0.0, 6.0, 0.5, 0.5, key="shots_target_slider")
+                    elif stat == "Faule":
+                        self.fouls_conceded_line = st.slider(
+                            "Linia popełnionych fauli", 0.0, 6.0, 0.5, 0.5, key="fouls_slider")
+
     def player_stats_summary(self):
         # CSS for centering the content
         col1, col2, col3, col4 = st.columns(4)
@@ -322,13 +388,18 @@ class FootballPlayers:
             </div>
             """, unsafe_allow_html=True)
 
-if __name__ == '__main__':
+
+def main():
     # Zainicjowanie połączenia z bazą danych tylko raz na sesję
-    if 'db_connection' not in st.session_state:
-        st.session_state.db_connection = db_module.db_connect()
-    
-    football_players = FootballPlayers(st.session_state.db_connection)
+    #if 'db_connection' not in st.session_state:
+    #    st.session_state.db_connection = db_module.db_connect()
+
+    football_players = FootballPlayers()
     st.title("Piłka nożna - Zawodnicy")
     players_df = football_players.get_players()
     football_players.get_config_lines()
     football_players.show_players(players_df)
+
+
+if __name__ == '__main__':
+    main()

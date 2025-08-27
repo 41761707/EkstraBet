@@ -1,58 +1,61 @@
-# Copilot Instructions for Ekstrabet
+# Instrukcję Copilota dla projektu Ekstrabet
 
-## Project Overview
-- Ekstrabet consists of two main components:
-  - `web_code/`: Streamlit web application for user interaction, navigation, and visualization.
-  - `model_code/`: Python modules for data preparation, rating calculation, model training, prediction, and testing.
-- All data is loaded from a database using custom queries via `db_module`.
+## Omówienie projektu 
+- Projekt składa się z kilku kluczowym komponentów:
+  - `web_code/`: Aplikacja webowa Streamlit do interakcji z użytkownikiem, nawigacji i wizualizacji przedstawionych danych (front-end).
+  - `model_code/`: Moduły Pythona do przygotowania danych, obliczania ratingów, trenowania modeli, prognozowania i testowania.
+  - `api_code/`: Moduły do obsługi API, umożliwiające komunikację między front-endem a backendem.
+  - `graphics_code/`: Moduły do generowania wykresów i wizualizacji danych.
+  - `scrapper_code/`: Moduły do scrapowania danych z zewnętrznych źródeł.
+- Wszystkie dane są ładowane z bazy danych za pomocą niestandardowych zapytań przez `db_module`.
 
-## Architecture & Data Flow
-- The web app (`Home.py`) provides navigation and UI, dynamically generating links for each league using database data.
-- The model pipeline (`main.py` in `model_code/`) orchestrates:
-  - Data extraction and preparation (`dataprep_module`)
-  - Rating calculation (`ratings_module`)
-  - Model training and prediction (`model_module`, `prediction_module`)
-  - Configuration management (`config_manager`)
-  - Testing (`test_module`)
-- Data flows from database → data prep → rating calculation → model training/prediction → results/testing.
+## Architektura i przepływ danych
+- Aplikacja webowa (`Home.py`) zapewnia nawigację i interfejs użytkownika, dynamicznie generując linki do każdej ligi na podstawie danych z bazy.
+- Pipeline modelu (`main.py` w `model_code/`) zarządza:
+  - Ekstrakcją i przygotowaniem danych (`dataprep_module`)
+  - Obliczaniem ratingów (`ratings_module`)
+  - Trenowaniem modeli i prognozowaniem (`model_module`, `prediction_module`)
+  - Zarządzaniem konfiguracją (`config_manager`)
+  - Testowaniem (`test_module`)
+- Przepływ danych: baza danych → przygotowanie danych → obliczanie ratingów → trenowanie/prognozowanie modeli → wyniki/testowanie.
 
-## Developer Workflows
-- To run the web app: `streamlit run Home.py` from `web_code/`.
-- To run model training/prediction/testing:
-  - `python main.py <model_type> <mode> <load_weights> <model_name>` from `model_code/`.
-    - Example: `python main.py winner train 1 alpha_0_0_result`
-    - Modes: `train`, `predict`, `test`
-- Configuration is managed via command-line arguments and `ConfigManager`.
-- All database connections must be closed after use.
+## Przepływ pracy dewelopera
+- Aby uruchomić aplikację webową: `streamlit run web_code/Home.py`.
+- Aby uruchomić trening/prognozowanie/testowanie modeli:
+  - `python main.py <model_type> <mode> <load_weights> <model_name>` z folderu `model_code/`.
+    - Przykład: `python main.py winner train 1 alpha_0_0_result`
+    - Tryby: `train`, `predict`, `test`
+    - Przy uruchamianiu zapoznać się z parametrami opcjonalnymi oraz ich sposobem wykorzystywania!
+- Zarządzanie konfiguracją odbywa się za pomocą argumentów wiersza poleceń i `ConfigManager`.
+- Wszystkie połączenia z bazą danych muszą być zamykane po użyciu.
 
-## Project-Specific Patterns
-- Calculator functions for rating attributes are mapped in `get_calculator_func` (see `main.py`).
-- Model configuration and rating types are handled via nested dictionaries and passed through the pipeline.
-- All UI and documentation is in Polish; maintain language consistency.
-- Custom HTML/CSS is injected in Streamlit with `unsafe_allow_html=True`.
+## Wzorce specyficzne dla projektu
+- Konfiguracja modeli i typy ratingów są obsługiwane za pomocą zagnieżdżonych słowników i przekazywane przez pipeline.
+- Cały interfejs użytkownika i dokumentacja są w języku polskim; zachowaj spójność językową.
+- Niestandardowy HTML/CSS jest wstrzykiwany w Streamlit za pomocą `unsafe_allow_html=True`.
 
-## Integration Points
-- All database operations use `db_module`.
-- Model weights and configs are saved/loaded from `model_{model_type}_dev/` directories.
-- External data sources referenced for attribution: `flashscore.pl`, `opta.com`, `NHL API`, `dailyfaceoff.com`.
+## Punkty integracyjne
+- Wszystkie operacje na bazie danych używają `db_module`.
+- Wagi modeli i konfiguracje są zapisywane/ładowane z katalogów `model_{model_type}_dev/`.
+- Zewnętrzne źródła danych, które należy zacytować: `flashscore.pl`, `opta.com`, `NHL API`, `dailyfaceoff.com`.
 
-## Conventions
-- Use Pandas for all SQL query results and data manipulation.
-- Page files in `pages/` should follow the naming pattern `{LeagueName}.py` and be referenced in `Home.py`.
-- Model pipeline modules should be imported and used as in `main.py`.
+## Konwencje
+- Używaj Pandas do wszystkich wyników zapytań SQL i manipulacji danymi.
+- Pliki stron w `pages/` powinny stosować wzorzec nazewnictwa `{LeagueName}.py` i być odwoływane w `Home.py`.
+- Moduły pipeline modelu powinny być importowane i używane jak w `main.py`.
 
-## Example: Model Training Workflow
-1. Prepare configuration and database.
-2. Run: `python main.py winner train 0 alpha_0_0_result`
-3. The pipeline will extract data, calculate ratings, train the model, and save results/configs.
+## Przykład: Workflow Treningu Modelu
+1. Przygotuj konfigurację i bazę danych.
+2. Uruchom: `python main.py winner train 0 alpha_0_0_result`
+3. Pipeline wyodrębni dane, obliczy ratingi, wytrenuje model i zapisze wyniki/konfiguracje.
 
-## Example: Adding a New League
-1. Add a new league to the database (`leagues` table).
-2. Create a new file in `pages/` named after the league (e.g., `pages/Serie A.py`).
-3. The new league will automatically appear in the navigation if `active=1` in the database.
+## Przykład: Dodawanie Nowej Ligi
+1. Dodaj nową ligę do bazy danych (tabela `leagues`).
+2. Utwórz nowy plik w `pages/` nazwany na cześć ligi (np. `pages/Serie A.py`).
+3. Nowa liga automatycznie pojawi się w nawigacji, jeśli `active=1` w bazie danych.
 
 ---
-For questions or unclear conventions, review `Home.py`, `main.py`, and the database schema, or ask the project author (see contact info in the UI).
+W przypadku pytań lub niejasnych konwencji, zapoznaj się z `Home.py`, `main.py` i schematem bazy danych lub zapytaj autora projektu.
 
 # Zasady Pisania Kodu w Pythonie dla Ekstrabet
 
@@ -61,13 +64,14 @@ For questions or unclear conventions, review `Home.py`, `main.py`, and the datab
 - Stosuj konwencję PEP8 (wcięcia 4 spacje, czytelne nazwy zmiennych, spójność stylu).
 - Nazwy zmiennych, funkcji i klas powinny być opisowe i jednoznaczne.
 - Funkcje i klasy dokumentuj za pomocą docstringów w stylu Google lub NumPy.
-- Komentarze pisz wyłącznie po polsku, wyjaśniając logikę, założenia i nietypowe rozwiązania.
+- Komentarze typu docstring powinny zawierać sekcje "Args" oraz "Returns".
+- Komentarze pisz wyłącznie po polsku, wyjaśniając logikę, założenia i nietypowe rozwiązania. Przy komentowaniu staraj się zachować zdrowy balans - nie każda linijka wymaga komentarza
 
 ## 2. Struktura projektu
 
 - Moduły dziel według funkcjonalności (np. web_code, model_code).
 - Każdy plik powinien mieć nagłówek z krótkim opisem przeznaczenia.
-- Funkcje pomocnicze umieszczaj w osobnych plikach (np. utils.py).
+- Funkcje pomocnicze, które będą wykorzystywane w paru plikach w ramach tego samego modułu umieszczaj w osobnych plikach (np. utils.py).
 
 ## 3. Wzorce projektowe
 
@@ -95,8 +99,9 @@ For questions or unclear conventions, review `Home.py`, `main.py`, and the datab
 ## 7. Dokumentacja i UI
 
 - Wszystkie opisy, komentarze i komunikaty w interfejsie użytkownika pisz po polsku.
-- Dokumentację techniczną umieszczaj w plikach README.md oraz docstringach. Jeżeli w danym folderze istnieje już plik README.md to go rozszerz - nigdy sam nie twórz nowego, chyba, że zostałeś o to dosłownie poproszony
+- Dokumentację techniczną umieszczaj w plikach README.md oraz docstringach. Jeżeli w danym folderze istnieje już plik README.md to go rozszerz - nigdy sam nie twórz nowego, chyba, że zostałeś o to jawnie poproszony
 - W przypadku Streamlit używaj `unsafe_allow_html=True` do customizacji UI.
+- Pisząc komunikację z bazą danych pamiętaj o efektywnym zarządzaniu pobranymi danymi (na przykład: korzystaj z cacheowania)
 
 ## 8. Przykłady i workflow
 

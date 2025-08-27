@@ -23,7 +23,386 @@ def get_models_for_family_base(sport_id, family_name):
                 ORDER BY m.ID"""
     models_df = pd.read_sql(query, conn)
     conn.close()
-    return dict(zip(models_df['NAME'], models_df['ID'])) if not models_df.empty else {} 
+    return dict(zip(models_df['NAME'], models_df['ID'])) if not models_df.empty else {}
+
+@st.cache_data(ttl=300)
+def get_available_seasons_cached(league_id):
+    """Pobiera dostępne sezony z bazy danych dla danej ligi (cachowane)"""
+    league_id = int(league_id)
+    conn = db_module.db_connect()
+    season_query = """
+        SELECT distinct m.season, s.years 
+        FROM matches m 
+        JOIN seasons s ON m.season = s.id 
+        WHERE m.league = %s 
+        ORDER BY s.years DESC
+    """
+    seasons_df = pd.read_sql(season_query, conn, params=(league_id,))
+    conn.close()
+    return dict(zip(seasons_df['years'], seasons_df['season']))
+
+@st.cache_data(ttl=300)
+def get_available_rounds_cached(league_id, season_id):
+    """Pobiera dostępne kolejki dla danej ligi i sezonu (cachowane)"""
+    league_id = int(league_id)  
+    season_id = int(season_id) 
+    conn = db_module.db_connect()
+    rounds_query = """
+        SELECT round, game_date 
+        FROM matches 
+        WHERE league = %s AND season = %s 
+        ORDER BY game_date DESC
+    """
+    rounds_df = pd.read_sql(rounds_query, conn, params=(league_id, season_id))
+    conn.close()
+    return rounds_df['round'].tolist()
+
+@st.cache_data(ttl=300)
+def get_special_rounds_cached():
+    """Pobiera specjalne kolejki z bazy danych (cachowane)"""
+    conn = db_module.db_connect()
+    query = "SELECT id, name FROM special_rounds"
+    special_rounds_df = pd.read_sql(query, conn)
+    conn.close()
+    return dict(zip(special_rounds_df['id'], special_rounds_df['name']))
+
+@st.cache_data(ttl=300)
+def get_league_info_cached(league_id):
+    """Pobiera informacje o lidze z bazy danych (cachowane)"""
+    league_id = int(league_id) 
+    conn = db_module.db_connect()
+    query = "SELECT last_update, name FROM leagues WHERE id = %s"
+    league_df = pd.read_sql(query, conn, params=(league_id,))
+    conn.close()
+    if not league_df.empty:
+        return league_df.iloc[0]['last_update'], league_df.iloc[0]['name']
+    else:
+        raise ValueError(f"Nie znaleziono ligi o ID: {league_id}")
+
+@st.cache_data(ttl=300)
+def get_teams_cached(league_id, season_id):
+    """Pobiera drużyny dla danej ligi i sezonu (cachowane)"""
+    league_id = int(league_id)  
+    season_id = int(season_id)  
+    conn = db_module.db_connect()
+    query = """
+        SELECT DISTINCT t.id, t.name 
+        FROM matches m 
+        JOIN teams t ON (m.home_team = t.id OR m.away_team = t.id)
+        WHERE m.league = %s AND m.season = %s 
+        ORDER BY t.name
+    """
+    teams_df = pd.read_sql(query, conn, params=(league_id, season_id))
+    conn.close()
+    return dict(zip(teams_df['id'], teams_df['name']))
+
+@st.cache_data(ttl=300)
+def get_league_results_cached(league_id, season_id):
+    """Pobiera wyniki meczów dla danej ligi i sezonu (cachowane)"""
+    league_id = int(league_id) 
+    season_id = int(season_id) 
+    conn = db_module.db_connect()
+    query = """
+        SELECT 
+            t1.name AS home_team, 
+            t2.name AS away_team, 
+            home_team_goals, 
+            away_team_goals, 
+            result 
+        FROM matches m 
+        JOIN teams t1 ON m.home_team = t1.id 
+        JOIN teams t2 ON m.away_team = t2.id 
+        WHERE league = %s 
+        AND season = %s 
+        AND result != '0' 
+        AND round < 900
+    """
+    results_df = pd.read_sql(query, conn, params=(league_id, season_id))
+    conn.close()
+    return results_df
+
+@st.cache_data(ttl=300)
+def get_matches_count_cached(league_id, season_id):
+    """Pobiera liczbę rozegranych meczów dla danej ligi i sezonu (cachowane)"""
+    league_id = int(league_id)
+    season_id = int(season_id)  
+    conn = db_module.db_connect()
+    query = '''
+        SELECT COUNT(*) as count
+        FROM matches 
+        WHERE league = %s AND season = %s AND result != '0'
+    '''
+    count_df = pd.read_sql(query, conn, params=(league_id, season_id))
+    conn.close()
+    return count_df.iloc[0]['count'] if not count_df.empty else 0
+
+@st.cache_data(ttl=300)
+def get_team_name_cached(team_id):
+    """Pobiera nazwę drużyny z bazy danych (cachowane)"""
+    team_id = int(team_id) 
+    conn = db_module.db_connect()
+    query = "SELECT name FROM teams WHERE id = %s"
+    team_df = pd.read_sql(query, conn, params=(team_id,))
+    conn.close()
+    return team_df.iloc[0]['name'] if not team_df.empty else None
+
+@st.cache_data(ttl=300)
+def get_team_matches_cached(team_id, date, season_id, games_limit):
+    """Pobiera ostatnie mecze drużyny z bazy danych (cachowane)"""
+    team_id = int(team_id)
+    season_id = int(season_id)
+    games_limit = int(games_limit)
+    
+    conn = db_module.db_connect()
+    query = """
+        SELECT 
+            m.home_team AS home_id, 
+            t1.name AS home, 
+            t1.shortcut AS home_shortcut, 
+            m.away_team AS guest_id, 
+            t2.name AS guest, 
+            t2.shortcut AS guest_shortcut, 
+            DATE_FORMAT(CAST(m.game_date AS date), '%d.%m') AS date, 
+            m.home_team_goals AS home_goals, 
+            m.away_team_goals AS away_goals, 
+            m.result,
+            CASE 
+                WHEN m.home_team = %s THEN m.home_team_fouls 
+                ELSE m.away_team_fouls 
+            END AS team_fouls,
+            CASE 
+                WHEN m.home_team = %s THEN m.away_team_fouls 
+                ELSE m.home_team_fouls 
+            END AS opponent_fouls,
+            CASE 
+                WHEN m.home_team = %s THEN m.home_team_sc
+                ELSE m.away_team_sc
+            END AS team_shots,
+            CASE 
+                WHEN m.home_team = %s THEN m.away_team_sc
+                ELSE m.home_team_sc
+            END AS opponent_shots,
+            CASE 
+                WHEN m.home_team = %s THEN m.home_team_sog
+                ELSE m.away_team_sog
+            END AS team_shots_on_goal,
+            CASE 
+                WHEN m.home_team = %s THEN m.away_team_sog
+                ELSE m.home_team_sog
+            END AS opponent_shots_on_goal
+        FROM matches m
+        JOIN teams t1 ON m.home_team = t1.id
+        JOIN teams t2 ON m.away_team = t2.id
+        WHERE (m.home_team = %s OR m.away_team = %s)
+        AND m.result <> '0'
+        AND m.season = %s
+        ORDER BY m.game_date DESC 
+        LIMIT %s
+    """
+    matches_df = pd.read_sql(query, conn, params=(team_id, team_id, team_id, team_id, team_id, team_id, team_id, team_id, season_id, games_limit))
+    conn.close()
+    return matches_df
+
+@st.cache_data(ttl=300)
+def get_match_predictions_cached(match_id, event_model_mapping):
+    """Pobiera predykcje dla meczu z bazy danych (cachowane)"""
+    match_id = int(match_id)
+    conn = db_module.db_connect()
+    
+    # Definicja identyfikatorów zdarzeń predykcji
+    prediction_events = {
+        'home_win': 1,
+        'draw': 2,
+        'guest_win': 3,
+        'btts_yes': 6,
+        'btts_no': 172,
+        'exact_goals': 173,
+        'over_2_5': 8,
+        'under_2_5': 12,
+        'zero_goals': 174,
+        'one_goal': 175,
+        'two_goals': 176,
+        'three_goals': 177,
+        'four_goals': 178,
+        'five_goals': 179,
+        'six_plus_goals': 180
+    }
+    
+    predictions = {}
+    for name, event_id in prediction_events.items():
+        # Sprawdzenie czy mamy wybrany model dla tego typu zdarzenia
+        required_model = event_model_mapping.get(event_id)
+        if required_model is None:
+            continue  # Pomijamy jeśli nie ma wybranego modelu
+            
+        query = """
+            SELECT value 
+            FROM predictions 
+            WHERE match_id = %s 
+            AND event_id = %s
+            AND model_id = %s
+        """
+        result_df = pd.read_sql(query, conn, params=(match_id, event_id, required_model))
+        if not result_df.empty:
+            predictions[name] = result_df.iloc[0]['value']
+    
+    conn.close()
+    return predictions if predictions else None
+
+@st.cache_data(ttl=300)
+def get_final_predictions_cached(match_id):
+    """Pobiera finalne predykcje dla meczu (cachowane)"""
+    match_id = int(match_id) 
+    conn = db_module.db_connect()
+    query = """SELECT p.event_id as event_id, e.name as name 
+               FROM predictions p 
+               JOIN final_predictions fp ON p.id = fp.predictions_id
+               JOIN events e ON p.event_id = e.id 
+               WHERE match_id = %s"""
+    final_predictions_df = pd.read_sql(query, conn, params=(match_id,))
+    conn.close()
+    return final_predictions_df
+
+@st.cache_data(ttl=300)
+def get_h2h_matches_cached(home_id, away_id, h2h_limit):
+    """Pobiera historię bezpośrednich spotkań (cachowane)"""
+    home_id = int(home_id)
+    away_id = int(away_id) 
+    h2h_limit = int(h2h_limit)
+    
+    conn = db_module.db_connect()
+    h2h_query = """
+        SELECT 
+            m.game_date AS date, 
+            t1.name AS home_team, 
+            m.home_team_goals AS home_goals, 
+            t2.name AS away_team, 
+            m.away_team_goals AS away_goals
+        FROM matches m
+        JOIN teams t1 ON m.home_team = t1.id
+        JOIN teams t2 ON m.away_team = t2.id
+        WHERE ((m.home_team = %s AND m.away_team = %s)
+           OR (m.home_team = %s AND m.away_team = %s))
+        AND m.result != '0'
+        ORDER BY m.game_date DESC
+        LIMIT %s
+    """
+    h2h_df = pd.read_sql(h2h_query, conn, params=(home_id, away_id, away_id, home_id, h2h_limit))
+    conn.close()
+    return h2h_df
+
+@st.cache_data(ttl=300)
+def get_match_teams_cached(match_id):
+    """Pobiera drużyny dla danego meczu (cachowane)"""
+    match_id = int(match_id) 
+    conn = db_module.db_connect()
+    team_query = "SELECT home_team, away_team FROM matches WHERE id = %s"
+    teams_df = pd.read_sql(team_query, conn, params=(match_id,))
+    conn.close()
+    return teams_df
+
+@st.cache_data(ttl=300)
+def get_bookmaker_odds_cached(match_id):
+    """Pobiera kursy bukmacherskie z bazy danych (cachowane)"""
+    match_id = int(match_id) 
+    conn = db_module.db_connect()
+    query = """
+        SELECT b.name as bookmaker, o.event as event, o.odds as odds 
+        FROM odds o 
+        JOIN bookmakers b ON o.bookmaker = b.id 
+        WHERE match_id = %s
+    """
+    odds_df = pd.read_sql(query, conn, params=(match_id,))
+    conn.close()
+    return odds_df
+
+@st.cache_data(ttl=300)
+def get_schedule_cached(league_id, season_id, round_num=None, date_range=None, use_date_filter=False):
+    """Pobiera terminarz meczów (cachowane)"""
+    league_id = int(league_id)
+    season_id = int(season_id)
+    if round_num is not None:
+        round_num = int(round_num)
+        
+    conn = db_module.db_connect()
+    query = """
+        SELECT 
+            m.id as id, 
+            m.home_team as home_id, 
+            t1.name as home, 
+            m.away_team as guest_id, 
+            t2.name as guest, 
+            m.game_date as date, 
+            m.result as result, 
+            m.home_team_goals as h_g, 
+            m.away_team_goals as a_g
+        FROM matches m 
+        JOIN teams t1 ON t1.id = m.home_team 
+        JOIN teams t2 ON t2.id = m.away_team 
+        WHERE m.league = %s AND m.season = %s
+    """
+    params = [league_id, season_id]
+    
+    # Dodanie warunków w zależności od trybu (wybór rundy lub daty)
+    if use_date_filter and date_range and isinstance(date_range, tuple) and len(date_range) >= 2:
+        start_date, end_date = date_range
+        query += " AND m.game_date BETWEEN %s AND %s"
+        params.extend([start_date, end_date])
+    elif round_num is not None:
+        query += " AND m.round = %s"
+        params.append(round_num)
+    else:
+        # Jeśli brak warunków, zwróć pusty wynik
+        query += " AND 1=0"
+        
+    query += " ORDER BY m.game_date"
+    
+    schedule_df = pd.read_sql(query, conn, params=params)
+    conn.close()
+    return schedule_df
+
+@st.cache_data(ttl=300)
+def get_team_predictions_cached(team_id, season_id, model_result, model_ou, model_btts):
+    """Pobiera predykcje dla drużyny (cachowane)"""
+    team_id = int(team_id)
+    season_id = int(season_id)
+    if model_result is not None:
+        model_result = int(model_result)
+    if model_ou is not None:
+        model_ou = int(model_ou)
+    if model_btts is not None:
+        model_btts = int(model_btts)
+        
+    conn = db_module.db_connect()
+    
+    # Przygotowanie warunków dla modeli
+    model_conditions = []
+    if model_result is not None:
+        model_conditions.append(f"(p.event_id IN (1, 2, 3) AND p.model_id = {model_result})")
+    if model_ou is not None:
+        model_conditions.append(f"(p.event_id IN (8, 12) AND p.model_id = {model_ou})")
+    if model_btts is not None:
+        model_conditions.append(f"(p.event_id IN (6, 172) AND p.model_id = {model_btts})")
+    
+    if not model_conditions:
+        conn.close()
+        return pd.DataFrame()  # Zwróć pusty DataFrame jeśli brak modeli
+        
+    model_filter = " OR ".join(model_conditions)
+    
+    query = f"""
+        SELECT event_id, outcome 
+        FROM predictions p 
+        JOIN final_predictions f ON p.id = f.predictions_id 
+        JOIN matches m ON m.id = p.match_id 
+        WHERE (m.home_team = %s OR m.away_team = %s) and m.season = %s
+        AND m.result != '0' 
+        AND ({model_filter})
+        ORDER BY m.game_date DESC
+    """
+    predicts_df = pd.read_sql(query, conn, params=(team_id, team_id, season_id))
+    conn.close()
+    return predicts_df 
 
 class Base:
     def __init__(self, league, season, name):
@@ -45,13 +424,15 @@ class Base:
         self.model_result = None
         self.model_ou = None 
         self.model_btts = None
-        self.conn = db_module.db_connect() # Połączenie z bazą danych
+        # Domyślne wartości dla linii progowych
+        self.fouls_line = 11.5
+        self.shots_line = 13.5
+        self.shots_on_target_line = 5.5
         self.set_config() # Ustawienie konfiguracji na podstawie wybranej ligi
         self.get_teams() # Pobranie drużyn z bazy danych dla danej ligi i sezonu
         self.get_schedule()  # Pobranie terminarza meczów dla danej ligi i sezonu
         self.get_league_tables() # Pobranie tabeli ligowej dla danej ligi i sezonu
         self.get_league_stats() # Pobranie statystyk ligowych dla danej ligi i sezonu
-        self.conn.close() # Zamknięcie połączenia z bazą danych
 
     def get_available_seasons(self) -> dict:
         """
@@ -60,18 +441,7 @@ class Base:
         Returns:
             dict: Słownik w formacie {lata: id_sezonu}, np. {'2022/2023': 1}
         """
-        season_query = f"""
-            SELECT distinct m.season, s.years 
-            FROM matches m 
-            JOIN seasons s ON m.season = s.id 
-            WHERE m.league = {self.league} 
-            ORDER BY s.years DESC
-        """
-        cursor = self.conn.cursor()
-        cursor.execute(season_query)
-        seasons = {years: season_id for season_id, years in cursor.fetchall()}
-        cursor.close()
-        return seasons
+        return get_available_seasons_cached(self.league)
 
     def set_season(self) -> None:
         """
@@ -93,22 +463,13 @@ class Base:
             list: Lista kolejek w formacie [int | str], np. [1, 2, 3, 'Finał']
         """
         rounds = []
-        rounds_query = f"""
-            SELECT round, game_date 
-            FROM matches 
-            WHERE league = {self.league} AND season = {self.season} 
-            ORDER BY game_date DESC
-        """
-        cursor = self.conn.cursor()
-        cursor.execute(rounds_query)
-        rounds_tmp = [
-            self.special_rounds[round_id] if round_id > 100 else round_id
-            for round_id, _ in cursor.fetchall()
-        ]
-        for item in rounds_tmp:
-            if item not in rounds:
-                rounds.append(item)
-        cursor.close()
+        rounds_tmp = get_available_rounds_cached(self.league, self.season)
+        special_rounds = get_special_rounds_cached()
+        
+        for round_id in rounds_tmp:
+            processed_round = special_rounds[round_id] if round_id > 100 else round_id
+            if processed_round not in rounds:
+                rounds.append(processed_round)
         return rounds
 
     def set_round(self) -> None:
@@ -124,6 +485,8 @@ class Base:
             self.round: ID wybranej kolejki (int)
         """
         available_rounds = self.get_available_rounds()
+        special_rounds = get_special_rounds_cached()
+        
         # Interaktywny wybór
         selected_round = st.selectbox(label="Kolejka", 
                                       options=available_rounds,
@@ -132,7 +495,7 @@ class Base:
         if isinstance(selected_round, str):
             selected_round = next(
                 round_id 
-                for round_id, round_name in self.special_rounds.items()
+                for round_id, round_name in special_rounds.items()
                 if round_name == selected_round
             )
         # Aktualizacja stanu
@@ -154,23 +517,11 @@ class Base:
         Raises:
             implicit DatabaseError: jeśli wystąpi błąd podczas wykonywania zapytań SQL
         """
-        # Pobranie specjalnych kolejek
-        with self.conn.cursor() as cursor:  # Context manager dla automatycznego zamknięcia kursora
-            cursor.execute("SELECT id, name FROM special_rounds")
-            self.special_rounds = dict(cursor.fetchall())  # Bezpośrednia konwersja na słownik
+        # Pobranie specjalnych kolejek z cache
+        self.special_rounds = get_special_rounds_cached()
 
-        # Pobranie informacji o lidze
-        with self.conn.cursor() as cursor:
-            cursor.execute(
-                "SELECT last_update, name FROM leagues WHERE id = %s", 
-                (self.league,)
-            )
-            result = cursor.fetchone()
-            
-            if result:  # Zabezpieczenie przed brakiem wyników
-                self.update, self.name = result
-            else:
-                raise ValueError(f"Nie znaleziono ligi o ID: {self.league}")
+        # Pobranie informacji o lidze z cache
+        self.update, self.name = get_league_info_cached(self.league)
 
     def set_date_range(self) -> tuple:
         """
@@ -324,10 +675,29 @@ class Base:
         st.subheader("Statystyki do wyświetlania")
         self.selected_stats = st.multiselect(
             "Wybierz statystyki, które chcesz wyświetlać:",
-            options=["Bramki", "Rezultaty", "Faule", "Strzały"],
+            options=["Bramki", "Rezultaty", "Faule", "Strzały", "Strzały celne"],
             default=["Bramki", "Rezultaty"],
             help="Możesz wybrać kilka opcji jednocześnie"
         )
+
+        # 7. Slidery dla linii progowych - tylko dla wybranych statystyk
+        stats_with_sliders = [stat for stat in self.selected_stats if stat not in ["Rezultaty", "Bramki"]]
+        
+        if stats_with_sliders:
+            st.subheader("Linie progowe dla wykresów")
+            cols = st.columns(len(stats_with_sliders))
+            
+            for i, stat in enumerate(stats_with_sliders):
+                with cols[i]:
+                    if stat == "Bramki":
+                        # Używamy już istniejący slider ou_line dla bramek
+                        pass
+                    elif stat == "Faule":
+                        self.fouls_line = st.slider("Linia fauli", 0.0, 20.0, 11.5, 0.5, key="fouls_slider")
+                    elif stat == "Strzały":
+                        self.shots_line = st.slider("Linia strzałów", 0.0, 30.0, 13.5, 0.5, key="shots_slider")
+                    elif stat == "Strzały celne":
+                        self.shots_on_target_line = st.slider("Linia strzałów celnych", 0.0, 15.0, 4.5, 0.5, key="shots_target_slider")
 
     def get_teams(self) -> None:
         """
@@ -343,22 +713,7 @@ class Base:
         Sets:
             self.teams_dict: Dict[int, str] - słownik mapujący ID drużyn na ich nazwy
         """
-        # Bezpieczne zapytanie SQL z parametryzacją
-        query = """
-            SELECT DISTINCT t.id, t.name 
-            FROM matches m 
-            JOIN teams t ON (m.home_team = t.id OR m.away_team = t.id)
-            WHERE m.league = %s AND m.season = %s 
-            ORDER BY t.name
-        """
-        # Wykonanie zapytania z parametrami
-        all_teams_df = pd.read_sql(
-            query, 
-            self.conn, 
-            params=(self.league, self.season)  # Bezpieczne wstawienie parametrów
-        )
-        # Konwersja DataFrame do słownika
-        self.teams_dict = all_teams_df.set_index('id')['name'].to_dict()
+        self.teams_dict = get_teams_cached(self.league, self.season)
 
     def get_schedule(self) -> None:
         """
@@ -380,11 +735,13 @@ class Base:
                 - self.years: opis sezonu
                 - self.teams_dict: słownik drużyn {id: nazwa}
         """
+        special_rounds = get_special_rounds_cached()
+        
         # 1. Wyświetlenie poprzedniej kolejki (jeśli aktualna > 1 i nie filtrujemy po dacie)
         if not self.filter_by_date and self.round > 1:
             prev_round = self.round - 1
             round_title = (
-                self.special_rounds.get(prev_round, prev_round) 
+                special_rounds.get(prev_round, prev_round) 
                 if prev_round >= 100 
                 else prev_round
             ) 
@@ -400,7 +757,7 @@ class Base:
                 expander_title = "Terminarz, mecze - wybierz zakres dat"
         else:
             current_round_title = (
-                self.special_rounds.get(self.round, self.round) 
+                special_rounds.get(self.round, self.round) 
                 if self.round >= 100 
                 else self.round
             )
@@ -424,22 +781,7 @@ class Base:
         4. Statystyki Over/Under i BTTS (Both Teams To Score
         """
         with st.expander("Tabele ligowe" ):
-            query = """
-                SELECT 
-                    t1.name AS home_team, 
-                    t2.name AS away_team, 
-                    home_team_goals, 
-                    away_team_goals, 
-                    result 
-                FROM matches m 
-                JOIN teams t1 ON m.home_team = t1.id 
-                JOIN teams t2 ON m.away_team = t2.id 
-                WHERE league = %s 
-                AND season = %s 
-                AND result != '0' 
-                AND round < 900
-            """
-            results_df = pd.read_sql(query, self.conn, params=(self.league, self.season))
+            results_df = get_league_results_cached(self.league, self.season)
 
             tab1, tab2, tab3, tab4 = st.tabs(["Tradycyjna tabela ligowa", "Tabela domowa", "Tabela wyjazdowa", "Tabela OU / BTTS"])
             with tab1:
@@ -463,27 +805,22 @@ class Base:
         a jeśli mecze zostały rozegrane, wywołuje moduł statystyk ligowych.
         """
         with st.expander("Statystyki ligowe"):
-            query = '''
-                SELECT COUNT(*) 
-                FROM matches 
-                WHERE league = %s AND season = %s AND result != '0'
-            '''
-            cursor = self.conn.cursor()
-            try:
-                cursor.execute(query, (self.league, self.season))
-                no_games = cursor.fetchone()
-                
-                st.header(f"Charakterystyki ligi: {self.name}")
-                st.subheader(f"Do tej pory rozegrano {no_games[0]} meczów w ramach ligi: {self.name}")
-                
-                if no_games[0] > 0:
+            no_games = get_matches_count_cached(self.league, self.season)
+            
+            st.header(f"Charakterystyki ligi: {self.name}")
+            st.subheader(f"Do tej pory rozegrano {no_games} meczów w ramach ligi: {self.name}")
+            
+            if no_games > 0:
+                # Połączenie z bazą wymagane dla stats_module
+                conn = db_module.db_connect()
+                try:
                     # Wywołanie modułu statystyk ligowych
                     stats_module.league_charachteristics(
-                        self.conn, self.league, self.season, 
-                        self.teams_dict, no_games[0]
+                        conn, self.league, self.season, 
+                        self.teams_dict, no_games
                     )
-            finally:
-                cursor.close()
+                finally:
+                    conn.close()
 
     def prediction_stats(self):
         """
@@ -511,20 +848,31 @@ class Base:
                     AND season = {self.season}
                     AND round IN ({rounds_str}) 
                     AND result != '0' """
-            # Wywołanie funkcji generującej statystyki z wybranymi modelami
-            stats_module.generate_statistics(query, 
-                                             tax_flag, 
-                                             self.conn, 
-                                             self.EV_plus,
-                                             'all',
-                                             [self.model_result] if self.model_result else None,
-                                             [self.model_ou] if self.model_ou else None,
-                                             [self.model_btts] if self.model_btts else None)
+            
+            # Połączenie z bazą wymagane dla stats_module
+            conn = db_module.db_connect()
+            try:
+                # Wywołanie funkcji generującej statystyki z wybranymi modelami
+                stats_module.generate_statistics(query, 
+                                                 tax_flag, 
+                                                 conn, 
+                                                 self.EV_plus,
+                                                 'all',
+                                                 [self.model_result] if self.model_result else None,
+                                                 [self.model_ou] if self.model_ou else None,
+                                                 [self.model_btts] if self.model_btts else None)
+            finally:
+                conn.close()
         # Statystyki porównawcze między drużynami
         with st.expander(f"Statystyki predykcji w sezonie {self.years} - porównania między drużynami"):
-            stats_module.aggregate_team_acc(self.teams_dict, 
-                                            self.league, self.season, 
-                                            self.conn)
+            # Połączenie z bazą wymagane dla stats_module
+            conn = db_module.db_connect()
+            try:
+                stats_module.aggregate_team_acc(self.teams_dict, 
+                                                self.league, self.season, 
+                                                conn)
+            finally:
+                conn.close()
 
     def get_league_stats(self): 
         """Pobiera i wyświetla statystyki ligowe oraz predykcje dla wybranej ligi i sezonu."""    
@@ -533,9 +881,7 @@ class Base:
 
     def get_team_name(self, team_id: int) -> str:
         """Pobiera nazwę drużyny z bazy danych"""
-        query = "SELECT name FROM teams WHERE id = %s"
-        team_df = pd.read_sql(query, self.conn, params=(team_id,))
-        return team_df.loc[0, 'name'] if not team_df.empty else None
+        return get_team_name_cached(team_id)
     
     def process_match_data(self, data: pd.DataFrame, team_id: int, team_name: str) -> dict:
         """Przetwarza surowe dane meczowe na gotowy słownik"""
@@ -555,6 +901,8 @@ class Base:
                 'opponent_fouls': [],
                 'team_shots': [],
                 'opponent_shots': [],
+                'team_shots_on_goal': [],
+                'opponent_shots_on_goal': [],
                 'results': []
             }
 
@@ -579,53 +927,14 @@ class Base:
             'opponent_fouls': data['opponent_fouls'].tolist(),
             'team_shots': data['team_shots'].tolist(),
             'opponent_shots': data['opponent_shots'].tolist(),
+            'team_shots_on_goal': data['team_shots_on_goal'].tolist(),
+            'opponent_shots_on_goal': data['opponent_shots_on_goal'].tolist(),
             'results': data['result'].tolist()
         }
     
     def get_team_matches(self, team_id: int) -> pd.DataFrame:
         """Pobiera ostatnie mecze drużyny z bazy danych"""
-        query = """
-            SELECT 
-                m.home_team AS home_id, 
-                t1.name AS home, 
-                t1.shortcut AS home_shortcut, 
-                m.away_team AS guest_id, 
-                t2.name AS guest, 
-                t2.shortcut AS guest_shortcut, 
-                DATE_FORMAT(CAST(m.game_date AS date), '%d.%m') AS date, 
-                m.home_team_goals AS home_goals, 
-                m.away_team_goals AS away_goals, 
-                CASE 
-                    WHEN m.home_team = %s THEN m.home_team_fouls 
-                    ELSE m.away_team_fouls 
-                END AS team_fouls,
-                CASE 
-                    WHEN m.home_team = %s THEN m.away_team_fouls 
-                    ELSE m.home_team_fouls 
-                END AS opponent_fouls,
-                CASE 
-                    WHEN m.home_team = %s THEN m.home_team_sc
-                    ELSE m.away_team_sc
-                END AS team_shots,
-                CASE 
-                    WHEN m.home_team = %s THEN m.away_team_sc
-                    ELSE m.home_team_sc
-                END AS opponent_shots,
-                m.result AS result
-            FROM matches m 
-            JOIN teams t1 ON t1.id = m.home_team 
-            JOIN teams t2 ON t2.id = m.away_team 
-            WHERE CAST(m.game_date AS date) <= %s
-            AND (m.home_team = %s OR m.away_team = %s) 
-            AND m.result <> '0'
-            AND m.season = %s
-            ORDER BY m.game_date DESC 
-            LIMIT %s
-        """
-        return pd.read_sql(
-            query, 
-            self.conn, 
-            params=(team_id, team_id, team_id, team_id, self.date, team_id, team_id, self.season, self.games))
+        return get_team_matches_cached(team_id, self.date, self.season, self.games)
 
     def single_team_data(self, team_id: int) -> dict:
         """
@@ -680,13 +989,8 @@ class Base:
             'BTTS_NO': 172
         }
         st.header("Pomeczowe statystyki predykcji i zakładów")  
-        # Pobieranie predykcji z bazy danych
-        query = """SELECT p.event_id as event_id, e.name as name 
-                   FROM predictions p 
-                   JOIN final_predictions fp ON p.id = fp.predictions_id
-                   JOIN events e ON p.event_id = e.id 
-                   WHERE match_id = %s"""
-        final_predictions_df = pd.read_sql(query, self.conn, params=(id,))
+        # Pobieranie predykcji z cache
+        final_predictions_df = get_final_predictions_cached(id)
         
         # Inicjalizacja struktury na wyniki
         results = {
@@ -759,29 +1063,14 @@ class Base:
         Wyświetla listę ostatnich spotkań między drużynami w formacie:
         data | gospodarz | wynik | gość
         """
-        team_query = "SELECT home_team, away_team FROM matches WHERE id = %s"
-        teams = pd.read_sql(team_query, self.conn, params=(match_id,))
-        if teams.empty:
+        teams_df = get_match_teams_cached(match_id)
+        if teams_df.empty:
             st.warning("Nie znaleziono meczu o podanym ID")
             return
-        home_id, away_id = teams.iloc[0]['home_team'], teams.iloc[0]['away_team']
-        h2h_query = f"""
-            SELECT 
-                m.game_date AS date, 
-                t1.name AS home_team, 
-                m.home_team_goals AS home_goals, 
-                t2.name AS away_team, 
-                m.away_team_goals AS away_goals
-            FROM matches m
-            JOIN teams t1 ON m.home_team = t1.id
-            JOIN teams t2 ON m.away_team = t2.id
-            WHERE ((m.home_team = {home_id} AND m.away_team = {away_id})
-               OR (m.home_team = {away_id} AND m.away_team = {home_id}))
-            AND m.result != '0'
-            ORDER BY m.game_date DESC
-            LIMIT {self.h2h}
-        """
-        h2h_df = pd.read_sql(h2h_query, self.conn)
+        home_id, away_id = teams_df.iloc[0]['home_team'], teams_df.iloc[0]['away_team']
+        
+        h2h_df = get_h2h_matches_cached(home_id, away_id, self.h2h)
+        
         # Przygotowanie i wyświetlenie wyników
         if not h2h_df.empty:
             st.header(f"Ostatnie {min(self.h2h, len(h2h_df))} bezpośrednie spotkania")
@@ -830,44 +1119,7 @@ class Base:
             180: self.model_ou      # six_plus_goals
         }
         
-        # Definicja identyfikatorów zdarzeń predykcji
-        prediction_events = {
-            'home_win': 1,
-            'draw': 2,
-            'guest_win': 3,
-            'btts_yes': 6,
-            'btts_no': 172,
-            'exact_goals': 173,
-            'over_2_5': 8,
-            'under_2_5': 12,
-            'zero_goals': 174,
-            'one_goal': 175,
-            'two_goals': 176,
-            'three_goals': 177,
-            'four_goals': 178,
-            'five_goals': 179,
-            'six_plus_goals': 180
-        }
-        
-        predictions = {}
-        for name, event_id in prediction_events.items():
-            # Sprawdzenie czy mamy wybrany model dla tego typu zdarzenia
-            required_model = event_model_mapping.get(event_id)
-            if required_model is None:
-                continue  # Pomijamy jeśli nie ma wybranego modelu
-                
-            query = f"""
-                SELECT value 
-                FROM predictions 
-                WHERE match_id = {match_id} 
-                AND event_id = {event_id}
-                AND model_id = {required_model}
-            """
-            result = pd.read_sql(query, self.conn).to_numpy()
-            if len(result) > 0:
-                predictions[name] = result[0][0]
-        
-        return predictions if predictions else None
+        return get_match_predictions_cached(match_id, event_model_mapping)
     
     def display_prediction_charts(self, predictions: dict) -> None:
         """Wyświetla wykresy predykcji dla meczu.
@@ -945,13 +1197,7 @@ class Base:
         Returns:
             Słownik z kursami
         """
-        query = f"""
-            SELECT b.name as bookmaker, o.event as event, o.odds as odds 
-            FROM odds o 
-            JOIN bookmakers b ON o.bookmaker = b.id 
-            WHERE match_id = {match_id}
-        """
-        odds_details = pd.read_sql(query, self.conn)
+        odds_details = get_bookmaker_odds_cached(match_id)
         bookmakers_no = len(bookie_dict)
         # Inicjalizacja słownika z kursami
         odds = {
@@ -977,10 +1223,10 @@ class Base:
         
         # Wypełnienie danych
         for _, row in odds_details.iterrows():
-            event_type = event_mapping.get(row.event)
+            event_type = event_mapping.get(row['event'])
             if event_type:
-                bookie_idx = bookie_dict[row.bookmaker]
-                odds[event_type][bookie_idx] = row.odds
+                bookie_idx = bookie_dict[row['bookmaker']]
+                odds[event_type][bookie_idx] = row['odds']
         
         return odds
     
@@ -1110,42 +1356,7 @@ class Base:
             
         Wyświetla listę meczów z przyciskami do szczegółów każdego spotkania.
         """
-        query = """
-            SELECT 
-                m.id as id, 
-                m.home_team as home_id, 
-                t1.name as home, 
-                m.away_team as guest_id, 
-                t2.name as guest, 
-                m.game_date as date, 
-                m.result as result, 
-                m.home_team_goals as h_g, 
-                m.away_team_goals as a_g
-            FROM matches m 
-            JOIN teams t1 ON t1.id = m.home_team 
-            JOIN teams t2 ON t2.id = m.away_team 
-            WHERE m.league = %s AND m.season = %s
-        """
-        params = [self.league, self.season]
-        
-        # Dodanie warunków w zależności od trybu (wybór rundy lub daty)
-        if use_date_filter:
-            # Walidacja zakresu dat przed użyciem
-            if isinstance(date_range, tuple) and len(date_range) >= 2:
-                start_date, end_date = date_range
-                query += " AND m.game_date BETWEEN %s AND %s"
-                params.extend([start_date, end_date])
-            else:
-                # Jeśli zakres dat jest niepoprawny, nie wyświetlamy żadnych meczów
-                query += " AND 1=0"  # Warunek który zawsze zwróci pusty wynik
-        else:
-            query += " AND m.round = %s"
-            params.append(round)
-            
-        query += " ORDER BY m.game_date"
-        
-        # Wykonanie zapytania
-        schedule_df = pd.read_sql(query, self.conn, params=params)
+        schedule_df = get_schedule_cached(self.league, self.season, round, date_range, use_date_filter)
         
         # Generowanie interfejsu dla każdego meczu
         for _, row in schedule_df.iterrows():
@@ -1171,16 +1382,26 @@ class Base:
                 self.show_predictions(row.h_g, row.a_g, row.id, row.result)     
             with tab2:
                 if row.result != '0':
-                    football_stats.display_match_statistics(row.id, self.conn)
+                    # Połączenie z bazą wymagane dla football_stats
+                    conn = db_module.db_connect()
+                    try:
+                        football_stats.display_match_statistics(row.id, conn)
+                    finally:
+                        conn.close()
                 else:
                     st.warning("Statystyki pomeczowe dostępne po zakończeniu spotkania")
             with tab3:
                 if row.result != '0':
-                    football_stats.display_match_players_stats(row.id, row.home, row.home_id, row.guest, row.guest_id, self.conn)    
+                    # Połączenie z bazą wymagane dla football_stats
+                    conn = db_module.db_connect()
+                    try:
+                        football_stats.display_match_players_stats(row.id, row.home, row.home_id, row.guest, row.guest_id, conn)
+                    finally:
+                        conn.close()    
                 else:
                     st.warning("Statystyki zawodników dostępne po zakończeniu spotkania")
             with tab4:
-                self.display_dev_data(row)
+                    self.display_dev_data(row)
 
     def display_match_statistics(self):
         """Wyświetla statystyki pomeczowe dla aktualnie wybranego meczu.
@@ -1244,37 +1465,19 @@ class Base:
         Returns:
             None: Funkcja wyświetla wyniki bez zwracania wartości
         """
-        # Zapytanie SQL pobierające predykcje dla drużyny z filtrowaniem po wybranych modelach
-        model_conditions = []
-        if self.model_result is not None:
-            model_conditions.append(f"(p.event_id IN (1, 2, 3) AND p.model_id = {self.model_result})")
-        if self.model_ou is not None:
-            model_conditions.append(f"(p.event_id IN (8, 12) AND p.model_id = {self.model_ou})")
-        if self.model_btts is not None:
-            model_conditions.append(f"(p.event_id IN (6, 172) AND p.model_id = {self.model_btts})")
+        # Pobieranie predykcji z cache
+        predicts_df = get_team_predictions_cached(key, self.season, self.model_result, self.model_ou, self.model_btts)
         
-        if not model_conditions:
+        if predicts_df.empty:
             st.warning("Brak wybranych modeli - nie można wyświetlić statystyk predykcji")
             return
             
-        model_filter = " OR ".join(model_conditions)
-        
-        query = f"""
-            SELECT event_id, outcome 
-            FROM predictions p 
-            JOIN final_predictions f ON p.id = f.predictions_id 
-            JOIN matches m ON m.id = p.match_id 
-            WHERE (m.home_team = {key} OR m.away_team = {key}) and m.season = {self.season}
-            AND m.result != '0' 
-            AND ({model_filter})
-            ORDER BY m.game_date DESC
-        """
-        predicts_df = pd.read_sql(query, self.conn)
         # Inicjalizacja list na wyniki
         result_outcomes = []
         btts_outcomes = []
         ou_outcomes = []
         counter = 0
+        
         # Przetwarzanie predykcji - wykresy kołowe
         if len(predicts_df) > 0:
             for _, row in predicts_df.iterrows():
@@ -1293,22 +1496,31 @@ class Base:
             # Wyświetlenie wykresów w trzech kolumnach
             col1, col2, col3 = st.columns(3)
             with col1:
-                self.prediction_accuracy(ou_outcomes, "OU")
+                if len(ou_outcomes) > 0:
+                    self.prediction_accuracy(ou_outcomes, "OU")
             with col2:
-                self.prediction_accuracy(btts_outcomes, "BTTS")
+                if len(btts_outcomes) > 0:
+                    self.prediction_accuracy(btts_outcomes, "BTTS")
             with col3:
-                self.prediction_accuracy(result_outcomes, "Rezultat meczu")
-            
+                if len(result_outcomes) > 0:
+                    self.prediction_accuracy(result_outcomes, "Rezultat meczu")
+
             # Generowanie dodatkowych statystyk z wybranymi modelami
             stats_query = f"""(home_team = {key} OR away_team = {key}) AND result != '0' """
-            stats_module.generate_statistics(stats_query, 
-                                             0, 
-                                             self.conn, 
-                                             self.EV_plus,
-                                             'all',
-                                             [self.model_result] if self.model_result else None,
-                                             [self.model_ou] if self.model_ou else None,
-                                             [self.model_btts] if self.model_btts else None)
+            
+            # Połączenie z bazą wymagane dla stats_module
+            conn = db_module.db_connect()
+            try:
+                stats_module.generate_statistics(stats_query, 
+                                                 0, 
+                                                 conn, 
+                                                 self.EV_plus,
+                                                 'all',
+                                                 [self.model_result] if self.model_result else None,
+                                                 [self.model_ou] if self.model_ou else None,
+                                                 [self.model_btts] if self.model_btts else None)
+            finally:
+                conn.close()
 
     def show_teams(self, teams_dict: dict) -> None:
         """
@@ -1378,7 +1590,7 @@ class Base:
                                     team_data['opponent_shortcut'],
                                     team_data['team_fouls'],
                                     team_data['team_name'],
-                                    13.5, #TMP
+                                    self.fouls_line,
                                     "Faule drużyny w meczach")
                         with col6:
                             with st.container():
@@ -1386,7 +1598,7 @@ class Base:
                                     team_data['opponent_shortcut'],
                                     team_data['opponent_fouls'],
                                     team_data['team_name'],
-                                    13.5, #TMP
+                                    self.fouls_line,
                                     "Faule przeciwnika w meczach")
                     
                     # Strzały - col7 i col8
@@ -1398,7 +1610,7 @@ class Base:
                                     team_data['opponent_shortcut'],
                                     team_data['team_shots'],
                                     team_data['team_name'],
-                                    13.5, #TMP
+                                    self.shots_line,
                                     "Strzały drużyny w meczach")
                         with col8:
                             with st.container():
@@ -1406,8 +1618,28 @@ class Base:
                                     team_data['opponent_shortcut'],
                                     team_data['opponent_shots'],
                                     team_data['team_name'],
-                                    13.5, #TMP
+                                    self.shots_line,
                                     "Strzały przeciwnika w meczach")
+                    
+                    # Strzały celne - col9 i col10
+                    if "Strzały celne" in self.selected_stats:
+                        col9, col10 = st.columns(2)
+                        with col9:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['team_shots_on_goal'],
+                                    team_data['team_name'],
+                                    self.shots_on_target_line,
+                                    "Strzały celne drużyny w meczach")
+                        with col10:
+                            with st.container():
+                                graphs_module.vertical_bar_chart(team_data['date'],
+                                    team_data['opponent_shortcut'],
+                                    team_data['opponent_shots_on_goal'],
+                                    team_data['team_name'],
+                                    self.shots_on_target_line,
+                                    "Strzały celne przeciwnika w meczach")
                 # Zakładka 2: Statystyki predykcji
                 with tab2:
                     self.predicts_per_team(team_data['team_name'], team_id)
