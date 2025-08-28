@@ -20,7 +20,7 @@ def get_teams_data(countries_dict: dict):
     query_teams = f"""SELECT t.id, t.name, t.opta_name, c.id as country
                      FROM teams t 
                      JOIN countries c on t.country = c.id
-                     WHERE t.sport_id = 1 and c.id in ({','.join(map(str, countries_dict.values()))})
+                     WHERE t.sport_id = 1 and t.opta_name is not null and c.id in ({','.join(map(str, countries_dict.values()))})
                      ORDER BY t.name"""
     teams_df = pd.read_sql(query_teams, conn)
     conn.close()

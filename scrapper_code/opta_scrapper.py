@@ -272,6 +272,10 @@ def extract_match_list_from_results_page(driver, base_url):
                 matchday_text = span_element.get_text(strip=True)
                 matchday_number = extract_matchday_number_from_text(
                     matchday_text)
+                # TO-DO: Na razie pomiń wpisy gdzie matchday_number jest None
+                if matchday_number is None:
+                    print(f"Pomijam kolejkę z nieprawidłowym formatem: '{matchday_text}'")
+                    continue
                 # Znajdź wszystkie mecze w tej kolejce
                 tbody_elements = li.find_all('tbody', class_='Opta-result')
                 # Dla każdego meczu wyciągnij data-match i stwórz URL
