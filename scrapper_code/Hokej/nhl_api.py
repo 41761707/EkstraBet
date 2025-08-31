@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import sys
 
-import db_module
+from ..db_module import db_connect
 def get_data_from_api(api_url):
     try:
         response = requests.get(api_url)

@@ -6,7 +6,7 @@ from datetime import datetime
 from utils import update_db, parse_match_date
 import argparse
 
-import db_module
+from db_module import db_connect
 
 
 def check_odds_in_db(match_id: int, conn) -> bool:
@@ -312,7 +312,7 @@ def odds_to_automate(league_id: int, season_id: int, games: str, mode: str, skip
         - 'match': pobiera kursy dla konkretnego meczu
     """
     # Inicjalizacja parametrów i połączenia z bazą danych
-    conn = db_module.db_connect()
+    conn = db_connect()
 
     try:
         # Pobranie danych o meczach dla danej ligi i sezonu

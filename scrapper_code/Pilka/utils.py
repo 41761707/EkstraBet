@@ -280,8 +280,7 @@ def check_if_in_db(home_team: str, away_team: str, game_date: str = None, round_
         else:
             # Wyszukiwanie według kolejki i sezonu
             # game_date może być None więc nie wiem czemu to jest wyszarzone?
-            query = """
-                SELECT m.id 
+            query = """ SELECT m.id 
                 FROM matches m 
                 WHERE m.home_team = %s AND m.away_team = %s AND m.round = %s AND m.season = %s
                 """

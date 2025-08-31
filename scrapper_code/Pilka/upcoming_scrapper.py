@@ -1,6 +1,6 @@
 from selenium import webdriver
 from datetime import date, datetime, timedelta
-import db_module
+from db_module import db_connect
 from utils import (
     MatchData, setup_chrome_driver, get_teams_dict,
     fetch_match_elements, parse_round, parse_match_info,
@@ -84,7 +84,7 @@ def to_automate(league_id: int, season_id: int, games: str, round_to_d: int, sin
         single_match (bool): Czy pobierać tylko jeden mecz (True) czy wszystkie z listy (False).
         automate (bool): Czy automatycznie zapisywać zmiany do bazy danych (True) czy tylko wyświetlać (False).
     """
-    conn = db_module.db_connect()
+    conn = db_connect()
     
     # Sprawdzenie czy istnieją już przyszłe mecze w bazie (tylko gdy nie jest to pojedynczy mecz)
     if not single_match:

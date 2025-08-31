@@ -2,7 +2,7 @@ import csv
 from bs4 import BeautifulSoup
 import pandas as pd
 import argparse
-import db_module
+from db_module import db_connect
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -625,7 +625,7 @@ def main() -> None:
     """Główna funkcja skryptu, która pobiera dane z podanego URL i przetwarza je."""
     args = parse_arguments()
     driver = setup_chrome_driver()
-    conn = db_module.db_connect()
+    conn = db_connect()
     try:
         if args.bulk:
             # Tryb masowego pobierania

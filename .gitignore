@@ -32,3 +32,7 @@ model_code/model_goals-6-classes_dev
 /web_code/base_site_components/__pycache__/
 scrapper_code/db_module.py
 graphics_code/db_module.py
+scrapper_code/Pilka/db_module.py
+scrapper_code/Hokej/db_module.py
+scrapper_code/Pilka/__pycache__/
+scrapper_code/Hokej/__pycache__/

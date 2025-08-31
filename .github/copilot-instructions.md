@@ -63,6 +63,8 @@ W przypadku pytań lub niejasnych konwencji, zapoznaj się z `Home.py`, `main.py
 
 - Stosuj konwencję PEP8 (wcięcia 4 spacje, czytelne nazwy zmiennych, spójność stylu).
 - Nazwy zmiennych, funkcji i klas powinny być opisowe i jednoznaczne.
+- Przy generowaniu kodu unikaj dodawania zbędnych pustych linii - zmniejszają czytelność kodu
+- Przy generowaniu printów nie korzystaj z emotikonek
 - Funkcje i klasy dokumentuj za pomocą docstringów w stylu Google lub NumPy.
 - Komentarze typu docstring powinny zawierać sekcje "Args" oraz "Returns".
 - Komentarze pisz wyłącznie po polsku, wyjaśniając logikę, założenia i nietypowe rozwiązania. Przy komentowaniu staraj się zachować zdrowy balans - nie każda linijka wymaga komentarza

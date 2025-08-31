@@ -1,5 +1,5 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
-###### Ostatnia data modyfikacji: 14.07.2025
+###### Ostatnia data modyfikacji: 31.08.2025
 
 ## Opis struktury bazy 
 
@@ -28,6 +28,7 @@
 - [HOCKEY_ROSTERS](#hockey_rosters) (aktualne składy drużyn hokejowych)
 - [LEAGUES](#leagues) (spis analizowanych lig)
 - [MATCHES](#matches) (wszystkie analizowane mecze)
+- [MODELS](#models) (lista stworzonych modeli predykcyjnych)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
@@ -673,6 +674,29 @@ tych samych druzyn
 **Sposób generowania danych do tabeli**:
 
 Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (**scrapper.py**, **scrapper_wrapper.py**, **nhl_all_scrapper.py** )
+
+---
+
+### MODELS
+(lista stworzonych modeli predykcyjnych)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        | INT           | INT       | Klucz główny, automatycznie generowany | AUTOMATYCZNIE GENEROWANE |
+| NAME          | VARCHAR(50)   | STRING    | Nazwa modelu predykcyjnego | NULL |
+| ACTIVE        | INT           | {0, 1}    | Flaga aktywności modelu (0 - nieaktywny, 1 - aktywny). Tylko aktywne modele są używane do generowania zakładów | NULL |
+| *SPORT_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *sports* | NULL |
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Indeks unikalny: `ID_UNIQUE` (`ID`)
+- Klucz obcy: `SPORT_ID` → `sports(ID)` (ograniczenie `MODELS_SPORTS`)
+- Indeks: `MODELS_SPORTS_idx` (`SPORT_ID`)
+
+**Sposób generowania danych do tabeli**:
+
+Dane do tabeli dodawane są **ręcznie** w ramach konfiguracji nowych modeli predykcyjnych. Każdy nowy model musi być dodany do tej tabeli przed pierwszym użyciem.
 
 ---
 

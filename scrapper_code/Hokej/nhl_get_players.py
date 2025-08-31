@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import sys
 
-import db_module
+from ..db_module import db_connect
 def get_data_from_api(api_url):
     try:
         response = requests.get(api_url)
@@ -134,7 +134,7 @@ def get_players(conn, year_id):
             conn.commit()
 
 def main():
-    conn = db_module.db_connect()
+    conn = db_connect()
     year_id = sys.argv[1]
     get_players(conn, year_id)
     #Zwróć wszystkie hokejowe drużyny

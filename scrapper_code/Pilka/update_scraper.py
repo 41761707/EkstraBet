@@ -1,7 +1,7 @@
 from math import sin
 import pandas as pd
 from selenium import webdriver
-import db_module
+from db_module import db_connect
 from utils import (
     MatchData, setup_chrome_driver, get_teams_dict,
     fetch_match_elements, parse_round, parse_match_info,
@@ -124,7 +124,7 @@ def to_automate(league_id: int, season_id: int, games: str, single_match: bool =
         single_match (bool): Czy aktualizować tylko jeden mecz (True) czy wszystkie z listy (False).
         automate (bool): Czy automatycznie zapisywać zmiany do bazy danych (True) czy tylko wyświetlać (False).
     """
-    conn = db_module.db_connect()
+    conn = db_connect()
     # Pobranie meczów do aktualizacji
     query = """
         SELECT * FROM matches 

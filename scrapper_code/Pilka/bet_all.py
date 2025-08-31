@@ -1,24 +1,28 @@
 import numpy as np
 import pandas as pd
-import sys
-import db_module
+from db_module import db_connect
 import warnings
 import argparse
 from utils import update_db
 
-def get_pred(event_id: int, conn, match_id: int)  -> tuple[int, int] | tuple[None, None]:
-    """ Pobiera predykcję dla danego zdarzenia i meczu z bazy danych.
+def get_pred(event_id: int, conn, match_id: int) -> list[tuple[float, int]]:
+    """ Pobiera predykcje dla danego zdarzenia i meczu z bazy danych dla wszystkich aktywnych modeli.
     Args:
         event_id (int): ID zdarzenia (np. 1 - wygrana gospodarzy, 2 - remis, 3 - wygrana gości itp.).
         conn: Połączenie do bazy danych.
         match_id (int): ID meczu.
 
     Zwraca:
-        tuple[int, int] | tuple[None, None]: Wartość predykcji i ID modelu lub (None, None) jeśli brak.
+        list[tuple[float, int]]: Lista krotek (wartość_predykcji, model_id) dla wszystkich aktywnych modeli.
     """
-    query = f"SELECT value, model_id FROM predictions WHERE match_id = {match_id} AND event_id = {event_id}"
-    result = pd.read_sql(query, conn).to_numpy()
-    return result[0] if len(result) > 0 else (None, None)
+    query = f"""
+    SELECT p.value, p.model_id 
+    FROM predictions p 
+    JOIN models m ON p.model_id = m.id 
+    WHERE p.match_id = {match_id} AND p.event_id = {event_id} AND m.active = 1
+    """
+    result = pd.read_sql(query, conn)
+    return [(row['value'], row['model_id']) for _, row in result.iterrows()]
 
 def model_odds(val: float) -> list:
     """ Funkcja pomocnicza do przeliczenia wartości kursu na prawdopodobieństwo.
@@ -43,6 +47,7 @@ def generate_predictions(conn, query: str, automate: bool) -> None:
     """
     Generuje predykcje i wylicza EV dla wszystkich meczów danej ligi i sezonu rozgrywanych dzisiaj.
     Wyniki zapisuje do tabeli bets, jeśli automate == True.
+    Tworzy zakłady dla każdego aktywnego modelu osobno.
 
     Args:
         conn: Połączenie do bazy danych.
@@ -63,123 +68,109 @@ def generate_predictions(conn, query: str, automate: bool) -> None:
         'Fuksiarz': 8
         }
     inserts = []
-    #W pętli dla każdego meczu
-    # Pobrać wszystkie wpisy z tabeli "predictions" dla powyższych parametrów
-    # Pobrać wszystkie wpisy z tabeli "odds" dla powyższych parametrów
+    active_models = pd.read_sql("SELECT id FROM models WHERE active = 1", conn)["id"].tolist()
     for match_id in matches_id:
-        home_win, home_win_model = get_pred(1, conn, match_id)
-        draw, draw_model = get_pred(2, conn, match_id)
-        guest_win, guest_win_model = get_pred(3, conn, match_id)
-        btts_yes, btts_yes_model = get_pred(6, conn, match_id)
-        btts_no, btts_no_model = get_pred(172, conn, match_id)
-        over_2_5, over_2_5_model = get_pred(8, conn, match_id)
-        under_2_5, under_2_5_model = get_pred(12, conn, match_id)
-        goals_pred = []
-        for event_id in range(174, 181):
-            val, _ = get_pred(event_id, conn, match_id)
-            goals_pred.append(val if val is not None else 0)
-
-        # Pobierz kursy bukmacherów dla danego meczu
+        # Pobierz predykcje dla wszystkich aktywnych modeli
+        home_win_preds = get_pred(1, conn, match_id)
+        draw_preds = get_pred(2, conn, match_id)
+        guest_win_preds = get_pred(3, conn, match_id)
+        btts_yes_preds = get_pred(6, conn, match_id)
+        btts_no_preds = get_pred(172, conn, match_id)
+        over_2_5_preds = get_pred(8, conn, match_id)
+        under_2_5_preds = get_pred(12, conn, match_id)
         odds_query = ("SELECT b.name AS bookmaker, o.event AS event, o.odds AS odds "
             "FROM odds o JOIN bookmakers b ON o.bookmaker = b.id "
             f"WHERE match_id = {match_id}")
-        odds_details = pd.read_sql(odds_query, conn)
-        home_win_odds = [0] * len(bookie_dict)
-        draw_odds = [0] * len(bookie_dict)
-        guest_win_odds = [0] * len(bookie_dict)
-        btts_yes_odds = [0] * len(bookie_dict)
-        btts_no_odds = [0] * len(bookie_dict)
-        over_odds = [0] * len(bookie_dict)
-        under_odds = [0] * len(bookie_dict)
-
-        # Uzupełnij kursy z bazy
+        odds_details = pd.read_sql(odds_query, conn)      
+        # Przygotuj słowniki kursów dla każdego zdarzenia
+        event_odds = {}
+        for event_id in [1, 2, 3, 6, 172, 8, 12]:
+            event_odds[event_id] = [0] * len(bookie_dict)
         for _, row in odds_details.iterrows():
             idx = bookie_dict.get(row.bookmaker, 0)
-            if row.event == 1:
-                home_win_odds[idx] = row.odds
-            elif row.event == 2:
-                draw_odds[idx] = row.odds
-            elif row.event == 3:
-                guest_win_odds[idx] = row.odds
-            elif row.event == 6:
-                btts_yes_odds[idx] = row.odds
-            elif row.event == 172:
-                btts_no_odds[idx] = row.odds
-            elif row.event == 8:
-                over_odds[idx] = row.odds
-            elif row.event == 12:
-                under_odds[idx] = row.odds
+            if row.event in event_odds:
+                event_odds[row.event][idx] = row.odds
+        for model_id in active_models:
+            # Znajdź predykcje tego modelu dla każdego typu zdarzenia
+            model_predictions = {
+                'result': {},  # home_win, draw, guest_win
+                'btts': {},    # btts_yes, btts_no
+                'ou': {}       # over_2_5, under_2_5
+            }
+            for pred_value, pred_model_id in home_win_preds:
+                if pred_model_id == model_id:
+                    model_predictions['result'][1] = pred_value
+            for pred_value, pred_model_id in draw_preds:
+                if pred_model_id == model_id:
+                    model_predictions['result'][2] = pred_value
+            for pred_value, pred_model_id in guest_win_preds:
+                if pred_model_id == model_id:
+                    model_predictions['result'][3] = pred_value
+            for pred_value, pred_model_id in btts_yes_preds:
+                if pred_model_id == model_id:
+                    model_predictions['btts'][6] = pred_value
+            for pred_value, pred_model_id in btts_no_preds:
+                if pred_model_id == model_id:
+                    model_predictions['btts'][172] = pred_value
+            for pred_value, pred_model_id in over_2_5_preds:
+                if pred_model_id == model_id:
+                    model_predictions['ou'][8] = pred_value
+            for pred_value, pred_model_id in under_2_5_preds:
+                if pred_model_id == model_id:
+                    model_predictions['ou'][12] = pred_value
 
-        home_win_odds = model_odds(home_win) + home_win_odds[1:]
-        draw_odds = model_odds(draw) + draw_odds[1:]
-        guest_win_odds = model_odds(guest_win) + guest_win_odds[1:]
-        btts_yes_odds = model_odds(btts_yes) + btts_yes_odds[1:]
-        btts_no_odds = model_odds(btts_no) + btts_no_odds[1:]
-        over_odds = model_odds(over_2_5) + over_odds[1:]
-        under_odds = model_odds(under_2_5) + under_odds[1:]
+            # Stwórz zakłady dla najlepszych predykcji tego modelu
+            if model_predictions['result']:
+                best_result_event = max(model_predictions['result'], key=model_predictions['result'].get)
+                best_result_value = model_predictions['result'][best_result_event]
+                
+                if best_result_value > 0:
+                    odds_with_model = model_odds(best_result_value) + event_odds[best_result_event][1:]
+                    ev = calc_ev(best_result_value, odds_with_model)
+                    best_odds = max(odds_with_model[1:], default=0)
+                    bookmaker = np.argmax(odds_with_model[1:]) + 1 if len(odds_with_model) > 1 else 0
+                    
+                    sql = (
+                        "INSERT INTO bets(match_id, event_id, odds, bookmaker, EV, model_id) "
+                        f"VALUES ({match_id}, {best_result_event}, {best_odds}, {bookmaker}, {ev}, {model_id});"
+                    )
+                    print(sql)
+                    inserts.append(sql)
 
-        home_win_EV = calc_ev(home_win, home_win_odds)
-        draw_EV = calc_ev(draw, draw_odds)
-        guest_win_EV = calc_ev(guest_win, guest_win_odds)
-        btts_yes_EV = calc_ev(btts_yes, btts_yes_odds)
-        btts_no_EV = calc_ev(btts_no, btts_no_odds)
-        over_EV = calc_ev(over_2_5, over_odds)
-        under_EV = calc_ev(under_2_5, under_odds)
-
-        #Przez wybory modelu rozumiemy największe % dla danego typu zdarzenia 
-        # (Rezultat, BTTS, OU) - 3 predykcje dla jednego spotkania
-        results_prediction = np.array([home_win or 0, draw or 0, guest_win or 0])
-        btts_predictions = np.array([btts_no or 0, btts_yes or 0])
-        ou_predictions = np.array([under_2_5 or 0, over_2_5 or 0])
-        result_pred_id = np.argmax(results_prediction)
-        btts_pred_id = np.argmax(btts_predictions)
-        ou_pred_id = np.argmax(ou_predictions)
- 
-        # Dodaj do listy zapytań SQL (tylko jeśli predykcja istnieje)
-        # Rezultat meczu
-        if results_prediction[result_pred_id] > 0:
-            event_id = [1, 2, 3][result_pred_id]
-            EV = [home_win_EV, draw_EV, guest_win_EV][result_pred_id]
-            odds = [home_win_odds, draw_odds, guest_win_odds][result_pred_id]
-            best_odds = max(odds[1:], default=0)
-            bookmaker = np.argmax(odds[1:]) + 1 if len(odds) > 1 else 0
-            model_id = int([home_win_model, draw_model, guest_win_model][result_pred_id])
-            sql = (
-                "INSERT INTO bets(match_id, event_id, odds, bookmaker, EV, model_id) "
-                f"VALUES ({match_id}, {event_id}, {best_odds}, {bookmaker}, {EV}, {model_id});"
-            )
-            print(sql)
-            inserts.append(sql)
-
-        # BTTS
-        if btts_predictions[btts_pred_id] > 0:
-            event_id = [172, 6][btts_pred_id]
-            EV = [btts_no_EV, btts_yes_EV][btts_pred_id]
-            odds = [btts_no_odds, btts_yes_odds][btts_pred_id]
-            best_odds = max(odds[1:], default=0)
-            bookmaker = np.argmax(odds[1:]) + 1 if len(odds) > 1 else 0
-            model_id = int(btts_yes_model if btts_pred_id == 1 else btts_no_model)
-            sql = (
-                "INSERT INTO bets(match_id, event_id, odds, bookmaker, EV, model_id) "
-                f"VALUES ({match_id}, {event_id}, {best_odds}, {bookmaker}, {EV}, {model_id});"
-            )
-            print(sql)
-            inserts.append(sql)
-
-        # Over/Under 2.5
-        if ou_predictions[ou_pred_id] > 0:
-            event_id = [12, 8][ou_pred_id]
-            EV = [under_EV, over_EV][ou_pred_id]
-            odds = [under_odds, over_odds][ou_pred_id]
-            best_odds = max(odds[1:], default=0)
-            bookmaker = np.argmax(odds[1:]) + 1 if len(odds) > 1 else 0
-            model_id = int(over_2_5_model if ou_pred_id == 1 else under_2_5_model)
-            sql = (
-                "INSERT INTO bets(match_id, event_id, odds, bookmaker, EV, model_id) "
-                f"VALUES ({match_id}, {event_id}, {best_odds}, {bookmaker}, {EV}, {model_id});"
-            )
-            print(sql)
-            inserts.append(sql)
+            if model_predictions['btts']:
+                best_btts_event = max(model_predictions['btts'], key=model_predictions['btts'].get)
+                best_btts_value = model_predictions['btts'][best_btts_event]
+                
+                if best_btts_value > 0:
+                    odds_with_model = model_odds(best_btts_value) + event_odds[best_btts_event][1:]
+                    ev = calc_ev(best_btts_value, odds_with_model)
+                    best_odds = max(odds_with_model[1:], default=0)
+                    bookmaker = np.argmax(odds_with_model[1:]) + 1 if len(odds_with_model) > 1 else 0
+                    
+                    sql = (
+                        "INSERT INTO bets(match_id, event_id, odds, bookmaker, EV, model_id) "
+                        f"VALUES ({match_id}, {best_btts_event}, {best_odds}, {bookmaker}, {ev}, {model_id});"
+                    )
+                    print(sql)
+                    inserts.append(sql)
+            
+            if model_predictions['ou']:
+                best_ou_event = max(model_predictions['ou'], key=model_predictions['ou'].get)
+                best_ou_value = model_predictions['ou'][best_ou_event]
+                
+                if best_ou_value > 0:
+                    odds_with_model = model_odds(best_ou_value) + event_odds[best_ou_event][1:]
+                    ev = calc_ev(best_ou_value, odds_with_model)
+                    best_odds = max(odds_with_model[1:], default=0)
+                    bookmaker = np.argmax(odds_with_model[1:]) + 1 if len(odds_with_model) > 1 else 0
+                    
+                    sql = (
+                        "INSERT INTO bets(match_id, event_id, odds, bookmaker, EV, model_id) "
+                        f"VALUES ({match_id}, {best_ou_event}, {best_odds}, {bookmaker}, {ev}, {model_id});"
+                    )
+                    print(sql)
+                    inserts.append(sql)
+                    
     if automate:
         update_db(inserts, conn)
 
@@ -202,7 +193,7 @@ def bet_to_automate(mode: str, league_id: int, season_id: int, round_num: int = 
         automate (bool): Czy automatycznie zapisywać zmiany do bazy danych
     """
     warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
-    conn = db_module.db_connect()
+    conn = db_connect()
     if mode == 'today':
         query = f"SELECT id FROM matches WHERE league = {league_id} AND season = {season_id} AND CAST(game_date AS DATE) = CURRENT_DATE"
     elif mode == 'round':
@@ -240,9 +231,7 @@ def main() -> None:
     parser.add_argument("--date_to", type=str, default=None, help="Data końcowa (format 'YYYY-MM-DD', wymagane dla trybu 'date_range')")
     parser.add_argument("--match", type=int, default=None, help="ID meczu (wymagane dla trybu 'match')")
     parser.add_argument("--automate", action="store_true", help="Automatycznie zapisuj zakłady do bazy danych (bez tej flagi będą tylko wyświetlane)")
-
     args = parser.parse_args()
-
     # Walidacja parametrów w zależności od trybu
     if args.mode == "round" and args.round_num is None:
         parser.error("W trybie 'round' wymagany jest parametr --round_num.")
@@ -250,7 +239,6 @@ def main() -> None:
         parser.error("W trybie 'date_range' wymagane są parametry --date_from oraz --date_to.")
     if args.mode == "match" and args.match is None:
         parser.error("W trybie 'match' wymagany jest parametr --match (pojedynczy id meczu).")
-
     bet_to_automate(
         mode=args.mode,
         league_id=args.league_id,

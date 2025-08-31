@@ -1,5 +1,5 @@
 import time
-import sys
+import argparse
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from datetime import datetime
@@ -7,11 +7,21 @@ import pandas as pd
 import re
 from utils import check_if_in_db
 
-import db_module
+from db_module import db_connect
 
 class Game:
-    #driver, league_id, season_id, link, team_id
+    
     def __init__(self, driver, league_id, season_id, shortcuts, conn):
+        """
+        Inicjalizuje obiekt klasy Game.
+        
+        Args:
+            driver: WebDriver Selenium do automatyzacji przeglądarki
+            league_id (int): ID ligi w bazie danych
+            season_id (int): ID sezonu w bazie danych
+            shortcuts (dict): Mapowanie skrótów drużyn na ich ID
+            conn: Połączenie z bazą danych
+        """
         self.driver = driver 
         self.league_id = league_id
         self.season_id = season_id
@@ -20,6 +30,17 @@ class Game:
         
         
     def extract_round(self, round_div, game_div):
+        """
+        Ekstraktuje informacje o rundzie/fazie rozgrywek z elementów strony.
+        Metoda analizuje tekst z elementów HTML zawierających informacje o rundzie
+        i mapuje je na odpowiednie numery rund używane w bazie danych.
+        Args:
+            round_div: Lista elementów HTML zawierających informacje o rundzie
+            game_div: Lista elementów HTML zawierających dodatkowe informacje o grze
+        Returns:
+            int: Numer rundy (100 dla regularnego sezonu NHL, -1 dla meczów pomijanych,
+                 900+ dla faz playoff)
+        """
         round_str = ""
         for div in round_div:
             round_info = div.text.strip()
@@ -39,6 +60,16 @@ class Game:
     
 
     def get_special_round(self, round_str):
+        """
+        Mapuje nazwę rundy playoff na odpowiedni numer ID w bazie danych.
+        
+        Args:
+            round_str (str): Tekstowa nazwa rundy w formacie "FAZA, X runda"
+            
+        Returns:
+            int: ID rundy zgodne z mapowaniem w bazie danych (900-966)
+                 lub None jeśli runda nie została znaleziona
+        """
         special_round_names = {
             '1/64-FINAŁU, 1 runda': 900,
             '1/64-FINAŁU, 2 runda': 901,
@@ -94,38 +125,60 @@ class Game:
 
 
     def parse_match_date(self, match_date):
+        """
+        Konwertuje datę meczu z formatu FlashScore na format bazy danych.
+        
+        Args:
+            match_date (str): Data w formacie "dd.mm.yyyy HH:MM"
+            
+        Returns:
+            str: Data w formacie "yyyy-mm-dd HH:MM" gotowa do wstawienia do bazy danych
+        """
         date_object = datetime.strptime(match_date, "%d.%m.%Y %H:%M")
-
         date_formatted = date_object.strftime("%Y-%m-%d %H:%M")
-
         return date_formatted
 
-    def get_match_links(self, games, driver):
+    def get_match_links(self, games, timer, driver):
+        """
+        Pobiera linki do wszystkich meczów z strony wyników FlashScore.
+        
+        Args:
+            games (str): URL strony z wynikami meczów na FlashScore
+            driver: WebDriver Selenium
+            timer: Timer do pomiaru czasu
+
+        Returns:
+            list: Lista linków do szczegółów poszczególnych meczów
+        """
         links = []
         driver.get(games)
-        time.sleep(50) #Dla hokeja trzeba troche poczekac
+        time.sleep(timer)
         game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
         for element in game_divs:
             id = element.get_attribute('id').split('_')[2]
             links.append('https://www.flashscore.pl/mecz/{}/#/szczegoly-meczu/'.format(id))
         return links
 
-    def get_match_info(self, link, team_id, match_data):
+    def parse_match_page_data(self, driver):
+        """
+        Parsuje dane meczu ze strony FlashScore i zwraca przetworzone informacje.
+        
+        Args:
+            driver: WebDriver Selenium
+            
+        Returns:
+            tuple: (match_info, ot_flag) gdzie:
+                - match_info (list): Lista z informacjami o meczu [data, -, gospodarze, -, goście, wynik, ...]
+                - ot_flag (int): 0-brak dogrywki, 1-dogrywka, 2-rzuty karne
+        """
         match_info = []
         ot_flag = 0
-        ot_winner = 0 #0 - brak dogrywki, 1- gospo win, 2 - goście win
-        self.driver.get(link)
-        time.sleep(2)
-        round_div = self.driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_0pkdl")
-        game_div = self.driver.find_elements(By.CLASS_NAME, "infoBox__info")
-        match_data['round'] = self.extract_round(round_div, game_div)
-        if match_data['round'] == -1:
-            return -1, -1
-        time_divs = self.driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
-        team_divs = self.driver.find_elements(By.CLASS_NAME, "participant__participantName")
-        score_divs = self.driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
-        full_time_divs = self.driver.find_elements(By.CLASS_NAME, "detailScore__fullTime")
-        extra_time_divs = self.driver.find_elements(By.CLASS_NAME, "detailScore__status")
+        # Pobieranie elementów ze strony
+        time_divs = driver.find_elements(By.CLASS_NAME, "duelParticipant__startTime")
+        team_divs = driver.find_elements(By.CLASS_NAME, "participant__participantName")
+        score_divs = driver.find_elements(By.CLASS_NAME, "detailScore__wrapper")
+        full_time_divs = driver.find_elements(By.CLASS_NAME, "detailScore__fullTime")
+        extra_time_divs = driver.find_elements(By.CLASS_NAME, "detailScore__status")
         for div in time_divs:
             match_info.append(div.text.strip())
         for div in team_divs:
@@ -142,21 +195,59 @@ class Game:
             if extra_time == 'PO RZUTACH KARNYCH':
                 ot_flag = 2
             match_info.append(extra_time)
-        #print(match_info)
-        match_data['league'] = self.league_id #id ligi
-        match_data['season'] = self.season_id #id sezonu
-        match_data['home_team'] = team_id[match_info[1]] #nazwa gospodarzy
+        return match_info, ot_flag
+
+    def get_match_info(self, link, team_id, match_data, update=False):
+        """
+        Pobiera podstawowe informacje o meczu ze strony FlashScore.
+        
+        Metoda ekstraktuje dane takie jak wynik, drużyny, data, informacje o dogrywce
+        i sprawdza czy mecz już istnieje w bazie danych.
+        
+        Args:
+            link (str): URL do strony szczegółów meczu na FlashScore
+            team_id (dict): Mapowanie nazw drużyn na ich ID w bazie danych
+            match_data (dict): Słownik do wypełnienia danymi meczu
+            update (bool): Czy aktualizować istniejące mecze (pomija sprawdzenie duplikatów)
+            
+        Returns:
+            tuple: (ot_flag, ot_winner) gdzie:
+                - ot_flag (int): 0-brak dogrywki, 1-dogrywka, 2-rzuty karne
+                - ot_winner (int): 0-brak dogrywki, 1-gospodarze wygrali, 2-goście wygrali
+                Lub (-1, -1) jeśli mecz należy pominąć
+        """
+        match_info = []
+        ot_flag = 0
+        ot_winner = 0 # 0 - brak dogrywki, 1 - gospodarze wygrali, 2 - goście wygrali
+        self.driver.get(link)
+        time.sleep(2)
+        round_div = self.driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_0pkdl")
+        game_div = self.driver.find_elements(By.CLASS_NAME, "infoBox__info")
+        match_data['round'] = self.extract_round(round_div, game_div)
+        if match_data['round'] == -1:
+            return -1, -1
+            
+        # Parsowanie danych ze strony przy użyciu wyodrębnionej funkcji
+        match_info, ot_flag = self.parse_match_page_data(self.driver)
+        
+        # Wypełnienie danych meczu
+        match_data['league'] = self.league_id
+        match_data['season'] = self.season_id
+        match_data['home_team'] = team_id[match_info[1]]
         match_data['away_team'] = team_id[match_info[3]]
         match_data['game_date'] = self.parse_match_date(match_info[0])
         check_id = check_if_in_db(match_data['home_team'], match_data['away_team'], game_date=match_data['game_date'])
-        if check_id != -1:
+        if check_id != -1 and not update:
             print(f"#Ten mecz znajduje się już w bazie danych!, ID:{check_id}")
             return -1, -1
+        elif check_id != -1 and update:
+            print(f"#Aktualizacja meczu o ID:{check_id}")
+            match_data['existing_id'] = check_id  # Zapisujemy ID istniejącego meczu
         score = match_info[5].split('\n')
         home_goals = int(score[0])
         away_goals = int(score[2])
         if ot_flag:
-            #TUTAJ WYNIK W SCORE BEDZIE PO DOGRYWCE!
+            # Wynik w score będzie po dogrywce - pobieramy wynik z czasu regularnego
             score_regular = match_info[6].split('\n')
             match_data['home_team_goals'] = int(score_regular[1])
             match_data['away_team_goals'] = int(score_regular[3])
@@ -176,7 +267,14 @@ class Game:
         return ot_flag, ot_winner
 
     def get_event_id(self, event):
-        #Na razie mapowanie na sztywno, raczej nie poprawiam
+        """
+        Mapuje nazwy zdarzeń z FlashScore na odpowiednie ID w bazie danych.
+        Args:
+            event (str): Nazwa klasy CSS reprezentującej typ zdarzenia
+        Returns:
+            int: ID typu zdarzenia w bazie danych lub 0 jeśli zdarzenie nie zostało rozpoznane
+        """
+        # Mapowanie na sztywno - raczej nie poprawiam
         event_mapping = {
             'hockeyGoal-ico': 181,
             'penalty-2-min': 183,
@@ -191,14 +289,14 @@ class Game:
 
     def add_player(self, common_name, flash_id):
         """
-        Adds a new player to the database with the given common name and flash ID.
+        Dodaje nowego gracza do bazy danych z podaną nazwą i ID z FlashScore.
         
         Args:
-            common_name (str): Player's common name
-            flash_id (str): Player's external flash ID from FlashScore
+            common_name (str): Powszechna nazwa gracza
+            flash_id (str): Zewnętrzne ID gracza z FlashScore
             
         Returns:
-            int: ID of the newly inserted player, or -1 if insertion failed
+            int: ID nowo dodanego gracza lub -1 w przypadku błędu
         """
         query = "INSERT INTO players(common_name, external_flash_id) VALUES (%s, %s)"
         cursor = self.conn.cursor()
@@ -215,7 +313,22 @@ class Game:
         finally:
             cursor.close()
 
-    def get_player_id(self, common_name, flash_id = None): 
+    def get_player_id(self, common_name, flash_id = None):
+        """
+        Pobiera ID gracza z bazy danych na podstawie nazwy i opcjonalnie flash_id.
+        
+        Metoda implementuje logikę wyszukiwania gracza:
+        1. Jeśli nie ma gracza o podanej nazwie, próbuje znaleźć po flash_id lub dodaje nowego
+        2. Jeśli jest dokładnie jeden gracz o podanej nazwie, zwraca jego ID
+        3. Jeśli jest więcej graczy o tej samej nazwie, używa flash_id do rozróżnienia
+        
+        Args:
+            common_name (str): Powszechna nazwa gracza
+            flash_id (str, optional): Zewnętrzne ID gracza z FlashScore
+            
+        Returns:
+            int: ID gracza w bazie danych lub -1 jeśli nie znaleziono
+        """
         player_id = -1
         cursor = self.conn.cursor()
         try:
@@ -259,10 +372,25 @@ class Game:
         return player_id
     
     def insert_match(self):
+        """
+        Placeholder dla metody wstawiania meczu do bazy danych.
+        
+        Returns:
+            None
+        """
         pass
 
     def get_player_team_id(self, shortcut):
-        # TLUMACZENIA Z FLASHSCORE
+        """
+        Pobiera ID drużyny na podstawie skrótu, uwzględniając tłumaczenia z FlashScore.
+        
+        Args:
+            shortcut (str): Skrót nazwy drużyny z FlashScore
+            
+        Returns:
+            int: ID drużyny w bazie danych
+        """
+        # Tłumaczenia z FlashScore na skróty używane w bazie danych
         translations = {
             'NAS': 'NSH',
             'WIN': 'WPG',
@@ -274,6 +402,27 @@ class Game:
         return self.shortcuts[shortcut]
 
     def get_match_events(self, link, match_id, home_team, away_team):
+        """
+        Pobiera szczegółowe zdarzenia z meczu (gole, kary, asysy itp.) ze strony FlashScore.
+        
+        Args:
+            link (str): URL do strony szczegółów meczu
+            match_id (int): ID meczu w bazie danych
+            home_team (int): ID drużyny gospodarzy
+            away_team (int): ID drużyny gości
+            
+        Returns:
+            list: Lista słowników zawierających dane o zdarzeniach meczu:
+                - event_id: ID typu zdarzenia
+                - match_id: ID meczu
+                - team_id: ID drużyny
+                - player_id: ID gracza (lub 0 jeśli nieznany)
+                - period: Numer okresu (1-5, gdzie 4=dogrywka, 5=karne)
+                - event_time: Czas zdarzenia w formacie tekstowym
+                - pp_flag: Flaga gola w przewadze (1/0)
+                - en_flag: Flaga gola do pustej bramki (1/0)
+                - description: Opis zdarzenia
+        """
         self.driver.get(link)
         time.sleep(2)
         match_events_lists = []
@@ -283,8 +432,8 @@ class Game:
         for div in game_events_divs:
             if "wclHeaderSection--summary" in div.get_attribute("class"):
                 # Jeśli napotkamy nowy nagłówek, zapisujemy aktualny licznik i resetujemy
-                #PERIOD 4 = DOGRYWKA
-                #PERIOD 5 = KARNE
+                # PERIOD 4 = DOGRYWKA
+                # PERIOD 5 = KARNE
                 current_period = current_period + 1
             elif "smv__participantRow" in div.get_attribute("class"):
                 match_events = {
@@ -344,7 +493,7 @@ class Game:
                     pass
                 match_events['description'] = description_str
                 if match_events['player_id'] == 0 and (match_events['event_id'] in [183, 186, 184]):
-                    match_events['player_id'] = 2002 #Definicja gracza w bazie
+                    match_events['player_id'] = 2002 # Definicja gracza w bazie
                 match_events_lists.append(match_events)
         return match_events_lists
 
@@ -667,12 +816,33 @@ class Game:
             for key,value in element.items():
                 print("{} : {}".format(key, value))
 
-    def get_match_data(self, link, team_id):
-        #1. Wczytac mecz standardowo do struktury matches
-        #2. Zaczytac statystyki istotne dla hokeja do tabeli hockey_matches_add
-        #3. Zaczytac zdarzenia meczowe do tabeli hockey_match_events
-        #4. Zaczytac boxscore do tabeli hockey_match_player_stats
-        #5. Zaczytac składy do tabeli hockey_match_roster
+    def get_match_data(self, link, team_id, automate=False, update=False):
+        """
+        Główna metoda pobierająca wszystkie dane meczu z FlashScore i zapisująca je do bazy danych.
+        
+        Metoda wykonuje kompletny proces scrapowania meczu:
+        1. Pobiera podstawowe informacje o meczu
+        2. Pobiera dodatkowe statystyki hokejowe
+        3. Pobiera zdarzenia meczowe (gole, kary itp.)
+        4. Pobiera statystyki graczy (boxscore)
+        5. Pobiera składy drużyn
+        6. Zapisuje wszystkie dane do odpowiednich tabel w bazie danych (jeśli automate=True)
+        
+        Args:
+            link (str): Bazowy URL meczu na FlashScore (bez końcówki)
+            team_id (dict): Mapowanie nazw drużyn na ich ID w bazie danych
+            automate (bool): Czy automatycznie zapisywać dane do bazy danych
+            update (bool): Czy aktualizować istniejące mecze (działa tylko gdy automate=True)
+            
+        Returns:
+            tuple: (match_data, match_stats_add, match_events, match_boxscore, match_rosters)
+                lub (-1, -1, -1, -1, -1) jeśli mecz należy pominąć
+        """
+        # 1. Wczytać mecz standardowo do struktury matches
+        # 2. Załadować statystyki istotne dla hokeja do tabeli hockey_matches_add
+        # 3. Załadować zdarzenia meczowe do tabeli hockey_match_events
+        # 4. Załadować boxscore do tabeli hockey_match_player_stats
+        # 5. Załadować składy do tabeli hockey_match_roster
         match_data = {
             'league': 0,
             'season': 0,
@@ -726,32 +896,63 @@ class Game:
         match_events = []
         match_boxscore = []
         match_rosters = []
-        #1. 
-        #TUTAJ MATCH_DATA BEZ STATYSTYK, SAM OPIS KTO Z KIM KIEDY
-        ot_flag, ot_winner = self.get_match_info("{}szczegoly-meczu".format(link), team_id, match_data)
+        
+        # 1. Pobieranie podstawowych danych meczu
+        ot_flag, ot_winner = self.get_match_info("{}szczegoly-meczu".format(link), team_id, match_data, update)
         if ot_flag == -1 and ot_winner == -1:
             return -1, -1, -1, -1, -1
-        #2. 
+            
+        # 2. Pobieranie dodatkowych statystyk hokejowych
         self.get_match_stats_add("{}statystyki-meczu/0".format(link), match_data, match_stats_add, ot_flag, ot_winner)
-        match_stats_add['match_id'] = self.insert_match_data(match_data)
-        print(f"#AKTUALNE ID MECZU: {match_stats_add['match_id']}")
-        self.insert_procedure(match_stats_add, "hockey_matches_add")
+        
+        # Zapisywanie do bazy danych tylko jeśli automate=True
+        if automate:
+            if 'existing_id' in match_data and update:
+                # Aktualizacja istniejącego meczu
+                match_stats_add['match_id'] = match_data['existing_id']
+                print(f"#AKTUALIZACJA MECZU O ID: {match_stats_add['match_id']}")
+                # Tu można dodać logikę aktualizacji zamiast INSERT
+            else:
+                # Nowy mecz
+                match_stats_add['match_id'] = self.insert_match_data(match_data)
+                print(f"#NOWY MECZ O ID: {match_stats_add['match_id']}")
+            
+            self.insert_procedure(match_stats_add, "hockey_matches_add")
+        else:
+            # Tryb testowy - tylko symulacja ID
+            match_stats_add['match_id'] = 999999  # Tymczasowe ID dla trybu testowego
+            print(f"#TRYB TESTOWY - SYMULACJA ID MECZU: {match_stats_add['match_id']}")
 
-        #3. 
+        # 3. Pobieranie zdarzeń meczowych
         match_events = self.get_match_events("{}szczegoly-meczu".format(link), match_stats_add['match_id'], match_data['home_team'], match_data['away_team'])
 
-        #4. 
+        # 4. Pobieranie statystyk graczy (boxscore)
         match_boxscore = self.get_match_boxscore("{}player-statistics/0".format(link), match_stats_add['match_id'])
 
-        #5. 
+        # 5. Pobieranie składów drużyn
         match_rosters = self.get_match_roster("{}sklady/0".format(link), match_stats_add['match_id'], match_data['home_team'], match_data['away_team'])
-        self.insert_match_details(match_events, match_boxscore, match_rosters)
+        
+        # Zapisywanie szczegółów tylko jeśli automate=True
+        if automate:
+            self.insert_match_details(match_events, match_boxscore, match_rosters)
+            print(f"#Import meczu o ID {match_stats_add['match_id']} zakończony sukcesem")
+        else:
+            print(f"#Przetwarzanie meczu (tryb testowy) zakończone sukcesem")
 
-        #self.pretty_print(match_data, match_stats_add, match_events, match_boxscore, match_rosters)
-        print(f"#Import meczu o ID {match_stats_add['match_id']} zakończony sukcesem")
         return match_data, match_stats_add, match_events, match_boxscore, match_rosters
 
     def insert_match_details(self, match_events, match_boxscore, match_rosters):
+        """
+        Wstawia wszystkie szczegółowe dane meczu do odpowiednich tabel w bazie danych.
+        
+        Args:
+            match_events (list): Lista zdarzeń meczowych
+            match_boxscore (list): Lista statystyk graczy
+            match_rosters (list): Lista składów drużyn
+            
+        Returns:
+            None
+        """
         for element in match_events:
             self.insert_procedure(element, "hockey_match_events")
         for element in match_boxscore:
@@ -760,11 +961,20 @@ class Game:
             self.insert_procedure(element, "hockey_match_rosters")
 
     def insert_procedure(self, data, tablename):
+        """
+        Uniwersalna procedura wstawiania danych do tabeli w bazie danych.
+        
+        Args:
+            data (dict): Słownik z danymi do wstawienia (klucze = nazwy kolumn, wartości = dane)
+            tablename (str): Nazwa tabeli docelowej
+            
+        Returns:
+            None
+        """
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data)) 
         values = ', '.join([str(f"'{value}'") for value in data.values()])    
         query = f"INSERT INTO {tablename} ({columns}) VALUES ({placeholders});"
-        #print(query)
         debug_query = f"INSERT INTO {tablename} ({columns}) VALUES ({values});"
         print(debug_query)
         cursor = self.conn.cursor()
@@ -772,8 +982,16 @@ class Game:
         self.conn.commit()
         cursor.close()
 
-    #FUNKCJE DO INSERTOWANIA
     def insert_match_data(self, match_data):
+        """
+        Wstawia podstawowe dane meczu do tabeli matches i zwraca ID nowego rekordu.
+        
+        Args:
+            match_data (dict): Słownik z podstawowymi danymi meczu
+            
+        Returns:
+            int: ID nowo wstawionego meczu
+        """
         self.insert_procedure(match_data, "matches")
         cursor = self.conn.cursor()
         cursor.execute("SELECT LAST_INSERT_ID();")
@@ -782,46 +1000,154 @@ class Game:
         return match_id
 
 def get_shortcuts(conn, country):
+    """
+    Pobiera mapowanie skrótów nazw drużyn na ich ID z bazy danych.
+    
+    Args:
+        conn: Połączenie z bazą danych
+        country (int): ID kraju, dla którego pobieramy drużyny
+    
+    Returns:
+        dict: Słownik mapujący skróty drużyn na ich ID
+    """
     query = "select shortcut, id from teams where country = {} and sport_id = 2".format(country)
     teams_df = pd.read_sql(query, conn)
     shortcuts = teams_df.set_index('shortcut')['id'].to_dict()
     return shortcuts
 
+def get_country(conn, league_id):
+    """
+    Pobiera ID kraju na podstawie ID ligi.
+
+    Args:
+        conn: Połączenie z bazą danych
+        league_id (int): ID ligi
+
+    Returns:
+        int: ID kraju
+    """
+    query = "select country from leagues where id = {}".format(league_id)
+    country_df = pd.read_sql(query, conn)
+    return country_df['country'].values[0]
+
+def get_teams_ids(conn, country):
+    """
+    Pobiera słownik ID drużyn na podstawie ID kraju.
+
+    Args:
+        conn: Połączenie z bazą danych
+        country (int): ID kraju
+
+    Returns:
+        dict: Słownik drużyn z ich ID
+    """
+    query = "select name, id from teams where country = {} and sport_id = 2".format(country)
+    teams_df = pd.read_sql(query, conn)
+    return teams_df.set_index('name')['id'].to_dict()
+
 def main():
-    #WYWOŁANIE
-    #python scrapper.py <id_ligi> <id_sezonu> <link do strony z wynikami na flashscorze>
-    #Pobranie jednego meczu (konkretnego): python .\nhl_all_scraper.py 45 7 https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/ https://www.flashscore.pl/mecz/jJMVfMb8/#/szczegoly-meczu/ 0 0
-    #Pobranie wielu meczów: 
-    conn = db_module.db_connect()
+    """
+    Główna funkcja programu odpowiedzialna za scrapowanie danych meczów NHL z FlashScore.
+    
+    Funkcja umożliwia pobieranie danych o meczach w dwóch trybach:
+    - Pobranie pojedynczego meczu (gdy podano konkretny link)
+    - Pobranie wielu meczów z listy wyników
+    
+    Args:
+        Argumenty są pobierane z linii poleceń:
+        - league_id: ID ligi w bazie danych
+        - season_id: ID sezonu w bazie danych
+        - games_url: Link do strony z wynikami na FlashScore
+        - one_link (opcjonalny): Link do konkretnego meczu (domyślnie: tryb wielu meczów)
+        - skip (opcjonalny): Liczba meczów do pominięcia na początku listy (domyślnie: 0)
+        - no_to_download (opcjonalny): Liczba meczów do pobrania (domyślnie: wszystkie)
+    """
+    parser = argparse.ArgumentParser(
+        description="""Scraper danych meczów NHL z FlashScore.
+        
+        Skrypt umożliwia pobieranie danych o meczach w dwóch trybach:
+        - Pobranie wielu meczów z listy wyników (domyślnie)
+        - Pobranie pojedynczego meczu (gdy podano konkretny link)
+        
+        Przykłady użycia:
+        - Pobranie wszystkich meczów z listy:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/"
+        
+        - Pobranie meczów z pominięciem pierwszych 5:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/" --skip 5
+        
+        - Pobranie tylko 10 meczów:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/" --no_to_download 10
+        
+        - Pobranie meczów od 5. do 15.:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/" --skip 5 --no_to_download 15
+        
+        - Pobranie konkretnego meczu:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/" --one_link "https://www.flashscore.pl/mecz/jJMVfMb8/#/szczegoly-meczu/"
+        
+        - Tryb produkcyjny z zapisem do bazy danych:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/" --automate
+        
+        - Aktualizacja istniejących meczów:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/wyniki/" --automate --update
+        
+        - Przetwarzanie przyszłych meczów:
+          python nhl_all_scraper.py 45 7 "https://www.flashscore.pl/hokej/usa/nhl-2017-2018/" --upcoming
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('league_id', type=int, help='ID ligi w bazie danych')
+    parser.add_argument('season_id', type=int, help='ID sezonu w bazie danych')
+    parser.add_argument('games_url', type=str, help='Link do strony z wynikami na FlashScore')
+    parser.add_argument('--one_link', type=str, default='-1', 
+                       help='Link do konkretnego meczu (domyślnie: tryb wielu meczów)')
+    parser.add_argument('--skip', type=int, default=0, 
+                       help='Liczba meczów do pominięcia na początku listy (domyślnie: 0)')
+    parser.add_argument('--no_to_download', type=int, default=-1, 
+                       help='Liczba meczów do pobrania (domyślnie: wszystkie)')
+    parser.add_argument('--automate', action='store_true',
+                       help='Automatyczny zapis danych do bazy (domyślnie: tryb testowy bez zapisu)')
+    parser.add_argument('--upcoming', action='store_true',
+                       help='Wskazanie że są to przyszłe mecze (do późniejszej realizacji)')
+    parser.add_argument('--update', action='store_true',
+                       help='Aktualizuj już istniejące mecze w bazie danych')
+    
+    args = parser.parse_args()
+    timer_dict = {'upcoming' : 5, 'update' : 5, 'default' : 50}
+    timer = timer_dict['default']
+    # Informowanie o trybie działania
+    if args.automate:
+        print("Tryb produkcyjny - dane będą zapisywane do bazy danych.")
+        if args.update:
+            print("Tryb aktualizacji - istniejące mecze będą aktualizowane.")
+            timer = timer_dict['update']
+    else:
+        print("Tryb testowy - dane będą tylko przetwarzane bez zapisu do bazy.")
+    
+    if args.upcoming:
+        print("Tryb przyszłych meczów - funkcjonalność do późniejszej implementacji.")
+        timer = timer_dict['upcoming']
+
+    conn = db_connect()
     options = webdriver.ChromeOptions()
     options.add_experimental_option('excludeSwitches', ['enable-logging']) # Here
     driver = webdriver.Chrome(options=options)
-    #Link do strony z wynikami
-    league_id = int(sys.argv[1])
-    season_id = int(sys.argv[2])
-    games = sys.argv[3]
-    one_link = sys.argv[4]
-    skip = int(sys.argv[5])
-    no_to_download = int(sys.argv[6])
-    query = "select country from leagues where id = {}".format(league_id)
-    country_df = pd.read_sql(query,conn)
-    country = country_df.values.flatten() 
-    query = "select name, id from teams where country = {} and sport_id = 2".format(country[0])
-    teams_df = pd.read_sql(query, conn)
-    team_id = teams_df.set_index('name')['id'].to_dict()
-    shortcuts = get_shortcuts(conn, country[0])
-    game_data = Game(driver, league_id, season_id, shortcuts, conn)
-    if one_link == '-1':
-        links = game_data.get_match_links(games, driver)
-        if no_to_download == '-1':
-            no_to_download = len(links)
-        for link in links[skip:no_to_download]:
-            match_data, _, _, _, _ = game_data.get_match_data(link, team_id)
+    
+    country = get_country(conn, args.league_id)
+    team_id = get_teams_ids(conn, country)
+    shortcuts = get_shortcuts(conn, country)
+    game_data = Game(driver, args.league_id, args.season_id, shortcuts, conn)
+    
+    if args.one_link == '-1':
+        links = game_data.get_match_links(args.games_url, timer, driver)
+        if args.no_to_download == -1:
+            args.no_to_download = len(links)
+        for link in links[args.skip:args.no_to_download]:
+            match_data, _, _, _, _ = game_data.get_match_data(link, team_id, args.automate, args.update)
             if match_data == -1:
                 print("# ALL STAR ALBO PRZEDSEZONOWA - POMIJAMY")
-            #break
     else:
-        game_data.get_match_data(one_link, team_id)
+        game_data.get_match_data(args.one_link, team_id, args.automate, args.update)
     conn.close() 
 if __name__ == '__main__':
     main()
