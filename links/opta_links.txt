@@ -1,0 +1,17 @@
+-------------------------- EKSTRAKLASA ----------------------------------
+1 12 https://optaplayerstats.statsperform.com/en_GB/soccer/ekstraklasa-2025-2026/3ghh5adz62ws55se0snozmej8/results
+
+-------------------------- PREMIER LEAGUE ----------------------------------
+2 12 https://optaplayerstats.statsperform.com/en_GB/soccer/premier-league-2025-2026/51r6ph2woavlbbpk8f29nynf8/results
+
+-------------------------- LIGUE 1 ----------------------------------
+3 12 https://optaplayerstats.statsperform.com/en_GB/soccer/ligue-1-2025-2026/dbxs75cag7zyip5re0ppsanmc/results
+
+-------------------------- BUNDESLIGA ----------------------------------
+4 12 https://optaplayerstats.statsperform.com/en_GB/soccer/bundesliga-2025-2026/2bchmrj23l9u42d68ntcekob8/results
+
+-------------------------- SERIE A ----------------------------------
+5 12 https://optaplayerstats.statsperform.com/en_GB/soccer/serie-a-2025-2026/emdmtfr1v8rey2qru3xzfwges/results
+
+-------------------------- LA LIGA ----------------------------------
+6 12 https://optaplayerstats.statsperform.com/en_GB/soccer/primera-divisi%C3%B3n-2025-2026/80zg2v1cuqcfhphn56u4qpyqc/results
