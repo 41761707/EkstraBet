@@ -3,6 +3,8 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from datetime import datetime
+
+from sklearn import base
 from utils import update_db, parse_match_date
 import argparse
 
@@ -234,8 +236,12 @@ def get_links(game_divs) -> list:
     """
     links = []
     for element in game_divs:
-        id = element.get_attribute('id').split('_')[2]
-        links.append('https://www.flashscore.pl/mecz/{}'.format(id))
+        # znajdź pierwszy <a> w danym divie
+        a_tag = element.find_element(By.TAG_NAME, "a")
+        href = a_tag.get_attribute("href")
+        if href:
+            links.append(href)
+    print(links)
     return links
 
 
@@ -264,9 +270,9 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mod
     for link in links[skip:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df,
                                 league_id, season_id, team_id)
-        if check_odds_in_db(match_id, conn):
-            print(f"Kursy już istnieją dla meczu o id: {match_id}, pomijam...")
-            continue
+        #if check_odds_in_db(match_id, conn):
+        #    print(f"Kursy już istnieją dla meczu o id: {match_id}, pomijam...")
+        #    continue
         if match_id == -1:
             print(f"Brak meczu w bazie danych, pomijam")
             continue
@@ -280,12 +286,32 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mod
             'Superbet.pl': 1,
             'Fuksiarz.pl': 8
         }
-        btts_inserts = get_odds(match_id, "{}{}".format(
-            link, '#/zestawienie-kursow/obie-druzyny-strzela/koniec-meczu'), driver, bookie_dict, 'btts')
-        result_inserts = get_odds(match_id, "{}{}".format(
-            link, '#/zestawienie-kursow/kursy-1x2/koniec-meczu'), driver, bookie_dict, 'result')
-        ou_inserts = get_odds(match_id, "{}{}".format(
-            link, '/#/zestawienie-kursow/powyzej-ponizej/koniec-meczu'), driver, bookie_dict, 'ou')
+        base_link, query = link.split("?", 1)  # oddzielamy część przed ? i parametry (?mid=...)
+        base_link = base_link.replace("szczegoly/", "")
+        print(base_link)
+        result_inserts = get_odds(
+            match_id,
+            f"{base_link}kursy/kursy-1x2/koniec-meczu/?{query}",
+            driver,
+            bookie_dict,
+            "result"
+        )
+
+        ou_inserts = get_odds(
+            match_id,
+            f"{base_link}kursy/powyzej-ponizej/koniec-meczu/?{query}",
+            driver,
+            bookie_dict,
+            "ou"
+        )
+
+        btts_inserts = get_odds(
+            match_id,
+            f"{base_link}kursy/obie-druzyny-strzela/koniec-meczu/?{query}",
+            driver,
+            bookie_dict,
+            "btts"
+        )
         if automate:
             update_db(result_inserts, conn)
             update_db(ou_inserts, conn)

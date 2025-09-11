@@ -333,13 +333,22 @@ def get_match_links(games: str, driver) -> list[str]:
         games (str): URL strony z meczami.
         driver: Instancja sterownika Selenium.
     Returns:
-        list[str]: Lista linków do meczów.
+        list[str]: Lista linków do meczów ze statystykami.
     """
     links = []
     driver.get(games)
     time.sleep(15)
     game_divs = driver.find_elements(By.CLASS_NAME, "event__match")
     for element in game_divs:
-        id = element.get_attribute('id').split('_')[2]
-        links.append('https://www.flashscore.pl/mecz/{}/#/szczegoly-meczu/statystyki-meczu/0'.format(id))
+        # Pobierz link bezpośrednio z elementu <a>
+        a_tag = element.find_element(By.TAG_NAME, "a")
+        href = a_tag.get_attribute("href")
+        if href:
+            # Przekształć link na format ze statystykami
+            if "?" in href:
+                base_link, query = href.split("?", 1)
+                stats_link = f"{base_link}statystyki/0/?{query}"
+            else:
+                stats_link = f"{href}statystyki/0/"
+            links.append(stats_link)
     return links
