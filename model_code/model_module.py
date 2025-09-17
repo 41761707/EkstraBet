@@ -14,13 +14,16 @@ from datetime import datetime
 
 
 class ModelModule:
-    def __init__(self, train_data, val_data, features, model_type, model_name, window_size) -> None:
+    def __init__(self, train_data, val_data, features, model_type, model_name, model_load_name, window_size, training_info=None, model_config=None) -> None:
         self.train_data = train_data
         self.val_data = val_data
+        self.training_info = training_info
+        self.model_config = model_config
         # Parametry
         self.embedding_dim = 8
         self.features = features
         self.model_type = model_type
+        self.model_load_name = model_load_name
         self.window_size = window_size
         self.model = None
         self.current_date = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
@@ -34,8 +37,8 @@ class ModelModule:
         Args:
             config (dict): Konfiguracja z config_manager.py
         """
-        # TO-DO rozszerzyć może o inne modele niż LSTM?
-        if config.model_config["model"]["type"] == "LSTM":
+        # TODO rozszerzyć może o inne modele niż LSTM
+        if config.model_config["architecture_config"]["model"]["type"] == "LSTM":
             self.build_lstm_model(config)
 
     def build_lstm_model(self, config):
@@ -46,7 +49,7 @@ class ModelModule:
             shape=(self.window_size, self.features), name='away_input')
 
         # Budowanie warstw LSTM
-        lstm_config = config.model_config["model"]["architecture"]["lstm_layers"]
+        lstm_config = config.model_config["architecture_config"]["lstm"]["layers"]
 
         # Przetwarzanie sekwencji home
         lstm_home = input_home_seq
@@ -83,7 +86,7 @@ class ModelModule:
         combined = Concatenate()([lstm_home, lstm_away])
 
         # Budowanie warstw gęstych
-        dense_config = config.model_config["model"]["architecture"]["dense_layers"]
+        dense_config = config.model_config["architecture_config"]["dense_layers"]
         x = combined
         for layer in dense_config:
             # Dodaj regularyzację jeśli jest skonfigurowana
@@ -108,7 +111,7 @@ class ModelModule:
                 x = Dropout(layer["dropout"])(x)
 
         # Warstwa wyjściowa
-        output_config = config.model_config["model"]["architecture"]["output"]
+        output_config = config.model_config["architecture_config"]["output"]
         output = Dense(
             units=output_config["units"],
             activation=output_config["activation"]
@@ -119,18 +122,18 @@ class ModelModule:
             inputs=[input_home_seq, input_away_seq], outputs=output)
 
         # Konfiguracja optymalizatora
-        optimizer_config = config.model_config["model"]["compilation"]["optimizer"]
+        optimizer_config = config.model_config["architecture_config"]["model"]["compilation"]["optimizer"]
         if optimizer_config["type"] == "Adam":
             optimizer = Adam(learning_rate=optimizer_config["learning_rate"])
         elif optimizer_config["type"] == "Adagrad":
             optimizer = Adagrad(
                 learning_rate=optimizer_config["learning_rate"])
-
+        print(config.model_config["architecture_config"]["model"])
         # Kompilacja modelu
         self.model.compile(
-            loss=config.model_config["model"]["compilation"]["loss"],
+            loss=config.model_config["architecture_config"]["model"]["compilation"]["loss"],
             optimizer=optimizer,
-            metrics=config.model_config["model"]["compilation"]["metrics"]
+            metrics=config.model_config["architecture_config"]["model"]["compilation"]["metrics"]
         )
 
     def train_model(self) -> tuple:
@@ -181,8 +184,12 @@ class ModelModule:
 
         # Confusion matrix
         self.confusion_matrix(X_home_val, X_away_val, y_val)
-        if self.model_type == 'goals' or self.model_type == 'goals-6-classes':
+        if self.model_type == 'goals':
             self.confusion_matrix_over_under(X_home_val, X_away_val, y_val)
+        
+        # Wyświetl szczegółowe informacje predykcyjne
+        self.print_detailed_predictions(X_home_val, X_away_val, y_val)
+        
         # self.print_sample_predictions(X_home_val, X_away_val, y_val)
         # Zapisz ostateczny model
         self.model.save(f'model_dev/{self.model_name}.h5')
@@ -210,7 +217,17 @@ class ModelModule:
             'btts': (['0', '1'], ['0', '1']),
             'winner': (['X', '1', '2'], ['X', '1', '2']),
         }
-        xticklabels, yticklabels = label_map.get(self.model_type, ([], []))
+        
+        # Użycie mapowania z konfiguracji modelu jeśli dostępne
+        if self.model_config and 'output_config' in self.model_config and 'label_mapping' in self.model_config['output_config']:
+            # Utworzenie etykiet na podstawie konfiguracji
+            labels = []
+            for i in range(len(self.model_config['output_config']['label_mapping'])):
+                labels.append(self.model_config['output_config']['label_mapping'][str(i)])
+            xticklabels, yticklabels = labels, labels
+        else:
+            # Fallback na stare hardkodowane wartości
+            xticklabels, yticklabels = label_map.get(self.model_type, ([], []))
         # Wizualizacja macierzy błędów
         plt.figure(figsize=(6, 5))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
@@ -266,13 +283,13 @@ class ModelModule:
         plt.show()
 
     def load_predict_model(self, config):
-        print(f'model_{config.model_type}_dev/{config.model_load_name}.h5')
+        print(f'model_{config.model_config["model_type"]}_dev/{self.model_load_name}.h5')
         self.model = load_model(
-            f'model_{config.model_type}_dev/{config.model_load_name}.h5', compile=False)
+            f'model_{config.model_config["model_type"]}_dev/{self.model_load_name}.h5', compile=False)
         self.model.compile(
-            loss=config.model_config["model"]["compilation"]["loss"],
-            optimizer=config.model_config["model"]["compilation"]["optimizer"]["type"],
-            metrics=config.model_config["model"]["compilation"]["metrics"]
+            loss=config.model_config["architecture_config"]["model"]["compilation"]["loss"],
+            optimizer=config.model_config["architecture_config"]["model"]["compilation"]["optimizer"]["type"],
+            metrics=config.model_config["architecture_config"]["model"]["compilation"]["metrics"]
         )
 
     def predict(self, inputs) -> Any:
@@ -295,18 +312,53 @@ class ModelModule:
             actual = y_true[i]
 
             # Convert numeric labels to readable format
-            if self.model_type == 'winner':
-                pred_label = ['Draw', 'Home Win', 'Away Win'][prediction]
-                true_label = ['Draw', 'Home Win', 'Away Win'][actual]
-            elif self.model_type == 'btts':
-                pred_label = ['No BTTS', 'BTTS'][prediction]
-                true_label = ['No BTTS', 'BTTS'][actual]
-            else:  # for goals and exact
-                pred_label = str(prediction)
-                true_label = str(actual)
+            if self.model_config and 'output_config' in self.model_config and 'label_mapping' in self.model_config['output_config']:
+                # Użycie mapowania z konfiguracji modelu
+                pred_label = self.model_config['output_config']['label_mapping'][str(prediction)]
+                true_label = self.model_config['output_config']['label_mapping'][str(actual)]
 
             result = "WIN" if prediction == actual else "LOSE"
             print(f"\nPrediction #{i+1}:")
             print(f"Expected: {true_label}")
             print(f"Predicted: {pred_label}")
             print(f"Result: {result}")
+
+    def print_detailed_predictions(self, X_home_val, X_away_val, y_val):
+        """
+        Wyświetla szczegółowe informacje predykcyjne w formacie CSV
+        
+        Args:
+            X_home_val: Dane wejściowe dla drużyn gospodarzy
+            X_away_val: Dane wejściowe dla drużyn gości
+            y_val: Prawdziwe etykiety
+        """
+        print("\n" + "="*80)
+        print("SZCZEGÓŁOWE INFORMACJE PREDYKCYJNE - FORMAT CSV")
+        print("="*80)
+        
+        # Uzyskanie prawdopodobieństw predykcji
+        y_pred_probs = self.model.predict([X_home_val, X_away_val])
+        
+        # Pobranie ID meczów z training_info jeśli dostępne
+        match_ids = []
+        if self.training_info and len(self.training_info) > 1:
+            # training_info[1] zawiera informacje o próbkach walidacyjnych
+            val_info = self.training_info[1]
+            match_ids = [info[0] if isinstance(info, list) and len(info) > 0 else f'Mecz_{i+1}' for i, info in enumerate(val_info)]
+        else:
+            match_ids = [f'Mecz_{i+1}' for i in range(len(y_pred_probs))]
+        
+        # Nagłówek CSV
+        num_classes = y_pred_probs.shape[1]
+        prob_headers = [f"prawdopodobieństwo_{i+1}" for i in range(num_classes)]
+        header = "id_meczu;" + ";".join(prob_headers)
+        print(header)
+        
+        # Dane dla każdej próbki
+        for i in range(len(y_pred_probs)):
+            match_id = match_ids[i] if i < len(match_ids) else f'Mecz_{i+1}'
+            probabilities = [f"{prob:.6f}" for prob in y_pred_probs[i]]
+            row = f"{match_id};" + ";".join(probabilities)
+            print(row)
+        
+        print("="*80)

@@ -1,0 +1,141 @@
+{
+  "model_type": "winner",
+  "model_name": "winner_model_2",
+  "description": "Model Winner - predykcja wyniku meczu (zwycięzca lub remis)",
+  "window_size": 5,
+  "output_config": {
+    "classes": 3,
+    "labels": [
+      "Remis",
+      "Wygrana gospodarzy",
+      "Wygrana gości"
+    ],
+    "label_mapping": {
+      "0": "Remis",
+      "1": "Wygrana gospodarzy",
+      "2": "Wygrana gości"
+    }
+  },
+  "folder_config": {
+    "dev_folder": "model_winner_dev",
+    "release_folder": "model_winner_release"
+  },
+  "ratings": [
+    "elo",
+    "gap"
+  ],
+  "supported_ratings": {
+    "elo": {
+      "enabled": true,
+      "description": "System rankingu ELO - standardowy ranking drużyn, kluczowy dla przewidywania wyników",
+      "parameters": {
+        "initial_rating": 1500,
+        "second_tier_coef": 0.8,
+        "k_factor": 64
+      },
+      "columns": [
+        "home_team_elo",
+        "away_team_elo"
+      ]
+    },
+    "gap": {
+      "enabled": true,
+      "description": "System rankingu GAP - siła ataku i obrony drużyn, wpływa na przewidywanie wyników",
+      "parameters": {
+        "match_attributes": [
+          "goals_home",
+          "goals_away"
+        ]
+      },
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "home_goals_avg",
+        "away_goals_avg"
+      ]
+    },
+    "czech": {
+      "enabled": false,
+      "description": "System rankingu Czech - statystyki domowe i wyjazdowe drużyn, kluczowe dla przewidywania wyniku",
+      "columns": [
+        "home_team_home_win_pct",
+        "home_team_home_draw_pct",
+        "home_team_home_gs_avg",
+        "home_team_home_gc_avg",
+        "home_team_home_gs_std",
+        "home_team_home_gc_std",
+        "away_team_away_win_pct",
+        "away_team_away_draw_pct",
+        "away_team_away_gs_avg",
+        "away_team_away_gc_avg",
+        "away_team_away_gs_std",
+        "away_team_away_gc_std"
+      ]
+    }
+  },
+  "architecture_config": {
+    "lstm": {
+      "layers": [
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.2, 0.2, 0.0],
+          "batch_normalization": [true, true, false]
+        },
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.2, 0.2, 0.0],
+          "batch_normalization": [true, true, false]
+        }
+      ]
+    },
+    "dense_layers": [
+      {
+        "units": 128,
+        "activation": "relu",
+        "dropout": 0.2,
+        "batch_normalization": false
+      },
+      {
+        "units": 64,
+        "activation": "relu",
+        "dropout": 0.0,
+        "batch_normalization": false
+      },
+      {
+        "units": 16,
+        "activation": "linear",
+        "dropout": 0.0,
+        "batch_normalization": false
+      }
+    ],
+    "output": {
+      "units": 3,
+      "activation": "softmax"
+    },
+    "model": {
+      "type": "LSTM",
+      "compilation": {
+        "optimizer": {
+          "type": "Adam",
+          "learning_rate": 0.00001
+        },
+        "loss": "categorical_crossentropy",
+        "metrics": ["accuracy", "Precision", "Recall"]
+      }
+    }
+  },
+  "prediction_config": {
+    "events": [
+      1,
+      2,
+      3
+    ],
+    "description": "Events: [Draw, Home Win, Away Win]"
+  }
+}
