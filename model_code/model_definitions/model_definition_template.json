@@ -1,0 +1,172 @@
+{
+  "model_type": "TEMPLATE_MODEL_TYPE",
+  "description": "OPIS_MODELU - krótki opis przeznaczenia modelu",
+  "output_config": {
+    "classes": 2,
+    "labels": [
+      "ETYKIETA_KLASY_0",
+      "ETYKIETA_KLASY_1"
+    ],
+    "label_mapping": {
+      "0": "ETYKIETA_KLASY_0",
+      "1": "ETYKIETA_KLASY_1"
+    }
+  },
+  "folder_config": {
+    "dev_folder": "model_NAZWA_MODELU_dev",
+    "release_folder": "model_NAZWA_MODELU_release"
+  },
+  "supported_ratings": {
+    "elo": {
+      "enabled": false,
+      "description": "System rankingu ELO - standardowy ranking drużyn",
+      "parameters": {
+        "initial_rating": 1500,
+        "k_factor": 64,
+        "second_tier_coef": 0.8
+      },
+      "columns": [
+        "home_team_elo",
+        "away_team_elo"
+      ]
+    },
+    "gap": {
+      "enabled": true,
+      "description": "System rankingu GAP - OPIS_WYKORZYSTANIA_GAP",
+      "parameters": {
+        "match_attributes": [
+          "ATRYBUT_1",
+          "ATRYBUT_2",
+          "ATRYBUT_3",
+          "ATRYBUT_4"
+        ]
+      },
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "DODATKOWA_KOLUMNA_1",
+        "DODATKOWA_KOLUMNA_2"
+      ]
+    },
+    "czech": {
+      "enabled": true,
+      "description": "System rankingu Czech - OPIS_WYKORZYSTANIA_CZECH",
+      "columns": [
+        "home_team_home_win_pct",
+        "home_team_home_draw_pct",
+        "home_team_home_gs_avg",
+        "home_team_home_gc_avg",
+        "home_team_home_gs_std",
+        "home_team_home_gc_std",
+        "away_team_away_win_pct",
+        "away_team_away_draw_pct",
+        "away_team_away_gs_avg",
+        "away_team_away_gc_avg",
+        "away_team_away_gs_std",
+        "away_team_away_gc_std"
+      ]
+    },
+    "momentum": {
+      "enabled": false,
+      "description": "System rankingu Momentum - forma drużyn w ostatnich meczach",
+      "parameters": {
+        "window_size": 5,
+        "weight_decay": 0.9
+      },
+      "columns": [
+        "home_team_momentum",
+        "away_team_momentum"
+      ]
+    }
+  },
+  "default_ratings": [
+    "gap",
+    "czech"
+  ],
+  "architecture_config": {
+    "lstm": {
+      "layers": [
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        },
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        }
+      ]
+    },
+    "dense_layers": [
+      {
+        "units": 128,
+        "activation": "relu",
+        "dropout": 0.5,
+        "batch_normalization": false
+      },
+      {
+        "units": 64,
+        "activation": "relu",
+        "dropout": 0.3,
+        "batch_normalization": false
+      }
+    ],
+    "output": {
+      "units": 2,
+      "activation": "softmax"
+    },
+    "model": {
+      "type": "LSTM",
+      "compilation": {
+        "optimizer": {
+          "type": "Adam",
+          "learning_rate": 0.001
+        },
+        "loss": "categorical_crossentropy",
+        "metrics": ["accuracy"]
+      }
+    }
+  },
+  "prediction_config": {
+    "events": [
+      "KOD_ZDARZENIA_0",
+      "KOD_ZDARZENIA_1"
+    ],
+    "description": "Events: [OPIS_ZDARZENIA_0, OPIS_ZDARZENIA_1]"
+  },
+  "training_config": {
+    "batch_size": 32,
+    "epochs": 100,
+    "validation_split": 0.2,
+    "callbacks": {
+      "early_stopping": {
+        "monitor": "val_loss",
+        "patience": 10,
+        "restore_best_weights": true
+      },
+      "model_checkpoint": {
+        "monitor": "val_accuracy",
+        "save_best_only": true
+      },
+      "tensorboard": {
+        "log_dir": "logs/NAZWA_MODELU"
+      }
+    }
+  },
+  "data_config": {
+    "window_size": 10,
+    "min_matches_per_team": 15,
+    "excluded_leagues": [],
+    "date_range": {
+      "start_date": "2020-01-01",
+      "end_date": null
+    }
+  }
+}

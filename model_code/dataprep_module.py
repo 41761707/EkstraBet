@@ -3,7 +3,7 @@ import pandas as pd
 
 # @package dataprep
 # Moduł DataPrep zawiera funkcje i klasy służące do przygotowania danych do dalszych operacji w programie.
-# Wymagane zależności:
+# Wyragane zależności:
 # Moduł 'pandas'
 # Moduł 'numpy'
 
@@ -17,7 +17,7 @@ class DataPrep:
     # Konstruktor klasy DataPrep
     def __init__(self, input_date, leagues, sport_id, country, leagues_upcoming):
         # data w formacie YYYY-MM-DD rozgraniczająca co przewidujemy (upcoming) a co analizujemy (matches)
-        self.input_date = input_date
+        self.input_date = input_date # Data graniczna miedzy meczami historycznymi a przyszlymi (>= przyszle, < historyczne)
         self.leagues = leagues  # przekazanie pustej tablicy oznacza chęć pobrania wszystkich lig do treningu
         self.leagues_str = ",".join(map(str, self.leagues))  # string z id lig do treningu
         self.leagues_upcoming = leagues_upcoming if leagues_upcoming is not None else leagues.copy() # Liga/ligi dla których generujemy predykcje (domyślnie te same co leagues)
@@ -25,8 +25,7 @@ class DataPrep:
         self.sport_id = sport_id  # id sportu używane do filtrowania danych
         self.country = country  # pusta tablica oznacza wszystkie kraje
         self.country_str = ",".join(map(str, self.country))  # string z id krajow
-        # lista lig pierwszej klasy (np. Ekstraklasa)
-        self.first_tier_leagues = []
+        self.first_tier_leagues = [] # lista lig pierwszej klasy (np. Ekstraklasa)
         self.second_tier_leagues = []  # lista lig drugiej klasy (np. I liga)
         self.conn = db_module.db_connect()  # połączenie z bazą danych
         self.matches_df = pd.DataFrame()  # DataFrame z danymi historycznymi
@@ -36,13 +35,11 @@ class DataPrep:
 
     def set_data(self):
         '''
-            Funkcja rozruchowa modułu Dataprep
+            Funkcja rozruchowa modułu Dataprep - już nie pobiera automatycznie wszystkich danych
+            Dane należy pobrać ręcznie wywołując odpowiednie metody get_*
         '''
-
-        self.get_historical_data()
-        self.get_upcoming_data()
-        self.get_teams_data()
-        self.get_league_tier()
+        # Usunięto automatyczne pobieranie danych - teraz każda metoda get_* zwraca swoje wyniki
+        pass
 
     def get_league_tier(self):
         """
@@ -57,10 +54,10 @@ class DataPrep:
         - Liga tier 1 -> dodaje do listy first_tier_leagues
         - Liga tier 2 -> dodaje do listy second_tier_leagues
 
-        Atrybuty klasy aktualizowane:
-            self.league_tier_df (DataFrame): Tabela z id lig i ich poziomami
-            self.first_tier_leagues (list): Lista id lig pierwszego poziomu
-            self.second_tier_leagues (list): Lista id lig drugiego poziomu
+        Returns:
+            tuple: Krotka zawierająca (first_tier_leagues, second_tier_leagues)
+                - first_tier_leagues (list): Lista id lig pierwszego poziomu
+                - second_tier_leagues (list): Lista id lig drugiego poziomu
 
         Uwaga:
             Wymaga wcześniejszego ustawienia:
@@ -80,12 +77,20 @@ class DataPrep:
                 FROM leagues 
                 WHERE id IN ({self.leagues_str})
             """
-        self.league_tier_df = pd.read_sql(query, self.conn)
-        for index, row in self.league_tier_df.iterrows():
+        league_tier_df = pd.read_sql(query, self.conn)
+        first_tier_leagues = []
+        second_tier_leagues = []
+        for index, row in league_tier_df.iterrows():
             if row['tier'] == 1:
-                self.first_tier_leagues.append(row['id'])
+                first_tier_leagues.append(row['id'])
             elif row['tier'] == 2:
-                self.second_tier_leagues.append(row['id'])
+                second_tier_leagues.append(row['id'])
+        
+        # Zachowujemy dane w atrybutach klasy dla kompatybilności
+        self.first_tier_leagues = first_tier_leagues
+        self.second_tier_leagues = second_tier_leagues
+        
+        return first_tier_leagues, second_tier_leagues
 
     def get_historical_data(self):
         """
@@ -106,8 +111,8 @@ class DataPrep:
         - '1' → 1 (zwycięstwo gospodarzy)
         - '2' → 2 (zwycięstwo gości)
 
-        Atrybuty klasy aktualizowane:
-            self.matches_df (DataFrame): Tabela z historycznymi danymi meczowymi
+        Returns:
+            DataFrame: Tabela z historycznymi danymi meczowymi
                 Kolumny:
                 - Wszystkie kolumny z tabeli matches
                 - 'result' (int): przekonwertowany wynik meczu
@@ -147,11 +152,16 @@ class DataPrep:
                 order by game_date asc
             """
         try:
-            self.matches_df = pd.read_sql(query, self.conn)
-            self.matches_df['result'] = self.matches_df['result'].replace({'X': 0, '1': 1, '2': 2}).astype(
+            matches_df = pd.read_sql(query, self.conn)
+            matches_df['result'] = matches_df['result'].replace({'X': 0, '1': 1, '2': 2}).astype(
                 int)  # 0 - remis, 1 - zwyciestwo gosp. 2 - zwyciestwo goscia
+            
+            # Zachowujemy dane w atrybutach klasy dla kompatybilności
+            self.matches_df = matches_df
+            return matches_df
         except Exception as e:
             print("Bład podczas pobierania danych historycznych: {}".format(e))
+            return pd.DataFrame()
 
     def get_upcoming_data(self):
         """
@@ -175,8 +185,8 @@ class DataPrep:
         - season: sezon
         - result: wynik (jeśli już rozegrany)
 
-        Atrybuty klasy aktualizowane:
-            self.upcoming_df (DataFrame): Tabela z nadchodzącymi meczami zawierająca:
+        Returns:
+            DataFrame: Tabela z nadchodzącymi meczami zawierająca:
                 - Wszystkie wybrane kolumny z tabeli matches
                 - Posortowana chronologicznie (najbliższe mecze pierwsze)
 
@@ -207,15 +217,24 @@ class DataPrep:
                 order by game_date asc
             """
         try:
-            self.upcoming_df = pd.read_sql(query, self.conn)
+            upcoming_df = pd.read_sql(query, self.conn)
+            # Zachowujemy dane w atrybutach klasy dla kompatybilności
+            self.upcoming_df = upcoming_df
+            return upcoming_df
         except Exception as e:
             print("Bład podczas pobierania danych przyszłych: {}".format(e))
+            return pd.DataFrame()
 
     def get_teams_data(self):
         '''
         Pobiera dane drużyn z bazy danych na podstawie sportu i kraju.
         Jeśli kraj jest równy -1, pobiera wszystkie drużyny dla danego sportu.
         Jeśli kraj jest podany, pobiera drużyny tylko dla tego kraju.
+        
+        Returns:
+            DataFrame: Tabela z danymi drużyn zawierająca kolumny:
+                - id: identyfikator drużyny
+                - name: nazwa drużyny
         '''
         if self.country == []:
             query = f"""
@@ -231,22 +250,14 @@ class DataPrep:
                 AND sport_id = {self.sport_id}
             """
         try:
-            self.teams_df = pd.read_sql(query, self.conn)
+            teams_df = pd.read_sql(query, self.conn)
+            # Zachowujemy dane w atrybutach klasy dla kompatybilności
+            self.teams_df = teams_df
+            return teams_df
         except Exception as e:
             print("Bład podczas pobierania danych drużyn: {}".format(e))
+            return pd.DataFrame()
 
     def close_connection(self):
         ''' Zamykanie połączenia'''
         self.conn.close()
-
-    def get_data(self):
-        '''
-            Zwracanie predefiniowanych danych
-            Returns:
-                self.matches_df - lista meczów przed wskazaną datą (lista meczów do generowania danych historycznych)
-                self.teams_df - słownik drużyn typu {id: name}
-                self.upcoming_df - lista meczów do przewidzenia (stosowane tylko w predict)
-                self.first_tier_leagues - ligi poziomu 1 (Ekstraklasa / Premier League)
-                self.second_tier_leagues - ligi poziomu 2 (Betclic 1 Liga / Championship)
-            '''
-        return self.matches_df, self.teams_df, self.upcoming_df, self.first_tier_leagues, self.second_tier_leagues

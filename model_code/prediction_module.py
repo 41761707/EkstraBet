@@ -4,7 +4,7 @@ from sklearn.preprocessing import MinMaxScaler
 from typing import Any
 
 class PredictMatch:
-    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn, prediction_automate: bool = False) -> None:
+    def __init__(self, matches_df, upcoming_df, teams_df, feature_columns, model, model_type, model_name, window_size, conn, prediction_automate: bool = False, model_config=None) -> None:
         self.predictions_list = []
         self.conn = conn
         self.matches_df = matches_df
@@ -17,6 +17,7 @@ class PredictMatch:
         self.sequence_length = window_size
         self.scaler = MinMaxScaler()
         self.prediction_automate = prediction_automate
+        self.model_config = model_config
         self.events, self.model_id = self.get_additional_prediction_info()
 
     def get_additional_prediction_info(self):
@@ -29,15 +30,12 @@ class PredictMatch:
             result = cursor.fetchone()
             model_id = result[0] if result else None
             
+            # Pobieranie events z konfiguracji modelu jeśli dostępna
             events = []
-            if self.model_type == 'winner':
-                events = [2, 1, 3]  # Remis, WIN Gospo, WIN Gość
-            elif self.model_type == 'btts':
-                events = [172, 6]   # NO BTTS, BTTS
-            elif self.model_type == 'goals':
-                events = [174, 175, 176, 177, 178, 179, 180, 12, 8, 173]
-            elif self.model_type == 'goals-6-classes':
-                events = [174, 175, 176, 177, 178, 179, 12, 8, 173]
+            if self.model_config and 'prediction_config' in self.model_config and 'events' in self.model_config['prediction_config']:
+                events = self.model_config['prediction_config']['events']
+            else:
+                print("[ERROR] Brak konfiguracji prediction_config/events w model_config.")
             
             print(f"MODEL ID: {model_id}")
             return events, model_id
@@ -97,19 +95,43 @@ class PredictMatch:
         probabilities = prediction[0]
         result = ""
         if self.model_type == "winner":
-            result = ["Remis", "Wygrana gospodarzy", "Wygrana gości"][np.argmax(prediction[0])]
-        elif self.model_type == "goals" or self.model_type == "goals-6-classes":
-            result = f"{np.argmax(prediction[0])} goli"
+            # Użycie mapowania z konfiguracji modelu zamiast hardkodowanych wartości
+            if self.model_config and 'output_config' in self.model_config and 'label_mapping' in self.model_config['output_config']:
+                predicted_class_index = np.argmax(prediction[0])
+                result = self.model_config['output_config']['label_mapping'][str(predicted_class_index)]
+            else:
+                # Fallback na stare hardkodowane wartości
+                result = ["Remis", "Wygrana gospodarzy", "Wygrana gości"][np.argmax(prediction[0])]
+        elif self.model_type == "goals":
+            # Użycie mapowania z konfiguracji modelu zamiast hardkodowanych wartości
+            if self.model_config and 'output_config' in self.model_config and 'label_mapping' in self.model_config['output_config']:
+                predicted_class_index = np.argmax(prediction[0])
+                result = self.model_config['output_config']['label_mapping'][str(predicted_class_index)]
+            else:
+                # Fallback na stare hardkodowane wartości
+                result = f"{np.argmax(prediction[0])} goli"
             #dodajemy OU
             under_2_5 = sum(prediction[0][:3])  # Sum of probabilities for 0, 1, 2 goals
             over_2_5 = sum(prediction[0][3:])   # Sum of probabilities for 3+ goals
             probabilities = np.append(probabilities, [under_2_5, over_2_5, np.argmax(prediction[0])])  # Add U/O to probabilities array
         elif self.model_type == "btts":
-            result = "Obie strzelą" if np.argmax(prediction[0]) == 1 else "Obie nie strzelą"
+            # Użycie mapowania z konfiguracji modelu zamiast hardkodowanych wartości
+            if self.model_config and 'output_config' in self.model_config and 'label_mapping' in self.model_config['output_config']:
+                predicted_class_index = np.argmax(prediction[0])
+                result = self.model_config['output_config']['label_mapping'][str(predicted_class_index)]
+            else:
+                # Fallback na stare hardkodowane wartości
+                result = "Obie strzelą" if np.argmax(prediction[0]) == 1 else "Obie nie strzelą"
         elif self.model_type == "exact":
-            home_team_goals = np.argmax(prediction[0]) // 10 
-            away_team_goals = np.argmax(prediction[0]) % 10
-            result = f"Wynik {home_team_goals}:{away_team_goals}"
+            # Użycie mapowania z konfiguracji modelu zamiast hardkodowanych wartości
+            if self.model_config and 'output_config' in self.model_config and 'label_mapping' in self.model_config['output_config']:
+                predicted_class_index = np.argmax(prediction[0])
+                result = self.model_config['output_config']['label_mapping'][str(predicted_class_index)]
+            else:
+                # Fallback na stare hardkodowane wartości
+                home_team_goals = np.argmax(prediction[0]) // 10 
+                away_team_goals = np.argmax(prediction[0]) % 10
+                result = f"Wynik {home_team_goals}:{away_team_goals}"
         # Dodanie wyniku do listy - wersja czytelna dla człowieka
         if not self.prediction_automate:
             entry =  {
@@ -123,7 +145,7 @@ class PredictMatch:
         #Dodanie wyniku do listy - wersja do automatyzacji procesu
         else:
             # Indeks wartości z największym prawdopodobieństwem
-            if self.model_type == "goals" or self.model_type == "goals-6-classes":
+            if self.model_type == "goals":
                 # W przypadku modelu 'goals' na końcu jest przewidywana liczba bramek, więc nie bierzemy jej pod uwagę przy określaniu indeksu
                 max_prob_index = np.argmax(probabilities[:-1])
             else:

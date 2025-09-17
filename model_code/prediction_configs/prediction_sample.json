@@ -1,7 +1,7 @@
 {
-    "leagues": [23, 39],
-    "leagues_upcoming": [23],
-    "country": [18],
-    "sport_id": 1,
-    "threshold_date": "2025-08-06"
+  "leagues": [12, 41, 11, 37, 25, 24, 40, 23, 39],
+  "leagues_upcoming": [12, 11, 25, 24, 23],
+  "country": [],
+  "sport_id": 1,
+  "threshold_date": "2025-09-17"
 }

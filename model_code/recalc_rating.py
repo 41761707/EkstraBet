@@ -66,15 +66,20 @@ def main():
                                         leagues_details[0]["sport_id"],
                                         [args.country],
                                         leagues)
-    matches_df, teams_df, _, _, _ = dataprep.get_data()
+    
+    # Pobieranie danych przy użyciu nowych metod zwracających wyniki
+    matches_df = dataprep.get_historical_data()
+    teams_df = dataprep.get_teams_data()
+    first_tier_leagues, second_tier_leagues = dataprep.get_league_tier()
+    dataprep.close_connection()
     print(matches_df.head())
     #4. Policz rankingi
     rating_dict = {}
     if args.rating == "elo":
         elo = elo_rating.EloRating(matches_df, 
                                    teams_df,
-                                   [league["id"] for league in leagues_details if league["tier"] == 1],
-                                   [league["id"] for league in leagues_details if league["tier"] == 2],
+                                   first_tier_leagues,
+                                   second_tier_leagues,
                                    initial_elo=1500,
                                    second_tier_coef=0.8)
         elo.calculate_rating()

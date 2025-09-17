@@ -9,7 +9,6 @@ import model_module
 import process_data
 import prediction_module
 import config_manager
-import test_module
 import db_module
 import arg_parser
 
@@ -35,49 +34,12 @@ def get_calculator_func(name):
     }
     return calculators.get(name, None)
 
-def get_rating_params(config):
-    """
-    Pobiera parametry ratingów z konfiguracji i przygotowuje je do użycia.
-    
-    Args:
-        config (ConfigManager): Obiekt konfiguracyjny zawierający ustawienia modelu
-    
-    Returns:
-        tuple: Krotka zawierająca:
-            - initial_rating (int): Początkowa wartość rankingu ELO
-            - second_tier_coef (float): Współczynnik dla drużyn z drugiej ligi
-            - match_attributes (list/str): Lista atrybutów meczu lub pusty string
-    """
-    # Sprawdzenie czy ranking ELO jest aktywny
-    elo_enabled = 'elo' in config.rating_config[config.model_type]['rating_type']
-    # Pobranie początkowego rankingu ELO jeśli aktywny, w przeciwnym razie 0
-    initial_rating = config.model_config["ratings"]["elo"]["initial_rating"] if elo_enabled else 0
-    # Pobranie współczynnika dla drugiej ligi jeśli ELO aktywne, w przeciwnym razie 0
-    second_tier_coef = config.model_config["ratings"]["elo"]["second_tier_coef"] if elo_enabled else 0
-
-    # Sprawdzenie czy ranking GAP jest aktywny
-    gap_enabled = 'gap' in config.rating_config[config.model_type]['rating_type']
-    if gap_enabled:
-        # Pobranie atrybutów meczu z konfiguracji (domyślnie pusty string)
-        match_attributes = config.model_config["ratings"]["gap"].get("match_attributes", "")
-        for attr in match_attributes:
-            attr["calculator"] = get_calculator_func(attr["name"])["calculator"]
-    else:
-        # Dla nieaktywnego GAP zwracamy pusty string
-        match_attributes = ""
-    
-    return initial_rating, second_tier_coef, match_attributes
-
 def get_matches(config):
     """
     Główna funkcja pobierająca i przetwarzająca dane meczowe, obliczająca ratingi drużyn
 
     Args:
-        leagues (list): Lista lig do analizy
-        sport_id (int): ID sportu (np. 1 - piłka nożna)
-        country (int): ID kraju
-        rating_config (dict): Konfiguracja ratingu zawierająca parametry obliczeń
-        model_type (str): Typ modelu do tworzenia ratingu
+        config (ConfigManager): Obiekt konfiguracyjny zawierający wszystkie parametry
 
     Returns:
         tuple: Krotka zawierająca:
@@ -92,18 +54,40 @@ def get_matches(config):
         4. Łączy wszystkie obliczone ratingi w jeden DataFrame
         5. Zwraca przetworzone dane wraz z informacjami o nadchodzących meczach
     """
-    data = dataprep_module.DataPrep(config.THRESHOLD_DATE, config.leagues, config.sport_id, config.country, config.leagues_upcoming)
-    matches_df, teams_df, upcoming_df, first_tier_leagues, second_tier_leagues = data.get_data()
+    data = dataprep_module.DataPrep(config.threshold_date, 
+                                    config.leagues,
+                                    config.sport_id,
+                                    config.country,
+                                    config.leagues_upcoming)
+    
+    # Pobieranie danych przy użyciu nowych metod zwracających wyniki
+    matches_df = data.get_historical_data()
+    teams_df = data.get_teams_data()
+    upcoming_df = data.get_upcoming_data()
+    first_tier_leagues, second_tier_leagues = data.get_league_tier()
     data.close_connection()
-    initial_rating, second_tier_coef, match_attributes = get_rating_params(config)
+    #Sekcja pobierania match_attributes dla rankingu gap
+    #TODO: Do poprawy - zduplikowany kod
+    match_attributes = {}
+    if 'gap' in config.model_config["ratings"]:
+        # Pobranie atrybutów meczu z konfiguracji (domyślnie pusty string)
+        attributes = config.model_config["supported_ratings"]["gap"]["parameters"].get("match_attributes", "")
+        for attr in attributes:
+            match_attributes[attr] = {
+                "name": attr,
+                "calculator": get_calculator_func(attr)["calculator"]
+            }
+    else:
+        match_attributes = ''
+
     rating_factory = ratings_module.RatingFactory.create_rating(
-        config.rating_config[config.model_type]['rating_type'],
+        config.model_config["ratings"],
         matches_df=matches_df.copy(),
         teams_df=teams_df,
         first_tier_leagues=first_tier_leagues,
         second_tier_leagues=second_tier_leagues,
-        initial_rating=initial_rating,
-        second_tier_coef=second_tier_coef,
+        initial_rating=config.model_config["supported_ratings"]["elo"]["parameters"]["initial_rating"],
+        second_tier_coef=config.model_config["supported_ratings"]["elo"]["parameters"]["second_tier_coef"],
         match_attributes=match_attributes
     )
     merged_matches_df = matches_df.copy()
@@ -139,20 +123,7 @@ def prepare_training(config):
     Przygotowuje i trenuje model predykcyjny na podstawie konfiguracji
     
     Args:
-        config (ConfigManager): Obiekt zarządzający konfiguracją zawierający:
-            - model_type: Typ modelu do trenowania (winner/goals/btts/exact)
-            - leagues: Lista lig do analizy
-            - sport_id: ID sportu
-            - country: ID kraju
-            - load_weights: Flaga określająca czy ładować wagi pretrenowanego modelu
-            - feature_columns: Lista kolumn z cechami
-            - rating_config: Konfiguracja ratingu drużyn
-            - window_size: Rozmiar okna czasowego
-            - match_attributes: Atrybuty meczu do analizy
-            - model_config: Konfiguracja modelu
-            - model_name: Nazwa modelu
-            - model_load_name: Nazwa modelu do wczytania wag
-
+        config (ConfigManager): Obiekt zarządzający konfiguracją zawierający
     Returns:
         tuple: Krotka zawierająca:
             - model: Wytrenowany lub załadowany model predykcyjny
@@ -170,18 +141,26 @@ def prepare_training(config):
     # Pobranie danych meczowych
     matches_df, teams_df, _ = get_matches(config)
     # Przetwarzanie danych treningowych
+    window_size = config.model_config.get("window_size", 5)  # Domyślna wartość 5
     processor = process_data.ProcessData(
         matches_df, 
         teams_df, 
-        config.model_type, 
+        config.model_config["model_type"], 
         config.feature_columns, 
-        config.window_size
+        window_size,
+        config.model_config["output_config"]
     )
     train_data, val_data, training_info = processor.process_train_data()
 
     # Analiza rozkładu danych
-    analyze_result_distribution(train_data, config.model_type, "Training Data")
-    analyze_result_distribution(val_data, config.model_type, "Validation Data")
+    analyze_result_distribution(train_data, 
+                                config.model_config["model_type"], 
+                                config.model_config["output_config"]["label_mapping"],
+                                "Training Data")
+    analyze_result_distribution(val_data, 
+                                config.model_config["model_type"], 
+                                config.model_config["output_config"]["label_mapping"],
+                                "Validation Data")
     #Testowe printy
     #print_training_data_info(train_data, val_data, training_info, 3)
 
@@ -190,12 +169,15 @@ def prepare_training(config):
         train_data, 
         val_data, 
         len(config.feature_columns), 
-        config.model_type, 
-        config.model_name, 
-        config.window_size
+        config.model_config["model_type"], 
+        config.model_config["model_name"], 
+        config.model_load_name,
+        window_size,
+        training_info,
+        config.model_config
     )
     
-    if config.load_weights == '1':
+    if config.training_config["load_weights"] == "1":
         model.load_predict_model(config)
     else:
         model.build_model_from_config(config)
@@ -207,12 +189,12 @@ def prepare_training(config):
     config.model_config["val_accuracy"] = float(evaluation_results[1])
     config.model_config["val_loss"] = float(evaluation_results[0])
 
-    #TO-DO: Reprezentacja lambda funkcji jako stringa
-    if "match_attributes" in config.model_config["ratings"]["gap"]:
-        if config.model_config["ratings"]["gap"]["match_attributes"]:
-            config.model_config["ratings"]["gap"]["match_attributes"] = ''
+    #TODO: Reprezentacja lambda funkcji jako stringa
+    if "match_attributes" in config.model_config["supported_ratings"]["gap"]:
+        if config.model_config["supported_ratings"]["gap"]["match_attributes"]:
+            config.model_config["supported_ratings"]["gap"]["match_attributes"] = ''
     # Zapis konfiguracji do pliku
-    with open(f'model_{config.model_type}_dev/{config.model_name}_config.json', 'w') as f:
+    with open(f'model_{config.model_config["model_type"]}_dev/{config.model_config["model_name"]}_config.json', 'w') as f:
         json.dump(config.model_config, f, indent=4)
 
 def print_training_data_info(train_data, val_data, training_info, no_prints):
@@ -249,13 +231,16 @@ def print_training_data_info(train_data, val_data, training_info, no_prints):
         print(training_info[1][i])
 
 
-def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
+def analyze_result_distribution(data_tuple, model_type, label_mappings, dataset_name="Dataset"):
     """
     Analizuje i wypisuje rozkład danych w podanym zbiorze danych
 
     Args:
         data_tuple: Dane zawierające krotkę (X_home_seq, X_away_seq, y), gdzie y jest one-hotem
+        model_type: Typ modelu ('winner', 'goals', 'btts')
+        label_mappings: Mapowanie etykiet dla wyników z konfiguracji modelu (np. {"0": "Remis", "1": "Wygrana gospodarzy"})
         dataset_name: Nazwa zbioru danych, wykorzystywane głównie przy wypisywaniu informacji
+
     """
     _, _, y = data_tuple
     # Konwertujemy one-hot encoding do etykiet
@@ -267,19 +252,16 @@ def analyze_result_distribution(data_tuple, model_type, dataset_name="Dataset"):
     print(f"\n=== {dataset_name} Distribution ===")
     print(f"Total samples: {total}")
 
-    # Ułatwienie czytelności - mapowanie wyników na czytelne etykiety
-    if model_type == 'winner':
-        result_mapping = {0: "Draw", 1: "Home Win", 2: "Away Win"}
-    elif model_type == 'goals':
-        result_mapping = {i: f"{i} Goals" for i in range(7)}
-    elif model_type == 'btts':
-        result_mapping = {0: "No BTTS", 1: "BTTS"}
-    else:
-        return
+    # Konwertujemy mapowanie z stringów na inty dla zgodności z wynikami np.argmax
+    result_mapping = {}
+    for key, value in label_mappings.items():
+        result_mapping[int(key)] = value
 
     for result, count in zip(unique, counts):
         percentage = (count / total) * 100
-        print(f"{result_mapping[result]}: {count} ({percentage:.2f}%)")
+        # Sprawdzamy czy klucz istnieje w mapowaniu, w przeciwnym razie używamy domyślnej etykiety
+        label = result_mapping.get(result, f"Klasa {result}")
+        print(f"{label}: {count} ({percentage:.2f}%)")
 
 
 def prepare_predictions(config, prediction_automate: bool, conn) -> list:
@@ -287,17 +269,10 @@ def prepare_predictions(config, prediction_automate: bool, conn) -> list:
     Przygotowuje predykcje dla nadchodzących meczów na podstawie konfiguracji
 
     Args:
-        config (ConfigManager): Obiekt zarządzający konfiguracją zawierający:
-            - model_type: Typ modelu (winner/goals/btts/exact)
-            - leagues: Lista lig do analizy
-            - sport_id: ID sportu
-            - country: ID kraju
-            - rating_config: Konfiguracja ratingu
-            - feature_columns: Lista kolumn z cechami
-            - window_size: Rozmiar okna czasowego
-            - match_attributes: Atrybuty meczu do analizy
+        config (ConfigManager): Obiekt zarządzający konfiguracją zawierający wszystkie parametry
         prediction_automate (bool): Flaga określająca, czy predykcje mają być automatycznie zapisywane do bazy danych
         conn: Połączenie z bazą danych
+        
     Returns:
         list: Lista przewidywań meczów zawierająca:
             - match_id: ID meczu
@@ -311,39 +286,27 @@ def prepare_predictions(config, prediction_automate: bool, conn) -> list:
         4. Generuje predykcje dla nadchodzących meczów
     """
     matches_df, teams_df, upcoming_df = get_matches(config)
-    model = model_module.ModelModule([], [], [], [], [], [])
+    model = model_module.ModelModule([], [], [], [], [], config.model_load_name, [], None, config.model_config)
+    
+    window_size = config.prediction_config.get("window_size", 5)  # Domyślna wartość 5
     predict_matches = prediction_module.PredictMatch(
         matches_df,
         upcoming_df,
         teams_df,
-        config.feature_columns,
+        config.feature_columns, 
         model,
-        config.model_type,
-        config.model_name,
-        config.window_size,
+        config.model_config["model_type"], 
+        config.model_config["model_name"],
+        window_size,
         conn,
-        prediction_automate=prediction_automate
+        prediction_automate=prediction_automate,
+        model_config=config.model_config
     )
 
     # Wczytanie wag modelu i wykonanie predykcji
     model.load_predict_model(config)
     predict_matches.predict_games(model, upcoming_df)
     return predict_matches.get_predictions()
-
-def run_tests(matches_predictions, analized_event, conn):
-    '''
-    Uruchamia testy na podstawie przewidywań meczów
-    Args:
-        matches_predictions (list): Lista przewidywań meczów zawierająca:
-            - match_id: ID meczu
-            - event_id: ID zdarzenia
-            - is_final: Czy wynik jest ostateczny
-        analized_event (str): Typ analizowanego zdarzenia (winner/goals/btts/exact)
-        conn: Połączenie z bazą danych
-    '''
-    tests = test_module.TestModule(matches_predictions, analized_event, conn)
-    tests.calculate_predictions_profit()
-
 
 def main() -> None:
     '''
@@ -354,12 +317,14 @@ def main() -> None:
     args_dict = arg_parser.parse_arguments()
     config.load_from_args(args_dict)
     prediction_automate = args_dict.get('prediction_automate', False)
-    if config.model_mode == 'train':
+    print(f"Tryb pracy: {args_dict['mode']}")
+    print(f"Typ modelu: {config.model_config['model_type']}")
+    if args_dict["mode"] == 'train':
         prepare_training(config)
-    elif config.model_mode == 'predict':
+    elif args_dict["mode"] == 'predict':
         matches_predictions = prepare_predictions(config, prediction_automate, conn)
-    elif config.model_mode == 'test':
-        run_tests(matches_predictions, config.model_type, conn)
+        print(f"Wygenerowano {len(matches_predictions)} predykcji")
+    
     conn.close()
 
 

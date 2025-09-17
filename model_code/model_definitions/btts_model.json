@@ -1,0 +1,131 @@
+{
+  "model_type": "btts",
+  "model_name": "btts_model_2",
+  "description": "Model BTTS (Both Teams To Score) - predykcja czy obie drużyny strzelą bramkę",
+  "output_config": {
+    "classes": 2,
+    "labels": [
+      "Nie",
+      "Tak"
+    ],
+    "label_mapping": {
+      "0": "Nie",
+      "1": "Tak"
+    }
+  },
+  "folder_config": {
+    "dev_folder": "model_btts_dev",
+    "release_folder": "model_btts_release"
+  },
+  "ratings":[
+    "gap"
+  ],
+  "supported_ratings": {
+    "elo": {
+        "enabled": false,
+        "description": "System rankingu ELO - standardowy ranking drużyn",
+        "parameters": {
+            "initial_rating": 1500,
+            "k_factor": 64,
+            "second_tier_coef": 0.8
+            },
+        "columns": [
+            "home_team_elo",
+            "away_team_elo"
+        ]
+    },
+    "gap": {
+      "enabled": true,
+      "description": "System rankingu GAP - sila ataku kluczowa dla BTTS",
+      "parameters": {
+        "match_attributes": [
+          "goals_home",
+          "goals_away",
+          "btts"
+        ]
+      },
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "home_goals_avg",
+        "away_goals_avg"
+      ]
+    },
+    "czech": {
+      "enabled": false,
+      "description": "System rankingu Czech - statystyki bramkowe kluczowe dla BTTS",
+      "columns": [
+        "home_team_home_win_pct",
+        "home_team_home_draw_pct",
+        "home_team_home_gs_avg",
+        "home_team_home_gc_avg",
+        "home_team_home_gs_std",
+        "home_team_home_gc_std",
+        "away_team_away_win_pct",
+        "away_team_away_draw_pct",
+        "away_team_away_gs_avg",
+        "away_team_away_gc_avg",
+        "away_team_away_gs_std",
+        "away_team_away_gc_std"
+      ]
+    }
+  },
+  "architecture_config": {
+    "lstm": {
+      "layers": [
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        },
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        }
+      ]
+    },
+    "dense_layers": [
+        {
+          "units": 128,
+          "activation": "relu",
+          "dropout": 0.5,
+          "batch_normalization": false
+        },
+        {
+          "units": 64,
+          "activation": "relu",
+          "dropout": 0.3,
+          "batch_normalization": false
+        }
+    ],
+    "output": {
+      "units": 2,
+      "activation": "softmax"
+    },
+    "model": {
+        "type": "LSTM",
+        "compilation": {
+            "optimizer": {
+            "type": "Adam",
+            "learning_rate": 0.001
+            },
+            "loss": "categorical_crossentropy",
+            "metrics": ["accuracy"]
+      }
+    }
+  },
+  "prediction_config": {
+    "events": [
+      172,
+      6
+    ],
+    "description": "Events: [No BTTS, BTTS]"
+  }
+}

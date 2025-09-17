@@ -1,0 +1,155 @@
+{
+  "model_type": "goals",
+  "model_name": "goals_model",
+  "description": "Model Goals - predykcja łącznej liczby bramek w meczu",
+  "window_size": 5,
+  "output_config": {
+    "classes": 7,
+    "labels": [
+      "0 bramek",
+      "1 bramka", 
+      "2 bramki",
+      "3 bramki",
+      "4 bramki",
+      "5 bramek",
+      "6+ bramek"
+    ],
+    "label_mapping": {
+      "0": "0 bramek",
+      "1": "1 bramka",
+      "2": "2 bramki",
+      "3": "3 bramki",
+      "4": "4 bramki",
+      "5": "5 bramek",
+      "6": "6+ bramek"
+    }
+  },
+  "folder_config": {
+    "dev_folder": "model_goals_dev",
+    "release_folder": "model_goals_release"
+  },
+  "ratings": [
+    "gap"
+  ],
+  "supported_ratings": {
+    "elo": {
+      "enabled": false,
+      "description": "System rankingu ELO - standardowy ranking drużyn (wyłączony dla modelu goals)",
+      "parameters": {
+        "initial_rating": 1500,
+        "second_tier_coef": 0.8,
+        "k_factor": 64
+      },
+      "columns": [
+        "home_team_elo",
+        "away_team_elo"
+      ]
+    },
+    "gap": {
+      "enabled": true,
+      "description": "System rankingu GAP - siła ataku i obrony drużyn, kluczowy dla przewidywania liczby bramek",
+      "parameters": {
+        "match_attributes": [
+          "goals_home",
+          "goals_away"
+        ]
+      },
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "home_goals_avg",
+        "away_goals_avg"
+      ]
+    },
+    "czech": {
+      "enabled": false,
+      "description": "System rankingu Czech - statystyki domowe i wyjazdowe drużyn, wpływa na przewidywanie liczby bramek",
+      "columns": [
+        "home_team_home_win_pct",
+        "home_team_home_draw_pct",
+        "home_team_home_gs_avg",
+        "home_team_home_gc_avg",
+        "home_team_home_gs_std",
+        "home_team_home_gc_std",
+        "away_team_away_win_pct",
+        "away_team_away_draw_pct",
+        "away_team_away_gs_avg",
+        "away_team_away_gc_avg",
+        "away_team_away_gs_std",
+        "away_team_away_gc_std"
+      ]
+    }
+  },
+  "architecture_config": {
+    "lstm": {
+      "layers": [
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.2, 0.2, 0.0],
+          "batch_normalization": [true, true, false]
+        },
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.2, 0.2, 0.0],
+          "batch_normalization": [true, true, false]
+        }
+      ]
+    },
+    "dense_layers": [
+      {
+        "units": 128,
+        "activation": "relu",
+        "dropout": 0.2,
+        "batch_normalization": false
+      },
+      {
+        "units": 64,
+        "activation": "relu",
+        "dropout": 0.0,
+        "batch_normalization": false
+      },
+      {
+        "units": 16,
+        "activation": "linear",
+        "dropout": 0.0,
+        "batch_normalization": false
+      }
+    ],
+    "output": {
+      "units": 7,
+      "activation": "softmax"
+    },
+    "model": {
+      "type": "LSTM",
+      "compilation": {
+        "optimizer": {
+          "type": "Adam",
+          "learning_rate": 0.00001
+        },
+        "loss": "categorical_crossentropy",
+        "metrics": ["accuracy", "Precision", "Recall"]
+      }
+    }
+  },
+  "prediction_config": {
+    "events": [
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180,
+      12,
+      8,
+      173
+    ],
+    "description": "Events: [0 goals, 1 goal, 2 goals, 3 goals, 4 goals, 5 goals, 6+ goals, over 2.5, under 2.5, exact goals]"
+  }
+}

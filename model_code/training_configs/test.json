@@ -1,0 +1,10 @@
+{
+    "sport_id": 1,
+    "window_size": 5,
+    "leagues": [],
+    "leagues_upcoming": [],
+    "country": [],
+    "load_weights": "0",
+    "model_load_name" : "",
+    "threshold_date": "2025-09-07"
+}
