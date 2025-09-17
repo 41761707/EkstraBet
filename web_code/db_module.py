@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 import sys
 import streamlit as st
+import warnings
+
+# Wyciszenie ostrzeżeń pandas dotyczących SQLAlchemy
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable.*")
 
 def db_connect():
     # Połączenie z bazą danych MySQL z użyciem sekretów

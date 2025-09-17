@@ -36,3 +36,5 @@ scrapper_code/Pilka/db_module.py
 scrapper_code/Hokej/db_module.py
 scrapper_code/Pilka/__pycache__/
 scrapper_code/Hokej/__pycache__/
+.vscode/
+/models/
