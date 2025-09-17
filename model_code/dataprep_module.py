@@ -3,7 +3,7 @@ import pandas as pd
 
 # @package dataprep
 # Moduł DataPrep zawiera funkcje i klasy służące do przygotowania danych do dalszych operacji w programie.
-# Wyragane zależności:
+# Wymagane zależności:
 # Moduł 'pandas'
 # Moduł 'numpy'
 

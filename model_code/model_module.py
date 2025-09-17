@@ -1,4 +1,3 @@
-from platform import architecture
 from typing import Any
 from tensorflow.keras.layers import Input, LSTM, Dense, Concatenate, Dropout, LeakyReLU, BatchNormalization
 from tensorflow.keras.models import Model, load_model

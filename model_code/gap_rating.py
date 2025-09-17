@@ -1,5 +1,4 @@
 from collections import deque
-import attr
 from tqdm import tqdm
 import rating_strategy
 
