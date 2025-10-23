@@ -217,7 +217,7 @@ def display_match_statistics(match_id: int, conn) -> None:
             ('team_sog', 'Strzały na bramkę'),
             ('team_fk', 'Rzuty wolne'),
             ('team_ck', 'Rzuty rożne'),
-            ('team_off', 'Spaleni'),
+            ('team_off', 'Spalone'),
             ('team_fouls', 'Faule'),
             ('team_yc', 'Żółte kartki'),
             ('team_rc', 'Czerwone kartki')
@@ -228,9 +228,13 @@ def display_match_statistics(match_id: int, conn) -> None:
             home_key = f'home_{stat_key}'
             away_key = f'away_{stat_key}'
             
+            # Pobierz surowe wartości numeryczne do porównania
+            home_raw_value = match_data.get(home_key, 'N/A')
+            away_raw_value = match_data.get(away_key, 'N/A')
+            
             # Formatowanie wartości
-            home_value = match_data.get(home_key, 'N/A')
-            away_value = match_data.get(away_key, 'N/A')
+            home_value = home_raw_value
+            away_value = away_raw_value
             
             # Specjalne formatowanie dla niektórych statystyk
             if home_value != 'N/A' and home_value is not None:
@@ -253,13 +257,35 @@ def display_match_statistics(match_id: int, conn) -> None:
             else:
                 away_value = "Brak danych"
             
+            # Określ kolory na podstawie porównania wartości
+            home_bg_color = "#f0f0f0"  # Domyślny szary kolor
+            away_bg_color = "#f0f0f0"  # Domyślny szary kolor
+            
+            # Porównaj wartości tylko jeśli obie są liczbami (nie "Brak danych")
+            if (home_raw_value is not None and home_raw_value != 'N/A' and home_raw_value != -1 and
+                away_raw_value is not None and away_raw_value != 'N/A' and away_raw_value != -1):
+                try:
+                    home_numeric = float(home_raw_value)
+                    away_numeric = float(away_raw_value)
+                    
+                    if home_numeric > away_numeric:
+                        home_bg_color = "#d4edda"  # Jasnozielony dla wyższej wartości
+                        away_bg_color = "#f8d7da"  # Jasnoczerwony dla niższej wartości
+                    elif away_numeric > home_numeric:
+                        home_bg_color = "#f8d7da"  # Jasnoczerwony dla niższej wartości
+                        away_bg_color = "#d4edda"  # Jasnozielony dla wyższej wartości
+                    # Jeśli wartości są równe, pozostawiamy domyślny kolor szary
+                except (ValueError, TypeError):
+                    # Jeśli nie można porównać wartości, użyj domyślnych kolorów
+                    pass
+            
             # Wyświetlenie statystyk
             with col1:
                 col1.markdown(
                     card_style.format(
                         value=home_value,
                         label=stat_label,
-                        bg_color="#e3f2fd"  # Jasnoniebieskie tło dla drużyny gospodarzy
+                        bg_color=home_bg_color
                     ),
                     unsafe_allow_html=True
                 )
@@ -269,7 +295,7 @@ def display_match_statistics(match_id: int, conn) -> None:
                     card_style.format(
                         value=away_value,
                         label=stat_label,
-                        bg_color="#ffebee"  # Jasnoczerwone tło dla drużyny gości
+                        bg_color=away_bg_color
                     ),
                     unsafe_allow_html=True
                 )

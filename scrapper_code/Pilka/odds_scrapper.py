@@ -270,9 +270,9 @@ def get_data(games, driver, matches_df, league_id, season_id, team_id, conn, mod
     for link in links[skip:len(matches_df)]:
         match_id = get_match_id(link, driver, matches_df,
                                 league_id, season_id, team_id)
-        #if check_odds_in_db(match_id, conn):
-        #    print(f"Kursy już istnieją dla meczu o id: {match_id}, pomijam...")
-        #    continue
+        if check_odds_in_db(match_id, conn):
+            print(f"Kursy już istnieją dla meczu o id: {match_id}, wychodzę...")
+            return
         if match_id == -1:
             print(f"Brak meczu w bazie danych, pomijam")
             continue

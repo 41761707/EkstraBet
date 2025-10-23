@@ -53,6 +53,7 @@ def launch_odds(links) -> None:
         links (list): Lista linków do lig, które mają być przetwarzane.
     """
     for current in links:
+        #current = current + 'wyniki/'
         print(f"# {current}")
         args = current.split()
         odds_scrapper.odds_to_automate(int(args[0]), int(
@@ -87,7 +88,7 @@ def main() -> None:
         '6 12 https://www.flashscore.pl/pilka-nozna/hiszpania/laliga-2025-2026/',
         '7 12 https://www.flashscore.pl/pilka-nozna/portugalia/liga-portugal-2025-2026/',
         '8 12 https://www.flashscore.pl/pilka-nozna/anglia/championship-2025-2026/',
-        # '10 11 https://www.flashscore.pl/pilka-nozna/australia/a-league-2024-2025/', #koniec ligi
+        '10 12 https://www.flashscore.pl/pilka-nozna/australia/a-league-2025-2026/',
         '11 12 https://www.flashscore.pl/pilka-nozna/belgia/jupiler-league-2025-2026/',
         '12 12 https://www.flashscore.pl/pilka-nozna/czechy/chance-liga-2025-2026/',
         '13 12 https://www.flashscore.pl/pilka-nozna/francja/ligue-2-2025-2026/',

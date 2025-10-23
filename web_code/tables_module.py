@@ -48,70 +48,96 @@ def matches_list_h2h(date, home_team, home_team_score, away_team, away_team_scor
     df.index = range(1, len(df) + 1)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-def increment_stat(team, teams_stats, result):
-    position = -1 
-    for i, subarray in enumerate(teams_stats):
-        if subarray[0] == team:
-            position = i
+def increment_stat(team, teams_stats, result, goals_for=0, goals_against=0):
+    """
+    Aktualizuje statystyki drużyny w tabeli ligowej.
+    
+    Args:
+        team: nazwa drużyny
+        teams_stats: lista statystyk wszystkich drużyn
+        result: wynik meczu (0=zwycięstwo, 1=remis, 2=porażka)
+        goals_for: bramki zdobyte przez drużynę
+        goals_against: bramki stracone przez drużynę
+    """
+    for team_stat in teams_stats:
+        if team_stat[0] == team:
+            team_stat[4] += 1  # Liczba meczów
+            team_stat[result + 1] += 1  # Zwycięstwa/remisy/porażki
+            team_stat[6] += goals_for  # Bramki zdobyte
+            team_stat[7] += goals_against  # Bramki stracone
+            
+            # Punkty: 3 za zwycięstwo, 1 za remis, 0 za porażkę
+            if result == 0:  # Zwycięstwo
+                team_stat[5] += 3
+            elif result == 1:  # Remis
+                team_stat[5] += 1
             break
-    teams_stats[position][-2] += 1 #Liczba meczów
-    teams_stats[position][result + 1] += 1
-    if result == 0:
-        teams_stats[position][-1] += 3
-    elif result == 1:
-        teams_stats[position][-1] += 1
-    else:
-        pass
 
 def generate_traditional_table(teams_dict, results_df, type):
-    teams_stats = [] #key, M, W, D, L, P
-    for k in teams_dict.values():
-        #Nazwa, zwycięstwa, remisy, porażki, liczba meczów, punkty
-        teams_stats.append([k, 0, 0, 0, 0, 0])
+    """
+    Generuje tradycyjną tabelę ligową z rozszerzonymi statystykami.
+    
+    Args:
+        teams_dict: słownik z nazwami drużyn
+        results_df: DataFrame z wynikami meczów
+        type: typ tabeli ('traditional', 'home', 'away')
+    """
+    # Inicjalizacja statystyk: [nazwa, zwycięstwa, remisy, porażki, mecze, punkty, bramki_zdobyte, bramki_stracone]
+    teams_stats = []
+    for team_name in teams_dict.values():
+        teams_stats.append([team_name, 0, 0, 0, 0, 0, 0, 0])
+    
+    # Przetwarzanie wyników meczów
     for _, row in results_df.iterrows():
-        if row.result == '1':
+        home_goals = row.home_team_goals
+        away_goals = row.away_team_goals
+        
+        if row.result == '1':  # Zwycięstwo gospodarza
             if type == 'traditional':
-                increment_stat(row.home_team, teams_stats, 0)
-                increment_stat(row.away_team, teams_stats, 2)
+                increment_stat(row.home_team, teams_stats, 0, home_goals, away_goals)  # Zwycięstwo
+                increment_stat(row.away_team, teams_stats, 2, away_goals, home_goals)  # Porażka
             elif type == 'home':
-                increment_stat(row.home_team, teams_stats, 0)
+                increment_stat(row.home_team, teams_stats, 0, home_goals, away_goals)
             elif type == 'away':
-                increment_stat(row.away_team, teams_stats, 2)
-            else:
-                st.write("Niepoprawny argument funkcji")
-        elif row.result == 'X':
-            if type == 'traditional':
-                increment_stat(row.home_team, teams_stats, 1)
-                increment_stat(row.away_team, teams_stats, 1)
-            elif type == 'home':
-                increment_stat(row.home_team, teams_stats, 1)
-            elif type == 'away':
-                increment_stat(row.away_team, teams_stats, 1)
-            else:
-                st.write("Niepoprawny argument funkcji")
-        else:
-            if type == 'traditional':
-                increment_stat(row.home_team, teams_stats, 2)
-                increment_stat(row.away_team, teams_stats, 0)
-            elif type == 'home':
-                increment_stat(row.home_team, teams_stats, 2)
-            elif type == 'away':
-                increment_stat(row.away_team, teams_stats, 0)
-            else:
-                st.write("Niepoprawny argument funkcji")
+                increment_stat(row.away_team, teams_stats, 2, away_goals, home_goals)
                 
-    sorted_teams_stats = sorted(teams_stats, key=lambda x: x[-1], reverse=True)
+        elif row.result == 'X':  # Remis
+            if type == 'traditional':
+                increment_stat(row.home_team, teams_stats, 1, home_goals, away_goals)
+                increment_stat(row.away_team, teams_stats, 1, away_goals, home_goals)
+            elif type == 'home':
+                increment_stat(row.home_team, teams_stats, 1, home_goals, away_goals)
+            elif type == 'away':
+                increment_stat(row.away_team, teams_stats, 1, away_goals, home_goals)
+                
+        else:  # row.result == '2' - Zwycięstwo gościa
+            if type == 'traditional':
+                increment_stat(row.home_team, teams_stats, 2, home_goals, away_goals)  # Porażka
+                increment_stat(row.away_team, teams_stats, 0, away_goals, home_goals)  # Zwycięstwo
+            elif type == 'home':
+                increment_stat(row.home_team, teams_stats, 2, home_goals, away_goals)
+            elif type == 'away':
+                increment_stat(row.away_team, teams_stats, 0, away_goals, home_goals)
+    
+    # Sortowanie według punktów (malejąco), następnie według różnicy bramek (malejąco)
+    sorted_teams_stats = sorted(teams_stats, key=lambda x: (x[5], x[6] - x[7]), reverse=True)
+    
+    # Przygotowanie danych do tabeli
     data = {
-    'Nazwa drużyny': [x[0] for x in sorted_teams_stats],
-    'Liczba meczów' : [x[4] for x in sorted_teams_stats],
-    'Zwycięstwa' : [x[1] for x in sorted_teams_stats],
-    'Remisy' : [x[2] for x in sorted_teams_stats],
-    'Porażki' : [x[3] for x in sorted_teams_stats],
-    'Punkty' : [x[5] for x in sorted_teams_stats]
+        'Nazwa drużyny': [team[0] for team in sorted_teams_stats],
+        'Liczba meczów': [team[4] for team in sorted_teams_stats],
+        'Zwycięstwa': [team[1] for team in sorted_teams_stats],
+        'Remisy': [team[2] for team in sorted_teams_stats],
+        'Porażki': [team[3] for team in sorted_teams_stats],
+        'Bramki': [f"{team[6]}:{team[7]}" for team in sorted_teams_stats],
+        '+/-': [team[6] - team[7] for team in sorted_teams_stats],
+        'Punkty': [team[5] for team in sorted_teams_stats]
     }
+    
     df = pd.DataFrame(data)
     df.index = range(1, len(df) + 1)
     st.table(df)
+    
     st.write('''Uwaga - prezentowana tabela nie przedstawia podziałów na grupy, które mogą zaistnieć dla niektórych lig. 
         Zgodnie ze standardowym punktowaniem wyników poniżej zaprezentowano sumaryczne osiągnięcia zespołów biorących udział
         w danych rozgrywkach na przestrzeni całego sezonu.''')

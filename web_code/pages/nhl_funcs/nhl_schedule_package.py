@@ -6,6 +6,31 @@ import graphs_module
 def match_predictions(match_id):
     st.write("Tutaj będą predykcje meczowe")
 
+def get_match_lineups_data(match_id, conn):
+    """
+    Pobiera dane o składach meczowych z cachowaniem.
+    
+    Args:
+        match_id (int): ID meczu
+        conn: Połączenie z bazą danych
+        
+    Returns:
+        pd.DataFrame: DataFrame z danymi składów
+    """
+    lineup_query = f'''SELECT 
+        t.id AS Drużyna, 
+        p.common_name AS Zawodnik, 
+        line.position AS Pozycja, 
+        line.number AS Numer, 
+        line.line AS Linia
+    FROM hockey_match_rosters line
+    JOIN players p ON line.player_id = p.id
+    JOIN matches m ON m.id = line.match_id
+    JOIN teams t ON t.id = line.team_id
+    WHERE m.id = {match_id}'''
+    
+    return pd.read_sql(lineup_query, conn)
+
 def match_lineups(match_id, home_team, home_team_id, away_team, away_team_id, conn):
     """
     Wyświetla składy obu drużyn biorących udział w meczu hokeja w formie tabeli i wizualizacji na lodowisku.
@@ -25,19 +50,7 @@ def match_lineups(match_id, home_team, home_team_id, away_team, away_team_id, co
     Returns:
         None: Funkcja nie zwraca żadnej wartości, ale renderuje dane w interfejsie Streamlit.
     """
-    lineup_query = f'''SELECT 
-        t.id AS Drużyna, 
-        p.common_name AS Zawodnik, 
-        line.position AS Pozycja, 
-        line.number AS Numer, 
-        line.line AS Linia
-    FROM hockey_match_rosters line
-    JOIN players p ON line.player_id = p.id
-    JOIN matches m ON m.id = line.match_id
-    JOIN teams t ON t.id = line.team_id
-    WHERE m.id = {match_id}'''
-    
-    lineup_pd = pd.read_sql(lineup_query, conn)
+    lineup_pd = get_match_lineups_data(match_id, conn)
     
     def display_lineup(team_name, team_id, column):
         with column:
@@ -54,6 +67,29 @@ def match_lineups(match_id, home_team, home_team_id, away_team, away_team_id, co
     col1, col2 = st.columns(2)
     display_lineup(home_team, home_team_id, col1)
     display_lineup(away_team, away_team_id, col2)
+
+def get_match_events_data(match_id, conn):
+    """
+    Pobiera dane o zdarzeniach meczowych z cachowaniem.
+    
+    Args:
+        match_id (int): ID meczu
+        conn: Połączenie z bazą danych
+        
+    Returns:
+        pd.DataFrame: DataFrame ze zdarzeniami meczowymi
+    """
+    events_query = f'''select 
+        t.name as Druzyna, p.common_name as Zawodnik, e.name as Zdarzenie, hme.period as Tercja, hme.event_time as Czas, hme.description as Opis
+            from hockey_match_events hme 
+            join players p on hme.player_id = p.id
+            join events e on e.id = hme.event_id
+            join matches m on m.id = hme.match_id
+            join teams t on t.id = hme.team_id
+            where m.id = {match_id}
+            order by m.id, hme.period, hme.event_time
+    '''
+    return pd.read_sql(events_query, conn)
 
 def match_events(match_id, home_team, conn):
     """
@@ -72,26 +108,16 @@ def match_events(match_id, home_team, conn):
         None: Funkcja nie zwraca żadnej wartości — dane są wyświetlane bezpośrednio w Streamlit.
     """
     
-    events_query = f'''select 
-        t.name as Druzyna, p.common_name as Zawodnik, e.name as Zdarzenie, hme.period as Tercja, hme.event_time as Czas, hme.description as Opis
-            from hockey_match_events hme 
-            join players p on hme.player_id = p.id
-            join events e on e.id = hme.event_id
-            join matches m on m.id = hme.match_id
-            join teams t on t.id = hme.team_id
-            where m.id = {match_id}
-            order by m.id, hme.period, hme.event_time
-    '''
-    events_pd = pd.read_sql(events_query, conn)
+    events_pd = get_match_events_data(match_id, conn)
     for i in range(1, 6):
         events_pd_i = events_pd[events_pd['Tercja'] == i].drop(columns=['Tercja'])
         if len(events_pd_i) > 0:
             if i == 4:
-                st.header("Dogrywka")
+                st.markdown("<h2 style='text-align: center;'>Dogrywka</h2>", unsafe_allow_html=True)
             elif i == 5:
-                st.header("Rzuty karne")
+                st.markdown("<h2 style='text-align: center;'>Rzuty karne</h2>", unsafe_allow_html=True)
             else:
-                st.header("Tercja {}".format(i))
+                st.markdown(f"<h2 style='text-align: center;'>Tercja {i}</h2>", unsafe_allow_html=True)
             home_team_col, away_team_col = st.columns(2)    
             for _, row in events_pd_i.iterrows():
                 if row['Druzyna'] == home_team:
@@ -141,11 +167,12 @@ def generate_event_entry(event_row, team_col, is_empty):
 
 def match_stats(match_row):
     """
-    Wyświetla statystyki meczowe obu drużyn w postaci kart z danymi w Streamlit.
+    Wyświetla statystyki meczowe obu drużyn w postaci kart z danymi w Streamlit z dynamicznym kolorowaniem.
 
     Funkcja przekształca wiersz DataFrame (zawierający statystyki meczowe) do słownika i renderuje dane
     dla drużyny gospodarzy i gości w dwóch osobnych kolumnach interfejsu Streamlit. Każda statystyka
-    prezentowana jest w formie estetycznej karty z opisem i tłem kolorystycznie odróżniającym drużyny.
+    prezentowana jest w formie estetycznej karty z kolorowaniem na podstawie porównania wartości
+    (zielony dla lepszej, czerwony dla gorszej, szary dla równych wartości).
 
     Statystyki obejmują m.in. bramki, strzały na bramkę, skuteczność w przewagach, liczbę kar,
     uderzeń, wznowień i inne wskaźniki związane z przebiegiem meczu hokejowego.
@@ -158,7 +185,7 @@ def match_stats(match_row):
         None: Funkcja renderuje dane bezpośrednio w interfejsie Streamlit.
     """
 
-    col1, _ , col3 = st.columns(3)
+    col1, col2, col3 = st.columns([2, 1, 2])
     match_row_dict = match_row.to_dict()
 
     # Stylizacja HTML dla kart z danymi
@@ -176,51 +203,150 @@ def match_stats(match_row):
         <div style="font-size: 16px; color: #777;">{label}</div>
     </div>
     """
+    with col1:
+        if 'home_team' in match_row_dict:
+            st.markdown(f"### {match_row_dict['home_team']}")
+        else:
+            st.markdown("### Gospodarze")
+    with col3:
+        if 'away_team' in match_row_dict:
+            st.markdown(f"### {match_row_dict['away_team']}")
+        else:
+            st.markdown("### Goście")
     
-    # Mapowanie nazw statystyk
-    stat_name = {
-        'team': 'Nazwa drużyny',
-        'team_shortcut' : 'Skrót nazwy',
-        'goals': 'Bramki',
-        'team_sog': 'Strzały na bramkę',
-        'team_fk': 'Minuty kar',
-        'team_fouls': 'Liczba kar',
-        'team_pp_goals': 'Liczba bramek w przewadze (PP)',
-        'team_sh_goals': "Liczba bramek w osłabieniu (SH)",
-        'team_shots_acc': "Skuteczność strzałów (%)",
-        'team_saves': "Liczba obron",
-        'team_saves_acc': 'Skuteczność obron (%)',
-        'team_pp_acc': 'Skuteczność gier w przewadze (%)',
-        'team_pk_acc': 'Skuteczność gier w osłabieniu (%)',
-        'team_faceoffs': 'Liczba wygranych wznowień',
-        'team_faceoffs_acc': 'Skuteczność wznowień (%)',
-        'team_hits': 'Liczba uderzeń',
-        'team_to': 'Liczba strat',
-        'team_en': 'Liczba bramek strzelonych na pustą bramkę'
-    }
+    stats_to_display = [
+        ('goals', 'Bramki'),
+        ('team_sog', 'Strzały na bramkę'),
+        ('team_fk', 'Minuty kar'),
+        ('team_fouls', 'Liczba kar'),
+        ('team_pp_goals', 'Bramki w przewadze (PP)'),
+        ('team_sh_goals', 'Bramki w osłabieniu (SH)'),
+        ('team_shots_acc', 'Skuteczność strzałów (%)'),
+        ('team_saves', 'Liczba obron'),
+        ('team_saves_acc', 'Skuteczność obron (%)'),
+        ('team_pp_acc', 'Skuteczność w przewadze (%)'),
+        ('team_pk_acc', 'Skuteczność w osłabieniu (%)'),
+        ('team_faceoffs', 'Wygrane wznowienia'),
+        ('team_faceoffs_acc', 'Skuteczność wznowień (%)'),
+        ('team_hits', 'Liczba uderzeń'),
+        ('team_to', 'Liczba strat'),
+        ('team_en', 'Bramki na pustą bramkę')
+    ]
+    reverse_stats = ['team_fk', 'team_fouls', 'team_to']
 
-    # Iteracja przez statystyki i renderowanie
-    for key, value in match_row_dict.items():
-        if key in ('home_team_id', 'away_team_id'):
-            continue
-        if 'home' in key:
+    for stat_key, stat_label in stats_to_display:
+        home_key = f'home_{stat_key}'
+        away_key = f'away_{stat_key}'
+        home_raw_value = match_row_dict.get(home_key, None)
+        away_raw_value = match_row_dict.get(away_key, None)
+        home_value = home_raw_value
+        away_value = away_raw_value
+        
+        # Specjalne formatowanie dla niektórych statystyk
+        if home_value is not None and home_value != -1:
+            if 'acc' in stat_key and home_value != 0:
+                home_value = f"{float(home_value):.2f}%" if home_value != -1 else "Brak danych"
+            elif stat_key == 'team_fk':
+                home_value = f"{home_value} min" if home_value != -1 else "Brak danych"
+            else:
+                home_value = str(home_value) if home_value != -1 else "Brak danych"
+        else:
+            home_value = "Brak danych"
+            
+        if away_value is not None and away_value != -1:
+            if 'acc' in stat_key and away_value != 0:
+                away_value = f"{float(away_value):.2f}%" if away_value != -1 else "Brak danych"
+            elif stat_key == 'team_fk':
+                away_value = f"{away_value} min" if away_value != -1 else "Brak danych"
+            else:
+                away_value = str(away_value) if away_value != -1 else "Brak danych"
+        else:
+            away_value = "Brak danych"
+        # Domyślne kolory
+        home_bg_color = "#f0f0f0"
+        away_bg_color = "#f0f0f0"
+        
+        # Porównaj wartości tylko jeśli obie są liczbami (nie "Brak danych")
+        if (home_raw_value is not None and home_raw_value != -1 and
+            away_raw_value is not None and away_raw_value != -1):
+            home_numeric = float(home_raw_value) if home_raw_value != 0 else 0
+            away_numeric = float(away_raw_value) if away_raw_value != 0 else 0
+            is_reverse = stat_key in reverse_stats
+            if home_numeric > away_numeric:
+                if is_reverse:
+                    home_bg_color = "#f8d7da" 
+                    away_bg_color = "#d4edda" 
+                else:
+                    home_bg_color = "#d4edda"
+                    away_bg_color = "#f8d7da" 
+            elif away_numeric > home_numeric:
+                if is_reverse:
+                    home_bg_color = "#d4edda"
+                    away_bg_color = "#f8d7da"
+                else:
+                    home_bg_color = "#f8d7da"
+                    away_bg_color = "#d4edda"
+        with col1:
             col1.markdown(
                 card_style.format(
-                    value=value,
-                    label=stat_name[key.replace('home_', '')],
-                    bg_color="#e3f2fd"  # Jasnoniebieskie tło dla drużyny gospodarzy
+                    value=home_value,
+                    label=stat_label,
+                    bg_color=home_bg_color
                 ),
                 unsafe_allow_html=True
             )
-        elif 'away' in key:
+        # Brak col2 - pusta kolumna do oddzielenia
+        with col3:
             col3.markdown(
                 card_style.format(
-                    value=value,
-                    label=stat_name[key.replace('away_', '')],
-                    bg_color="#ffebee"  # Jasnoczerwone tło dla drużyny gości
+                    value=away_value,
+                    label=stat_label,
+                    bg_color=away_bg_color
                 ),
                 unsafe_allow_html=True
             )
+
+def get_match_boxscore_goalies_data(match_id, conn):
+    """
+    Pobiera statystyki bramkarzy z meczu z cachowaniem.
+    
+    Args:
+        match_id (int): ID meczu
+        conn: Połączenie z bazą danych
+        
+    Returns:
+        pd.DataFrame: DataFrame ze statystykami bramkarzy
+    """
+    boxscore_goaltenders = f'''select 
+            t.name as Drużyna, p.common_name as Zawodnik, box.points as Punkty, box.penalty_minutes as "Kary(MIN)", box.toi as TOI, 
+            box.shots_against as Strzały, box.shots_saved as Obronione, box.saves_acc as "Skuteczność Obron(%)"
+        from hockey_match_player_stats box 
+        join players p on box.player_id = p.id
+        join matches m on m.id = box.match_id
+        join teams t on t.id = box.team_id
+        where m.id = {match_id} and p.position = 'G' ''' 
+    return pd.read_sql(boxscore_goaltenders, conn)
+ 
+def get_match_boxscore_players_data(match_id, conn):
+    """
+    Pobiera statystyki zawodników z pola z meczu z cachowaniem.
+    
+    Args:
+        match_id (int): ID meczu
+        conn: Połączenie z bazą danych
+        
+    Returns:
+        pd.DataFrame: DataFrame ze statystykami zawodników z pola
+    """
+    boxscore_others = f'''select 
+            t.name as Drużyna, p.common_name as Zawodnik, box.goals as Bramki, box.assists as Asysty, box.points as Punkty, box.plus_minus as "+/-",
+            box.penalty_minutes as "Kary(MIN)", box.sog as SOG, box.toi as TOI
+        from hockey_match_player_stats box 
+        join players p on box.player_id = p.id
+        join matches m on m.id = box.match_id
+        join teams t on t.id = box.team_id
+        where m.id = {match_id} and p.position <> 'G' ''' 
+    return pd.read_sql(boxscore_others, conn)
 
 def match_boxscore(match_id, conn):
     """
@@ -242,41 +368,19 @@ def match_boxscore(match_id, conn):
     """
         
     st.subheader("Bramkarze")
-    boxscore_goaltenders = f'''select 
-            t.name as Drużyna, p.common_name as Zawodnik, box.points as Punkty, box.penalty_minutes as "Kary(MIN)", box.toi as TOI, 
-            box.shots_against as Strzały, box.shots_saved as Obronione, box.saves_acc as "Skuteczność Obron(%)"
-        from hockey_match_player_stats box 
-        join players p on box.player_id = p.id
-        join matches m on m.id = box.match_id
-        join teams t on t.id = box.team_id
-        where m.id = {match_id} and p.position = 'G' ''' 
-    boxscore_goaltenders_pd = pd.read_sql(boxscore_goaltenders, conn)
+    boxscore_goaltenders_pd = get_match_boxscore_goalies_data(match_id, conn)
     boxscore_goaltenders_pd.index = range(1, len(boxscore_goaltenders_pd) + 1)
     boxscore_goaltenders_pd['Skuteczność Obron(%)'] = boxscore_goaltenders_pd['Skuteczność Obron(%)'].apply(lambda x: f"{x:.2f}")
     st.table(boxscore_goaltenders_pd)
     st.subheader("Zawodnicy")
-    boxscore_others = f'''select 
-            t.name as Drużyna, p.common_name as Zawodnik, box.goals as Bramki, box.assists as Asysty, box.points as Punkty, box.plus_minus as "+/-",
-            box.penalty_minutes as "Kary(MIN)", box.sog as SOG, box.toi as TOI
-        from hockey_match_player_stats box 
-        join players p on box.player_id = p.id
-        join matches m on m.id = box.match_id
-        join teams t on t.id = box.team_id
-        where m.id = {match_id} and p.position <> 'G' ''' 
-    boxscore_pd = pd.read_sql(boxscore_others, conn)
+    boxscore_pd = get_match_boxscore_players_data(match_id, conn)
     boxscore_pd.index = range(1, len(boxscore_pd) + 1)
     players_styled = boxscore_pd.style.applymap(graphs_module.highlight_cells_plus_minus, subset = ["+/-"])
     st.table(players_styled)
 
-def get_teams(league, season, conn):
-    all_teams = "select distinct t.id, t.name from matches m join teams t on (m.home_team = t.id or m.away_team = t.id) where m.league = {} and m.season = {} order by t.name ".format(league, season)
-    all_teams_df = pd.read_sql(all_teams, conn)
-    teams_dict = all_teams_df.set_index('id')['name'].to_dict()
-    return teams_dict
-
 def get_team_info(team_id, lookback, matches_df):
     """
-    Przetwarza dane meczowe dla wybranej drużyny.
+    Przetwarza dane meczowe dla wybranej drużyny z cachowaniem.
     
     Args:
         team_id (int): ID drużyny
@@ -346,104 +450,84 @@ def get_team_info(team_id, lookback, matches_df):
     
     return team_info_parsed
 
-def league_table(matches, team_ids, winner_gain, draw_gain, ot_gain_winner, ot_gain_loser, scope='all'):
-    # team_ids zawiera słownik drużyn, w którym każda drużyna zawiera listę 
-    # [liczba meczów, wygrane, remisy (dla hokeja tez robimy), przegrane, bramki zdobyte, bramki stracone, różnica bramek, punkty
-    # + w hokeju liczba wygranych po OT/SO, liczba przegranych po OT/SO]
-    # scope: 'all' - wszystkie mecze, 'home' - tylko domowe, 'away' - tylko wyjazdowe
-    
-    for _, row in matches.iterrows():
-        home_team_id = row['home_team_id']
-        away_team_id = row['away_team_id']
-        home_goals = row['home_goals']
-        away_goals = row['away_goals']
-        overtime_winner = row['OTwinner']
-        shootout_winner = row['SOwinner']
-
-        # Sprawdzamy zakres meczów do uwzględnienia
-        process_home = (scope == 'all' or scope == 'home')
-        process_away = (scope == 'all' or scope == 'away')
-
-        # Aktualizacja meczów rozegranych
-        if process_home:
-            team_ids[home_team_id][0] += 1
-        if process_away:
-            team_ids[away_team_id][0] += 1
-
-        # Aktualizacja bramek zdobytych i straconych
-        if process_home:
-            team_ids[home_team_id][4] += home_goals
-            team_ids[home_team_id][5] += away_goals
-        if process_away:
-            team_ids[away_team_id][4] += away_goals
-            team_ids[away_team_id][5] += home_goals
-
-        # Określenie wyniku meczu
-        if home_goals > away_goals:
-            if process_home:
-                team_ids[home_team_id][1] += 1  # Home team wins
-                team_ids[home_team_id][7] += winner_gain
-            if process_away:
-                team_ids[away_team_id][3] += 1  # Away team loses
-        elif home_goals < away_goals:
-            if process_home:
-                team_ids[home_team_id][3] += 1  # Home team loses
-            if process_away:
-                team_ids[away_team_id][1] += 1  # Away team wins
-                team_ids[away_team_id][7] += winner_gain
-        else:
-            if process_home:
-                team_ids[home_team_id][2] += 1  # Draw
-                team_ids[home_team_id][7] += draw_gain
-            if process_away:
-                team_ids[away_team_id][2] += 1  # Draw
-                team_ids[away_team_id][7] += draw_gain
-            
-            if overtime_winner == 1 or shootout_winner == 1:
-                if process_home:
-                    team_ids[home_team_id][8] += 1  # OT/SO win
-                    team_ids[home_team_id][7] += ot_gain_winner
-                    team_ids[home_team_id][4] += 1  # Extra goal for OT/SO win
-                if process_away:
-                    team_ids[away_team_id][9] += 1  # OT/SO loss
-                    team_ids[away_team_id][7] += ot_gain_loser
-                    team_ids[away_team_id][5] += 1  # Extra goal for OT/SO loss
-            elif overtime_winner == 2 or shootout_winner == 2:
-                if process_home:
-                    team_ids[home_team_id][9] += 1
-                    team_ids[home_team_id][7] += ot_gain_loser
-                    team_ids[home_team_id][5] += 1  # Extra goal for OT/SO loss
-                if process_away:
-                    team_ids[away_team_id][8] += 1
-                    team_ids[away_team_id][7] += ot_gain_winner
-                    team_ids[away_team_id][4] += 1  # Extra goal for OT/SO win
-        
-        # Aktualizacja różnicy bramek
-        if process_home:
-            team_ids[home_team_id][6] = team_ids[home_team_id][4] - team_ids[home_team_id][5]
-        if process_away:
-            team_ids[away_team_id][6] = team_ids[away_team_id][4] - team_ids[away_team_id][5]
-
 def get_team_players_stats(key, season, conn):
     """
-    Pobiera dane o zawodnikach drużyny z bazy danych.
+    Pobiera dane o zawodnikach drużyny z bazy danych, zwraca osobne tabele dla bramkarzy i zawodników z pola.
 
     Args:
         key (int): ID drużyny, dla której mają zostać pobrane dane o zawodnikach.
+        season (int): Sezon, dla którego mają zostać pobrane dane.
         conn (MySQLConnection): Połączenie do bazy danych.
 
     Returns:
-        pd.DataFrame: DataFrame zawierający dane o zawodnikach drużyny.
+        tuple: Dwie tabele (bramkarze_df, zawodnicy_df) zawierające dane o zawodnikach drużyny.
     """
+    
+    # Zapytanie dla bramkarzy (pozycja 'G')
+    goalies_query = f'''SELECT 
+        p.common_name as 'Zawodnik',
+        COUNT(*) as 'Mecze',
+        COALESCE(SUM(box.goals), 0) as 'Bramki',
+        COALESCE(SUM(box.assists), 0) as 'Asysty',
+        COALESCE(SUM(box.points), 0) as 'Punkty',
+        ROUND(AVG(box.shots_against), 2) as 'Strzały na bramkę (AVG)',
+        ROUND(AVG(box.shots_saved), 2) as 'Obrony (AVG)',
+        ROUND(AVG(box.saves_acc), 2) as 'Skuteczność (%, AVG)',
+        round(avg(box.toi), 2) as 'Czas gry (min, AVG)'
+    FROM hockey_match_player_stats box
+    JOIN players p ON box.player_id = p.id
+    JOIN matches m ON m.id = box.match_id 
+    WHERE box.team_id = {key} AND m.season = {season} AND p.position = 'G'
+    GROUP BY p.id, p.common_name
+    ORDER BY COUNT(*) DESC'''
+    
+    # Zapytanie dla zawodników z pola (pozycje inne niż 'G')
+    players_query = f'''SELECT 
+        p.common_name as 'Zawodnik',
+        p.position as 'Pozycja',
+        COUNT(*) as 'Mecze',
+        SUM(box.goals) as 'Bramki',
+        SUM(box.assists) as 'Asysty',
+        SUM(box.points) as 'Punkty',
+        SUM(box.plus_minus) as '+/-',
+        ROUND(AVG(box.sog), 2) as 'Strzały na bramkę (AVG)',
+        SUM(box.penalty_minutes) as 'Minuty kar',
+        round(avg(box.toi), 2) as 'Czas gry (min, AVG)'
+    FROM hockey_match_player_stats box
+    JOIN players p ON box.player_id = p.id
+    JOIN matches m ON m.id = box.match_id 
+    WHERE box.team_id = {key} AND m.season = {season} AND p.position != 'G'
+    GROUP BY p.id, p.common_name, p.position
+    ORDER BY SUM(box.points) DESC, COUNT(*) DESC'''
+    
+    goalie_df = pd.read_sql(goalies_query, conn)
+    goalie_df.index = range(1, len(goalie_df) + 1)
+    players_df = pd.read_sql(players_query, conn)
+    players_df.index = range(1, len(players_df) + 1)
+    return goalie_df, players_df
 
-    #Logika i zapytanie do sporej poprawy
-    query = f'''SELECT p.id, p.common_name, p.position, t.name, count(*) as games_played, sum(box.goals), sum(box.assists), sum(box.points), sum(box.plus_minus), round(avg(box.sog), 1), round(avg(box.toi), 2)
-                FROM hockey_match_player_stats box
-                JOIN players p ON box.player_id = p.id
-                JOIN matches m ON m.id = box.match_id 
-                JOIN teams t ON box.team_id = t.id 
-                WHERE t.id = {key} and m.season = {season}
-                group by p.id, p.common_name, p.position, t.name'''
-    players_df = pd.read_sql(query, conn)
-    return players_df
+def match_dev_info(row, league_id, season_id):
+    """Wyświetla szczegółowe dane techniczne meczu NHL dla developerów w eleganckiej formie.
+    
+    Args:
+        row (pd.Series): Wiersz DataFrame z danymi meczu NHL
+        league_id (int): ID ligi
+        season_id (int): ID sezonu
+        
+    Returns:
+        None: Funkcja wyświetla dane w interfejsie Streamlit
+    """
+    st.header("Dla developerów")
+    dev_data_ids = {
+        "ID meczu": row.id,
+        "ID Ligi": league_id,
+        "ID sezonu": season_id,
+        "Wynik (1/X/2)": row.result if hasattr(row, 'result') else "N/A",
+        "Gole gospodarzy": row.home_goals if hasattr(row, 'home_goals') else "N/A",
+        "Gole gości": row.away_goals if hasattr(row, 'away_goals') else "N/A",
+        "Data meczu": row.game_date.strftime('%d.%m.%Y') if hasattr(row, 'game_date') and pd.notna(row.game_date) else "N/A"
+    }
+    
+    for key, value in dev_data_ids.items():
+        st.write(f"{key}: {value}")
 

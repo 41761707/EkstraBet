@@ -347,8 +347,8 @@ def get_match_links(games: str, driver) -> list[str]:
             # Przekształć link na format ze statystykami
             if "?" in href:
                 base_link, query = href.split("?", 1)
-                stats_link = f"{base_link}statystyki/0/?{query}"
+                stats_link = f"{base_link}szczegoly/statystyki/0/?{query}"
             else:
-                stats_link = f"{href}statystyki/0/"
+                stats_link = f"{href}szczegoly/statystyki/0/"
             links.append(stats_link)
     return links

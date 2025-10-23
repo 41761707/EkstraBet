@@ -1,13 +1,12 @@
 import streamlit as st
 st.set_page_config(page_title = "NHL", page_icon = "🏒", layout="wide")
 
-import base_site_module
 import db_module
 import pandas as pd
 import graphs_module
 import tables_module
 import statistics
-from pages.nhl_funcs import nhl_schedule_package
+from pages.nhl_funcs import nhl_schedule_package, nhl_table_package
 
 class HockeySite:
     def __init__(self, conn, name, league):
@@ -27,10 +26,21 @@ class HockeySite:
         self.selected_round = 100 #Faza sezonu (100 - sezon zasadniczy, 200 - playoffy)
         self.lookback_games = 10  # liczba ostatnich meczów branych pod uwagę w analizie
         self.date_filter = True #czy filtrujemy po dacie
-        #self.ou_line = 5.5/6.5 #linia over/under dla NHL
+        self.ou_line = 5.5 #linia over/under dla wykresów
         st.header(name)
 
-    def get_matches(self):
+    @st.cache_data(ttl=300)
+    def get_matches(_self, league_id, season_id):
+        """
+        Pobiera mecze dla danej ligi i sezonu z cachowaniem.
+        
+        Args:
+            league_id (int): ID ligi
+            season_id (int): ID sezonu
+            
+        Returns:
+            pd.DataFrame: DataFrame z danymi meczów
+        """
         query = f'''SELECT m.id as id, cast(m.game_date as date) as game_date, m.round as round, 
                         t1.name as home_team, t1.id as home_team_id, t1.shortcut as home_team_shortcut, 
                         t2.name as away_team, t2.id as away_team_id, t2.shortcut as away_team_shortcut,
@@ -54,25 +64,88 @@ class HockeySite:
                     join hockey_matches_add ad on m.id = ad.match_id
                     join teams t1 on m.home_team = t1.id
                     join teams t2 on m.away_team = t2.id
-                    where m.league = {self.league} and m.season = {self.seasons[self.selected_season]}
+                    where m.league = {league_id} and m.season = {season_id}
                     order by m.game_date desc'''
-        self.matches = pd.read_sql(query, self.conn)
+        return pd.read_sql(query, _self.conn)
     
+    @st.cache_data(ttl=600)
+    def get_seasons(_self):
+        """
+        Pobiera listę sezonów dla hokeja z cachowaniem.
+            
+        Returns:
+            dict: Słownik {nazwa_sezonu: id_sezonu}
+        """
+        seasons_query = "SELECT id, years from seasons where id in (select distinct(season) from matches m where m.sport_id = 2) order by years desc"
+        cursor = _self.conn.cursor()
+        cursor.execute(seasons_query)
+        seasons = {years: season_id for season_id, years in cursor.fetchall()}
+        cursor.close()
+        return seasons
+    
+    @st.cache_data(ttl=900)
+    def get_divisions_cached(_self, league_id):
+        """
+        Pobiera listę dywizji dla danej ligi z cachowaniem.
+        Args:
+            league_id (int): ID ligi
+        Returns:
+            dict: Słownik {id_dywizji: nazwa_dywizji}
+        """
+        return nhl_table_package.get_divisions(league_id, _self.conn)
+    
+    @st.cache_data(ttl=900)
+    def get_conferences_cached(_self, league_id):
+        """
+        Pobiera listę konferencji dla danej ligi z cachowaniem.
+        Args:
+            league_id (int): ID ligi  
+        Returns:
+            dict: Słownik {id_konferencji: nazwa_konferencji}
+        """
+        return nhl_table_package.get_conferences(league_id, _self.conn)
+
+    @st.cache_data(ttl=900)
+    def get_teams_cached(_self, league_id, season_id):
+        """
+        Pobiera listę drużyn dla danej ligi i sezonu z cachowaniem.
+        
+        Args:
+            league_id (int): ID ligi
+            season_id (int): ID sezonu  
+            
+        Returns:
+            dict: Słownik {id_drużyny: nazwa_drużyny}
+        """
+        return nhl_table_package.get_teams(league_id, season_id, _self.conn)
+
+    @st.cache_data(ttl=600)
+    def get_team_players_stats_cached(_self, team_id, season_id):
+        """
+        Pobiera statystyki zawodników drużyny z cachowaniem.
+        
+        Args:
+            team_id (int): ID drużyny
+            season_id (int): ID sezonu
+            
+        Returns:
+            tuple: (bramkarze_df, zawodnicy_df)
+        """
+        return nhl_schedule_package.get_team_players_stats(team_id, season_id, _self.conn)
+
     def generate_site(self):
         self.generate_config()
         self.generate_schedule_tab()
         self.generate_teams_tab()
         self.generate_table_tab()
+        self.generate_league_stats_tab()
 
     def generate_config(self):
         st.subheader("Konfiguracja strony")
         self.date_filter = st.checkbox("Filtruj po dacie", value=True, key='regular_season')
         col1, col2, col3 = st.columns(3)
-        cursor = self.conn.cursor()
         with col1:
-            seasons_query = "SELECT id, years from seasons where id in (select distinct(season) from matches m where m.sport_id = 2) order by years desc"
-            cursor.execute(seasons_query)
-            self.seasons = {years: season_id for season_id, years in cursor.fetchall()}
+            self.seasons = self.get_seasons()
             seasons_list = [season for season in self.seasons.keys()]
             self.selected_season = st.selectbox("Sezon", seasons_list, key='selected_season')
             self.season = self.seasons[self.selected_season]
@@ -95,9 +168,8 @@ class HockeySite:
             self.ou_line = st.slider("Linia Over/Under", 4.0, 8.0, 5.5, 0.5)
         with col6:
             self.h2h = st.slider("Liczba prezentowanych spotkań H2H", 0, 10, 5)
-        cursor.close()
 
-        self.get_matches()
+        self.matches = self.get_matches(self.league, self.seasons[self.selected_season])
 
     def matches_buttons(self, filtered_matches):
         for _, row in filtered_matches.iterrows():
@@ -133,7 +205,12 @@ class HockeySite:
             st.write("Brak meczów dla wprowadzonej konfiguracji")
     
     def match_details(self, row):
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Meczowe predykcje", "Składy", "Przebieg meczu", "Statystyki pomeczowe", "Boxscore - statystyki zawodników"])
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Meczowe predykcje", 
+                                                      "Składy", 
+                                                      "Przebieg meczu", 
+                                                      "Statystyki pomeczowe", 
+                                                      "Boxscore - statystyki zawodników", 
+                                                      "Dla developerów"])
         with tab1:
             nhl_schedule_package.match_predictions(row.id)
         with tab2:
@@ -148,9 +225,11 @@ class HockeySite:
             nhl_schedule_package.match_stats(row)
         with tab5:
             nhl_schedule_package.match_boxscore(row.id, self.conn)
+        with tab6:
+            nhl_schedule_package.match_dev_info(row, self.league, self.season)
 
     def generate_teams_tab(self):
-        self.teams_dict = nhl_schedule_package.get_teams(self.league, self.season, self.conn)
+        self.teams_dict = self.get_teams_cached(self.league, self.season)
         with st.expander("Zespoły w sezonie {}".format(self.selected_season)):
             st.header("Drużyny grające w {} w sezonie {}:".format(self.name, self.selected_season))
             for key, value in self.teams_dict.items():
@@ -164,8 +243,11 @@ class HockeySite:
                         pass
                         #nhl_schedule_package.get_team_roster(key, value, self.conn)
                     with tab3:
-                        current_team_player_stats = nhl_schedule_package.get_team_players_stats(key, self.season, self.conn)
-                        st.dataframe(current_team_player_stats)
+                        goalie_df, player_df = self.get_team_players_stats_cached(key, self.season)
+                        st.header("Statystyki bramkarzy")
+                        st.dataframe(goalie_df)
+                        st.header("Statystyki zawodników")
+                        st.dataframe(player_df)
                     with tab4:
                         pass
     
@@ -185,21 +267,29 @@ class HockeySite:
         col1, col2 = st.columns(2)
         with col1:
             with st.container():
-                graphs_module.goals_bar_chart(date, opponent, goals, team_name, self.ou_line, "Bramki w meczach")
+                graphs_module.vertical_bar_chart(date, opponent, goals, team_name, self.ou_line, "Bramki w meczach")
         with col2:
             with st.container():
-                graphs_module.goals_bar_chart(date, opponent, home_team_sog, team_name, statistics.mean(home_team_sog), "Liczba oddanych strzałów przez")
+                st.info("Analiza liczby bramek w 1 tercji - do opracowania")
+                pass  # Liczba bramek 1 tercja
         col3, col4 = st.columns(2)
         with col3:
             with st.container():
-                graphs_module.winner_bar_chart_v2(results, team_name)
+                graphs_module.vertical_bar_chart(date, opponent, home_team_sog, team_name, statistics.mean(home_team_sog), "Liczba strzałów celnych drużyny")
         with col4:
+            with st.container():
+                graphs_module.vertical_bar_chart(date, opponent, away_team_sog, team_name, statistics.mean(away_team_sog), "Liczba strzałów przeciwników")
+        col5, col6 = st.columns(2)
+        with col5:
+            with st.container():
+                graphs_module.winner_bar_chart_v2(results, team_name)
+        with col6:
             with st.container():
                 tables_module.matches_list(date, home_team, home_team_score, away_team, away_team_score, team_name)
     
     def create_table(self, matches, scope):
         team_ids = {team_id: [0] * 10 for team_id in self.teams_dict}
-        nhl_schedule_package.league_table(matches, team_ids, 2, 0, 2, 1, scope)
+        nhl_table_package.league_table(matches, team_ids, 2, 0, 2, 1, scope)
         table_data = {
             "Drużyna": [self.teams_dict[team_id] for team_id in team_ids.keys()],
             "Mecze": [team_stats[0] for team_stats in team_ids.values()],
@@ -219,7 +309,7 @@ class HockeySite:
         return table_df
 
     def generate_table_tab(self):
-
+        '''Generowanie tabeli ligowej dla wybranego sezonu i fazy rozgrywek'''
         with st.expander("Tabele ligowe"):
             regular_season_matches = self.matches[self.matches['round'] == 100]  
             tab1, tab2, tab3, tab4 = st.tabs([
@@ -241,9 +331,12 @@ class HockeySite:
                 st.dataframe(
                     self.create_table(regular_season_matches, 'away'),
                     use_container_width=True)
-            
             st.write("Legenda: WPD - wygrane po dogrywce, PPD - przegrane po dogrywce")
-
+            
+    def generate_league_stats_tab(self):
+        '''Generowanie statystyk ligowych dla wybranego sezonu'''
+        with st.expander("Statystyki ligowe"):
+            st.write("Tutaj statystyki (liczba bramek w meczu / rozkład zwycięstw (gospo/goście/ + dogrywka))")
 
 if __name__ == '__main__':
     conn = db_module.db_connect()

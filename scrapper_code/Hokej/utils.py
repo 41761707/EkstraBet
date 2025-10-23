@@ -1,5 +1,7 @@
 
 
+import db_module
+
 def check_if_in_db(home_team: str, away_team: str, game_date: str = None, round_num: str = None, season: int = None, conn=None) -> int:
     """Sprawdza, czy mecz jest już w bazie danych.
     
@@ -18,6 +20,7 @@ def check_if_in_db(home_team: str, away_team: str, game_date: str = None, round_
     Returns:
         int: ID meczu, jeśli istnieje, -1 w przeciwnym razie.
     """
+    conn = db_module.db_connect() if conn is None else conn
     cursor = conn.cursor()
     try:
         if game_date is not None:

@@ -53,8 +53,8 @@ def get_match_data(
     )
     
     match_id = check_if_in_db(match_data.home_team, match_data.away_team, game_date=match_data.game_date, conn=conn)
-    #if match_id != -1:
-    #    return -1
+    if match_id != -1:
+        return -1
     
     score_str = match_info[5] if len(match_info) > 5 else ''
     home_goals, away_goals = parse_score(score_str)
@@ -101,6 +101,10 @@ def to_automate(league_id: int, season_id: int, games: str, single_match: bool =
             match_data = get_match_data(driver, league_id, season_id, link, team_id, conn)
             if match_data == -1:
                 print("Mecz już istnieje w bazie danych lub wystąpił błąd parsowania.")
+                # Zapisz dotychczasowy postęp przed zakończeniem
+                if inserts and automate:
+                    update_db(inserts, conn)
+                    print(f"Zapisano {len(inserts)} meczów przed zakończeniem.")
                 driver.quit()
                 conn.close()
                 return

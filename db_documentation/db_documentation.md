@@ -4,6 +4,10 @@
 ## Opis struktury bazy 
 
 ## Wszystkie tabele w bazie danych
+- [BASKETBALL_CURRENT_ROSTER](#basketball_current_roster) (Aktualne składy drużyn koszykarskich)
+- [BASKETBALL_MATCH_PLAYER_STATS](#basketball_match_player_stats) (Statystyki graczy w meczu koszykarskim)
+- [BASKETBALL_MATCHES_ADD](#basketball_matches_add) (Dodatkowe statystyki meczów koszykarskich)
+- [BASKETBALL_MATCH_ROSTERS](#basketball_match_rosters) (Składy drużyn koszykarskich w danym spotkaniu)
 - [BETS](#bets) (Wszystkie możliwe do zrealizowania zakłady)
 - [BOOKMAKERS](#bookmakers) (Wszyscy bukmacherzy brani pod uwagę w ramach badania)
 - [CONFERENCE_DIVISIONS](#conference_divisions) (Dywizje przypisane do konferencji (dotyczy lig północnoamerykańskich))
@@ -45,6 +49,162 @@
 - Wartości domyslne **-1** w miejscach, gdzie zbiór wartości to [0, +inf) oznaczają "brak danych"
 
 ## Opisy poszczególnych tabel
+
+### BASKETBALL_CURRENT_ROSTER
+(Tabela z aktualnymi składami drużyn koszykarskich)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        | INT           | INT      | Klucz główny, automatycznie generowany            | AUTOMATYCZNIE GENEROWANE |
+| *TEAM_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *teams* | NULL |
+| *PLAYER_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *players* | NULL |
+| NUMBER         | INT         | INT | Numer zawodnika w drużynie | NULL |
+| STARTER | INT | {0,1} | Flaga, czy zawodnik jest podstawowym zawodnikiem drużyny (1 - tak, 0 - nie) | 0 |
+| IS_INJURED | INT | {0,1} | Flaga, czy zawodnik jest kontuzjowany (1 - tak, 0 - nie) | 0 |
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- **Unikalny indeks**: `TEAM_ID`, `PLAYER_ID` (zapobiega duplikatom zawodników w ramach jednego zespołu)
+**Sposób generowania danych do tabeli**:
+Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.py**
+---
+
+### BASKETBALL_MATCH_PLAYER_STATS
+(Statystyki graczy w meczu koszykarskim)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *MATCH_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *matches* | NULL |
+| *TEAM_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *teams* | NULL |
+| *PLAYER_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *players* | NULL |
+| POINTS | INT          | INT       | Liczba punktów zdobytych przez zawodnika w meczu | -1            |
+| REBOUNDS | INT          | INT       | Liczba zbiórek zdobytych przez zawodnika w meczu | -1            |
+| ASSISTS | INT          | INT       | Liczba asyst wykonanych przez zawodnika w meczu | -1            |
+| TIME_PLAYED | VARCHAR(9)         | 00:00:00 - 99:59:59       | Czas gry zawodnika w meczu (w minutach) | -1            |
+| FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów z gry przez zawodnika w meczu | -1            |
+| FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów z gry przez zawodnika w meczu | -1            |
+| 2_P_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów za 2 punkty przez zawodnika w meczu | -1            |
+| 2_P_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów za 2 punkty przez zawodnika w meczu | -1            |
+| 3_P_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów za 3 punkty przez zawodnika w meczu | -1            |
+| 3_P_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów za 3 punkty przez zawodnika w meczu | -1            |
+| FT_MADE | INT          | INT       | Liczba trafionych rzutów wolnych przez zawodnika w meczu | -1            |
+| FT_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów wolnych przez zawodnika w meczu | -1            |
+| PLUS_MINUS | INT          | INT       | Wskaźnik plus/minus zawodnika w meczu | -1            |
+| OFF_REBOUNDS | INT          | INT       | Liczba ofensywnych zbiórek zdobytych przez zawodnika w meczu | -1            |
+| DEF_REBOUNDS | INT          | INT       | Liczba defensywnych zbiórek zdobytych przez zawodnika w meczu | -1            |
+| PERSONAL_FOULS | INT          | INT       | Liczba przewinień osobistych popełnionych przez zawodnika w meczu | -1            |
+| STEALS | INT          | INT       | Liczba przechwytów dokonanych przez zawodnika w meczu | -1            |
+| TURNOVERS | INT          | INT       | Liczba strat popełnionych przez zawodnika w meczu | -1            |
+| BLOCKED_SHOTS | INT          | INT       | Liczba zablokowanych rzutów dokonanych przez zawodnika w meczu | -1            |
+| BLOCKS_AGAINST | INT          | INT       | Liczba zablokowanych rzutów przeciwko zawodnikowi w meczu | -1            |
+| TECHNICAL_FOULS | INT          | INT       | Liczba przewinień technicznych popełnionych przez zawodnika w meczu | -1            |
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- **Unikalny indeks**: `MATCH_ID`, `TEAM_ID`, `PLAYER_ID` (zapobiega duplikatom statystyk dla tego samego zawodnika w danym meczu)
+
+**Sposób generowania danych do tabeli**:
+Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.py**
+
+---
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- **Unikalny indeks**: `MATCH_ID`, `TEAM_ID`, `PLAYER_ID` (zapobiega duplikatom statystyk dla tego samego zawodnika w danym meczu)
+
+**Sposób generowania danych do tabeli**:
+Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.py**
+---
+
+### BASKETBALL_MATCH_ROSTERS
+(Składy drużyn koszykarskich w danym spotkaniu)
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *MATCH_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *matches* | NULL |
+| *TEAM_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *teams* | NULL |
+| *PLAYER_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *players* | NULL |
+| NUMBER | INT          | INT       | Numer zawodnika w meczu | -1            |
+| STARTER | INT          | {0,1}       | Flaga, czy zawodnik był podstawowym zawodnikiem drużyny w meczu (1 - tak, 0 - nie) | 0            |
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- **Unikalny indeks**: `MATCH_ID`, `TEAM_ID`, `PLAYER_ID` (zapobiega duplikatom zawodników w ramach jednego meczu i drużyny)
+
+**Sposób generowania danych do tabeli**:
+Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.py**
+
+---
+
+### BASKETBALL_MATCHES_ADD
+(Dodatkowe statystyki meczów koszykarskich)
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:            |
+| **ID**        |  INT          | INT       | ID przypisania    | AUTOMATYCZNIE GENEROWANY            |
+| *MATCH_ID* | INT         | INT       | Klucz obcy, powiązanie z tabelą *matches* | NULL |
+| HOME_TEAM_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów z gry przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów z gry przez drużynę gości w meczu | -1            |
+| HOME_TEAM_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów z gry przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów z gry przez drużynę gości w meczu | -1            |
+| HOME_TEAM_FIELD_GOALS_ACC | FLOAT          | FLOAT       | Skuteczność rzutów z gry drużyny gospodarzy w meczu | -1            |
+| AWAY_TEAM_FIELD_GOALS_ACC | FLOAT          | FLOAT       | Skuteczność rzutów z gry drużyny gości w meczu | -1            |
+| HOME_TEAM_2_P_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów za 2 punkty przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_2_P_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów za 2 punkty przez drużynę gości w meczu | -1            |
+| HOME_TEAM_2_P_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów za 2 punkty przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_2_P_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów za 2 punkty przez drużynę gości w meczu | -1            |
+| HOME_TEAM_2_P_ACC | FLOAT          | FLOAT       | Skuteczność rzutów za 2 punkty drużyny gospodarzy w meczu | -1            |
+| AWAY_TEAM_2_P_ACC | FLOAT          | FLOAT       | Skuteczność rzutów za 2 punkty drużyny gości w meczu | -1            |
+| HOME_TEAM_3_P_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów za 3 punkty przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_3_P_FIELD_GOALS_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów za 3 punkty przez drużynę gości w meczu | -1            |
+| HOME_TEAM_3_P_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów za 3 punkty przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_3_P_FIELD_GOALS_MADE | INT          | INT       | Liczba trafionych rzutów za 3 punkty przez drużynę gości w meczu | -1            |
+| HOME_TEAM_3_P_ACC | FLOAT          | FLOAT       | Skuteczność rzutów za 3 punkty drużyny gospodarzy w meczu | -1            |
+| AWAY_TEAM_3_P_ACC | FLOAT          | FLOAT       | Skuteczność rzutów za 3 punkty drużyny gości w meczu | -1            |
+| HOME_TEAM_FT_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów wolnych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_FT_ATTEMPTS | INT          | INT       | Liczba oddanych rzutów wolnych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_FT_MADE | INT          | INT       | Liczba trafionych rzutów wolnych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_FT_MADE | INT          | INT       | Liczba trafionych rzutów wolnych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_FT_ACC | FLOAT          | FLOAT       | Skuteczność rzutów wolnych drużyny gospodarzy w meczu | -1            |
+| AWAY_TEAM_FT_ACC | FLOAT          | FLOAT       | Skuteczność rzutów wolnych drużyny gości w meczu | -1            |
+| HOME_TEAM_OFF_REBOUNDS | INT          | INT       | Liczba ofensywnych zbiórek zdobytych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_OFF_REBOUNDS | INT          | INT       | Liczba ofensywnych zbiórek zdobytych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_DEF_REBOUNDS | INT          | INT       | Liczba defensywnych zbiórek zdobytych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_DEF_REBOUNDS | INT          | INT       | Liczba defensywnych zbiórek zdobytych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_REBOUNDS_TOTAL | INT          | INT       | Łączna liczba zbiórek zdobytych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_REBOUNDS_TOTAL | INT          | INT       | Łączna liczba zbiórek zdobytych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_ASSISTS | INT          | INT       | Liczba asyst wykonanych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_ASSISTS | INT          | INT       | Liczba asyst wykonanych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_BLOCKS | INT          | INT       | Liczba zablokowanych rzutów dokonanych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_BLOCKS | INT          | INT       | Liczba zablokowanych rzutów dokonanych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_TURNOVERS | INT          | INT       | Liczba strat popełnionych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_TURNOVERS | INT          | INT       | Liczba strat popełnionych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_STEALS | INT          | INT       | Liczba przechwytów dokonanych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_STEALS | INT          | INT       | Liczba przechwytów dokonanych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_PERSONAL_FOULS | INT          | INT       | Liczba przewinień osobistych popełnionych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_PERSONAL_FOULS | INT          | INT       | Liczba przewinień osobistych popełnionych przez drużynę gości w meczu | -1            |
+| HOME_TEAM_TECHNICAL_FOULS | INT          | INT       | Liczba przewinień technicznych popełnionych przez drużynę gospodarzy w meczu | -1            |
+| AWAY_TEAM_TECHNICAL_FOULS | INT          | INT       | Liczba przewinień technicznych popełnionych przez drużynę gości w meczu | -1            |
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- **Unikalny indeks**: `MATCH_ID` (zapobiega duplikatom dodatkowych statystyk dla tego samego meczu)
+
+**Sposób generowania danych do tabeli**:
+Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.py**
+---
 
 ### BETS 
 (Wszystkie możliwe do zrealizowania zakłady)
