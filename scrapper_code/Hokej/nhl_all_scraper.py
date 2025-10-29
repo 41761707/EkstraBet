@@ -1,20 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Scraper danych meczów NHL z FlashScore - obsługa nowego formatu URL z parametrem ?mid=
-
-Ten skrypt obsługuje wyłącznie nowy format URL-ów FlashScore z parametrem ?mid=.
-Stary format z fragmentami (#/) nie jest już obsługiwany.
-
-Przykład obsługiwanego formatu URL:
-https://www.flashscore.pl/mecz/hokej/san-jose-sharks-E588Co9j/utah-mammoth-hnwxhtVp/?mid=hh8uZJlL
-"""
-
 import time
 import argparse
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from datetime import datetime
+from datetime import datetime, date, timedelta
+
 import pandas as pd
 import re
 from utils import check_if_in_db
@@ -75,6 +64,8 @@ class Game:
         """
         Mapuje nazwę rundy playoff na odpowiedni numer ID w bazie danych.
         
+        Metoda pobiera ID rundy z tabeli special_rounds na podstawie nazwy rundy.
+        
         Args:
             round_str (str): Tekstowa nazwa rundy w formacie "FAZA, X runda"
             
@@ -82,58 +73,17 @@ class Game:
             int: ID rundy zgodne z mapowaniem w bazie danych (900-966)
                  lub None jeśli runda nie została znaleziona
         """
-        special_round_names = {
-            '1/64-FINAŁU, 1 runda': 900,
-            '1/64-FINAŁU, 2 runda': 901,
-            '1/64-FINAŁU, 3 runda': 902,
-            '1/64-FINAŁU, 4 runda': 903,
-            '1/64-FINAŁU, 5 runda': 904,
-            '1/64-FINAŁU, 6 runda': 905,
-            '1/64-FINAŁU, 7 runda': 906,
-            '1/32-FINAŁU, 1 runda': 910,
-            '1/32-FINAŁU, 2 runda': 911,
-            '1/32-FINAŁU, 3 runda': 912,
-            '1/32-FINAŁU, 4 runda': 913,
-            '1/32-FINAŁU, 5 runda': 914,
-            '1/32-FINAŁU, 6 runda': 915,
-            '1/32-FINAŁU, 7 runda': 916,
-            '1/16-FINAŁU, 1 runda': 920,
-            '1/16-FINAŁU, 2 runda': 921,
-            '1/16-FINAŁU, 3 runda': 922,
-            '1/16-FINAŁU, 4 runda': 923,
-            '1/16-FINAŁU, 5 runda': 924,
-            '1/16-FINAŁU, 6 runda': 925,
-            '1/16-FINAŁU, 7 runda': 926,
-            '1/8-FINAŁU, 1 runda': 930,
-            '1/8-FINAŁU, 2 runda': 931,
-            '1/8-FINAŁU, 3 runda': 932,
-            '1/8-FINAŁU, 4 runda': 933,
-            '1/8-FINAŁU, 5 runda': 934,
-            '1/8-FINAŁU, 6 runda': 935,
-            '1/8-FINAŁU, 7 runda': 936,
-            'ĆWIERĆFINAŁ, 1 runda': 940,
-            'ĆWIERĆFINAŁ, 2 runda': 941,
-            'ĆWIERĆFINAŁ, 3 runda': 942,
-            'ĆWIERĆFINAŁ, 4 runda': 943,
-            'ĆWIERĆFINAŁ, 5 runda': 944,
-            'ĆWIERĆFINAŁ, 6 runda': 945,
-            'ĆWIERĆFINAŁ, 7 runda': 946,
-            'PÓŁFINAŁ, 1 runda': 950,
-            'PÓŁFINAŁ, 2 runda': 951,
-            'PÓŁFINAŁ, 3 runda': 952,
-            'PÓŁFINAŁ, 4 runda': 953,
-            'PÓŁFINAŁ, 5 runda': 954,
-            'PÓŁFINAŁ, 6 runda': 955,
-            'PÓŁFINAŁ, 7 runda': 956,
-            'FINAŁ, 1 runda': 960,
-            'FINAŁ, 2 runda': 961,
-            'FINAŁ, 3 runda': 962,
-            'FINAŁ, 4 runda': 963,
-            'FINAŁ, 5 runda': 964,
-            'FINAŁ, 6 runda': 965,
-            'FINAŁ, 7 runda': 966
-        }
-        return special_round_names.get(round_str)
+        cursor = self.conn.cursor()
+        query = "SELECT id FROM special_rounds WHERE name = %s"
+        cursor.execute(query, (round_str,))
+        result = cursor.fetchone()
+        cursor.close()
+        if result:
+            return result[0]
+        else:
+            print(f"UWAGA: Nie znaleziono ID dla rundy: {round_str}")
+            return -1
+        
 
 
     def parse_match_date(self, match_date):
@@ -838,6 +788,52 @@ class Game:
             for key,value in element.items():
                 print("{} : {}".format(key, value))
 
+    def get_upcoming_matches(self, link, team_id, timer, driver):
+        match_data = {
+            'league': 0,
+            'season': 0,
+            'home_team' : 0,
+            'away_team' : 0,
+            'game_date' : 0,
+            'round' : 0,
+            'result' : 0,
+            'sport_id' : 2}
+        match_info = []
+        self.driver.get(link)
+        time.sleep(timer)
+        round_div = self.driver.find_elements(By.CLASS_NAME, "wcl-scores-overline-03_KIU9F")
+        game_div = self.driver.find_elements(By.CLASS_NAME, "infoBox__info")
+        match_data['round'] = self.extract_round(round_div, game_div)
+        if match_data['round'] == -1:
+            return -1
+        # Parsowanie danych ze strony przy użyciu wyodrębnionej funkcji
+        match_info, _ = self.parse_match_page_data(self.driver)
+        # Wypełnienie danych meczu
+        match_data['league'] = self.league_id
+        match_data['season'] = self.season_id
+        match_data['home_team'] = team_id[match_info[1]]
+        match_data['away_team'] = team_id[match_info[3]]
+        match_data['game_date'] = self.parse_match_date(match_info[0])
+        
+        # Sprawdzenie czy data meczu nie jest późniejsza niż jutrzejsza data
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+        match_date_obj = datetime.strptime(match_data['game_date'], "%Y-%m-%d %H:%M").date()
+        
+        if match_date_obj > tomorrow:
+            print(f"#Mecz z dnia {match_date_obj} jest późniejszy niż jutrzejsza data ({tomorrow}). Przerywanie pobierania.")
+            return -1
+        
+        check_id = check_if_in_db(match_data['home_team'], match_data['away_team'], game_date=match_data['game_date'])
+        if check_id != -1:
+            print(f"#Ten mecz znajduje się już w bazie danych!, ID:{check_id}")
+            return -1
+        
+        upcoming_match_id = self.insert_match_data(match_data)
+        print(f"#Dodano nadchodzący mecz do bazy danych: {upcoming_match_id}")
+        return upcoming_match_id
+
+
     def get_match_data(self, link, team_id, automate=False, update=False):
         """
         Główna metoda pobierająca wszystkie dane meczu z FlashScore i zapisująca je do bazy danych.
@@ -946,6 +942,7 @@ class Game:
         if automate:
             if 'existing_id' in match_data and update:
                 # Aktualizacja istniejącego meczu
+                self.update_match_data(match_data, match_data['existing_id'])
                 match_stats_add['match_id'] = match_data['existing_id']
                 print(f"#AKTUALIZACJA MECZU O ID: {match_stats_add['match_id']}")
             else:
@@ -1037,6 +1034,29 @@ class Game:
         match_id = cursor.fetchone()[0]
         cursor.close()
         return match_id
+
+    def update_match_data(self, match_data, match_id):
+        """
+        Aktualizuje istniejący mecz w tabeli matches.
+        Args:
+            match_data (dict): Słownik z danymi meczu do aktualizacji
+            match_id (int): ID meczu do aktualizacji
+        Returns:
+            None
+        """
+        # Usuwamy existing_id z danych do aktualizacji (nie jest kolumną w tabeli)
+        update_data = {k: v for k, v in match_data.items() if k != 'existing_id'}
+        set_clause = ', '.join([f"{key} = %s" for key in update_data.keys()])
+        query = f"UPDATE matches SET {set_clause} WHERE id = %s;"
+        values = list(update_data.values())
+        values.append(match_id)
+        debug_values = ', '.join([f"{key} = '{value}'" for key, value in update_data.items()])
+        debug_query = f"UPDATE matches SET {debug_values} WHERE id = {match_id};"
+        print(debug_query)
+        cursor = self.conn.cursor()
+        cursor.execute(query, tuple(values))
+        self.conn.commit()
+        cursor.close()
 
 def get_shortcuts(conn, country):
     """
@@ -1172,10 +1192,6 @@ def main():
             timer = timer_dict['update']
     else:
         print("Tryb testowy - dane będą tylko przetwarzane bez zapisu do bazy.")
-    
-    if args.upcoming:
-        print("Tryb przyszłych meczów - funkcjonalność do późniejszej implementacji.")
-        timer = timer_dict['upcoming']
 
     conn = db_connect()
     options = webdriver.ChromeOptions()
@@ -1186,7 +1202,16 @@ def main():
     team_id = get_teams_ids(conn, country)
     shortcuts = get_shortcuts(conn, country)
     game_data = Game(driver, args.league_id, args.season_id, shortcuts, conn)
-    
+
+    if args.upcoming:
+        timer = timer_dict['upcoming']
+        links = game_data.get_match_links(args.games_url, timer, driver)
+        for link in links:
+            match_id = game_data.get_upcoming_matches(link, team_id, timer, driver)
+            if match_id == -1:
+                print("# Zakończono przetwarzanie przyszłych meczów.")
+                return
+
     if args.one_link == '-1':
         links = game_data.get_match_links(args.games_url, timer, driver)
         if args.no_to_download == -1:
