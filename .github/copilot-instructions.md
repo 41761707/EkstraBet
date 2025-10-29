@@ -104,6 +104,7 @@ W przypadku pytań lub niejasnych konwencji, zapoznaj się z `Home.py`, `main.py
 - Dokumentację techniczną umieszczaj w plikach README.md oraz docstringach. Jeżeli w danym folderze istnieje już plik README.md to go rozszerz - nigdy sam nie twórz nowego, chyba, że zostałeś o to jawnie poproszony
 - W przypadku Streamlit używaj `unsafe_allow_html=True` do customizacji UI.
 - Pisząc komunikację z bazą danych pamiętaj o efektywnym zarządzaniu pobranymi danymi (na przykład: korzystaj z cacheowania)
+- Przy generowaniu elementów interfejsu użytkownika unikaj nadmiernego użycia nagłówków (###, #### itp.), które mogą zaburzać czytelność i estetykę strony oraz emotikonek
 
 ## 8. Przykłady i workflow
 
