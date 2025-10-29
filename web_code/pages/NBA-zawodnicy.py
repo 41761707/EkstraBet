@@ -52,7 +52,8 @@ def get_player_season_stats_cached(player_id, season_id, limit_games):
     query = f"""
         SELECT t1.name as Gospodarz, t2.name as Gość, date_format(cast(m.game_date as date), '%d.%m') AS Data, 
         stat.points, stat.rebounds, stat.assists, stat.field_goals_made, stat.field_goals_attempts, 
-        stat.3_p_field_goals_made, stat.3_p_field_goals_attempts, stat.steals, stat.turnovers, stat.time_played,
+        stat.2_p_field_goals_made, stat.2_p_field_goals_attempts, stat.3_p_field_goals_made, stat.3_p_field_goals_attempts, 
+        stat.ft_made, stat.ft_attempts, stat.steals, stat.turnovers, stat.time_played,
         CASE WHEN t1.id = stat.team_id THEN t2.shortcut WHEN t2.id = stat.team_id THEN t1.shortcut END AS opponent
         FROM basketball_match_player_stats stat
         JOIN matches m on stat.match_id = m.id
@@ -70,9 +71,15 @@ def get_player_season_stats_cached(player_id, season_id, limit_games):
     # Obliczanie skuteczności rzutów z gry
     stats_df['fg_percentage'] = stats_df.apply(lambda row: 
         (row['field_goals_made'] / row['field_goals_attempts'] * 100) if row['field_goals_attempts'] > 0 else 0, axis=1)
+    # Obliczanie skuteczności rzutów za 2 punkty
+    stats_df['2p_percentage'] = stats_df.apply(lambda row: 
+        (row['2_p_field_goals_made'] / row['2_p_field_goals_attempts'] * 100) if row['2_p_field_goals_attempts'] > 0 else 0, axis=1)
     # Obliczanie skuteczności rzutów za 3 punkty
     stats_df['3p_percentage'] = stats_df.apply(lambda row: 
         (row['3_p_field_goals_made'] / row['3_p_field_goals_attempts'] * 100) if row['3_p_field_goals_attempts'] > 0 else 0, axis=1)
+    # Obliczanie skuteczności rzutów wolnych
+    stats_df['ft_percentage'] = stats_df.apply(lambda row: 
+        (row['ft_made'] / row['ft_attempts'] * 100) if row['ft_attempts'] > 0 else 0, axis=1)
     stats_df.reset_index(drop=True, inplace=True)
     conn.close()
     return stats_df
@@ -87,7 +94,9 @@ class BasketballPlayers:
         self.rebounds_line = 5.5
         self.assists_line = 3.5
         self.field_goals_line = 5.5
+        self.two_pointers_line = 3.5
         self.three_pointers_line = 1.5
+        self.free_throws_line = 3.5
         self.steals_line = 1.5
         self.turnovers_line = 2.5
         self.time_line = 25.0
@@ -100,7 +109,7 @@ class BasketballPlayers:
                 border: 1px solid #cccccc;
                 border-radius: 8px;
                 margin-bottom: 10px;
-                height: 200px;
+                height: 175px;
             }
             .tile-title {
                 font-size: 36px;
@@ -137,7 +146,9 @@ class BasketballPlayers:
             'Zbiórki': 'rebounds',
             'Asysty': 'assists',
             'Rzuty z gry trafione': 'field_goals_made',
+            'Rzuty za 2 punkty': '2_p_field_goals_made',
             'Rzuty za 3 punkty': '3_p_field_goals_made',
+            'Rzuty wolne trafione': 'ft_made',
             'Przechwyty': 'steals',
             'Straty': 'turnovers',
             'Czas gry': 'time_played'
@@ -230,6 +241,15 @@ class BasketballPlayers:
                         self.field_goals_line,
                         "Rzuty z gry trafione"
                     )
+                elif stat == "Rzuty za 2 punkty":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'], 
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['2_p_field_goals_made'],
+                        self.player_full_name,
+                        self.two_pointers_line,
+                        "Rzuty za 2 punkty trafione"
+                    )
                 elif stat == "Rzuty za 3 punkty":
                     graphs_module.vertical_bar_chart(
                         self.current_player_stats['Data'], 
@@ -238,6 +258,15 @@ class BasketballPlayers:
                         self.player_full_name,
                         self.three_pointers_line,
                         "Rzuty za 3 punkty trafione"
+                    )
+                elif stat == "Rzuty wolne trafione":
+                    graphs_module.vertical_bar_chart(
+                        self.current_player_stats['Data'], 
+                        self.current_player_stats['opponent'],
+                        self.current_player_stats['ft_made'],
+                        self.player_full_name,
+                        self.free_throws_line,
+                        "Rzuty wolne trafione"
                     )
                 elif stat == "Przechwyty":
                     graphs_module.vertical_bar_chart(
@@ -325,7 +354,7 @@ class BasketballPlayers:
         st.subheader("Statystyki do wyświetlania")
         self.selected_player_stats = st.multiselect(
             "Wybierz statystyki zawodników, które chcesz wyświetlać:",
-            options=["Punkty", "Zbiórki", "Asysty", "Rzuty z gry trafione", "Rzuty za 3 punkty", "Przechwyty", "Straty", "Czas gry"],
+            options=["Punkty", "Zbiórki", "Asysty", "Rzuty z gry trafione", "Rzuty za 2 punkty", "Rzuty za 3 punkty", "Rzuty wolne trafione", "Przechwyty", "Straty", "Czas gry"],
             default=["Punkty", "Zbiórki", "Asysty", "Rzuty z gry trafione"],
             help="Możesz wybrać kilka opcji jednocześnie"
         )
@@ -347,8 +376,12 @@ class BasketballPlayers:
                         self.assists_line = st.slider("Linia asystowa", 0.0, 15.0, 3.5, 0.5, key="assists_slider")
                     elif stat == "Rzuty z gry trafione":
                         self.field_goals_line = st.slider("Linia rzutów z gry", 0.0, 20.0, 5.5, 0.5, key="field_goals_slider")
+                    elif stat == "Rzuty za 2 punkty":
+                        self.two_pointers_line = st.slider("Linia rzutów za 2 punkty", 0.0, 15.0, 3.5, 0.5, key="two_pointers_slider")
                     elif stat == "Rzuty za 3 punkty":
                         self.three_pointers_line = st.slider("Linia rzutów za 3 punkty", 0.0, 10.0, 1.5, 0.5, key="three_pointers_slider")
+                    elif stat == "Rzuty wolne trafione":
+                        self.free_throws_line = st.slider("Linia rzutów wolnych", 0.0, 15.0, 3.5, 0.5, key="free_throws_slider")
                     elif stat == "Przechwyty":
                         self.steals_line = st.slider("Linia przechwytów", 0.0, 5.0, 1.5, 0.5, key="steals_slider")
                     elif stat == "Straty":
@@ -358,7 +391,7 @@ class BasketballPlayers:
         
     def player_stats_summary(self):
         # CSS for centering the content
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        col1, col2, col3, col4= st.columns(4)
         with col1:
             st.markdown(f"""
             <div class="tile">
@@ -392,15 +425,15 @@ class BasketballPlayers:
                 <div class="tile-description">Skuteczność rzutów z gry</div>
             </div>
             """, unsafe_allow_html=True)
+        
+        col5, col6, col7, col8 = st.columns(4)
         with col5:
-            average_time = self.current_player_stats['time_minutes'].mean()
-            average_minutes = int(average_time)
-            average_seconds = int(round((average_time - average_minutes) * 60))
+            avg_2p_percentage = self.current_player_stats['2p_percentage'].mean()
             st.markdown(f"""
             <div class="tile">
-                <div class="tile-title">🕓</div>
-                <div class="tile-header">{average_minutes}:{average_seconds:02d}</div>
-                <div class="tile-description">Średni czas gry</div>
+                <div class="tile-title">🎲</div>
+                <div class="tile-header">{round(float(avg_2p_percentage), 1)}%</div>
+                <div class="tile-description">Skuteczność rzutów za 2</div>
             </div>
             """, unsafe_allow_html=True)
         with col6:
@@ -410,6 +443,26 @@ class BasketballPlayers:
                 <div class="tile-title">🎪</div>
                 <div class="tile-header">{round(float(avg_3p_percentage), 1)}%</div>
                 <div class="tile-description">Skuteczność rzutów za 3</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col7:
+            avg_ft_percentage = self.current_player_stats['ft_percentage'].mean()
+            st.markdown(f"""
+            <div class="tile">
+                <div class="tile-title">�</div>
+                <div class="tile-header">{round(float(avg_ft_percentage), 1)}%</div>
+                <div class="tile-description">Skuteczność rzutów wolnych</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col8:
+            average_time = self.current_player_stats['time_minutes'].mean()
+            average_minutes = int(average_time)
+            average_seconds = int(round((average_time - average_minutes) * 60))
+            st.markdown(f"""
+            <div class="tile">
+                <div class="tile-title">🕓</div>
+                <div class="tile-header">{average_minutes}:{average_seconds:02d}</div>
+                <div class="tile-description">Średni czas gry</div>
             </div>
             """, unsafe_allow_html=True)
 

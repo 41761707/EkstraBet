@@ -56,6 +56,25 @@ def get_teams(league, season, conn):
     teams_dict = all_teams_df.set_index('id')['name'].to_dict()
     return teams_dict
 
+def get_conference_divisions(conference, league, conn):
+    """
+    Pobiera listę dywizji dla danej konferencji i ligi z cachowaniem.
+    Args:
+        conference (int): ID konferencji
+        league (int): ID ligi
+        conn: Połączenie z bazą danych
+    Returns:
+        dict: Słownik {id_dywizji: nazwa_dywizji}
+    """
+    conf_divisions_query = f'''
+        select cd.conference_id, cd.division_id
+            from conference_divisions cd
+            where cd.conference_id = {conference}
+            order by d.name'''
+    conf_divisions_df = pd.read_sql(conf_divisions_query, conn)
+    conf_divisions_dict = conf_divisions_df.set_index('id')['name'].to_dict()
+    return conf_divisions_dict
+
 
 def league_table(matches, team_ids, winner_gain, draw_gain, ot_gain_winner, ot_gain_loser, scope='all'):
     '''Generowanie tabeli ligowej na podstawie meczów i drużyn
@@ -76,10 +95,10 @@ def league_table(matches, team_ids, winner_gain, draw_gain, ot_gain_winner, ot_g
     for _, row in matches.iterrows():
         home_team_id = row['home_team_id']
         away_team_id = row['away_team_id']
-        home_goals = row['home_goals']
-        away_goals = row['away_goals']
-        overtime_winner = row['OTwinner']
-        shootout_winner = row['SOwinner']
+        home_goals = int(row['home_goals'])
+        away_goals = int(row['away_goals'])
+        overtime_winner = int(row['OTwinner'])
+        shootout_winner = int(row['SOwinner'])
 
         # Sprawdzamy zakres meczów do uwzględnienia
         process_home = (scope == 'all' or scope == 'home')

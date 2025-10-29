@@ -233,6 +233,10 @@ def match_stats(match_row):
         ('team_en', 'Bramki na pustą bramkę')
     ]
     reverse_stats = ['team_fk', 'team_fouls', 'team_to']
+    
+    # Statystyki, które powinny być wyświetlane jako liczby całkowite (nie float)
+    integer_stats = ['goals', 'team_sog', 'team_fouls', 'team_pp_goals', 'team_sh_goals', 
+                    'team_saves', 'team_faceoffs', 'team_hits', 'team_to', 'team_en']
 
     for stat_key, stat_label in stats_to_display:
         home_key = f'home_{stat_key}'
@@ -247,7 +251,9 @@ def match_stats(match_row):
             if 'acc' in stat_key and home_value != 0:
                 home_value = f"{float(home_value):.2f}%" if home_value != -1 else "Brak danych"
             elif stat_key == 'team_fk':
-                home_value = f"{home_value} min" if home_value != -1 else "Brak danych"
+                home_value = f"{int(home_value)} min" if home_value != -1 else "Brak danych"
+            elif stat_key in integer_stats:
+                home_value = str(int(home_value)) if home_value != -1 else "Brak danych"
             else:
                 home_value = str(home_value) if home_value != -1 else "Brak danych"
         else:
@@ -257,7 +263,9 @@ def match_stats(match_row):
             if 'acc' in stat_key and away_value != 0:
                 away_value = f"{float(away_value):.2f}%" if away_value != -1 else "Brak danych"
             elif stat_key == 'team_fk':
-                away_value = f"{away_value} min" if away_value != -1 else "Brak danych"
+                away_value = f"{int(away_value)} min" if away_value != -1 else "Brak danych"
+            elif stat_key in integer_stats:
+                away_value = str(int(away_value)) if away_value != -1 else "Brak danych"
             else:
                 away_value = str(away_value) if away_value != -1 else "Brak danych"
         else:
@@ -390,10 +398,14 @@ def get_team_info(team_id, lookback, matches_df):
     Returns:
         list: Lista słowników z przetworzonymi danymi meczowymi
     """
-    # Filtrowanie meczów dla wybranej drużyny, ligi i sezonu
+    # Filtrowanie meczów dla wybranej drużyny, ligi i sezonu - tylko mecze z znanym wynikiem
     team_matches = matches_df[
-        ((matches_df['home_team_id'] == team_id) | (matches_df['away_team_id'] == team_id))
+        ((matches_df['home_team_id'] == team_id) | (matches_df['away_team_id'] == team_id)) &
+        (matches_df['result'] != '0')
     ].sort_values('game_date', ascending=False).head(lookback)
+
+    if team_matches.empty:
+        return [] #Brak meczow dla zadanego przedzialu dla wskazanej druzyny
 
     team_info_parsed = []
     for _, row in team_matches.iterrows():
@@ -401,13 +413,24 @@ def get_team_info(team_id, lookback, matches_df):
         team_key = 'home' if is_home else 'away'
         opponent_key = 'away' if is_home else 'home'
         
-        # Określanie wyniku podstawowego
-        if row['result'] == 'X':
-            result = 'X'
-        elif (is_home and row['result'] == "1") or (not is_home and row['result'] == "2"):
-            result = 'W'
+        # Określanie wyniku podstawowego z uwzględnieniem dogrywek
+        home_goals = int(row['home_goals'])
+        away_goals = int(row['away_goals'])
+        is_overtime = row['OT'] != 0
+        is_shootout = row['SO'] != 0
+        
+        if home_goals > away_goals:
+            # Wygrana gospodarzy
+            if is_home:
+                result = 'WPD' if (is_overtime or is_shootout) else 'W'
+            else:
+                result = 'PPD' if (is_overtime or is_shootout) else 'L'
         else:
-            result = 'L'
+            # Wygrana gości
+            if is_home:
+                result = 'PPD' if (is_overtime or is_shootout) else 'L'
+            else:
+                result = 'WPD' if (is_overtime or is_shootout) else 'W'
         
         match_data = {
             'match_id': row['id'],
@@ -422,6 +445,8 @@ def get_team_info(team_id, lookback, matches_df):
             'opponent_sog': row[f'{opponent_key}_team_sog'],
             'opponent_shortcut': row[f'{opponent_key}_team_shortcut'],
             'home_team' : row['home_team'],
+            'home_team_goals' : int(row['home_goals']),
+            'away_team_goals' : int(row['away_goals']),
             'away_team' : row['away_team'],
             'result': result,
             'is_overtime': row['OT'] != 0,
@@ -447,7 +472,6 @@ def get_team_info(team_id, lookback, matches_df):
                 match_data['so_outcome'] = 'L' if is_home else 'W'
         
         team_info_parsed.append(match_data)
-    
     return team_info_parsed
 
 def get_team_players_stats(key, season, conn):
@@ -530,4 +554,28 @@ def match_dev_info(row, league_id, season_id):
     
     for key, value in dev_data_ids.items():
         st.write(f"{key}: {value}")
+
+def first_period_goals_analysis(match_ids, conn):
+    ''' Analizuje i wyświetla liczbę goli zdobytych w pierwszej tercji dla podanych meczów.
+    Args:
+        match_ids (list): Lista ID meczów do analizy
+        conn: Połączenie z bazą danych
+    Returns:
+        goals (dict): Słownik {match_id: liczba goli w pierwszej tercji}'''
+    
+    #event - 181 to gol, na razie jako stała wartość
+    query = '''
+        SELECT 
+            hme.match_id,
+            COUNT(*) AS first_period_goals
+        FROM hockey_match_events hme
+        JOIN events e ON hme.event_id = e.id
+        WHERE hme.match_id IN ({})
+        AND hme.period = 1
+        AND e.id = 181
+        GROUP BY hme.match_id
+    '''.format(','.join(map(str, match_ids)))
+    df = pd.read_sql(query, conn)
+    goals = dict(zip(df['match_id'], df['first_period_goals']))
+    return goals
 

@@ -15,13 +15,22 @@ def main():
     league_country_df = pd.read_sql(query_countries, conn)
     league_country_dict = league_country_df.set_index('id')['country'].to_dict()
     st.title("Krzychu (Bet asystent): sezon 1")
-    st.write("Oficjalny start od momentu rozpoczęcia seoznu 2025/2026 dla każdej z lig")
+    st.write("Oficjalny start od momentu rozpoczęcia sezonu 2025/2026 dla każdej z lig")
     #st.page_link("Home.py", label="Strona domowa", icon="🏠")
     st.page_link("pages/Statystyki.py", label="Kącik statystyczny", icon="📊")
     st.page_link("pages/Bukmacherka.py", label="Kącik bukmacherski", icon="💸")
     with st.expander("Lista obsługiwanych lig"):
         for key, value in leagues_dict.items():
             st.page_link("pages/{}.py".format(value.replace(" ", "_")), label=value, icon=league_country_dict[key])
+    with st.expander("Statystyki zawodników"):
+        st.markdown("""
+        <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
+            <p style='margin-bottom: 15px; color: #e0e0e0;'>Sprawdź szczegółowe statystyki i analizy zawodników z różnych dyscyplin sportowych:</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.page_link("pages/Pilka-zawodnicy.py", label="⚽ Piłka nożna - Zawodnicy", icon="⚽")
+        st.page_link("pages/NHL-zawodnicy.py", label="🏒 NHL - Zawodnicy", icon="🏒")
+        st.page_link("pages/NBA-zawodnicy.py", label="🏀 NBA - Zawodnicy", icon="🏀")
     with st.expander("O projekcie"):
         st.markdown("""
         <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
@@ -92,18 +101,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    with st.expander("Kontakt"):
-        st.markdown("""
-        <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
-            <h3 style='color: #4fc3f7;'>Skontaktuj się z autorem</h3>
-            <p style='margin-bottom: 20px; color: #e0e0e0;'>Masz pytania lub sugestie dotyczące projektu? Chętnie je poznam!</p>
-            <a href='https://41761707.github.io/' target='_blank' style='display: inline-block; background-color: #4fc3f7; color: #121212; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; transition: background-color 0.3s;'>Odwiedź stronę autora</a>
-            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Autor projektu: Radikey</p>
-            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Projekt rozwijany przez pasjonatów dla pasjonatów</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with st.expander("ℹ️ Informacja prawna dotycząca danych"):
+    with st.expander("Informacja prawna dotycząca danych"):
         st.markdown(
             """
             <style>
@@ -128,12 +126,41 @@ def main():
                 <p>📊 Źródła danych:
                     <br>– Mecze i statystyki piłkarskie: <a href="https://www.flashscore.pl" target="_blank">flashscore.pl</a>, <a href="https://optaplayerstats.statsperform.com/" target="_blank">opta.com</a>
                     <br>– Dane hokejowe: <a href="https://api-web.nhle.com/" target="_blank">NHL API</a>
+                    <br>– Dane koszykarskie: <a href="https://www.flashscore.pl" target="_blank">flashscore.pl</a>
                 </p> 
                 <p>🧥 Materiały graficzne (koszulki hokejowe) pochodzą z <a href="https://www.dailyfaceoff.com/" target="_blank">dailyfaceoff.com</a> i pozostają własnością ich autorów. Zostały użyte wyłącznie w celach informacyjnych i ilustracyjnych.</p>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+    with st.expander("Kontakt"):
+        st.markdown("""
+        <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
+            <h3 style='color: #4fc3f7;'>Skontaktuj się z autorem</h3>
+            <p style='margin-bottom: 20px; color: #e0e0e0;'>Masz pytania lub sugestie dotyczące projektu? Chętnie je poznam!</p>
+            <a href='https://41761707.github.io/' target='_blank' style='display: inline-block; background-color: #4fc3f7; color: #121212; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-weight: bold; transition: background-color 0.3s;'>Odwiedź stronę autora</a>
+            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Autor projektu: Radikey</p>
+            <p style='margin-top: 20px; font-size: 14px; color: #b0b0b0;'>Projekt rozwijany przez pasjonatów dla pasjonatów</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with st.expander("FAQ - Najczęściej zadawane pytania"):
+        st.markdown("### Jak działają modele predykcyjne w Ekstrabet?")
+        st.write("Nasze modele wykorzystują uczenie maszynowe do analizy historycznych danych meczowych, statystyk drużyn i zawodników. Algorytmy analizują wzorce w danych i na tej podstawie przewidują prawdopodobieństwa różnych wyników meczów. Więcej informacji zostanie opublikowanych w specjalej sekcji 'Działanie modeli'")
+        
+        st.markdown("### Ile lig i dyscyplin sportowych obsługuje system?")
+        st.write("Obecnie Ekstrabet obsługuje ponad 30 lig piłkarskich z całego świata oraz hokej na lodzie (NHL). Pełna lista obsługiwanych lig znajduje się w sekcji 'Lista obsługiwanych lig' na stronie głównej. W planach mamy dodanie koszykówki oraz esportu.")
+        
+        st.markdown("### Czy mogę używać prognoz do realnych zakładów bukmacherskich?")
+        st.write("Ekstrabet ma charakter edukacyjny i badawczy. Wszystkie symulacje zakładów są hipotetyczne i służą wyłącznie do testowania modeli. Nie zachęcamy do uczestnictwa w grach hazardowych.")
+        
+        st.markdown("### Skąd pochodzą dane używane w analizach?")
+        st.write("Wszystkie dane pochodzą z publicznych źródeł: statystyki piłkarskie z flashscore.pl i opta.com, dane hokejowe z oficjalnego NHL API, a materiały graficzne z dailyfaceoff.com.")
+        
+        st.markdown("### Jaka jest dokładność prognoz systemu?")
+        st.write("Dokładność modeli różni się w zależności od ligi i typu prognozy. Szczegółowe statystyki wydajności każdego modelu znajdziesz w 'Kąciku statystycznym'. Pamiętaj, że żaden model nie jest w 100% dokładny.")
+
 
     conn.close()
 

@@ -63,35 +63,18 @@ def generate_comparision(labels, wins, loses):
 def generate_pie_chart(data_labels, values, colors=None, title=None):
     """
     Generuje i wyświetla wykres kołowy o zmiennej liczbie segmentów przy użyciu Streamlit.
-    
     Funkcja tworzy wykres kołowy przedstawiający proporcje między wartościami,
     z możliwością dostosowania etykiet, kolorów i automatycznym wyświetlaniem wartości procentowych.
     Wykres utrzymany jest w ciemnej stylistyce.
-    
     Args:
-    ----------
-    data_labels : list
-        Lista etykiet tekstowych dla segmentów wykresu
-    values : list
-        Lista wartości liczbowych dla poszczególnych segmentów
-    colors : list, opcjonalne
-        Lista kolorów dla segmentów (domyślnie: automatyczna paleta)
-    title : str, opcjonalne
-        Tytuł wykresu (domyślnie brak)
-    
-    Przykłady użycia:
-    ----------------
-    >>> # Wersja z dwoma segmentami
-    >>> generate_pie_chart(['Wygrane gospodarzy', 'Wygrane gości'], [65, 35])
-    
-    >>> # Wersja z trzema segmentami
-    >>> generate_pie_chart(['Wygrane gospodarzy', 'Remisy', 'Wygrane gości'], [60, 15, 25],
-    >>>                   colors=['orangered', 'gold', 'lightgreen'])
-    
-    >>> # Wersja z własnymi kolorami i tytułem
-    >>> generate_pie_chart(['Gole 1. połowa', 'Gole 2. połowa', 'Dogrywka'], [45, 50, 5],
-    >>>                   colors=['#FF9999','#66B2FF','#99FF99'],
-    >>>                   title="Rozkład strzelonych goli")
+        data_labels : list
+            Lista etykiet tekstowych dla segmentów wykresu
+        values : list
+            Lista wartości liczbowych dla poszczególnych segmentów
+        colors : list, opcjonalne
+            Lista kolorów dla segmentów (domyślnie: automatyczna paleta)
+        title : str, opcjonalne
+            Tytuł wykresu (domyślnie brak)
     """
     # Sprawdzenie poprawności danych wejściowych
     if len(data_labels) != len(values):
@@ -104,7 +87,6 @@ def generate_pie_chart(data_labels, values, colors=None, title=None):
         colors = default_palette[:len(values)]
     sns.set_theme(style="darkgrid")
     df = pd.DataFrame({'Label': data_labels, 'Value': values})
-    
     # Utworzenie wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
     _, texts, autotexts = ax.pie(df['Value'], 
@@ -113,7 +95,7 @@ def generate_pie_chart(data_labels, values, colors=None, title=None):
                                 colors=colors,
                                 textprops=dict(color="white"), 
                                 startangle=80,
-                                pctdistance=0.85)
+                                pctdistance=0.7)
     if title:
         ax.set_title(title, loc='left', fontsize=24, color='white', pad=40)
     # Konfiguracja stylu
@@ -243,7 +225,7 @@ def vertical_bar_chart(date, opponent, stats, team_name, ou_line, title):
     ax.set_xticklabels([f"{opponent}\n{date}" for opponent, date in zip(df['Opponent'], df['Date'])])
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.set_title("{}: {} \nŚrednia: {:.1f} \nHitrate O {}: {:.1f}%".format(title, team_name, avg_stats, ou_line, hit_rate), loc='left', fontsize=24, color='white')
+    ax.set_title("{}: {} \nŚrednia: {:.1f} \nHitrate O {:.1f}: {:.1f}%".format(title, team_name, avg_stats, ou_line, hit_rate), loc='left', fontsize=24, color='white')
     ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
     ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
     fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
@@ -505,7 +487,7 @@ def team_compare_graph(teams, accs, type='acc'):
     num_rows = len(teams)
     # Ogranicz wysokość wykresu dla dużej liczby drużyn
     max_height = min(num_rows * 0.8, 50)  # Maksymalna wysokość 50 cali
-    fig_height = min(10 + num_rows * 0.2, max_height)
+    fig_height = max(10, min(10 + num_rows * 0.4, max_height))  # Zwiększona wysokość na drużynę
     teams_accs = zip(teams, accs)
     average = accs[-1]
     teams_accs_sorted = sorted(teams_accs, key=lambda x: x[1])
@@ -516,7 +498,7 @@ def team_compare_graph(teams, accs, type='acc'):
     sns.set_theme(style="darkgrid")
     df = pd.DataFrame(data)
     # Utwórz wykres z zabezpieczeniem przed zbyt dużym rozmiarem
-    fig, ax = plt.subplots(figsize=(10, fig_height))
+    fig, ax = plt.subplots(figsize=(12, fig_height))  # Zwiększona szerokość wykresu
     # Generuj kolory słupków
     colors = []
     for result in df['Results']:
@@ -531,11 +513,13 @@ def team_compare_graph(teams, accs, type='acc'):
     # Konfiguracja wyglądu wykresu
     ax.grid(False)
     ax.set_yticks(df.index)
-    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize=min(20, 200/num_rows))
+    label_fontsize = 20
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize=label_fontsize)
     ax.set_ylabel("")
     ax.set_xlabel("")
     
-    title_fontsize = min(28, 300/num_rows)
+    # Poprawiona logika rozmiaru tytułu
+    title_fontsize = 30
     ax.set_title("Porównanie procenta dokładności predykcji" if type == 'acc' else "Porównanie zysku", 
                 loc='left', fontsize=title_fontsize, color='white')
     ax.tick_params(colors='white', which='both')
@@ -543,16 +527,17 @@ def team_compare_graph(teams, accs, type='acc'):
     fig.patch.set_facecolor('black')
     
     # Dodawanie wartości na słupkach
+    value_fontsize = 20
     for bar, result in zip(bars, df['Results']):
         offset = max(df['Results']) * 0.05  # Dynamiczne przesunięcie tekstu
         if type == 'profit':
             ax.text(bar.get_width() + offset, bar.get_y() + bar.get_height()/2, 
                     f'{float(result):.2f} u', ha='center', va='center', 
-                    color='white', fontsize=min(22, 200/num_rows))
+                    color='white', fontsize=value_fontsize)
         else:  
             ax.text(bar.get_width() + offset, bar.get_y() + bar.get_height()/2, 
                     f'{float(result):.2f}%', ha='center', va='center', 
-                    color='white', fontsize=min(22, 200/num_rows))
+                    color='white', fontsize=value_fontsize)
     # Automatyczne dostosowanie layoutu
     plt.tight_layout()
     st.pyplot(fig)
@@ -610,7 +595,35 @@ def winner_bar_chart_v2(results, team_name):
             ha='center', va='center', color='white', fontsize=22)
     st.pyplot(fig)
 
-#TO-DO: Pozbyć się tej funkcji, jej wykorzystanie zamienić na winner_bar_chart_v2
+def winner_bar_chart_with_ot(results, team_name):
+    wins = results.count('W')
+    overtime_wins = results.count('WPD')
+    overtime_losses = results.count('PPD')
+    losses = results.count('L')
+    data = {
+    'Label': ["Porażki", "PPD", "WPD", "Wygrane"],
+    'Results' : [losses, overtime_losses, overtime_wins, wins]
+    }
+    sns.set_theme(style="darkgrid")
+    df = pd.DataFrame(data)
+    # Ustawienia wykresu
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.barh(df.index, df['Results'], color=['red', 'lightcoral', 'lightgreen', 'green'])
+    ax.grid(False)
+    ax.set_yticks(df.index)
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
+    ax.set_ylabel("")
+    ax.set_xlabel("")
+    ax.set_title("Rezultaty meczów: {}".format(team_name), loc='left', fontsize=24, color='white')
+    ax.tick_params(colors='white', which='both')  # Ustawienia koloru tekstu na biały
+    ax.set_facecolor('#291F1E')  # Ustawienia koloru tła osi na czarny
+    fig.patch.set_facecolor('black')  # Ustawienia koloru tła figury na czarny
+    for bar, result in zip(bars, df['Results']):
+        ax.text(bar.get_width() + 0.15, bar.get_y() + bar.get_height() / 2, f'{int(result)}', 
+            ha='center', va='center', color='white', fontsize=22)
+    st.pyplot(fig)
+
+#TODO: Pozbyć się tej funkcji, jej wykorzystanie zamienić na winner_bar_chart_v2
 def winner_bar_chart(opponent, home_team, result, team_name):
     wins, draws, loses = 0, 0, 0
     for i in range(len(opponent)):
@@ -649,4 +662,42 @@ def winner_bar_chart(opponent, home_team, result, team_name):
     for bar, result in zip(bars, df['Results']):
         ax.text(bar.get_width() + 0.15, bar.get_y() + bar.get_height() / 2, f'{int(result)}', 
             ha='center', va='center', color='white', fontsize=22)
+    st.pyplot(fig)
+
+def winner_bar_chart_basketball(results, team_name):
+    """
+    Generuje wykres słupkowy rezultatów dla koszykówki (tylko wygrane i przegrane).
+    
+    Args:
+        results (list): Lista rezultatów meczów ('1' = wygrana, '2' = przegrana)
+        team_name (str): Nazwa drużyny
+    """
+    wins = results.count('1')
+    losses = results.count('2')
+    
+    data = {
+        'Label': ["Porażki", "Wygrane"],
+        'Results': [losses, wins]
+    }
+    
+    sns.set_theme(style="darkgrid")
+    df = pd.DataFrame(data)
+    
+    # Ustawienia wykresu
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.barh(df.index, df['Results'], color=['red', 'green'])
+    ax.grid(False)
+    ax.set_yticks(df.index)
+    ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize=20)
+    ax.set_ylabel("")
+    ax.set_xlabel("")
+    ax.set_title("Rezultaty meczów: {}".format(team_name), loc='left', fontsize=24, color='white')
+    ax.tick_params(colors='white', which='both')
+    ax.set_facecolor('#291F1E')
+    fig.patch.set_facecolor('black')
+    
+    for bar, result in zip(bars, df['Results']):
+        ax.text(bar.get_width() + 0.15, bar.get_y() + bar.get_height() / 2, f'{int(result)}', 
+                ha='center', va='center', color='white', fontsize=22)
+    
     st.pyplot(fig)

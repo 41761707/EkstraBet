@@ -37,6 +37,18 @@ def matches_list(date, home_team, home_team_score, away_team, away_team_score, t
     df.index = range(1, len(df) + 1)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
+def matches_list_with_ot(date, home_team, home_team_score, away_team, away_team_score, outcome):
+    data = {
+    'Data': [x for x in date],
+    'Gospodarz' : [x for x in home_team],
+    'Wynik' : [str(x) + "-" + str(y) for x,y in zip(home_team_score, away_team_score)],
+    'Gość' : [x for x in away_team],
+    'Rezultat' : [x for x in outcome]
+    }
+    df = pd.DataFrame(data)
+    df.index = range(1, len(df) + 1)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
 def matches_list_h2h(date, home_team, home_team_score, away_team, away_team_score):
     data = {
     'Data': [x for x in date],
@@ -196,3 +208,30 @@ def league_stats(labels, values, values_percentage):
     df = pd.DataFrame(data)
     df.index = range(1, len(df) + 1)
     st.table(df)
+
+def matches_list_basketball(date, home_team, home_team_score, away_team, away_team_score, outcome):
+    """
+    Wyświetla listę meczów koszykarskich w formie tabeli.
+    
+    Args:
+        date: Lista dat meczów
+        home_team: Lista drużyn gospodarzy
+        home_team_score: Lista punktów gospodarzy
+        away_team: Lista drużyn gości
+        away_team_score: Lista punktów gości
+        outcome: Lista wyników ('1' = wygrana gospodarzy, '2' = wygrana gości)
+    """
+    # Przekształcanie kodów wyników na czytelne nazwy
+    result_mapping = {'1': 'Wygrana gospodarzy', '2': 'Wygrana gości', '0': 'Brak wyniku'}
+    readable_outcome = [result_mapping.get(str(x), str(x)) for x in outcome]
+    
+    data = {
+        'Data': [x for x in date],
+        'Gospodarz': [x for x in home_team],
+        'Wynik': [str(x) + "-" + str(y) for x, y in zip(home_team_score, away_team_score)],
+        'Gość': [x for x in away_team],
+        'Rezultat': readable_outcome
+    }
+    df = pd.DataFrame(data)
+    df.index = range(1, len(df) + 1)
+    st.dataframe(df, use_container_width=True, hide_index=True)
