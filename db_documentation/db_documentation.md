@@ -34,6 +34,7 @@
 - [MATCHES](#matches) (wszystkie analizowane mecze)
 - [MODELS](#models) (lista stworzonych modeli predykcyjnych)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
+- [PLAYER_PROS_LINES] (#player_pros_lines) (linie na zdarzenia dla graczy w poszczególnych sportach)
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
 - [SEASONS](#seasons) (Tabela z sezonami)
@@ -881,6 +882,34 @@ Dane do tabeli dodawane są **ręcznie** w ramach konfiguracji nowych modeli pre
 **Sposób generowania danych do tabeli**:
 
 Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
+
+---
+
+### PLAYER_PROPS_LINES
+(linie na zdarzenia dla graczy w poszczególnych sportach)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        |  INT       | INT    | ID linii na zdarzenie dla gracza         | AUTOMATYCZNIE GENEROWANY        |
+| *PLAYER_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *players*  | NULL |
+| *MATCH_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *matches*  | NULL |
+| *TEAM_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *teams*  | NULL |
+| *EVENT_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *events*  | NULL |
+| *BOOKMAKER_ID* | INT | INT | Klucz obcy, powiązanie z tabelą *bookmakers*  | NULL |
+| LINE | FLOAT | FLOAT | Linia na zdarzenie dla gracza | NULL |
+| ODDS | FLOAT | >= 1 | Kurs dla danej linii | NULL |
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `EVENT_ID` → `events(ID)`
+- Klucz obcy: `BOOKMAKER_ID` → `bookmakers(ID)`
+- **Unikalny indeks:** `(PLAYER_ID, MATCH_ID, EVENT_ID, BOOKMAKER_ID)` – gwarantuje unikalność linii dla danego zawodnika, meczu, zdarzenia i bukmachera
+
+**Sposób generowania danych do tabeli**:
+TODO - mechanizm
 
 ---
 
