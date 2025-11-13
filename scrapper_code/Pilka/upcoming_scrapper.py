@@ -4,7 +4,8 @@ from db_module import db_connect
 from utils import (
     MatchData, setup_chrome_driver, get_teams_dict,
     fetch_match_elements, parse_round, parse_match_info,
-    parse_match_date, get_match_links, update_db, generate_insert_sql
+    parse_match_date, get_match_links, update_db, generate_insert_sql,
+    get_special_rounds_dict
 )
 from dataclasses import asdict
 import argparse
@@ -15,7 +16,8 @@ def get_match_data(
     season_id: int,
     link: str,
     round_to_d: int,
-    team_id: dict[str, int]
+    team_id: dict[str, int],
+    conn
 ) -> dict | int:
     """Pobiera dane nadchodzącego meczu z podanego linku.
     
@@ -26,12 +28,24 @@ def get_match_data(
         link (str): Link do strony z danymi meczu.
         round_to_d (int): Docelowa runda do pobrania (0 = automatyczne).
         team_id (dict[str, int]): Słownik z nazwami drużyn i ich ID.
-        
+        conn: Połączenie do bazy danych.
+
     Returns:
         dict | int: Słownik z danymi meczu lub -1, jeśli mecz nie spełnia kryteriów.
     """
     stat_divs, time_divs, team_divs, score_divs, round_divs = fetch_match_elements(driver, link)
-    round_val = parse_round(round_divs)
+    round_name = parse_round(round_divs)
+    try:
+        round_val = int(round_name)
+    except ValueError:
+        special_rounds = get_special_rounds_dict(conn)
+        # Odwróć słownik: {nazwa: id}
+        reverse_special_rounds = {v: k for k, v in special_rounds.items()}
+        if round_name in reverse_special_rounds:
+            round_val = reverse_special_rounds[round_name]
+        else:
+            raise ValueError(f"Nieznana runda: {round_name}")
+
     match_info = parse_match_info(time_divs, team_divs, score_divs)
     
     try:
@@ -40,18 +54,14 @@ def get_match_data(
         game_date = parse_match_date(match_info[0])
     except (IndexError, KeyError):
         return -1
-    
-    # Logika sprawdzania rundz
+
     if round_to_d == 0:
-        try:
-            round_to_d = int(round_val)
-            max_date = date.today()
-        except ValueError as e:
-            print(f"Błąd w pobieraniu rundy: {e}")
+        round_to_d = round_val
+        max_date = date.today()
     
     # Specjalna logika dla ligi 25
     if league_id != 25:
-        if int(round_val) != int(round_to_d):
+        if round_val!= round_to_d:
             return -1
     else:
         round_val = 100
@@ -119,7 +129,7 @@ def to_automate(league_id: int, season_id: int, games: str, round_to_d: int, sin
         inserts = []
         
         for link in links:
-            match_data = get_match_data(driver, league_id, season_id, link, round_to_d, team_id)
+            match_data = get_match_data(driver, league_id, season_id, link, round_to_d, team_id, conn)
             if match_data == -1:
                     break
             if round_to_d == 0:

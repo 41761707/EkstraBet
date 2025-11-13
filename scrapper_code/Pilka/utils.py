@@ -352,3 +352,16 @@ def get_match_links(games: str, driver) -> list[str]:
                 stats_link = f"{href}szczegoly/statystyki/0/"
             links.append(stats_link)
     return links
+
+def get_special_rounds_dict(conn) -> dict[int, str]:
+    """Pobiera słownik rund specjalnych z bazy danych.
+    
+    Args:
+        conn: Połączenie do bazy danych.
+        
+    Returns:
+        dict[int, str]: Słownik gdzie kluczem jest ID rundy, a wartością nazwa rundy.
+    """
+    query = "SELECT id, name FROM special_rounds"
+    special_rounds_df = pd.read_sql(query, conn)
+    return special_rounds_df.set_index('id')['name'].to_dict()

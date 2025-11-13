@@ -417,7 +417,9 @@ class BasketballPlayers:
             </div>
             """, unsafe_allow_html=True)
         with col4:
-            avg_fg_percentage = self.current_player_stats['fg_percentage'].mean()
+            total_fg_made = self.current_player_stats['field_goals_made'].sum()
+            total_fg_attempts = self.current_player_stats['field_goals_attempts'].sum()
+            avg_fg_percentage = (total_fg_made / total_fg_attempts * 100) if total_fg_attempts > 0 else 0
             st.markdown(f"""
             <div class="tile">
                 <div class="tile-title">🎯</div>
@@ -428,7 +430,9 @@ class BasketballPlayers:
         
         col5, col6, col7, col8 = st.columns(4)
         with col5:
-            avg_2p_percentage = self.current_player_stats['2p_percentage'].mean()
+            total_2p_made = self.current_player_stats['2_p_field_goals_made'].sum()
+            total_2p_attempts = self.current_player_stats['2_p_field_goals_attempts'].sum()
+            avg_2p_percentage = (total_2p_made / total_2p_attempts * 100) if total_2p_attempts > 0 else 0
             st.markdown(f"""
             <div class="tile">
                 <div class="tile-title">🎲</div>
@@ -437,7 +441,9 @@ class BasketballPlayers:
             </div>
             """, unsafe_allow_html=True)
         with col6:
-            avg_3p_percentage = self.current_player_stats['3p_percentage'].mean()
+            total_3p_made = self.current_player_stats['3_p_field_goals_made'].sum()
+            total_3p_attempts = self.current_player_stats['3_p_field_goals_attempts'].sum()
+            avg_3p_percentage = (total_3p_made / total_3p_attempts * 100) if total_3p_attempts > 0 else 0
             st.markdown(f"""
             <div class="tile">
                 <div class="tile-title">🎪</div>
@@ -446,10 +452,12 @@ class BasketballPlayers:
             </div>
             """, unsafe_allow_html=True)
         with col7:
-            avg_ft_percentage = self.current_player_stats['ft_percentage'].mean()
+            total_ft_made = self.current_player_stats['ft_made'].sum()
+            total_ft_attempts = self.current_player_stats['ft_attempts'].sum()
+            avg_ft_percentage = (total_ft_made / total_ft_attempts * 100) if total_ft_attempts > 0 else 0
             st.markdown(f"""
             <div class="tile">
-                <div class="tile-title">�</div>
+                <div class="tile-title">🎯</div>
                 <div class="tile-header">{round(float(avg_ft_percentage), 1)}%</div>
                 <div class="tile-description">Skuteczność rzutów wolnych</div>
             </div>

@@ -28,7 +28,7 @@ def parse_arguments():
     parser.add_argument('--automate', action='store_true',
                         help='Automatyczne dodawanie wpisów do bazy danych')
     parser.add_argument(
-        '--round', type=int, help='Numer rundy, dla której tworzymy wpisów (opcjonalny)')
+        '--round', type=int, help='Numer rundy, do której tworzymy wpisy')
     parser.add_argument('--bulk', action='store_true',
                         help='Tryb masowego pobierania wszystkich kolejek')
     parser.add_argument('--csv', action='store_true',
@@ -599,7 +599,7 @@ def main_bulk(args, driver, conn):
     all_match_data = pd.DataFrame()
 
     if args.round:
-        matches_list = [m for m in matches_list if m['matchday'] == args.round]
+        matches_list = [m for m in matches_list if m['matchday'] >= args.round]
     print(
         f"\n=== ROZPOCZYNAM POBIERANIE STATYSTYK Z {len(matches_list)} MECZÓW ===")
     # Przetwarzaj każdy mecz

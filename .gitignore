@@ -18,3 +18,4 @@ model_code/model_goals-6-classes_dev
 /models/
 **/__pycache__/
 **/db_module.py
+db_funcs/Hokej/hockey_line_guide/

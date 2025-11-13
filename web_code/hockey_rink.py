@@ -94,24 +94,21 @@ def draw_hockey_rink(lineup, team_name):
                 source=team_shirt,
                 x=data["x"][i], y=data["y"],  # Pozycja na boisku (x, y)
                 xref="x", yref="y",
-                sizex=10, sizey=10,  # Rozmiar koszulki
+                sizex=8, sizey=8,  # Rozmiar koszulki
                 xanchor="center", yanchor="middle",
                 layer="above",
             )
             fig.add_annotation(
                 text=f'{player.Zawodnik}',  # Tekst na koszulce
-                x=data["x"][i], y=data["y"] - 8,  # Pozycja poniżej obrazu
+                x=data["x"][i], y=data["y"] - 7,  # Pozycja poniżej obrazu
                 xref="x", yref="y",
                 showarrow=False,
                 font=dict(size=15, color="black"),
                 xanchor="center"
             )
-
-
     # Ustawienia osi
     fig.update_xaxes(range=[0, 40], showgrid=False, zeroline=False, visible=False)
     fig.update_yaxes(range=[0, 60], showgrid=False, zeroline=False, visible=False)
-
     # Ustawienia wykresu
     fig.update_layout(
         width=400,
@@ -120,7 +117,4 @@ def draw_hockey_rink(lineup, team_name):
         plot_bgcolor="whitesmoke",
         margin=dict(l=0, r=0, t=0, b=0)
     )
-
     return fig
-
-# Streamlit UI

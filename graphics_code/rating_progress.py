@@ -42,7 +42,6 @@ def plot_rating_progress(top_teams=None, csv_path=None):
     print(f"Znaleziono {len(rating_files)} plików z ratingami")
     all_ratings_data = []
     for file_path in rating_files:
-        # Wyciągnięcie daty z nazwy pliku (ratings_elo_2025-07-13.csv -> 2025-07-13)
         filename = os.path.basename(file_path)
         date_str = filename.replace("ratings_elo_", "").replace(".csv", "")
         try:

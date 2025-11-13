@@ -1,6 +1,17 @@
 
 
 import db_module
+from selenium import webdriver
+
+def setup_chrome_driver() -> webdriver.Chrome:
+    """Konfiguruje i zwraca instancję przeglądarki Chrome z odpowiednimi opcjami.
+    
+    Returns:
+        webdriver.Chrome: Skonfigurowana instancja przeglądarki Chrome.
+    """
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    return webdriver.Chrome(options=options)
 
 def check_if_in_db(home_team: str, away_team: str, game_date: str = None, round_num: str = None, season: int = None, conn=None) -> int:
     """Sprawdza, czy mecz jest już w bazie danych.

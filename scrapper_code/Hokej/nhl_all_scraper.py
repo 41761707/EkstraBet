@@ -1220,6 +1220,7 @@ def main():
             match_data, _, _, _, _ = game_data.get_match_data(link, team_id, args.automate, args.update)
             if match_data == -1:
                 print("# ALL STAR ALBO PRZEDSEZONOWA - POMIJAMY")
+                return
     else:
         game_data.get_match_data(args.one_link, team_id, args.automate, args.update)
     conn.close() 

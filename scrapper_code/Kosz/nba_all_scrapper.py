@@ -983,6 +983,7 @@ def main():
             if status == -1:
                 if args.test_print:
                     print("MECZ POMIJANY (All Star albo przedsezonowy albo już w bazie)")
+                    return
             else:
                 print(f"Pobieranie meczu {i} zakończone sukcesem")
     else:

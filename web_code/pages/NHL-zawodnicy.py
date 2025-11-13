@@ -203,8 +203,6 @@ class HockeyPlayers:
     def player_graphs(self):
         ''' Funkcja realizująca przedstawienie wykresów dla wybranych statystyk '''
         if self.is_goalie:
-            # Dla bramkarzy - stały zestaw wykresów
-            goalie_stats = ['Strzały na bramkę', 'Obrony', 'Skuteczność obron (%)', 'Czas na lodzie']
             available_stats = []
             
             # Sprawdzamy które statystyki są dostępne w danych
@@ -347,11 +345,11 @@ class HockeyPlayers:
             self.season = seasons_dict[self.selected_season]
         with col3:
             limit_options = {
-                "Cały sezon": 200,
-                "Ostatnie 5 meczów": 5,
                 "Ostatnie 10 meczów": 10, 
+                "Ostatnie 5 meczów": 5,
                 "Ostatnie 15 meczów": 15,
-                "Ostatnie 20 meczów": 20
+                "Ostatnie 20 meczów": 20,
+                "Cały sezon": 200
             }
             self.limit_games = st.selectbox(
                 "Liczba meczów",
