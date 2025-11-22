@@ -1,5 +1,5 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
-###### Ostatnia data modyfikacji: 31.08.2025
+###### Ostatnia data modyfikacji: 16.11.2025
 
 ## Opis struktury bazy 
 
@@ -34,6 +34,7 @@
 - [MATCHES](#matches) (wszystkie analizowane mecze)
 - [MODELS](#models) (lista stworzonych modeli predykcyjnych)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
+- [PLAYER_NAME_MAPPINGS](#player_name_mappings) (mapowania nazw zawodników dla różnych bukmacherów)
 - [PLAYER_PROS_LINES] (#player_pros_lines) (linie na zdarzenia dla graczy w poszczególnych sportach)
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
@@ -910,6 +911,32 @@ Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
 
 **Sposób generowania danych do tabeli**:
 TODO - mechanizm
+
+---
+
+### PLAYER_NAME_MAPPINGS
+(mapowania nazw zawodników dla różnych bukmacherów)
+
+| POLE          | DOMENA        | ZAKRES    | UWAGI             | WARTOŚC DOMYŚLNA |
+| :---:         |  :---:        | :---:     | :---:             | :---:             |
+| **ID**        | INT           | INT      | Klucz główny, automatycznie generowany            | AUTOMATYCZNIE GENEROWANE |
+| *PLAYER_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *players* | NULL |
+| *BOOKMAKER_ID*    | INT           | INT       | Klucz obcy, powiązanie z tabelą *bookmakers* | NULL |
+| BOOKMAKER_FIRST_NAME | VARCHAR(45) | STRING | Imię zawodnika używane przez bukmachera | NULL |
+| BOOKMAKER_LAST_NAME | VARCHAR(45) | STRING | Nazwisko zawodnika używane przez bukmachera | NULL |
+| BOOKMAKER_COMMON_NAME | VARCHAR(100) | STRING | Znormalizowana pełna nazwa zawodnika (imię + nazwisko) używana do wyszukiwania i dopasowywania | NULL |
+| CREATED_AT | TIMESTAMP | DATETIME | Data utworzenia rekordu | CURRENT_TIMESTAMP |
+| UPDATED_AT | TIMESTAMP | DATETIME | Data ostatniej aktualizacji rekordu | CURRENT_TIMESTAMP ON UPDATE |
+
+**Ograniczenia/Indeksy:**
+- Klucz główny: `ID`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- Klucz obcy: `BOOKMAKER_ID` → `bookmakers(ID)`
+- **Unikalny indeks**: `(BOOKMAKER_ID, PLAYER_ID)` (zapobiega duplikatom mapowań tego samego zawodnika dla danego bukmachera)
+- **Indeks**: `(BOOKMAKER_ID, BOOKMAKER_COMMON_NAME)` (optymalizacja wyszukiwania zawodników po znormalizowanej nazwie)
+
+**Sposób generowania danych do tabeli**:
+Dane do tabeli generowane są **automatycznie** w ramach działania modułu **nhl_player_lines.py** podczas pierwszego dopasowania zawodnika z danymi bukmachera. Tabela służy jako cache mapowań, przyspieszając kolejne wyszukiwania i eliminując konieczność ręcznego dodawania wariantów nazw zawodników dla różnych źródeł danych.
 
 ---
 

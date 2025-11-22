@@ -241,7 +241,6 @@ def get_links(game_divs) -> list:
         href = a_tag.get_attribute("href")
         if href:
             links.append(href)
-    print(links)
     return links
 
 

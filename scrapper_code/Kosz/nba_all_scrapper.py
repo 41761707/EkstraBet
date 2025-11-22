@@ -496,7 +496,6 @@ class Game:
                     
                     # Pobierz skrót drużyny
                     team_shortcut = cells[1].text.strip()
-                    
                     # Pobierz ID gracza i drużyny
                     player_id = self.get_player_id(player_name, flash_id, team_shortcut)
                     team_id = self.shortcuts.get(team_shortcut, -1)

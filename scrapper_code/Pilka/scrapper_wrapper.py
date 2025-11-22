@@ -53,7 +53,7 @@ def launch_odds(links) -> None:
         links (list): Lista linków do lig, które mają być przetwarzane.
     """
     for current in links:
-        #current = current + 'wyniki/'
+        #current = current + 'wyniki/' #Odkomentuj gdy musisz zrobic szybkiego fixa z historical
         print(f"# {current}")
         args = current.split()
         odds_scrapper.odds_to_automate(int(args[0]), int(

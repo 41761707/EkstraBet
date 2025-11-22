@@ -321,9 +321,20 @@ class HockeyPlayers:
     def show_players(self, players_df):
         ''' Funkcja realizująca przedstawienie graczy'''
         for _, player in players_df.iterrows():
+            # Inicjalizacja session_state dla zawodnika
+            state_key = f"nhl_player_state_{player['id']}"
+            button_key = f"nhl_player_button_{player['id']}"
+            
+            if state_key not in st.session_state:
+                st.session_state[state_key] = False
+            
             button_label = f"{player['first_name']} {player['last_name']}"
             self.player_full_name = button_label
-            if st.button(button_label, key=f"player_{player['id']}", use_container_width=True):
+            
+            if st.button(button_label, key=button_key, use_container_width=True):
+                st.session_state[state_key] = not st.session_state[state_key]
+            
+            if st.session_state[state_key]:
                 self.current_player_stats, self.is_goalie = self.get_player_season_stats(player['id'])
                 self.player_stats_summary()
                 self.player_graphs()

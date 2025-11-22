@@ -162,7 +162,8 @@ class HockeySite:
             if self.date_filter:
                 self.date_range = st.date_input(
                                             "Wybierz zakres dat",
-                                            value=(pd.to_datetime('today'), pd.to_datetime('today') + pd.Timedelta(days=7)),
+                                            value=(pd.to_datetime('today') - pd.Timedelta(days=1), 
+                                                   pd.to_datetime('today') + pd.Timedelta(days=7)),
                                             min_value=pd.to_datetime('2016-01-01'),
                                             max_value=pd.to_datetime('2030-12-31'),
                                             format="YYYY-MM-DD")
@@ -189,6 +190,13 @@ class HockeySite:
 
     def matches_buttons(self, filtered_matches):
         for _, row in filtered_matches.iterrows():
+            # Inicjalizacja session_state dla meczu
+            state_key = f"nhl_match_state_{row.id}"
+            button_key = f"nhl_match_button_{row.id}"
+            
+            if state_key not in st.session_state:
+                st.session_state[state_key] = False
+            
             button_label = "{} - {}, data: {}".format(row.home_team, row.away_team, row.game_date.strftime('%d.%m.%y %H:%M'))
             if row.result != '0':
                 if row.OTwinner == 1:
@@ -202,7 +210,10 @@ class HockeySite:
                 else:
                     button_label = button_label + ", wynik spotkania: {} - {}".format(int(row.home_goals), int(row.away_goals))
 
-            if st.button(button_label, use_container_width=True):
+            if st.button(button_label, use_container_width=True, key=button_key):
+                st.session_state[state_key] = not st.session_state[state_key]
+            
+            if st.session_state[state_key]:
                 self.match_details(row)
 
     def generate_schedule_tab(self):
@@ -248,8 +259,18 @@ class HockeySite:
         with st.expander("Zespoły w sezonie {}".format(self.selected_season)):
             st.header("Drużyny grające w {} w sezonie {}:".format(self.name, self.selected_season))
             for key, value in self.teams_dict.items():
+                # Inicjalizacja session_state dla drużyny
+                state_key = f"nhl_team_state_{key}"
+                button_key = f"nhl_team_button_{key}"
+                
+                if state_key not in st.session_state:
+                    st.session_state[state_key] = False
+                
                 button_label = value
-                if st.button(button_label, use_container_width = True):
+                if st.button(button_label, use_container_width=True, key=button_key):
+                    st.session_state[state_key] = not st.session_state[state_key]
+                
+                if st.session_state[state_key]:
                     tabs = st.tabs(["Statystyki drużyny", 
                                    "Skład", 
                                    "Statystyki zawodników", 

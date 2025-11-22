@@ -1,7 +1,7 @@
-import streamlit as st
 import plotly.graph_objects as go
 from PIL import Image
 import numpy as np
+import pandas as pd
 
 # Funkcja do rysowania boiska hokejowego
 
@@ -12,15 +12,12 @@ def generate_half_circle(x_center, y_center, radius, direction="right"):
     else:
         start_angle = 180
         end_angle = 360
-
     circle = go.Scatter(
         x=[x_center + radius * np.cos(np.deg2rad(i)) for i in range(start_angle, end_angle + 1)],
         y=[y_center + radius * np.sin(np.deg2rad(i)) for i in range(start_angle, end_angle + 1)],
         mode="lines",
         line=dict(color="blue", width=3),
-        fill="toself",
-    )
-
+        fill="toself",)
     return circle
 
 def draw_hockey_rink(lineup, team_name):
@@ -69,10 +66,18 @@ def draw_hockey_rink(lineup, team_name):
     fig.add_trace(generate_half_circle(20, 5, 2.5, direction="right"))
     fig.add_trace(generate_half_circle(20, 55, 2.5, direction="left"))
 
-    #Zawodnicy
+    # Zawodnicy
+    position_order = ["RW", "C", "LW"]
+    forwards_sorted = lineup[lineup["Pozycja"].isin(position_order)].copy()
+    forwards_sorted["Pozycja"] = pd.Categorical(
+        forwards_sorted["Pozycja"], 
+        categories=position_order, 
+        ordered=True
+    )
+    forwards_sorted = forwards_sorted.sort_values("Pozycja")
     positions = {
         "forwards": {
-            "players": lineup[lineup["Pozycja"].isin(["RW", "C", "LW"])],
+            "players": forwards_sorted,
             "x": [33, 20, 7],
             "y": 45
         },
@@ -87,7 +92,6 @@ def draw_hockey_rink(lineup, team_name):
             "y": 11
         }
     }
-
     for _, data in positions.items():
         for i, (_, player) in enumerate(data["players"].iterrows()):
             fig.add_layout_image(
@@ -106,9 +110,11 @@ def draw_hockey_rink(lineup, team_name):
                 font=dict(size=15, color="black"),
                 xanchor="center"
             )
+
     # Ustawienia osi
     fig.update_xaxes(range=[0, 40], showgrid=False, zeroline=False, visible=False)
     fig.update_yaxes(range=[0, 60], showgrid=False, zeroline=False, visible=False)
+
     # Ustawienia wykresu
     fig.update_layout(
         width=400,

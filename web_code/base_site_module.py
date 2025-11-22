@@ -735,6 +735,14 @@ class Base:
                 - self.years: opis sezonu
                 - self.teams_dict: słownik drużyn {id: nazwa}
         """
+        # Inicjalizacja session_state dla expanderów
+        if 'expander_prev_round' not in st.session_state:
+            st.session_state.expander_prev_round = False
+        if 'expander_current_round' not in st.session_state:
+            st.session_state.expander_current_round = True
+        if 'expander_teams' not in st.session_state:
+            st.session_state.expander_teams = False
+        
         special_rounds = get_special_rounds_cached()
         
         # 1. Wyświetlenie poprzedniej kolejki (jeśli aktualna > 1 i nie filtrujemy po dacie)
@@ -745,7 +753,7 @@ class Base:
                 if prev_round >= 100 
                 else prev_round
             ) 
-            with st.expander(f"Terminarz, poprzednia kolejka: {round_title}"):
+            with st.expander(f"Terminarz, poprzednia kolejka: {round_title}", expanded=st.session_state.expander_prev_round):
                 self.generate_schedule(prev_round, self.date_range, use_date_filter=False)
 
         # 2. Wyświetlenie aktualnego terminarza
@@ -763,11 +771,11 @@ class Base:
             )
             expander_title = f"Terminarz, aktualna kolejka: {current_round_title}"
             
-        with st.expander(expander_title):
+        with st.expander(expander_title, expanded=st.session_state.expander_current_round):
             self.generate_schedule(self.round, self.date_range, use_date_filter=self.filter_by_date)
 
         # 3. Panel z listą drużyn
-        with st.expander(f"Zespoły w sezonie {self.years}"):
+        with st.expander(f"Zespoły w sezonie {self.years}", expanded=st.session_state.expander_teams):
             self.show_teams(self.teams_dict)
 
     def get_league_tables(self):
@@ -1368,6 +1376,13 @@ class Base:
         Args:
             row (pd.Series): Wiersz DataFrame z danymi meczu
         """
+        # Inicjalizacja session_state dla meczu (osobny klucz od przycisku)
+        state_key = f"match_state_{row.id}"
+        button_key = f"match_button_{row.id}"
+        
+        if state_key not in st.session_state:
+            st.session_state[state_key] = False
+        
         # Budowanie etykiety przycisku
         button_label = f"{row.home} - {row.guest}, data: {row.date.strftime('%d.%m.%y %H:%M')}"
         
@@ -1375,8 +1390,12 @@ class Base:
         if row.result != '0':
             button_label += f", wynik spotkania: {row.h_g} - {row.a_g}"
         
-        # Wyświetlenie przycisku i paneli szczegółów
-        if st.button(button_label, use_container_width=True, key=f"match_{row.id}"):
+        # Toggle stanu przy kliknięciu
+        if st.button(button_label, use_container_width=True, key=button_key):
+            st.session_state[state_key] = not st.session_state[state_key]
+        
+        # Wyświetlanie treści na podstawie stanu
+        if st.session_state[state_key]:
             tab1, tab2, tab3, tab4 = st.tabs(["Predykcje i kursy", "Statystyki pomeczowe", "Boxscore - statystyki zawodników", "Dla developerów"])
             with tab1:
                 self.show_predictions(row.h_g, row.a_g, row.id, row.result)     
@@ -1537,8 +1556,19 @@ class Base:
         st.header(f"Drużyny grające w {self.name} w sezonie {self.years}:")
 
         for team_id, team_name in teams_dict.items():
-            # Przycisk wyboru drużyny
-            if st.button(team_name, use_container_width=True, key=f"team_{team_id}"):
+            # Inicjalizacja session_state dla drużyny (osobny klucz od przycisku)
+            state_key = f"team_state_{team_id}"
+            button_key = f"team_button_{team_id}"
+            
+            if state_key not in st.session_state:
+                st.session_state[state_key] = False
+            
+            # Toggle stanu przy kliknięciu
+            if st.button(team_name, use_container_width=True, key=button_key):
+                st.session_state[state_key] = not st.session_state[state_key]
+            
+            # Wyświetlanie danych na podstawie stanu
+            if st.session_state[state_key]:
                 # Pobranie danych w nowym formacie słownikowym
                 team_data = self.single_team_data(team_id)
                 # Utworzenie zakładek

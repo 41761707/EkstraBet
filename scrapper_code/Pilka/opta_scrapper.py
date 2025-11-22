@@ -11,6 +11,15 @@ import time
 from tqdm import tqdm
 from utils import setup_chrome_driver
 
+class Args:
+    def __init__(self, league, season, url, automate, round_num, bulk, csv):
+        self.league = league
+        self.season = season
+        self.url = url
+        self.automate = automate
+        self.round = round_num
+        self.bulk = bulk
+        self.csv = csv
 
 def parse_arguments():
     """Funkcja do parsowania argumentów wiersza poleceń."""
@@ -621,17 +630,27 @@ def main_bulk(args, driver, conn):
         save_to_csv_file(all_match_data, args)
 
 
-def main() -> None:
-    """Główna funkcja skryptu, która pobiera dane z podanego URL i przetwarza je."""
-    args = parse_arguments()
+def run_opta(league: int, season: int, url: str, automate: bool = False, 
+             round_num: int = None, bulk: bool = False, csv: bool = False) -> None:
+    """Funkcja do uruchamiania scrappera Opta z poziomu innych modułów Pythona.
+    Args:
+        league (int): ID ligi
+        season (int): Rok sezonu (np. 2024)
+        url (str): URL strony z tabelą statystyk Opta
+        automate (bool): Automatyczne dodawanie wpisów do bazy danych (domyślnie False)
+        round_num (int): Numer rundy, do której tworzymy wpisy (opcjonalnie)
+        bulk (bool): Tryb masowego pobierania wszystkich kolejek (domyślnie False)
+        csv (bool): Zapisz dane do pliku CSV zamiast bazy danych (domyślnie False)
+    Returns:
+        None
+    """
     driver = setup_chrome_driver()
     conn = db_connect()
+    args = Args(league, season, url, automate, round_num, bulk, csv)
     try:
         if args.bulk:
-            # Tryb masowego pobierania
             main_bulk(args, driver, conn)
         else:
-            # Tryb pojedynczego meczu (oryginalny)
             all_data = pd.DataFrame()
             driver.get(args.url)
             time.sleep(5)
@@ -650,6 +669,17 @@ def main() -> None:
         driver.quit()
         conn.close()
 
+def main() -> None:
+    """Główna funkcja skryptu uruchamiana z CLI, która pobiera dane z podanego URL i przetwarza je."""
+    args = parse_arguments()
+    run_opta(
+        league=args.league,
+        season=args.season,
+        url=args.url,
+        automate=args.automate,
+        round_num=args.round,
+        bulk=args.bulk,
+        csv=args.csv)
 
 if __name__ == "__main__":
     main()

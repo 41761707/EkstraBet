@@ -89,7 +89,6 @@ def to_automate(league_id: int, season_id: int, games: str, single_match: bool =
     
     try:
         team_id = get_teams_dict(league_id, conn)
-        print(f"Znalezione drużyny: {team_id}")
         inserts = []
         # Wybór trybu pobierania linków
         if single_match:
