@@ -1,0 +1,18 @@
+# Rekomendowana wersja Python: 3.11.9
+# Program testowany i zoptymalizowany pod tę wersję
+# Aby sprawdzić aktualną wersję: python --version
+# Aby zainstalować konkretną wersję, użyj pyenv lub pobierz z python.org
+
+streamlit
+mysql-connector-python
+matplotlib
+seaborn
+plotly
+selenium
+tqdm
+tabulate
+tensorflow
+scikit-learn
+fastapi
+uvicorn
+pydantic

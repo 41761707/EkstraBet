@@ -1,0 +1,9 @@
+{
+    "sport_id": 1,
+    "leagues": [],
+    "leagues_upcoming": [],
+    "country": [],
+    "load_weights": "1",
+    "model_load_name" : "winner_model_czech_2",
+    "threshold_date": "2025-11-28"
+}

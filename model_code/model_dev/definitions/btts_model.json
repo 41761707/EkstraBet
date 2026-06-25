@@ -1,0 +1,109 @@
+{
+  "model_type": "btts",
+  "model_name": "btts_model_v1",
+  "window_size": 5,
+  "sport_id": 1,
+  "output_config": {
+    "classes": 2,
+    "labels": [
+      "Nie",
+      "Tak"
+    ],
+    "label_mapping": {
+      "0": "Nie",
+      "1": "Tak"
+    }
+  },
+  "folder_config": {
+    "dev_folder": "model_dev/btts",
+    "release_folder": "model_release/btts"
+  },
+  "ratings":[
+    "gap",
+    "czech"
+  ],
+  "supported_ratings": {
+    "elo": {
+        "enabled": false
+    },
+    "gap": {
+      "enabled": true,
+      "parameters": {
+        "match_attributes": [
+          "btts"
+        ]
+      },
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "home_goals_avg",
+        "away_goals_avg"
+      ]
+    },
+    "czech": {
+      "enabled": false
+    }
+  },
+  "architecture_config": {
+    "lstm": {
+      "layers": [
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        },
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        }
+      ]
+    },
+    "dense_layers": [
+        {
+          "units": 128,
+          "activation": "relu",
+          "dropout": 0.5,
+          "batch_normalization": false
+        },
+        {
+          "units": 64,
+          "activation": "relu",
+          "dropout": 0.3,
+          "batch_normalization": false
+        }
+    ],
+    "output": {
+      "units": 2,
+      "activation": "softmax"
+    },
+    "model": {
+        "type": "LSTM",
+        "compilation": {
+            "optimizer": {
+            "type": "Adam",
+            "learning_rate": 0.001
+            },
+            "loss": "categorical_crossentropy",
+            "metrics": ["accuracy"],
+            "class_weights": {
+                "0": 1.6,
+                "1": 1.0
+            }
+      }
+    }
+  },
+  "prediction_config": {
+    "events": [
+      172,
+      6
+    ],
+    "description": "Events: [No BTTS, BTTS]"
+  }
+}

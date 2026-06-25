@@ -1,0 +1,134 @@
+---
+description: Apply always when you're asked to write code in Python
+alwaysApply: false
+---
+
+# Python Coding Style
+
+Te zasady definiują, jak poprawnie pisać kod w Pythonie. Stosuj je zawsze przy
+tworzeniu lub modyfikowaniu kodu w języku programowania Python, aby uniknąć błędów składniowych,
+stylistycznych i logicznych.
+
+## Zasady projektowe (priorytetowe)
+
+Poniższe reguły mają pierwszeństwo i zawsze muszą być przestrzegane:
+
+1. **Język kodu i komentarzy**
+   - Cały kod (nazwy zmiennych, funkcji, klas, modułów, stałych, docstringi,
+     komunikaty logów, wiadomości wyjątków) pisz **po angielsku**.
+   - Komentarze (`#`) pisz **po polsku**.
+   - Docstringi traktuj jako część dokumentacji kodu, więc pisz je po angielsku.
+
+2. **Unikaj zbędnych spacji**
+   - Nie zostawiaj spacji na końcu linii (trailing whitespace).
+   - Nie zostawiaj pustych linii zawierających spacje.
+   - Nie używaj wielu spacji tam, gdzie wystarczy jedna.
+   - Nie dodawaj spacji tuż po `(` ani tuż przed `)`, `]`, `}`.
+
+3. **Maksymalna długość funkcji**
+   - Funkcja/metoda nie powinna przekraczać **100 linii kodu**.
+   - Jeśli funkcja rośnie powyżej tego limitu, rozbij ją na mniejsze, dobrze
+     nazwane podfunkcje.
+   - Wyjątek dopuszczalny tylko, gdy istnieje dobry, świadomy powód (np. duży
+     blok mapowania danych, generowany kod) — wtedy opisz to krótkim komentarzem
+     po polsku.
+
+## Formatowanie (zgodne z PEP 8)
+
+- Wcięcia: **4 spacje**, nigdy tabulatory.
+- Maksymalna długość linii: **79 znaków** dla kodu, **72** dla komentarzy i
+  docstringów. Jeśli projekt używa formattera (Black), trzymaj się **88 znaków**
+  i nie spieraj się z formatterem.
+- Dwie puste linie oddzielają definicje funkcji i klas na poziomie modułu.
+- Jedna pusta linia oddziela metody wewnątrz klasy.
+- Importy umieszczaj na górze pliku, w kolejności:
+  1. biblioteka standardowa,
+  2. zależności zewnętrzne (third-party),
+  3. moduły lokalne (projektowe).
+  Grupy oddzielaj jedną pustą linią.
+- Każdy import w osobnej linii (`import os`, `import sys` oddzielnie).
+  Wyjątek: `from module import a, b, c`.
+- Nie używaj importów z gwiazdką (`from module import *`).
+- Otaczaj operatory pojedynczą spacją (`x = a + b`, nie `x=a+b`).
+- Nie dodawaj spacji wokół `=` przy argumentach domyślnych funkcji
+  (`def f(x=1)`, nie `def f(x = 1)`), o ile nie ma adnotacji typu.
+  Przy adnotacji typu używaj spacji: `def f(x: int = 1)`.
+
+## Nazewnictwo
+
+- `snake_case` dla funkcji, metod, zmiennych i argumentów.
+- `PascalCase` (CapWords) dla klas.
+- `UPPER_SNAKE_CASE` dla stałych modułowych.
+- `_leading_underscore` dla elementów wewnętrznych/prywatnych.
+- Unikaj jednoznakowych nazw `l`, `O`, `I` (mylą się z cyframi).
+- Nazwy mają być opisowe i jednoznaczne; unikaj skrótów, które nie są
+  powszechnie znane.
+
+## Adnotacje typów (type hints)
+
+- Dodawaj adnotacje typów do sygnatur funkcji publicznych (argumenty i zwracana
+  wartość).
+- Używaj nowoczesnej składni typów tam, gdzie wersja Pythona na to pozwala
+  (`list[int]`, `dict[str, int]`, `str | None`).
+- Do złożonych typów korzystaj z modułu `typing` (`Optional`, `Iterable`,
+  `Callable`, `Any` tylko gdy naprawdę konieczne).
+
+## Docstringi i komentarze
+
+- Publiczne moduły, klasy i funkcje powinny mieć docstring (po angielsku).
+- Używaj potrójnych podwójnych cudzysłowów `"""..."""`.
+- Komentarze (po polsku) wyjaśniają **dlaczego**, a nie **co** robi kod —
+  nie powielaj treści oczywistej z kodu.
+- Aktualizuj komentarze przy zmianie kodu, aby nie wprowadzały w błąd.
+
+## Struktura kodu i dobre praktyki
+
+- Stosuj zasadę pojedynczej odpowiedzialności: jedna funkcja robi jedną rzecz.
+- Preferuj wczesne wyjścia (`guard clauses`) zamiast głębokiego zagnieżdżania.
+- Unikaj duplikacji kodu (DRY) — wspólną logikę wydzielaj do funkcji.
+- Nie używaj zmiennych globalnych do przekazywania stanu.
+- Używaj `is` / `is not` do porównań z `None`.
+- Używaj menedżerów kontekstu (`with`) do pracy z plikami i zasobami.
+- Preferuj list/dict/set comprehensions tam, gdzie poprawiają czytelność, ale
+  nie nadużywaj ich w złożonych przypadkach.
+- Używaj f-stringów do formatowania tekstu (`f"{value}"`).
+
+## Obsługa błędów
+
+- Łap konkretne wyjątki, nie używaj gołego `except:`.
+- Nie tłum wyjątków po cichu (`except Exception: pass`) bez uzasadnienia.
+- Komunikaty wyjątków pisz po angielsku.
+- Zwalniaj zasoby w blokach `finally` lub przez menedżery kontekstu.
+
+## Czego unikać
+
+- Martwego (nieużywanego) kodu, zaimportowanych a nieużywanych nazw.
+- Mutowalnych argumentów domyślnych (`def f(items=[])`) — użyj `None`
+  i utwórz obiekt w ciele funkcji.
+- Mieszania tabulatorów i spacji.
+- Zbyt długich, wielozadaniowych funkcji (patrz limit 100 linii).
+- Magicznych liczb — wydzielaj je do nazwanych stałych.
+
+## Przykład poprawnego kodu
+
+```python
+"""Utilities for processing user records."""
+
+from __future__ import annotations
+
+
+MAX_NAME_LENGTH = 100
+
+
+def normalize_name(raw_name: str) -> str:
+    """Return a trimmed, single-spaced version of the given name."""
+    # usuwamy nadmiarowe spacje, bo dane wejściowe bywają niespójne
+    return " ".join(raw_name.split())
+
+
+def is_valid_name(name: str) -> bool:
+    """Check whether the name is non-empty and within the length limit."""
+    if not name:
+        return False
+    return len(name) <= MAX_NAME_LENGTH
+```

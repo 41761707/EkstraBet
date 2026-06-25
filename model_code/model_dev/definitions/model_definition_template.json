@@ -1,0 +1,131 @@
+{
+  "model_type": "TEMPLATE_MODEL_TYPE",
+  "model_name": "NAZWA_MODELU_v1",
+  "window_size": 5,
+  "sport_id": 1,
+  "output_config": {
+    "classes": 2,
+    "labels": [
+      "ETYKIETA_KLASY_0",
+      "ETYKIETA_KLASY_1"
+    ],
+    "label_mapping": {
+      "0": "ETYKIETA_KLASY_0",
+      "1": "ETYKIETA_KLASY_1"
+    }
+  },
+  "folder_config": {
+    "dev_folder": "model_NAZWA_MODELU_dev",
+    "release_folder": "model_NAZWA_MODELU_release"
+  },
+  "supported_ratings": {
+    "elo": {
+      "enabled": false,
+      "parameters": {
+        "initial_rating": 1500,
+        "k_factor": 64,
+        "second_tier_coef": 0.8
+      },
+      "columns": [
+        "home_team_elo",
+        "away_team_elo"
+      ]
+    },
+    "gap": {
+      "enabled": true,
+      "parameters": {
+        "match_attributes": [
+          "ATRYBUT_1",
+          "ATRYBUT_2",
+          "ATRYBUT_3",
+          "ATRYBUT_4"
+        ]
+      },
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "DODATKOWA_KOLUMNA_1",
+        "DODATKOWA_KOLUMNA_2"
+      ]
+    },
+    "czech": {
+      "enabled": true,
+      "columns": [
+        "home_team_home_win_pct",
+        "home_team_home_draw_pct",
+        "home_team_home_gs_avg",
+        "home_team_home_gc_avg",
+        "home_team_home_gs_std",
+        "home_team_home_gc_std",
+        "away_team_away_win_pct",
+        "away_team_away_draw_pct",
+        "away_team_away_gs_avg",
+        "away_team_away_gc_avg",
+        "away_team_away_gs_std",
+        "away_team_away_gc_std"
+      ]
+    }
+  },
+  "default_ratings": [
+    "gap",
+    "czech"
+  ],
+  "architecture_config": {
+    "lstm": {
+      "layers": [
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        },
+        {
+          "units": [256, 128, 64],
+          "activation": ["tanh", "tanh", "tanh"],
+          "return_sequences": [true, true, false],
+          "dropout": [0.3, 0.3, 0.3],
+          "batch_normalization": [false, false, false]
+        }
+      ]
+    },
+    "dense_layers": [
+      {
+        "units": 128,
+        "activation": "relu",
+        "dropout": 0.5,
+        "batch_normalization": false
+      },
+      {
+        "units": 64,
+        "activation": "relu",
+        "dropout": 0.3,
+        "batch_normalization": false
+      }
+    ],
+    "output": {
+      "units": 2,
+      "activation": "softmax"
+    },
+    "model": {
+      "type": "LSTM",
+      "compilation": {
+        "optimizer": {
+          "type": "Adam",
+          "learning_rate": 0.001
+        },
+        "loss": "categorical_crossentropy",
+        "metrics": ["accuracy"]
+      }
+    }
+  },
+  "prediction_config": {
+    "events": [
+      "KOD_ZDARZENIA_0",
+      "KOD_ZDARZENIA_1"
+    ],
+    "description": "Events: [OPIS_ZDARZENIA_0, OPIS_ZDARZENIA_1]"
+  }
+}

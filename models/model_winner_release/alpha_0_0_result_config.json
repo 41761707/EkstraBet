@@ -1,0 +1,185 @@
+{
+  "model_name": "alpha_0_0_result",
+  "model_type": "winner",
+  "window_size": 5,
+  "train_accuracy": 0.4790564477443695,
+  "train_loss": 1.031657099723816,
+  "val_accuracy": 0.4588339030742645,
+  "val_loss": 1.0521761178970337,
+  "model_path": "model_winner_dev/alpha_0_0_result.h5",
+  "feature_columns": [
+    "home_team_elo",
+    "away_team_elo",
+    "home_home_att_power",
+    "home_home_def_power",
+    "away_away_att_power",
+    "away_away_def_power",
+    "home_goals_avg",
+    "away_goals_avg",
+    "home_team_home_win_pct",
+    "home_team_home_draw_pct",
+    "home_team_home_gs_avg",
+    "home_team_home_gc_avg",
+    "home_team_home_gs_std",
+    "home_team_home_gc_std",
+    "away_team_away_win_pct",
+    "away_team_away_draw_pct",
+    "away_team_away_gs_avg",
+    "away_team_away_gc_avg",
+    "away_team_away_gs_std",
+    "away_team_away_gc_std"
+  ],
+  "ratings": {
+    "elo": {
+      "enabled": true,
+      "initial_rating": 1500,
+      "second_tier_coef": 0.8,
+      "k_factor": 64,
+      "columns": [
+        "home_team_elo",
+        "away_team_elo"
+      ]
+    },
+    "gap": {
+      "enabled": true,
+      "columns": [
+        "home_home_att_power",
+        "home_home_def_power",
+        "away_away_att_power",
+        "away_away_def_power",
+        "home_goals_avg",
+        "away_goals_avg"
+      ],
+      "match_attributes": [
+        {
+          "name": "chances_home",
+          "calculator": "lambda match: int(match['home_team_ck']) + int(match['home_team_sc'])"
+        },
+        {
+          "name": "chances_away",
+          "calculator": "lambda match: int(match['away_team_ck']) + int(match['away_team_sc'])"
+        }
+      ]
+    },
+    "czech": {
+      "enabled": true,
+      "columns": [
+        "home_team_home_win_pct",
+        "home_team_home_draw_pct",
+        "home_team_home_gs_avg",
+        "home_team_home_gc_avg",
+        "home_team_home_gs_std",
+        "home_team_home_gc_std",
+        "away_team_away_win_pct",
+        "away_team_away_draw_pct",
+        "away_team_away_gs_avg",
+        "away_team_away_gc_avg",
+        "away_team_away_gs_std",
+        "away_team_away_gc_std"
+      ]
+    }
+  },
+  "model": {
+    "type": "LSTM",
+    "architecture": {
+      "lstm_layers": [
+        {
+          "units": [
+            256,
+            128,
+            64
+          ],
+          "activation": [
+            "tanh",
+            "tanh",
+            "tanh"
+          ],
+          "return_sequences": [
+            true,
+            true,
+            false
+          ],
+          "dropout": [
+            0.2,
+            0.2,
+            0.0
+          ],
+          "batch_normalization": [
+            true,
+            true,
+            false
+          ]
+        },
+        {
+          "units": [
+            256,
+            128,
+            64
+          ],
+          "activation": [
+            "tanh",
+            "tanh",
+            "tanh"
+          ],
+          "return_sequences": [
+            true,
+            true,
+            false
+          ],
+          "dropout": [
+            0.2,
+            0.2,
+            0.0
+          ],
+          "batch_normalization": [
+            true,
+            true,
+            false
+          ]
+        }
+      ],
+      "dense_layers": [
+        {
+          "units": 128,
+          "activation": "relu",
+          "regularization_l2": null,
+          "dropout": 0.2
+        },
+        {
+          "units": 64,
+          "activation": "relu",
+          "regularization_l2": null
+        },
+        {
+          "units": 16,
+          "activation": "linear",
+          "regularization_l2": null
+        }
+      ],
+      "output": {
+        "units": 3,
+        "activation": "softmax"
+      }
+    },
+    "compilation": {
+      "optimizer": {
+        "type": "Adam",
+        "learning_rate": 1e-05
+      },
+      "loss": "categorical_crossentropy",
+      "metrics": [
+        "accuracy",
+        "Precision",
+        "Recall"
+      ]
+    }
+  },
+  "training_config": {
+    "sport_id": 1,
+    "leagues": [],
+    "leagues_upcoming": [],
+    "country": [],
+    "load_weights": "0",
+    "threshold_date": "2025-07-11"
+  }
+}

@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# My excludes
+db_module.py
+.vscode/
+.devcontainer/
+*.png 
+*.v2
+*.jpg

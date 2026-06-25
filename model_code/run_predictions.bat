@@ -1,0 +1,1 @@
+python .\main.py --mode predict --model_config .\model_dev\winner\winner_model_czech_2_config.json --prediction_config .\prediction_configs\prediction_daily.json
