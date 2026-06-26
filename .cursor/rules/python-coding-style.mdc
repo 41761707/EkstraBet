@@ -33,6 +33,11 @@ Poniższe reguły mają pierwszeństwo i zawsze muszą być przestrzegane:
      blok mapowania danych, generowany kod) — wtedy opisz to krótkim komentarzem
      po polsku.
 
+4. **Dodatkowe zasady**
+    - Nie kończ linii znakiem typu `(`, `[`, `{`, `)`, `]`, `}` - jak definiujesz słownik, kroktę albo listę
+    to doklejaj nawiasy otwierające i zamykające odpowiednio na początku pierwszej i końcu ostatniej linii
+    - Nie kończ linii znakiem typu `,` - jak definiujesz słownik, kroktę albo listę to NIE UŻYWAJ zbędnego przecinka na końcu ostatniej linii
+
 ## Formatowanie (zgodne z PEP 8)
 
 - Wcięcia: **4 spacje**, nigdy tabulatory.
