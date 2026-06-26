@@ -217,6 +217,12 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Next.js (frontend/)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
 # My excludes
 db_module.py
 .vscode/
