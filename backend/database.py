@@ -1,13 +1,10 @@
 """MySQL connection manager shared by API, services, and tests."""
 
 from __future__ import annotations
-
 from contextlib import contextmanager
 from typing import Generator
-
 import mysql.connector
 from mysql.connector import MySQLConnection
-
 from backend.config import get_database_config
 
 

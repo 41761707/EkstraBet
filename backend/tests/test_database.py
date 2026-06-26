@@ -14,12 +14,10 @@ from backend.database import (
 
 class TestConnectionManager(unittest.TestCase):
     """Unit tests for the database connection manager."""
-
     required_env = {
         "DB_PASSWORD": "test-db-password",
         "SECRET_KEY": "test-secret-key-for-unit-tests-only"
     }
-
     def tearDown(self) -> None:
         get_settings.cache_clear()
 
@@ -76,10 +74,9 @@ class TestDatabaseIntegration(unittest.TestCase):
         "DB_PASSWORD": "test-db-password",
         "SECRET_KEY": "test-secret-key-for-unit-tests-only",
     }
-
     def tearDown(self) -> None:
         get_settings.cache_clear()
-
+        
     def test_live_connection_when_db_password_is_configured(self) -> None:
         db_password = os.getenv("DB_PASSWORD")
         if not db_password:

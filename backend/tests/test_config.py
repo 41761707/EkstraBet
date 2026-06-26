@@ -68,8 +68,7 @@ class TestSettings(unittest.TestCase):
     def test_settings_model_can_be_instantiated_directly(self) -> None:
         current = Settings(
             db_password="direct-password",
-            secret_key="direct-secret-key",
-        )
+            secret_key="direct-secret-key")
         self.assertEqual(current.frontend_origin, "http://localhost:3000")
 
 
