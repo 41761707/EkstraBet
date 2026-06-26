@@ -37,6 +37,8 @@ Poniższe reguły mają pierwszeństwo i zawsze muszą być przestrzegane:
     - Nie kończ linii znakiem typu `(`, `[`, `{`, `)`, `]`, `}` - jak definiujesz słownik, kroktę albo listę
     to doklejaj nawiasy otwierające i zamykające odpowiednio na początku pierwszej i końcu ostatniej linii
     - Nie kończ linii znakiem typu `,` - jak definiujesz słownik, kroktę albo listę to NIE UŻYWAJ zbędnego przecinka na końcu ostatniej linii
+    - Unikaj dodatkowych, zbędnych spacji czy tabulacji między np. definicjami zmiennych. Tabulacje powinny
+    oddzielać tylko i wyłącznie logiczne bloki kodu.
 
 ## Formatowanie (zgodne z PEP 8)
 
