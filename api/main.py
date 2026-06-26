@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers.helper import router as helper_router
+from api.routers.leagues import router as leagues_router
 from api.routers.matches import router as matches_router
 from api.routers.models import router as models_router
 from api.routers.odds import router as odds_router
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
             "version": settings.api_version,
             "description": settings.api_description,
             "modules": [
+                "leagues - League navigation and metadata",
                 "teams - Team management",
                 "helper - Reference data (countries, sports, seasons)",
                 "models - Model metadata",
@@ -74,6 +76,7 @@ def create_app() -> FastAPI:
                 datetime.timezone.utc).isoformat(),
         }
 
+    app.include_router(leagues_router)
     app.include_router(teams_router)
     app.include_router(helper_router)
     app.include_router(models_router)

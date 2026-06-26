@@ -17,6 +17,9 @@ def test_imports():
         from api.routers.teams import router as teams_router
         print("✅ api.routers.teams - OK")
 
+        from api.routers.leagues import router as leagues_router
+        print("✅ api.routers.leagues - OK")
+
         from api.main import app, create_app
         print("✅ api.main - OK")
 
