@@ -1,18 +1,10 @@
-# API EkstraBet - Moduł obsługi kursów
-# Plik zawiera endpointy FastAPI do zarządzania danymi kursów
-# Autor: System EkstraBet
-
 from fastapi import APIRouter, HTTPException, Query, Path
-import pandas as pd
 from pydantic import BaseModel, Field
 import logging
 from typing import List
-from utils import get_db_connection, execute_query
+from api.utils import execute_query
 
-# Konfiguracja logowania
 logger = logging.getLogger(__name__)
-
-# === MODELE PYDANTIC ===
 
 class OddsResponse(BaseModel):
     """Model odpowiedzi dla kursu"""

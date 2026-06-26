@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import logging
 from typing import Optional
-from utils import get_db_connection, execute_query
+from api.utils import execute_query
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)

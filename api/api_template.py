@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
-from utils import get_db_connection, execute_query
+from api.utils import execute_query
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -99,14 +99,14 @@ async def get_all_items(
 
 # === INSTRUKCJE DODAWANIA NOWEGO MODUŁU ===
 """
-1. Skopiuj ten plik jako api_{nazwa_modułu}.py
+1. Skopiuj ten plik jako api/routers/{nazwa_modułu}.py
 2. Zmień prefix w router = APIRouter(prefix="/nazwa_modułu", tags=["Tag"])
 3. Zdefiniuj odpowiednie modele Pydantic dla tego modułu
 4. Napisz zapytania SQL dostosowane do tabel tego modułu
-5. Dodaj router do start_api.py:
-   - from api_{nazwa_modułu} import router as {nazwa_modułu}_router
+5. Dodaj router do api/main.py:
+   - from api.routers.{nazwa_modułu} import router as {nazwa_modułu}_router
    - app.include_router({nazwa_modułu}_router)
-6. Dodaj informacje o module do głównego endpointu w start_api.py
+6. Dodaj informacje o module do głównego endpointu w api/main.py
 7. Dodaj testy do test_api.py
 8. Zaktualizuj README.md
 """

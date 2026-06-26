@@ -1,15 +1,10 @@
-# API EkstraBet - Moduł obsługi meczów
-# Plik zawiera endpointy FastAPI do zarządzania danymi meczów
-# Autor: System EkstraBet
-
 from fastapi import APIRouter, HTTPException, Query
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
 from typing import Optional, List
 
-from pyparsing import Opt
-from utils import get_db_connection, execute_query
+from api.utils import execute_query
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)

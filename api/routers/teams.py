@@ -1,18 +1,14 @@
-# API EkstraBet - Moduł obsługi drużyn
-# Plik zawiera endpointy FastAPI do zarządzania danymi drużyn
-# Autor: System EkstraBet
 
 from fastapi import APIRouter, HTTPException, Query
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
 from typing import Optional, List
-from utils import get_db_connection, execute_query
+from api.utils import execute_query
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
 
-# Modele Pydantic dla walidacji danych
 class TeamResponse(BaseModel):
     """Model odpowiedzi dla pojedynczej drużyny"""
     id: int = Field(..., description="ID drużyny")

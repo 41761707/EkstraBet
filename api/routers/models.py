@@ -1,10 +1,9 @@
-import time
 from fastapi import APIRouter, HTTPException
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
 from typing import Optional
-from utils import get_db_connection, execute_query
+from api.utils import execute_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,8 +47,6 @@ class DetailedModelResponse(BaseModel):
         default=[], description="Wszystkie zdarzenia obsługiwane przez model")
     total_events: int = Field(
         0, description="Łączna liczba obsługiwanych zdarzeń")
-
-# ==================== FUNKCJE POMOCNICZE ====================
 
 def get_model_basic_info(model_id: int) -> dict:
     """
