@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
                 "matches - Match management",
                 "odds - Bookmaker odds",
                 "predictions - Model predictions",
+                "standings - League tables via /leagues/{id}/standings",
             ],
             "documentation": {
                 "swagger": "/docs",

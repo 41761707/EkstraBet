@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 import logging
 from typing import Optional, List
 from api.utils import execute_query
+from api.schemas.team_profile import TeamProfileResponse
+from backend.services import team_service
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -117,6 +119,7 @@ async def teams_info():
         "endpoints": [
             "/teams/all - Wszystkie drużyny",
             "/teams/search - Wyszukiwanie drużyn z filtrami",
+            "/teams/{team_id}/profile - Team profile with form and split stats",
             "/teams/{team_id}/stats - Statystyki drużyny (z opcjonalnym filtrem sezonu)",
             "/teams/{team_id}/btts - Statystyki BTTS drużyny (z opcjonalnym filtrem sezonu)",
             "/teams/{team_id}/hockey-stats - Szczegółowe statystyki hokejowe drużyny",
@@ -124,6 +127,48 @@ async def teams_info():
             "/teams/{team_id}/head-to-head/{opponent_id} - Statystyki bezpośrednich spotkań"
         ]
     }
+
+@router.get("/{team_id}/profile", response_model=TeamProfileResponse)
+async def get_team_profile(
+    team_id: int,
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    league_id: int | None = Query(
+        None,
+        ge=1,
+        description="Optional league filter"),
+    limit: int = Query(
+        5,
+        ge=1,
+        le=100,
+        description="Number of recent matches and H2H meetings"),
+    opponent_id: int | None = Query(
+        None,
+        ge=1,
+        description="Opponent team ID for head-to-head summary")
+) -> TeamProfileResponse:
+    """Return team profile with form, split stats and recent matches."""
+    try:
+        profile = team_service.get_team_profile(
+            team_id=team_id,
+            season_id=season_id,
+            league_id=league_id,
+            limit=limit,
+            opponent_id=opponent_id)
+        if profile is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Team {team_id} not found")
+        return TeamProfileResponse(**profile)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch profile for team %s: %s",
+            team_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch team profile for {team_id}") from exc
 
 @router.get("/all", response_model=TeamsListResponse)
 async def get_all_teams(

@@ -16,7 +16,12 @@ from api.schemas.league import (
 from api.schemas.match import (
     LeagueMatchesListResponse,
     MatchSummary)
-from backend.services import league_service, match_service
+from api.schemas.standing import (
+    LeagueStandingsResponse,
+    OuBttsStandingRow,
+    StandingScope,
+    TraditionalStandingRow)
+from backend.services import league_service, match_service, standings_service
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +41,7 @@ async def leagues_info() -> dict[str, object]:
             "GET /leagues/{league_id}/seasons - Seasons for a league",
             "GET /leagues/{league_id}/rounds/{season_id} - Rounds for a season",
             "GET /leagues/{league_id}/matches - League schedule and results",
+            "GET /leagues/{league_id}/standings - League standings",
         ],
     }
 
@@ -181,6 +187,57 @@ async def get_league_matches(
             status_code=500,
             detail=(
                 f"Failed to fetch matches for league {league_id}, "
+                f"season {season_id}")) from exc
+
+
+@router.get(
+    "/{league_id}/standings",
+    response_model=LeagueStandingsResponse)
+async def get_league_standings(
+    league_id: int = Path(..., ge=1, description="League ID"),
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    scope: StandingScope = Query(
+        "overall",
+        description="Standings scope: overall, home, away, ou_btts")
+) -> LeagueStandingsResponse:
+    """Return league standings for the requested season and scope."""
+    try:
+        payload = standings_service.get_league_standings(
+            league_id=league_id,
+            season_id=season_id,
+            scope=scope)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"League {league_id} not found")
+        if scope == "ou_btts":
+            mapped = [
+                OuBttsStandingRow(**row)
+                for row in payload["standings"]
+            ]
+        else:
+            mapped = [
+                TraditionalStandingRow(**row)
+                for row in payload["standings"]
+            ]
+        return LeagueStandingsResponse(
+            league_id=payload["league_id"],
+            season_id=payload["season_id"],
+            scope=payload["scope"],
+            standings=mapped,
+            total_count=payload["total_count"])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch standings for league %s season %s: %s",
+            league_id,
+            season_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch standings for league {league_id}, "
                 f"season {season_id}")) from exc
 
 
