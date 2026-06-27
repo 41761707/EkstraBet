@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
 from typing import Optional, List
 
+from api.schemas.match import MatchDetails
 from api.utils import execute_query
+from backend.services import match_service
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -73,6 +75,7 @@ async def matches_info():
         "endpoints": [
             "/matches/seasons/{league_id} - Sezony dla danej ligi",
             "/matches/rounds/{league_id}/{season_id} - Rundy dla danego sezonu w lidze",
+            "/matches/{match_id}/details - Full match details",
             "/matches/{league_id}/{season_id} - Mecze z drużynami dla danego sezonu w lidze",
             "/matches/teams-in-season/{league_id}/{season_id} - Drużyny grające w sezonie zasadniczym"
         ]
@@ -187,6 +190,47 @@ async def get_rounds_for_season(
     except Exception as e:
         logger.error(f"Błąd w get_rounds_for_season dla ligi {league_id}, sezonu {season_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Błąd pobierania rund dla ligi {league_id}, sezonu {season_id}")
+
+@router.get("/{match_id}/details", response_model=MatchDetails)
+async def get_match_details(
+    match_id: int = Path(..., ge=1, description="Match ID"),
+    model_ids: str | None = Query(
+        None,
+        description="Comma-separated model IDs, e.g. '1,2,3'")
+) -> MatchDetails:
+    """Return teams, score, predictions, odds and basic stats for a match."""
+    parsed_model_ids: list[int] | None = None
+    if model_ids is not None:
+        try:
+            parsed_model_ids = [
+                int(model_id.strip())
+                for model_id in model_ids.split(",")
+                if model_id.strip()]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid model_ids format. Use e.g. '1,2,3'") from exc
+        if not parsed_model_ids:
+            parsed_model_ids = None
+    try:
+        details = match_service.get_match_details(
+            match_id,
+            model_ids=parsed_model_ids)
+        if details is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Match {match_id} not found")
+        return MatchDetails(**details)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch match details for %s: %s",
+            match_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch match {match_id}") from exc
 
 @router.get("/{league_id}/{season_id}", response_model=MatchesListResponse)
 async def get_matches_with_teams(

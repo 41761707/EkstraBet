@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 import logging
+from datetime import date
+
 from fastapi import APIRouter, HTTPException, Path, Query
 from api.schemas.league import (
     LeagueDetails,
@@ -11,7 +13,10 @@ from api.schemas.league import (
     LeagueSeasonsListResponse,
     LeaguesListResponse,
     LeagueSummary)
-from backend.services import league_service
+from api.schemas.match import (
+    LeagueMatchesListResponse,
+    MatchSummary)
+from backend.services import league_service, match_service
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,7 @@ async def leagues_info() -> dict[str, object]:
             "GET /leagues/{league_id} - League details",
             "GET /leagues/{league_id}/seasons - Seasons for a league",
             "GET /leagues/{league_id}/rounds/{season_id} - Rounds for a season",
+            "GET /leagues/{league_id}/matches - League schedule and results",
         ],
     }
 
@@ -117,6 +123,64 @@ async def get_league_rounds(
             status_code=500,
             detail=(
                 f"Failed to fetch rounds for league {league_id}, "
+                f"season {season_id}")) from exc
+
+
+@router.get(
+    "/{league_id}/matches",
+    response_model=LeagueMatchesListResponse)
+async def get_league_matches(
+    league_id: int = Path(..., ge=1, description="League ID"),
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    round: int | None = Query(
+        None,
+        ge=0,
+        description="Filter by round number"),
+    date_from: date | None = Query(
+        None,
+        description="Include matches from this date"),
+    date_to: date | None = Query(
+        None,
+        description="Include matches up to this date")
+) -> LeagueMatchesListResponse:
+    """Return league schedule and results with optional filters."""
+    if (
+        date_from is not None
+        and date_to is not None
+        and date_from > date_to
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="date_from must be less than or equal to date_to")
+    try:
+        matches = match_service.get_league_matches(
+            league_id=league_id,
+            season_id=season_id,
+            round_num=round,
+            date_from=date_from,
+            date_to=date_to)
+        if matches is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"League {league_id} not found")
+        mapped = [MatchSummary(**match) for match in matches]
+        return LeagueMatchesListResponse(
+            matches=mapped,
+            total_count=len(mapped),
+            league_id=league_id,
+            season_id=season_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch matches for league %s season %s: %s",
+            league_id,
+            season_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch matches for league {league_id}, "
                 f"season {season_id}")) from exc
 
 
