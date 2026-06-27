@@ -1,12 +1,9 @@
 """Pydantic schemas for bet recommendation endpoints."""
 
 from __future__ import annotations
-
 from datetime import date, datetime
 from typing import Literal
-
 from pydantic import BaseModel, Field
-
 from api.schemas.match import TeamInMatch
 from api.schemas.prediction import EventFamilyRef
 

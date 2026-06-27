@@ -1,12 +1,9 @@
 """Business logic for bet recommendation endpoints."""
 
 from __future__ import annotations
-
 from datetime import date
 from typing import Any, Literal
-
 import pandas as pd
-
 from backend.repositories import bet_repository
 
 BETTING_TAX_RATE = 0.12

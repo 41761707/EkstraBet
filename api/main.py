@@ -7,6 +7,7 @@ import logging
 import mysql.connector
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from api.routers.analytics import router as analytics_router
 from api.routers.bets import router as bets_router
 from api.routers.helper import router as helper_router
 from api.routers.leagues import router as leagues_router
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
                 "odds - Bookmaker odds",
                 "predictions - Model predictions",
                 "bets - Bet recommendations and EV",
+                "analytics - Model effectiveness statistics",
                 "standings - League tables via /leagues/{id}/standings",
             ],
             "documentation": {
@@ -85,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(odds_router)
     app.include_router(predictions_router)
     app.include_router(bets_router)
+    app.include_router(analytics_router)
 
     @app.exception_handler(mysql.connector.Error)
     async def mysql_exception_handler(request, exc):

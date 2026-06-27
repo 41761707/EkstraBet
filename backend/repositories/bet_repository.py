@@ -1,11 +1,8 @@
 """SQL queries for bet recommendations."""
 
 from __future__ import annotations
-
 from datetime import date
-
 import pandas as pd
-
 from backend.database import get_db_connection
 
 _EVENT_FAMILY_JOIN = """

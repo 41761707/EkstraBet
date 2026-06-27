@@ -5,9 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 from typing import Literal
-
 from fastapi import APIRouter, HTTPException, Query
-
 from api.schemas.bet import BetRecommendationsResponse
 from backend.config import get_settings
 from backend.services import bet_service
