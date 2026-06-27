@@ -4,6 +4,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from pydantic import BaseModel, Field
 
+from api.schemas.odds import OddsItem
+from api.schemas.prediction import MatchPredictionItem
+
 
 class TeamInMatch(BaseModel):
     """Team reference embedded in a match response."""
@@ -38,25 +41,6 @@ class LeagueMatchesListResponse(BaseModel):
     total_count: int = Field(..., description="Total number of matches")
     league_id: int = Field(..., description="League ID")
     season_id: int = Field(..., description="Season ID")
-
-
-class MatchFinalPrediction(BaseModel):
-    """Final model prediction for a match event."""
-
-    event_id: int = Field(..., description="Event ID")
-    event_name: str = Field(..., description="Event name")
-    model_id: int = Field(..., description="Model ID")
-    outcome: int | None = Field(
-        None,
-        description="Prediction outcome (0/1) when evaluated")
-
-
-class MatchOdds(BaseModel):
-    """Bookmaker odds for a match event."""
-
-    bookmaker: str = Field(..., description="Bookmaker name")
-    event: str = Field(..., description="Event name")
-    odds: float = Field(..., description="Decimal odds", ge=1.0)
 
 
 class MatchBasicStats(BaseModel):
@@ -104,10 +88,10 @@ class MatchDetails(BaseModel):
     is_played: bool = Field(
         ...,
         description="Whether the match has been played")
-    final_predictions: list[MatchFinalPrediction] = Field(
+    final_predictions: list[MatchPredictionItem] = Field(
         ...,
         description="Final model predictions")
-    odds: list[MatchOdds] = Field(..., description="Bookmaker odds")
+    odds: list[OddsItem] = Field(..., description="Bookmaker odds")
     stats: MatchBasicStats | None = Field(
         None,
         description="Basic match statistics when available")

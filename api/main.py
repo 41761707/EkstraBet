@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import datetime
 import logging
-
 import mysql.connector
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 from api.routers.helper import router as helper_router
 from api.routers.leagues import router as leagues_router
 from api.routers.matches import router as matches_router
@@ -53,7 +51,7 @@ def create_app() -> FastAPI:
                 "leagues - League navigation and metadata",
                 "teams - Team management",
                 "helper - Reference data (countries, sports, seasons)",
-                "models - Model metadata",
+                "models - Prediction model metadata",
                 "matches - Match management",
                 "odds - Bookmaker odds",
                 "predictions - Model predictions",

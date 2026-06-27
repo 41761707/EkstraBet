@@ -61,8 +61,7 @@ EkstraBet/
 ├── model_code/                   # LEGACY — poprzednia lokalizacja pipeline ML (EB-13)
 ├── db_funcs/                     # LEGACY — skrypty batchowe DB (poza zakresem migracji UI)
 ├── graphics_code/                # LEGACY — generowanie wykresów (rozdzielenie w EB-14)
-├── db_documentation/             # Dokumentacja schematu bazy (bez zmian)
-└── wc_generator/                 # Narzędzie pomocnicze (bez zmian na tym etapie)
+├── db_documentation/             # Dokumentacja schematu bazy
 ```
 
 ## Zasady importów

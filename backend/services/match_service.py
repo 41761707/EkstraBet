@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Any
 import pandas as pd
 from backend.repositories import league_repository, match_repository
+from backend.services import odds_service, prediction_service
 
 
 def _to_datetime(value: object) -> datetime | date | None:
@@ -148,30 +149,10 @@ def get_match_details(
 
     row = frame.iloc[0]
     summary = _map_match_summary_row(row)
-    predictions_frame = match_repository.fetch_match_final_predictions(
+    final_predictions = prediction_service.get_match_final_predictions(
         match_id,
         model_ids=model_ids)
-    odds_frame = match_repository.fetch_match_odds(match_id)
-
-    final_predictions: list[dict[str, Any]] = []
-    for _, prediction_row in predictions_frame.iterrows():
-        outcome = prediction_row.get("outcome")
-        final_predictions.append({
-            "event_id": int(prediction_row["event_id"]),
-            "event_name": str(prediction_row["event_name"]),
-            "model_id": int(prediction_row["model_id"]),
-            "outcome": (
-                int(outcome)
-                if outcome is not None and pd.notna(outcome) else None)
-        })
-
-    odds: list[dict[str, Any]] = []
-    for _, odds_row in odds_frame.iterrows():
-        odds.append({
-            "bookmaker": str(odds_row["bookmaker"]),
-            "event": str(odds_row["event"]),
-            "odds": float(odds_row["odds"])
-        })
+    odds = odds_service.get_match_odds_items(match_id)
 
     return {
         **summary,

@@ -1,102 +1,51 @@
-from fastapi import APIRouter, HTTPException, Query, Path
-from pydantic import BaseModel, Field
+"""Bookmaker odds read endpoints for the EkstraBet API."""
+
+from __future__ import annotations
+
 import logging
-from typing import List
-from api.utils import execute_query
+
+from fastapi import APIRouter, HTTPException, Path
+
+from api.schemas.odds import MatchOddsListResponse
+from backend.services import odds_service
 
 logger = logging.getLogger(__name__)
 
-class OddsResponse(BaseModel):
-    """Model odpowiedzi dla kursu"""
-    bookmaker: str = Field(..., description="Nazwa bukmachera")
-    event: str = Field(..., description="Nazwa zdarzenia/typu zakładu")
-    odds: float = Field(..., description="Kurs dla danego zdarzenia", ge=1.0)
+router = APIRouter(prefix="/odds", tags=["Odds"])
 
-class OddsListResponse(BaseModel):
-    """Model odpowiedzi dla listy kursów"""
-    odds: List[OddsResponse] = Field(..., description="Lista kursów")
-    total_count: int = Field(..., description="Całkowita liczba kursów")
-    match_id: int = Field(..., description="ID meczu")
-
-# === ROUTER ===
-router = APIRouter(prefix="/odds", tags=["Kursy"])
 
 @router.get("/", tags=["System"])
-async def module_info():
-    """Endpoint główny - informacje o module kursów"""
+async def odds_info() -> dict[str, object]:
+    """Return module metadata and available endpoints."""
     return {
         "module": "EkstraBet Odds API",
-        "version": "1.0.0", 
-        "description": "Moduł API do obsługi kursów bukmacherskich",
+        "version": "1.0.0",
+        "description": "Read-only endpoints for bookmaker odds",
         "endpoints": [
-            "/odds/match/{match_id} - Wszystkie kursy dla danego meczu"
-        ]
+            "GET /odds/match/{match_id} - All odds for a match",
+        ],
     }
 
-@router.get("/match/{match_id}", response_model=OddsListResponse)
+
+@router.get("/match/{match_id}", response_model=MatchOddsListResponse)
 async def get_odds_for_match(
-    match_id: int = Path(..., ge=1, description="ID meczu")
-) -> OddsListResponse:
-    """
-    Pobiera wszystkie kursy dla danego meczu
-    
-    Zwraca listę kursów z nazwami bukmacherów i zdarzeń dla określonego meczu.
-    """
+    match_id: int = Path(..., ge=1, description="Match ID")
+) -> MatchOddsListResponse:
+    """Return unified odds rows for a match."""
     try:
-        # Zapytanie zgodne z wymaganiami użytkownika
-        query = f"""
-            SELECT b.name as bookmaker, e.name as event, o.odds as odds 
-            FROM odds o 
-            JOIN bookmakers b ON o.bookmaker = b.id 
-            JOIN events e ON o.event = e.id
-            WHERE o.match_id = {match_id}
-            ORDER BY b.name, e.name
-        """
-        
-        # Wykonanie zapytania
-        odds_df = execute_query(query)
-        
-        # Sprawdzenie, czy znaleziono jakiekolwiek kursy
-        if odds_df.empty:
-            # Sprawdzenie, czy mecz w ogóle istnieje
-            match_check_query = f"SELECT id FROM matches WHERE id = {match_id}"
-            match_check_df = execute_query(match_check_query)
-            
-            if match_check_df.empty:
-                raise HTTPException(
-                    status_code=404, 
-                    detail=f"Mecz o ID {match_id} nie został znaleziony"
-                )
-            else:
-                # Mecz istnieje, ale nie ma kursów
-                return OddsListResponse(
-                    odds=[],
-                    total_count=0,
-                    match_id=match_id
-                )
-        
-        # Konwersja wyników do modeli Pydantic
-        odds_list = []
-        for _, row in odds_df.iterrows():
-            odds_item = OddsResponse(
-                bookmaker=str(row['bookmaker']),
-                event=str(row['event']),
-                odds=float(row['odds'])
-            )
-            odds_list.append(odds_item)
-        
-        return OddsListResponse(
-            odds=odds_list,
-            total_count=len(odds_list),
-            match_id=match_id
-        )
-        
+        payload = odds_service.get_match_odds(match_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Match {match_id} not found")
+        return MatchOddsListResponse(**payload)
     except HTTPException:
-        # Przekazanie błędów HTTP dalej
         raise
-    except Exception as e:
-        logger.error(f"Błąd w get_odds_for_match dla meczu {match_id}: {e}")
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch odds for match %s: %s",
+            match_id,
+            exc)
         raise HTTPException(
-            status_code=500, 
-            detail=f"Błąd pobierania kursów dla meczu {match_id}"
-        )
+            status_code=500,
+            detail="Failed to fetch match odds") from exc

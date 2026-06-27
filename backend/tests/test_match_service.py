@@ -100,13 +100,10 @@ class TestMatchService(unittest.TestCase):
         _mock_fetch: unittest.mock.MagicMock) -> None:
         self.assertIsNone(get_match_details(999999))
 
+    @patch("backend.services.match_service.odds_service.get_match_odds_items")
     @patch(
-        "backend.services.match_service.match_repository.fetch_match_odds",
-        return_value=pd.DataFrame())
-    @patch(
-        "backend.services.match_service.match_repository"
-        ".fetch_match_final_predictions",
-        return_value=pd.DataFrame())
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions")
     @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id")
     def test_get_match_details_includes_predictions_odds_and_stats(
@@ -115,17 +112,26 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_predictions: unittest.mock.MagicMock,
         mock_fetch_odds: unittest.mock.MagicMock) -> None:
         mock_fetch_match.return_value = self._sample_match_frame()
-        mock_fetch_predictions.return_value = pd.DataFrame([{
+        mock_fetch_predictions.return_value = [{
+            "prediction_id": 10,
             "event_id": 1,
             "event_name": "1",
+            "event_family": {"id": 2, "name": "REZULTAT"},
             "model_id": 3,
+            "model_name": "Model A",
+            "value": 0.55,
             "outcome": 1,
-        }])
-        mock_fetch_odds.return_value = pd.DataFrame([{
-            "bookmaker": "STS",
-            "event": "1",
+        }]
+        mock_fetch_odds.return_value = [{
+            "id": 1,
+            "match_id": 100,
+            "bookmaker_id": 4,
+            "bookmaker_name": "STS",
+            "event_id": 1,
+            "event_name": "1",
+            "event_family": {"id": 2, "name": "REZULTAT"},
             "odds": 1.95,
-        }])
+        }]
         details = get_match_details(100)
         assert details is not None
         self.assertEqual(details["id"], 100)
@@ -135,11 +141,11 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(details["stats"]["home_xg"], 1.8)
 
     @patch(
-        "backend.services.match_service.match_repository.fetch_match_odds",
-        return_value=pd.DataFrame())
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
     @patch(
-        "backend.services.match_service.match_repository"
-        ".fetch_match_final_predictions")
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions")
     @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id")
     def test_get_match_details_marks_unplayed_match(
@@ -152,7 +158,7 @@ class TestMatchService(unittest.TestCase):
         frame.loc[0, "home_team_goals"] = None
         frame.loc[0, "away_team_goals"] = None
         mock_fetch_match.return_value = frame
-        mock_fetch_predictions.return_value = pd.DataFrame()
+        mock_fetch_predictions.return_value = []
         details = get_match_details(100)
         assert details is not None
         self.assertFalse(details["is_played"])

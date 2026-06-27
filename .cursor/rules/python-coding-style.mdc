@@ -39,6 +39,7 @@ Poniższe reguły mają pierwszeństwo i zawsze muszą być przestrzegane:
     - Nie kończ linii znakiem typu `,` - jak definiujesz słownik, kroktę albo listę to NIE UŻYWAJ zbędnego przecinka na końcu ostatniej linii
     - Unikaj dodatkowych, zbędnych spacji czy tabulacji między np. definicjami zmiennych. Tabulacje powinny
     oddzielać tylko i wyłącznie logiczne bloki kodu.
+    - nie używaj strzałki jako emotikony tylko mapuj ją zawsze na `->`, ewentualnie `<-`
 
 ## Formatowanie (zgodne z PEP 8)
 

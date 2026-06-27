@@ -1,354 +1,163 @@
-from fastapi import APIRouter, HTTPException, Query, Path
-from pydantic import BaseModel, Field
-import logging
-from typing import List, Optional
-from api.utils import execute_query
+"""Prediction read endpoints for the EkstraBet API."""
 
-# Konfiguracja logowania
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, HTTPException, Path, Query
+
+from api.schemas.prediction import (
+    MatchPredictionListResponse,
+    PredictionSearchResponse,
+    TeamPredictionListResponse)
+from backend.config import get_settings
+from backend.services import prediction_service
+
 logger = logging.getLogger(__name__)
 
-# === MODELE PYDANTIC ===
+router = APIRouter(prefix="/predictions", tags=["Predictions"])
 
-class PredictionResponse(BaseModel):
-    """Model odpowiedzi dla predykcji"""
-    id: int = Field(..., description="ID predykcji")
-    match_id: int = Field(..., description="ID meczu")
-    event_id: int = Field(..., description="ID zdarzenia")
-    event_name: str = Field(..., description="Nazwa zdarzenia")
-    model_id: int = Field(..., description="ID modelu")
-    value: float = Field(..., description="Wartość predykcji", ge=0.0)
-
-class PredictionListResponse(BaseModel):
-    """Model odpowiedzi dla listy predykcji"""
-    predictions: List[PredictionResponse] = Field(..., description="Lista predykcji")
-    total_count: int = Field(..., description="Całkowita liczba predykcji")
-    filters_applied: dict = Field(..., description="Zastosowane filtry")
-
-class TeamPredictionResponse(BaseModel):
-    """Model odpowiedzi dla predykcji drużyny"""
-    event_id: int = Field(..., description="ID zdarzenia")
-    outcome: Optional[int] = Field(None, description="Wynik predykcji (0 - niepoprawna, 1 - poprawna, None - nie oceniona)")
-    match_id: int = Field(..., description="ID meczu")
-    event_name: str = Field(..., description="Nazwa zdarzenia")
-
-
-class TeamPredictionListResponse(BaseModel):
-    """Model odpowiedzi dla listy predykcji drużyny"""
-    team_predictions: List[TeamPredictionResponse] = Field(..., description="Lista predykcji drużyny")
-    total_count: int = Field(..., description="Całkowita liczba predykcji")
-    team_id: int = Field(..., description="ID drużyny")
-    season_id: int = Field(..., description="ID sezonu")
-
-class MatchPredictionResponse(BaseModel):
-    """Model odpowiedzi dla predykcji meczu"""
-    event_id: int = Field(..., description="ID zdarzenia")
-    name: str = Field(..., description="Nazwa zdarzenia")
-    outcome: Optional[int] = Field(None, description="Wynik predykcji (0 - niepoprawna, 1 - poprawna, None - nie oceniona)")
-    model_id: int = Field(..., description="ID modelu")
-
-class MatchPredictionListResponse(BaseModel):
-    """Model odpowiedzi dla listy predykcji meczu"""
-    match_predictions: List[MatchPredictionResponse] = Field(..., description="Lista predykcji meczu")
-    total_count: int = Field(..., description="Całkowita liczba predykcji")
-    match_id: int = Field(..., description="ID meczu")
-
-# === ROUTER ===
-router = APIRouter(prefix="/predictions", tags=["Predykcje"])
 
 @router.get("/", tags=["System"])
-async def module_info():
-    """Endpoint główny - informacje o module predykcji"""
+async def predictions_info() -> dict[str, object]:
+    """Return module metadata and available endpoints."""
     return {
         "module": "EkstraBet Predictions API",
-        "version": "1.0.0", 
-        "description": "Moduł API do obsługi predykcji modeli",
+        "version": "1.0.0",
+        "description": "Read-only endpoints for model predictions",
         "endpoints": [
-            "/predictions/search - Wyszukiwanie predykcji z opcjonalnymi filtrami",
-            "/predictions/team/{team_id}/{season_id} - Predykcje dla drużyny w danym sezonie",
-            "/predictions/match/{match_id} - Końcowe predykcje dla pojedynczego meczu"
-        ]
+            "GET /predictions/search - Search predictions with filters",
+            "GET /predictions/team/{team_id}/{season_id} - Team predictions",
+            "GET /predictions/match/{match_id} - Final match predictions",
+        ],
     }
 
-@router.get("/search", response_model=PredictionListResponse)
+
+@router.get("/search", response_model=PredictionSearchResponse)
 async def search_predictions(
-    match_id: Optional[int] = Query(None, ge=1, description="ID meczu (opcjonalne)"),
-    event_id: Optional[int] = Query(None, ge=1, description="ID zdarzenia (opcjonalne)"),
-    model_ids: Optional[str] = Query(None, description="Lista ID modeli oddzielona przecinkami (opcjonalne), np. '1,2,3'"),
-    page: int = Query(1, ge=1, description="Numer strony"),
-    page_size: int = Query(50, ge=1, le=500, description="Rozmiar strony")
-) -> PredictionListResponse:
-    """
-    Wyszukuje predykcje z opcjonalnymi filtrami
-    
-    Wszystkie filtry są opcjonalne - użytkownik może podać dowolną kombinację:
-    - match_id: filtruje po ID meczu
-    - event_id: filtruje po ID zdarzenia  
-    - model_ids: filtruje po ID modeli (lista oddzielona przecinkami)
-    """
-    try:
-        # Budowanie zapytania z dynamicznymi filtrami
-        where_clauses = []
-        params = []
-        
-        # Filtr po ID meczu
-        if match_id is not None:
-            where_clauses.append("match_id = %s")
-            params.append(match_id)
-        
-        # Filtr po ID zdarzenia
-        if event_id is not None:
-            where_clauses.append("event_id = %s")
-            params.append(event_id)
-        
-        # Filtr po ID modeli
-        parsed_model_ids = None
-        if model_ids is not None:
-            try:
-                # Parsowanie listy ID modeli z stringa
-                parsed_model_ids = [int(mid.strip()) for mid in model_ids.split(',')]
-                if parsed_model_ids:
-                    placeholders = ','.join(['%s'] * len(parsed_model_ids))
-                    where_clauses.append(f"model_id IN ({placeholders})")
-                    params.extend(parsed_model_ids)
-            except ValueError:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Nieprawidłowy format model_ids. Użyj formatu: '1,2,3'"
-                )
-        
-        # Budowanie klauzuli WHERE
-        where_sql = ""
-        if where_clauses:
-            where_sql = "WHERE " + " AND ".join(where_clauses)
-        
-        # Obliczenie offsetu dla paginacji
-        offset = (page - 1) * page_size
-        
-        # Główne zapytanie z paginacją
-        query = f"""
-        SELECT p.id, p.match_id, p.event_id, e.name as event_name, p.model_id, p.value
-        FROM predictions p
-        JOIN events e ON p.event_id = e.id
-        {where_sql}
-        ORDER BY p.match_id, p.event_id, p.model_id
-        LIMIT %s OFFSET %s
-        """
-        
-        # Zapytanie zliczające
-        count_query = f"""
-        SELECT COUNT(*) as total 
-        FROM predictions 
-        {where_sql}
-        """
-        
-        # Dodanie parametrów paginacji do głównego zapytania
-        query_params = params + [page_size, offset]
-        count_params = params
-        
-        # Wykonanie zapytań
-        predictions_df = execute_query(query, query_params)
-        count_df = execute_query(count_query, count_params)
-        
-        # Konwersja wyników do modeli Pydantic
-        predictions_list = []
-        for _, row in predictions_df.iterrows():
-            prediction = PredictionResponse(
-                id=int(row['id']),
-                match_id=int(row['match_id']),
-                event_id=int(row['event_id']),
-                event_name=str(row['event_name']),
-                model_id=int(row['model_id']),
-                value=float(row['value'])
-            )
-            predictions_list.append(prediction)
-        
-        total_count = int(count_df.iloc[0]['total'])
-        
-        # Informacje o zastosowanych filtrach
-        filters_applied = {
-            "match_id": match_id,
-            "event_id": event_id,
-            "model_ids": parsed_model_ids,
-            "page": page,
-            "page_size": page_size
-        }
-        
-        return PredictionListResponse(
-            predictions=predictions_list,
-            total_count=total_count,
-            filters_applied=filters_applied
-        )
-        
-    except HTTPException:
-        # Przekazanie błędów HTTP dalej
-        raise
-    except Exception as e:
-        logger.error(f"Błąd w search_predictions: {e}")
+    match_id: int | None = Query(
+        None,
+        ge=1,
+        description="Optional match ID filter"),
+    event_id: int | None = Query(
+        None,
+        ge=1,
+        description="Optional event ID filter"),
+    model_ids: str | None = Query(
+        None,
+        description="Comma-separated model IDs, e.g. '1,2,3'"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int | None = Query(
+        None,
+        ge=1,
+        description="Page size")) -> PredictionSearchResponse:
+    """Search raw predictions with optional filters and pagination."""
+    settings = get_settings()
+    resolved_page_size = page_size or settings.default_page_size
+    if resolved_page_size > settings.max_page_size:
         raise HTTPException(
-            status_code=500, 
-            detail="Błąd wyszukiwania predykcji"
-        )
+            status_code=422,
+            detail=f"page_size cannot exceed {settings.max_page_size}")
 
-@router.get("/team/{team_id}/{season_id}", response_model=TeamPredictionListResponse)
+    parsed_model_ids: list[int] | None = None
+    if model_ids is not None:
+        try:
+            parsed_model_ids = [
+                int(model_id.strip())
+                for model_id in model_ids.split(",")
+                if model_id.strip()]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid model_ids format. Use e.g. '1,2,3'") from exc
+        if not parsed_model_ids:
+            parsed_model_ids = None
+
+    try:
+        payload = prediction_service.search_predictions(
+            match_id=match_id,
+            event_id=event_id,
+            model_ids=parsed_model_ids,
+            page=page,
+            page_size=resolved_page_size)
+        return PredictionSearchResponse(**payload)
+    except Exception as exc:
+        logger.error("Failed to search predictions: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to search predictions") from exc
+
+
+@router.get(
+    "/team/{team_id}/{season_id}",
+    response_model=TeamPredictionListResponse)
 async def get_team_predictions(
-    team_id: int = Path(..., ge=1, description="ID drużyny"),
-    season_id: int = Path(..., ge=1, description="ID sezonu")
+    team_id: int = Path(..., ge=1, description="Team ID"),
+    season_id: int = Path(..., ge=1, description="Season ID")
 ) -> TeamPredictionListResponse:
-    """
-    Pobiera predykcje dla drużyny w danym sezonie
-    
-    Zwraca listę predykcji z wynikami (poprawne/niepoprawne) dla meczów drużyny w określonym sezonie.
-    Uwzględniane są tylko mecze z wynikiem (nie równym '0').
-    """
+    """Return evaluated final predictions for a team in a season."""
     try:
-        # Zapytanie zgodne z wymaganiami użytkownika
-        query = f"""
-            SELECT p.event_id, f.outcome, e.name as event_name, m.id as match_id
-            FROM predictions p 
-            JOIN final_predictions f ON p.id = f.predictions_id 
-            JOIN matches m ON m.id = p.match_id 
-            JOIN events e ON e.id = p.event_id
-            WHERE (m.home_team = %s OR m.away_team = %s) 
-            AND m.season = %s
-            AND m.result != '0' 
-            ORDER BY m.game_date DESC
-        """
-        
-        # Wykonanie zapytania
-        predictions_df = execute_query(query, (team_id, team_id, season_id))
-        
-        # Sprawdzenie, czy znaleziono jakiekolwiek predykcje
-        if predictions_df.empty:
-            # Sprawdzenie, czy drużyna i sezon w ogóle istnieją
-            team_check_query = "SELECT id FROM teams WHERE id = %s"
-            season_check_query = "SELECT id FROM seasons WHERE id = %s"
-            
-            team_check_df = execute_query(team_check_query, (team_id,))
-            season_check_df = execute_query(season_check_query, (season_id,))
-            
-            if team_check_df.empty:
-                raise HTTPException(
-                    status_code=404, 
-                    detail=f"Drużyna o ID {team_id} nie została znaleziona"
-                )
-            
-            if season_check_df.empty:
-                raise HTTPException(
-                    status_code=404, 
-                    detail=f"Sezon o ID {season_id} nie został znaleziony"
-                )
-            
-            # Drużyna i sezon istnieją, ale nie ma predykcji
-            return TeamPredictionListResponse(
-                team_predictions=[],
-                total_count=0,
-                team_id=team_id,
-                season_id=season_id
-            )
-        
-        # Konwersja wyników do modeli Pydantic
-        team_predictions_list = []
-        for _, row in predictions_df.iterrows():
-            # Obsługa wartości NULL dla outcome
-            outcome_value = None
-            if row['outcome'] is not None:
-                outcome_value = int(row['outcome'])
-            
-            prediction = TeamPredictionResponse(
-                event_id=int(row['event_id']),
-                outcome=outcome_value,
-                match_id=int(row['match_id']),
-                event_name=str(row['event_name'])
-            )
-            team_predictions_list.append(prediction)
-        
-        return TeamPredictionListResponse(
-            team_predictions=team_predictions_list,
-            total_count=len(team_predictions_list),
-            team_id=team_id,
-            season_id=season_id
-        )
-        
+        payload = prediction_service.get_team_predictions(
+            team_id,
+            season_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Team {team_id} or season {season_id} not found")
+        return TeamPredictionListResponse(**payload)
     except HTTPException:
-        # Przekazanie błędów HTTP dalej
         raise
-    except Exception as e:
-        logger.error(f"Błąd w get_team_predictions dla drużyny {team_id}, sezon {season_id}: {e}")
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch team predictions for %s/%s: %s",
+            team_id,
+            season_id,
+            exc)
         raise HTTPException(
-            status_code=500, 
-            detail=f"Błąd pobierania predykcji dla drużyny {team_id} w sezonie {season_id}"
-        )
+            status_code=500,
+            detail="Failed to fetch team predictions") from exc
 
-@router.get("/match/{match_id}", response_model=MatchPredictionListResponse)
+
+@router.get(
+    "/match/{match_id}",
+    response_model=MatchPredictionListResponse)
 async def get_match_predictions(
-    match_id: int = Path(..., ge=1, description="ID meczu")
+    match_id: int = Path(..., ge=1, description="Match ID"),
+    model_ids: str | None = Query(
+        None,
+        description="Comma-separated model IDs, e.g. '1,2,3'")
 ) -> MatchPredictionListResponse:
-    """
-    Pobiera końcowe predykcje dla pojedynczego meczu
-    
-    Zwraca listę predykcji z wynikami (poprawne/niepoprawne) dla wszystkich zdarzeń w danym meczu.
-    """
+    """Return final predictions for a match with event family metadata."""
+    parsed_model_ids: list[int] | None = None
+    if model_ids is not None:
+        try:
+            parsed_model_ids = [
+                int(model_id.strip())
+                for model_id in model_ids.split(",")
+                if model_id.strip()]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid model_ids format. Use e.g. '1,2,3'") from exc
+        if not parsed_model_ids:
+            parsed_model_ids = None
+
     try:
-        # Zapytanie zgodne z wymaganiami użytkownika
-        query = """
-            SELECT p.event_id as event_id, e.name as name, fp.outcome, p.model_id 
-            FROM predictions p 
-            JOIN final_predictions fp ON p.id = fp.predictions_id
-            JOIN events e ON p.event_id = e.id 
-            WHERE p.match_id = %s
-            ORDER BY p.event_id, p.model_id
-        """
-        
-        # Wykonanie zapytania
-        predictions_df = execute_query(query, (match_id,))
-        
-        # Sprawdzenie, czy znaleziono jakiekolwiek predykcje
-        if predictions_df.empty:
-            # Sprawdzenie, czy mecz w ogóle istnieje
-            match_check_query = "SELECT id FROM matches WHERE id = %s"
-            match_check_df = execute_query(match_check_query, (match_id,))
-            
-            if match_check_df.empty:
-                raise HTTPException(
-                    status_code=404, 
-                    detail=f"Mecz o ID {match_id} nie został znaleziony"
-                )
-            
-            # Mecz istnieje, ale nie ma predykcji
-            return MatchPredictionListResponse(
-                match_predictions=[],
-                total_count=0,
-                match_id=match_id
-            )
-        
-        # Konwersja wyników do modeli Pydantic
-        match_predictions_list = []
-        for _, row in predictions_df.iterrows():
-            # Obsługa wartości NULL dla outcome
-            outcome_value = None
-            if row['outcome'] is not None:
-                outcome_value = int(row['outcome'])
-            
-            prediction = MatchPredictionResponse(
-                event_id=int(row['event_id']),
-                name=str(row['name']),
-                outcome=outcome_value,
-                model_id=int(row['model_id'])
-            )
-            match_predictions_list.append(prediction)
-        
-        return MatchPredictionListResponse(
-            match_predictions=match_predictions_list,
-            total_count=len(match_predictions_list),
-            match_id=match_id
-        )
-        
+        payload = prediction_service.get_match_predictions(
+            match_id,
+            model_ids=parsed_model_ids)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Match {match_id} not found")
+        return MatchPredictionListResponse(**payload)
     except HTTPException:
-        # Przekazanie błędów HTTP dalej
         raise
-    except Exception as e:
-        logger.error(f"Błąd w get_match_predictions dla meczu {match_id}: {e}")
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch match predictions for %s: %s",
+            match_id,
+            exc)
         raise HTTPException(
-            status_code=500, 
-            detail=f"Błąd pobierania predykcji dla meczu {match_id}"
-        )
+            status_code=500,
+            detail="Failed to fetch match predictions") from exc
