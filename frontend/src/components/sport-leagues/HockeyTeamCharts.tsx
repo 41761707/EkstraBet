@@ -41,6 +41,7 @@ export function HockeyTeamCharts({
           value: point.total_goals,
         }))}
         thresholdLine={ouLine}
+        compactScrollAlign="start"
       />,
     );
   }
@@ -66,6 +67,7 @@ export function HockeyTeamCharts({
               value: point.first_period_goals ?? 0,
             }))}
           thresholdLine={1.5}
+          compactScrollAlign="start"
         />,
       );
     }
@@ -84,6 +86,7 @@ export function HockeyTeamCharts({
           value: point.team_goals,
         }))}
         thresholdLine={average(teamGoals)}
+        compactScrollAlign="start"
       />,
       <VerticalStatChart
         key="opponent-goals"
@@ -94,6 +97,7 @@ export function HockeyTeamCharts({
           value: point.opponent_goals,
         }))}
         thresholdLine={average(opponentGoals)}
+        compactScrollAlign="start"
       />,
     );
   }
@@ -118,6 +122,7 @@ export function HockeyTeamCharts({
               value: point.team_shots_on_goal ?? 0,
             }))}
           thresholdLine={average(teamShots)}
+          compactScrollAlign="start"
         />,
         <VerticalStatChart
           key="opponent-sog"
@@ -130,6 +135,7 @@ export function HockeyTeamCharts({
               value: point.opponent_shots_on_goal ?? 0,
             }))}
           thresholdLine={average(opponentShots)}
+          compactScrollAlign="start"
         />,
       );
     }

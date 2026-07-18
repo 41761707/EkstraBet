@@ -1,20 +1,74 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  Children,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import {
+  applyCompactScrollAlign,
+  type CompactScrollAlign,
+} from "@/components/charts/chartScrollUtils";
 
 interface ChartScrollAreaProps {
   children: ReactNode;
   expandedChildren?: ReactNode;
   chartTitle?: string;
+  compactScrollAlign?: CompactScrollAlign;
+  scrollKey?: number | string;
+}
+
+function useCompactScrollAlign(
+  containerRef: RefObject<HTMLDivElement | null>,
+  align: CompactScrollAlign,
+  scrollKey: number | string | undefined,
+  children: ReactNode,
+): void {
+  const childrenCount = Children.count(children);
+
+  useLayoutEffect(() => {
+    applyCompactScrollAlign(containerRef.current, align);
+  }, [containerRef, align, scrollKey, childrenCount]);
+
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (element === null) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      applyCompactScrollAlign(element, align);
+    });
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [containerRef, align, scrollKey, childrenCount]);
 }
 
 export function ChartScrollArea({
   children,
   expandedChildren,
   chartTitle,
+  compactScrollAlign = "end",
+  scrollKey,
 }: ChartScrollAreaProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const close = useCallback(() => setExpanded(false), []);
+
+  useCompactScrollAlign(
+    scrollContainerRef,
+    compactScrollAlign,
+    scrollKey,
+    children,
+  );
 
   useEffect(() => {
     if (!expanded) {
@@ -46,7 +100,10 @@ export function ChartScrollArea({
           chartTitle ? `Powiększ wykres: ${chartTitle}` : "Powiększ wykres"
         }
       >
-        <div className="overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={scrollContainerRef}
+          className="overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           {children}
         </div>
         <p className="text-center text-[10px] text-slate-500 opacity-0 transition group-hover:opacity-100">
