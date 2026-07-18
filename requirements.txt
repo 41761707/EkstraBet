@@ -5,6 +5,9 @@
 
 streamlit
 mysql-connector-python
+mcp
+starlette<0.48.0
+sse-starlette<3.0.0
 matplotlib
 seaborn
 plotly
@@ -17,3 +20,5 @@ fastapi
 uvicorn
 pydantic
 pydantic-settings
+bcrypt
+PyJWT

@@ -6,6 +6,7 @@ import logging
 from datetime import date
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
+from api.routers.utils import parse_id_list
 from api.schemas.bet import BetRecommendationsResponse
 from backend.config import get_settings
 from backend.services import bet_service
@@ -19,28 +20,6 @@ SettlementFilter = Literal[
     "settled",
     "won",
     "lost"]
-
-
-def _parse_id_list(raw_value: str | None) -> list[int] | None:
-    """Parse comma-separated positive integer IDs."""
-    if raw_value is None:
-        return None
-    try:
-        parsed = [
-            int(item.strip())
-            for item in raw_value.split(",")
-            if item.strip()]
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid ID list format. Use e.g. '1,2,3'") from exc
-    if not parsed:
-        return None
-    if any(item < 1 for item in parsed):
-        raise HTTPException(
-            status_code=400,
-            detail="All IDs must be positive integers")
-    return parsed
 
 
 @router.get("/", tags=["System"])
@@ -125,11 +104,11 @@ async def get_bet_recommendations(
 
     try:
         payload = bet_service.get_bet_recommendations(
-            league_ids=_parse_id_list(league_ids),
+            league_ids=parse_id_list(league_ids),
             season_id=season_id,
-            event_ids=_parse_id_list(event_ids),
-            model_ids=_parse_id_list(model_ids),
-            bookmaker_ids=_parse_id_list(bookmaker_ids),
+            event_ids=parse_id_list(event_ids),
+            model_ids=parse_id_list(model_ids),
+            bookmaker_ids=parse_id_list(bookmaker_ids),
             match_date=match_date,
             date_from=date_from,
             date_to=date_to,

@@ -6,6 +6,7 @@ import logging
 from datetime import date
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
+from api.routers.utils import parse_id_list
 from api.schemas.analytics import ModelAnalyticsResponse
 from backend.services import analytics_service
 
@@ -13,36 +14,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
+#TODO: To najlepiej pobierać jakoś z bazy / configów, nie lubię stałych w kodzie
 StatTypeFilter = Literal["ou", "btts", "result", "all"]
 GroupByFilter = Literal["none", "team", "league"]
 AggregationMetricFilter = Literal["accuracy", "profit"]
 
 
-def _parse_id_list(raw_value: str | None) -> list[int] | None:
-    """Parse comma-separated positive integer IDs."""
-    if raw_value is None:
-        return None
-    try:
-        parsed = [
-            int(item.strip())
-            for item in raw_value.split(",")
-            if item.strip()]
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid ID list format. Use e.g. '1,2,3'") from exc
-    if not parsed:
-        return None
-    if any(item < 1 for item in parsed):
-        raise HTTPException(
-            status_code=400,
-            detail="All IDs must be positive integers")
-    return parsed
-
-
 @router.get("/", tags=["System"])
 async def analytics_info() -> dict[str, object]:
-    """Return module metadata and available endpoints."""
+    """Zwraca metadane modułu i dostępne endpointy."""
     return {
         "module": "EkstraBet Analytics API",
         "version": "1.0.0",
@@ -113,7 +93,7 @@ async def get_model_statistics(
         description=(
             "Include actual OU/BTTS/1X2 league distribution "
             "when one league is selected"))) -> ModelAnalyticsResponse:
-    """Return model effectiveness statistics for charts and tables."""
+    """Zwraca statystyki efektywności modeli dla wykresów i tabel."""
     if date_from is not None and date_to is not None and date_from > date_to:
         raise HTTPException(
             status_code=422,
@@ -124,7 +104,7 @@ async def get_model_statistics(
             status_code=422,
             detail="round_from cannot be later than round_to")
 
-    parsed_league_ids = _parse_id_list(league_ids)
+    parsed_league_ids = parse_id_list(league_ids)
     if group_by == "team" and (
         not parsed_league_ids or len(parsed_league_ids) != 1
     ):
@@ -140,9 +120,9 @@ async def get_model_statistics(
     try:
         payload = analytics_service.get_model_statistics(
             stat_type=stat_type,
-            model_result_ids=_parse_id_list(model_result_ids),
-            model_ou_ids=_parse_id_list(model_ou_ids),
-            model_btts_ids=_parse_id_list(model_btts_ids),
+            model_result_ids=parse_id_list(model_result_ids),
+            model_ou_ids=parse_id_list(model_ou_ids),
+            model_btts_ids=parse_id_list(model_btts_ids),
             league_ids=parsed_league_ids,
             season_id=season_id,
             date_from=date_from,

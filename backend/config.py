@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(
         default=30,
         description="Access token lifetime in minutes")
+    auth_enabled: bool = Field(
+        default=True,
+        description="Whether API and UI require authentication")
+    auth_cookie_name: str = Field(
+        default="ekstrabet_token",
+        description="HttpOnly cookie name for the JWT session")
+    auth_algorithm: str = Field(
+        default="HS256",
+        description="JWT signing algorithm")
     cache_ttl: int = Field(
         default=300,
         description="Cache TTL in seconds")
@@ -104,7 +113,7 @@ class _LazySettings:
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return cached application settings."""
+    """Zwraca buforowane ustawienia aplikacji."""
     return Settings()
 
 

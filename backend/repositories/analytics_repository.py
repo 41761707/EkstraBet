@@ -5,6 +5,7 @@ from datetime import date
 import pandas as pd
 from backend.database import get_db_connection
 
+#TODO: Get those values from the database
 RESULT_EVENT_IDS = (1, 2, 3)
 OU_EVENT_IDS = (8, 12)
 BTTS_EVENT_IDS = (6, 172)
@@ -350,10 +351,18 @@ def fetch_league_characteristics(
     query = """
         SELECT
             COUNT(*) AS played_matches,
+            SUM(CASE WHEN home_team_goals + away_team_goals > 1.5 THEN 1 ELSE 0 END)
+                AS over_1_5_count,
+            SUM(CASE WHEN home_team_goals + away_team_goals <= 1.5 THEN 1 ELSE 0 END)
+                AS under_1_5_count,
             SUM(CASE WHEN home_team_goals + away_team_goals > 2.5 THEN 1 ELSE 0 END)
-                AS over_count,
-            SUM(CASE WHEN home_team_goals + away_team_goals < 2.5 THEN 1 ELSE 0 END)
-                AS under_count,
+                AS over_2_5_count,
+            SUM(CASE WHEN home_team_goals + away_team_goals <= 2.5 THEN 1 ELSE 0 END)
+                AS under_2_5_count,
+            SUM(CASE WHEN home_team_goals + away_team_goals > 3.5 THEN 1 ELSE 0 END)
+                AS over_3_5_count,
+            SUM(CASE WHEN home_team_goals + away_team_goals <= 3.5 THEN 1 ELSE 0 END)
+                AS under_3_5_count,
             AVG(home_team_goals + away_team_goals) AS avg_goals,
             SUM(CASE WHEN home_team_goals > 0 AND away_team_goals > 0 THEN 1 ELSE 0 END)
                 AS btts_yes_count,
@@ -366,6 +375,7 @@ def fetch_league_characteristics(
         WHERE league = %s
             AND season = %s
             AND result != '0'
+            AND round < 900
     """
     with get_db_connection() as conn:
         frame = pd.read_sql(
@@ -388,13 +398,29 @@ def fetch_league_characteristics(
         "played_matches": played,
         "avg_goals_per_match": round(float(row["avg_goals"]), 2),
         "ou": {
+            "under_1_5": {
+                "count": int(row["under_1_5_count"]),
+                "percentage": _pct(row["under_1_5_count"]),
+            },
+            "over_1_5": {
+                "count": int(row["over_1_5_count"]),
+                "percentage": _pct(row["over_1_5_count"]),
+            },
             "under_2_5": {
-                "count": int(row["under_count"]),
-                "percentage": _pct(row["under_count"]),
+                "count": int(row["under_2_5_count"]),
+                "percentage": _pct(row["under_2_5_count"]),
             },
             "over_2_5": {
-                "count": int(row["over_count"]),
-                "percentage": _pct(row["over_count"]),
+                "count": int(row["over_2_5_count"]),
+                "percentage": _pct(row["over_2_5_count"]),
+            },
+            "under_3_5": {
+                "count": int(row["under_3_5_count"]),
+                "percentage": _pct(row["under_3_5_count"]),
+            },
+            "over_3_5": {
+                "count": int(row["over_3_5_count"]),
+                "percentage": _pct(row["over_3_5_count"]),
             },
         },
         "btts": {

@@ -5,82 +5,90 @@ import logging
 from typing import Optional
 from api.utils import execute_query
 
-# Konfiguracja logowania
 logger = logging.getLogger(__name__)
-# Utworzenie routera dla endpointów pomocniczych
 router = APIRouter()
 
-# Modele Pydantic dla walidacji danych
+
 class CountryResponse(BaseModel):
-    """Model odpowiedzi dla pojedynczego kraju"""
-    id: int = Field(..., description="ID kraju")
-    name: str = Field(..., description="Nazwa kraju")
-    short_name: Optional[str] = Field(None, description="Skrót nazwy kraju")
-    emoji: Optional[str] = Field(None, description="Emoji flagi kraju")
-    teams_count: int = Field(..., description="Liczba drużyn z tego kraju")
+    """Response model for a single country."""
+    id: int = Field(..., description="Country ID")
+    name: str = Field(..., description="Country name")
+    short_name: Optional[str] = Field(None, description="Country short name")
+    emoji: Optional[str] = Field(None, description="Country flag emoji")
+    teams_count: int = Field(..., description="Number of teams from this country")
+
 
 class CountriesListResponse(BaseModel):
-    """Model odpowiedzi dla listy krajów"""
-    countries: list[CountryResponse] = Field(..., description="Lista krajów")
-    total_countries: int = Field(..., description="Całkowita liczba krajów")
+    """Response model for a country list."""
+    countries: list[CountryResponse] = Field(..., description="Country list")
+    total_countries: int = Field(..., description="Total number of countries")
+
 
 class SportResponse(BaseModel):
-    """Model odpowiedzi dla pojedynczego sportu"""
-    id: int = Field(..., description="ID sportu")
-    name: str = Field(..., description="Nazwa sportu")
-    teams_count: int = Field(..., description="Liczba drużyn w tym sporcie")
+    """Response model for a single sport."""
+    id: int = Field(..., description="Sport ID")
+    name: str = Field(..., description="Sport name")
+    teams_count: int = Field(..., description="Number of teams in this sport")
+
 
 class SportsListResponse(BaseModel):
-    """Model odpowiedzi dla listy sportów"""
-    sports: list[SportResponse] = Field(..., description="Lista sportów")
-    total_sports: int = Field(..., description="Całkowita liczba sportów")
+    """Response model for a sport list."""
+    sports: list[SportResponse] = Field(..., description="Sport list")
+    total_sports: int = Field(..., description="Total number of sports")
+
 
 class SeasonResponse(BaseModel):
-    """Model odpowiedzi dla pojedynczego sezonu"""
-    id: int = Field(..., description="ID sezonu")
-    years: str = Field(..., description="Lata sezonu (np. 2023/24)")
-    matches_count: int = Field(..., description="Liczba meczów w sezonie")
+    """Response model for a single season."""
+    id: int = Field(..., description="Season ID")
+    years: str = Field(..., description="Season years (e.g. 2023/24)")
+    matches_count: int = Field(..., description="Number of matches in the season")
+
 
 class SeasonsListResponse(BaseModel):
-    """Model odpowiedzi dla listy sezonów"""
-    seasons: list[SeasonResponse] = Field(..., description="Lista sezonów")
-    total_seasons: int = Field(..., description="Całkowita liczba sezonów")
+    """Response model for a season list."""
+    seasons: list[SeasonResponse] = Field(..., description="Season list")
+    total_seasons: int = Field(..., description="Total number of seasons")
+
 
 class SpecialRoundResponse(BaseModel):
-    """Model odpowiedzi dla pojedynczej rundy specjalnej"""
-    id: int = Field(..., description="ID rundy specjalnej")
-    name: str = Field(..., description="Nazwa rundy specjalnej")
+    """Response model for a single special round."""
+    id: int = Field(..., description="Special round ID")
+    name: str = Field(..., description="Special round name")
+
 
 class SpecialRoundsListResponse(BaseModel):
-    """Model odpowiedzi dla listy rund specjalnych"""
-    special_rounds: list[SpecialRoundResponse] = Field(..., description="Lista rund specjalnych")
-    total_special_rounds: int = Field(..., description="Całkowita liczba rund specjalnych")
+    """Response model for a special round list."""
+    special_rounds: list[SpecialRoundResponse] = Field(
+        ..., description="Special round list")
+    total_special_rounds: int = Field(
+        ..., description="Total number of special rounds")
 
-# ==================== ENDPOINTY ====================
 
-@router.get("/helper", tags=["Pomocnicze"])
+@router.get("/helper", tags=["Helper"])
 async def helper_info():
-    """Endpoint główny - informacje o module helper"""
+    """Return module metadata and available endpoints."""
     return {
         "module": "EkstraBet Helper API",
         "version": "1.0.0",
-        "description": "API do zarządzania pomocniczymi danymi",
+        "description": "Reference data endpoints for countries, sports and seasons",
         "endpoints": [
-            "helper/countries - Lista krajów",
-            "helper/sports - Lista sportów",
-            "helper/seasons - Lista sezonów",
-            "helper/special-rounds - Lista rund specjalnych"
-        ]
+            "GET /helper/countries - Country list",
+            "GET /helper/sports - Sport list",
+            "GET /helper/seasons - Season list",
+            "GET /helper/special-rounds - Special round list",
+        ],
     }
 
-@router.get("/helper/countries", response_model=CountriesListResponse, tags=["Pomocnicze"])
+
+@router.get(
+    "/helper/countries",
+    response_model=CountriesListResponse,
+    tags=["Helper"])
 async def get_countries():
     """
-    Pobiera listę wszystkich krajów w systemie
-    Endpoint pomocniczy do pobierania dostępnych krajów
-    dla filtrowania drużyn i innych danych.
-    Returns:
-        CountriesListResponse: Lista krajów z liczbą drużyn
+    Return all countries in the system.
+
+    Helper endpoint for listing countries used to filter teams and other data.
     """
     try:
         query = """
@@ -110,17 +118,17 @@ async def get_countries():
             "total_countries": len(countries)
         }
     except Exception as e:
-        logger.error(f"Błąd w get_countries: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania listy krajów")
+        logger.error(f"Error in get_countries: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch country list")
 
-@router.get("/helper/sports", response_model=SportsListResponse, tags=["Pomocnicze"])
+@router.get("/helper/sports", response_model=SportsListResponse, tags=["Helper"])
 async def get_sports():
     """
-    Pobiera listę wszystkich sportów w systemie
-    Endpoint pomocniczy do pobierania dostępnych sportów
-    dla filtrowania drużyn i innych danych.
-    Returns:
-        SportsListResponse: Lista sportów z liczbą drużyn
+    Return all sports in the system.
+
+    Helper endpoint for listing sports used to filter teams and other data.
     """
     try:
         query = """
@@ -146,17 +154,17 @@ async def get_sports():
             "total_sports": len(sports)
         }
     except Exception as e:
-        logger.error(f"Błąd w get_sports: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania listy sportów")
+        logger.error(f"Error in get_sports: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch sport list")
 
-@router.get("/helper/seasons", response_model=SeasonsListResponse, tags=["Pomocnicze"])
+@router.get("/helper/seasons", response_model=SeasonsListResponse, tags=["Helper"])
 async def get_seasons():
     """
-    Pobiera listę wszystkich sezonów w systemie
-    Endpoint pomocniczy do pobierania dostępnych sezonów
-    dla filtrowania statystyk drużyn i innych danych.
-    Returns:
-        SeasonsListResponse: Lista sezonów z liczbą meczów
+    Return all seasons in the system.
+
+    Helper endpoint for listing seasons used to filter team stats and other data.
     """
     try:
         query = """
@@ -182,17 +190,21 @@ async def get_seasons():
             "total_seasons": len(seasons)
         }
     except Exception as e:
-        logger.error(f"Błąd w get_seasons: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania listy sezonów")
+        logger.error(f"Error in get_seasons: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch season list")
 
-@router.get("/helper/special-rounds", response_model=SpecialRoundsListResponse, tags=["Pomocnicze"])
+@router.get(
+    "/helper/special-rounds",
+    response_model=SpecialRoundsListResponse,
+    tags=["Helper"])
 async def get_special_rounds():
     """
-    Pobiera listę wszystkich rund specjalnych w systemie
-    Endpoint pomocniczy do pobierania dostępnych rund specjalnych
-    dla filtrowania meczów pucharowych i innych specjalnych rozgrywek.
-    Returns:
-        SpecialRoundsListResponse: Lista rund specjalnych
+    Return all special rounds in the system.
+
+    Helper endpoint for listing special rounds used to filter cup matches
+    and other special competitions.
     """
     try:
         query = """
@@ -214,5 +226,7 @@ async def get_special_rounds():
             "total_special_rounds": len(special_rounds)
         }
     except Exception as e:
-        logger.error(f"Błąd w get_special_rounds: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania listy rund specjalnych")
+        logger.error(f"Error in get_special_rounds: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch special round list")

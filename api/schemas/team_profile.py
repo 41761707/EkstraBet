@@ -1,11 +1,16 @@
 """Pydantic schemas for team profile endpoints."""
 
 from __future__ import annotations
-from typing import Literal
-from pydantic import BaseModel, Field
-from api.schemas.match import MatchSummary
 
-FormResult = Literal["W", "D", "L"]
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from api.schemas.match import (
+    FormResult,
+    HeadToHeadSummary,
+    MatchSummary,
+    TeamSeasonMatchPoint)
 
 
 class TeamSummary(BaseModel):
@@ -34,36 +39,11 @@ class TeamSplitStats(BaseModel):
     points: int = Field(..., description="League points")
 
 
-class HeadToHeadSummary(BaseModel):
-    """Aggregated head-to-head statistics between two teams."""
-
-    team_id: int = Field(..., description="Primary team ID")
-    opponent_id: int = Field(..., description="Opponent team ID")
-    played: int = Field(..., description="Head-to-head matches played")
-    wins: int = Field(..., description="Wins for the primary team")
-    draws: int = Field(..., description="Draws")
-    losses: int = Field(..., description="Losses for the primary team")
-    goals_for: int = Field(..., description="Goals scored by primary team")
-    goals_conceded: int = Field(
-        ...,
-        description="Goals conceded by primary team")
-    btts_count: int = Field(..., description="BTTS matches count")
-    btts_percentage: float = Field(
-        ...,
-        description="BTTS occurrence percentage")
-    avg_goals_per_match: float = Field(
-        ...,
-        description="Average total goals per H2H match")
-    meetings: list[MatchSummary] = Field(
-        ...,
-        description="Recent head-to-head meetings")
-
-
 class TeamProfileResponse(BaseModel):
     """Full team profile payload for the team detail page."""
 
     team: TeamSummary = Field(..., description="Team metadata")
-    season_id: int = Field(..., description="Season ID")
+    season_id: int | None = Field(None, description="Season ID filter")
     league_id: int | None = Field(
         None,
         description="League filter when provided")
@@ -82,6 +62,9 @@ class TeamProfileResponse(BaseModel):
     away_stats: TeamSplitStats = Field(
         ...,
         description="Season statistics for away matches")
+    season_matches: list[TeamSeasonMatchPoint] = Field(
+        ...,
+        description="Played season matches for charts (newest first)")
     head_to_head: HeadToHeadSummary | None = Field(
         None,
         description="H2H summary when opponent_id is provided")

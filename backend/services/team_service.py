@@ -5,9 +5,16 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 import pandas as pd
-from backend.repositories import team_repository
+from backend.repositories import league_repository, team_repository
+from backend.repositories.sport_league_repository import HOCKEY_SPORT_ID
+from backend.services.match_score import map_score_resolution
+from backend.services.round_label import resolve_round_label
+from backend.sports.hockey.first_period_goals import fetch_first_period_goals
+from backend.sports.hockey.season_match_point import (
+    map_hockey_season_match_point,
+    resolve_hockey_form_result)
 
-FormResult = Literal["W", "D", "L"]
+FormResult = Literal["W", "D", "L", "WPD", "PPD"]
 
 
 def _to_datetime(value: object) -> datetime | date | None:
@@ -37,6 +44,49 @@ def _optional_int(value: object) -> int | None:
     return int(value)
 
 
+def _stat_int(value: object) -> int:
+    """Convert nullable numeric values to integers, defaulting to zero."""
+    return _optional_int(value) or 0
+
+
+def _team_match_stat(
+    row: pd.Series,
+    team_id: int,
+    home_key: str,
+    away_key: str) -> int:
+    """Return a match stat from the profiled team's perspective."""
+    is_home = int(row["home_id"]) == team_id
+    if is_home:
+        return _stat_int(row.get(home_key))
+    return _stat_int(row.get(away_key))
+
+
+def _opponent_match_stat(
+    row: pd.Series,
+    team_id: int,
+    home_key: str,
+    away_key: str) -> int:
+    """Return a match stat from the opponent's perspective."""
+    is_home = int(row["home_id"]) == team_id
+    if is_home:
+        return _stat_int(row.get(away_key))
+    return _stat_int(row.get(home_key))
+
+
+def _team_cards(row: pd.Series, team_id: int) -> int:
+    """Return yellow and red cards for the profiled team."""
+    return (
+        _team_match_stat(row, team_id, "home_team_yc", "away_team_yc")
+        + _team_match_stat(row, team_id, "home_team_rc", "away_team_rc"))
+
+
+def _opponent_cards(row: pd.Series, team_id: int) -> int:
+    """Return yellow and red cards for the opponent."""
+    return (
+        _opponent_match_stat(row, team_id, "home_team_yc", "away_team_yc")
+        + _opponent_match_stat(row, team_id, "home_team_rc", "away_team_rc"))
+
+
 def _map_team_summary(row: pd.Series) -> dict[str, Any]:
     """Map a team dataframe row to a TeamSummary dictionary."""
     shortcut = row.get("shortcut")
@@ -62,7 +112,9 @@ def _map_team_summary(row: pd.Series) -> dict[str, Any]:
     }
 
 
-def _map_match_summary_row(row: pd.Series) -> dict[str, Any]:
+def _map_match_summary_row(
+    row: pd.Series,
+    special_rounds: dict[int, str]) -> dict[str, Any]:
     """Map a match dataframe row to a MatchSummary dictionary."""
     game_date = _to_datetime(row["game_date"])
     if game_date is None:
@@ -70,11 +122,13 @@ def _map_match_summary_row(row: pd.Series) -> dict[str, Any]:
     result = str(row["result"]) if pd.notna(row["result"]) else "0"
     home_shortcut = row.get("home_shortcut")
     away_shortcut = row.get("away_shortcut")
+    round_number = _optional_int(row.get("round"))
     return {
         "id": int(row["id"]),
         "league_id": int(row["league_id"]),
         "season_id": int(row["season_id"]),
-        "round": _optional_int(row.get("round")),
+        "round": round_number,
+        "round_label": resolve_round_label(round_number, special_rounds),
         "game_date": game_date,
         "home_team": {
             "id": int(row["home_id"]),
@@ -93,12 +147,19 @@ def _map_match_summary_row(row: pd.Series) -> dict[str, Any]:
         "home_goals": _optional_int(row.get("home_team_goals")),
         "away_goals": _optional_int(row.get("away_team_goals")),
         "result": result,
-        "is_played": result != "0"
+        "is_played": result != "0",
+        "score_resolution": map_score_resolution(row)
     }
 
 
 def _match_form_result(team_id: int, row: pd.Series) -> FormResult:
     """Return W/D/L from the perspective of the given team."""
+    sport_id = row.get("sport_id")
+    if sport_id is not None and not (
+            isinstance(sport_id, float) and pd.isna(sport_id)):
+        if int(sport_id) == HOCKEY_SPORT_ID:
+            return resolve_hockey_form_result(team_id, row)
+
     result = str(row["result"])
     is_home = int(row["home_id"]) == team_id
     if result == "X":
@@ -133,11 +194,28 @@ def _apply_split_match(
     goals_against = int(
         row["away_team_goals"] if is_home else row["home_team_goals"])
     form_result = _match_form_result(team_id, row)
+    sport_id = row.get("sport_id")
+    is_hockey = (
+        sport_id is not None
+        and not (isinstance(sport_id, float) and pd.isna(sport_id))
+        and int(sport_id) == HOCKEY_SPORT_ID)
 
     stats["played"] += 1
     stats["goals_for"] += goals_for
     stats["goals_conceded"] += goals_against
-    if form_result == "W":
+    if is_hockey:
+        if form_result in ("W", "WPD"):
+            stats["wins"] += 1
+            stats["points"] += 2
+        elif form_result == "D":
+            stats["draws"] += 1
+            stats["points"] += 1
+        elif form_result == "PPD":
+            stats["losses"] += 1
+            stats["points"] += 1
+        else:
+            stats["losses"] += 1
+    elif form_result == "W":
         stats["wins"] += 1
         stats["points"] += 3
     elif form_result == "D":
@@ -169,10 +247,84 @@ def _build_split_stats(
     return overall, home_stats, away_stats
 
 
+def _map_season_match_point(
+    team_id: int,
+    row: pd.Series) -> dict[str, Any]:
+    """Map a match row to a chart-friendly season match point."""
+    is_home = int(row["home_id"]) == team_id
+    home_goals = int(row["home_team_goals"])
+    away_goals = int(row["away_team_goals"])
+    if is_home:
+        opponent_shortcut = row.get("away_shortcut")
+        opponent_name = str(row["away_name"])
+    else:
+        opponent_shortcut = row.get("home_shortcut")
+        opponent_name = str(row["home_name"])
+    game_date = _to_datetime(row["game_date"])
+    if game_date is None:
+        raise ValueError("Match row is missing game_date")
+    shortcut = (
+        str(opponent_shortcut)
+        if pd.notna(opponent_shortcut) else opponent_name[:3].upper())
+    return {
+        "match_id": int(row["id"]),
+        "match_date": game_date,
+        "opponent_shortcut": shortcut,
+        "opponent_name": opponent_name,
+        "total_goals": home_goals + away_goals,
+        "btts": home_goals > 0 and away_goals > 0,
+        "result": _match_form_result(team_id, row),
+        "home_team_name": str(row["home_name"]),
+        "away_team_name": str(row["away_name"]),
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "is_home": is_home,
+        "team_cards": _team_cards(row, team_id),
+        "opponent_cards": _opponent_cards(row, team_id),
+        "total_cards": _team_cards(row, team_id) + _opponent_cards(row, team_id),
+        "team_offsides": _team_match_stat(
+            row, team_id, "home_team_off", "away_team_off"),
+        "opponent_offsides": _opponent_match_stat(
+            row, team_id, "home_team_off", "away_team_off"),
+        "total_offsides": (
+            _stat_int(row.get("home_team_off"))
+            + _stat_int(row.get("away_team_off"))),
+        "team_corners": _team_match_stat(
+            row, team_id, "home_team_ck", "away_team_ck"),
+        "opponent_corners": _opponent_match_stat(
+            row, team_id, "home_team_ck", "away_team_ck"),
+        "total_corners": (
+            _stat_int(row.get("home_team_ck"))
+            + _stat_int(row.get("away_team_ck"))),
+        "team_shots": _team_match_stat(
+            row, team_id, "home_team_sc", "away_team_sc"),
+        "opponent_shots": _opponent_match_stat(
+            row, team_id, "home_team_sc", "away_team_sc"),
+        "total_shots": (
+            _stat_int(row.get("home_team_sc"))
+            + _stat_int(row.get("away_team_sc"))),
+        "team_shots_on_target": _team_match_stat(
+            row, team_id, "home_team_sog", "away_team_sog"),
+        "opponent_shots_on_target": _opponent_match_stat(
+            row, team_id, "home_team_sog", "away_team_sog"),
+        "total_shots_on_target": (
+            _stat_int(row.get("home_team_sog"))
+            + _stat_int(row.get("away_team_sog"))),
+        "team_fouls": _team_match_stat(
+            row, team_id, "home_team_fouls", "away_team_fouls"),
+        "opponent_fouls": _opponent_match_stat(
+            row, team_id, "home_team_fouls", "away_team_fouls"),
+        "total_fouls": (
+            _stat_int(row.get("home_team_fouls"))
+            + _stat_int(row.get("away_team_fouls"))),
+    }
+
+
 def _build_head_to_head_summary(
     team_id: int,
     opponent_id: int,
-    matches_frame: pd.DataFrame) -> dict[str, Any]:
+    matches_frame: pd.DataFrame,
+    special_rounds: dict[int, str]) -> dict[str, Any]:
     """Build aggregated head-to-head statistics between two teams."""
     wins = 0
     draws = 0
@@ -201,7 +353,7 @@ def _build_head_to_head_summary(
         if team_goals > 0 and opponent_goals > 0:
             btts_count += 1
 
-        meetings.append(_map_match_summary_row(row))
+        meetings.append(_map_match_summary_row(row, special_rounds))
 
     played = len(meetings)
     return {
@@ -225,7 +377,7 @@ def _build_head_to_head_summary(
 
 def get_team_profile(
     team_id: int,
-    season_id: int,
+    season_id: int | None = None,
     league_id: int | None = None,
     limit: int = 5,
     opponent_id: int | None = None) -> dict[str, Any] | None:
@@ -238,23 +390,42 @@ def get_team_profile(
         team_id=team_id,
         season_id=season_id,
         league_id=league_id)
-    recent_frame = all_matches.head(limit) if not all_matches.empty else (
-        all_matches)
 
     overall, home_stats, away_stats = _build_split_stats(
         team_id,
         all_matches)
 
-    # forma od najstarszego do najnowszego meczu w ostatnich N spotkaniach
+    # forma i lista meczów dla całego sezonu; frontend filtruje po suwaku lookback
     form: list[FormResult] = []
-    if not recent_frame.empty:
-        for _, row in recent_frame.iloc[::-1].iterrows():
+    if not all_matches.empty:
+        for _, row in all_matches.iloc[::-1].iterrows():
             form.append(_match_form_result(team_id, row))
 
+    special_rounds = league_repository.fetch_special_round_names()
+
     recent_matches = [
-        _map_match_summary_row(row)
-        for _, row in recent_frame.iterrows()
+        _map_match_summary_row(row, special_rounds)
+        for _, row in all_matches.iterrows()
     ]
+    season_matches: list[dict[str, Any]] = []
+    team_sport_id = team_frame.iloc[0].get("sport_id")
+    is_hockey_team = (
+        team_sport_id is not None
+        and not (isinstance(team_sport_id, float) and pd.isna(team_sport_id))
+        and int(team_sport_id) == HOCKEY_SPORT_ID)
+    first_period_map: dict[int, int] = {}
+    if is_hockey_team and not all_matches.empty:
+        match_ids = [int(row["id"]) for _, row in all_matches.iterrows()]
+        first_period_map = fetch_first_period_goals(match_ids)
+
+    for _, row in all_matches.iterrows():
+        if is_hockey_team:
+            season_matches.append(map_hockey_season_match_point(
+                team_id,
+                row,
+                first_period_goals=first_period_map.get(int(row["id"]))))
+        else:
+            season_matches.append(_map_season_match_point(team_id, row))
 
     head_to_head = None
     if opponent_id is not None and opponent_id != team_id:
@@ -266,7 +437,8 @@ def get_team_profile(
             head_to_head = _build_head_to_head_summary(
                 team_id,
                 opponent_id,
-                h2h_frame)
+                h2h_frame,
+                special_rounds)
 
     return {
         "team": _map_team_summary(team_frame.iloc[0]),
@@ -277,5 +449,6 @@ def get_team_profile(
         "overall_stats": overall,
         "home_stats": home_stats,
         "away_stats": away_stats,
+        "season_matches": season_matches,
         "head_to_head": head_to_head
     }

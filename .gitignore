@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -149,6 +149,7 @@ activemq-data/
 
 # Environments
 .env
+.env.cursor-mcp
 .envrc
 .venv
 env/
@@ -230,3 +231,5 @@ db_module.py
 *.png 
 *.v2
 *.jpg
+.szponti.env
+/tasks/

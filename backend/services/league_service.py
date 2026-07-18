@@ -5,7 +5,8 @@ import re
 from datetime import date, datetime
 from typing import Any
 import pandas as pd
-from backend.repositories import league_repository
+from backend.repositories import analytics_repository, league_repository
+from backend.services.round_label import resolve_round_label
 
 def build_league_slug(name: str) -> str:
     """Build a URL slug from a league name."""
@@ -111,7 +112,17 @@ def get_league_rounds(
     frame = league_repository.fetch_rounds_for_league_season(
         league_id,
         season_id)
-    return _map_round_rows(frame)
+    special_rounds = league_repository.fetch_special_round_names()
+    return _map_round_rows(frame, special_rounds)
+
+
+def get_league_characteristics(
+    league_id: int,
+    season_id: int) -> dict[str, Any] | None:
+    """Return league OU/BTTS/1X2 distribution for a played season."""
+    return analytics_repository.fetch_league_characteristics(
+        league_id,
+        season_id)
 
 
 def _map_season_rows(frame: pd.DataFrame) -> list[dict[str, Any]]:
@@ -128,15 +139,20 @@ def _map_season_rows(frame: pd.DataFrame) -> list[dict[str, Any]]:
     return seasons
 
 
-def _map_round_rows(frame: pd.DataFrame) -> list[dict[str, Any]]:
+def _map_round_rows(
+    frame: pd.DataFrame,
+    special_rounds: dict[int, str] | None = None) -> list[dict[str, Any]]:
     """Map round query results to response dictionaries."""
     if frame.empty:
         return []
+    labels = special_rounds or {}
     rounds: list[dict[str, Any]] = []
     for _, row in frame.iterrows():
         game_date = _to_date(row["game_date"])
+        round_number = int(row["round_number"])
         rounds.append({
-            "round_number": int(row["round_number"]),
+            "round_number": round_number,
+            "round_label": resolve_round_label(round_number, labels),
             "game_date": game_date.isoformat() if game_date else ""
         })
     return rounds

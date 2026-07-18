@@ -12,6 +12,7 @@ from api.schemas.prediction import (
     TeamPredictionListResponse)
 from backend.config import get_settings
 from backend.services import prediction_service
+from api.routers.utils import parse_id_list
 
 logger = logging.getLogger(__name__)
 
@@ -59,19 +60,7 @@ async def search_predictions(
             status_code=422,
             detail=f"page_size cannot exceed {settings.max_page_size}")
 
-    parsed_model_ids: list[int] | None = None
-    if model_ids is not None:
-        try:
-            parsed_model_ids = [
-                int(model_id.strip())
-                for model_id in model_ids.split(",")
-                if model_id.strip()]
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid model_ids format. Use e.g. '1,2,3'") from exc
-        if not parsed_model_ids:
-            parsed_model_ids = None
+    parsed_model_ids = parse_id_list(model_ids)
 
     try:
         payload = prediction_service.search_predictions(
@@ -128,19 +117,7 @@ async def get_match_predictions(
         description="Comma-separated model IDs, e.g. '1,2,3'")
 ) -> MatchPredictionListResponse:
     """Return final predictions for a match with event family metadata."""
-    parsed_model_ids: list[int] | None = None
-    if model_ids is not None:
-        try:
-            parsed_model_ids = [
-                int(model_id.strip())
-                for model_id in model_ids.split(",")
-                if model_id.strip()]
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid model_ids format. Use e.g. '1,2,3'") from exc
-        if not parsed_model_ids:
-            parsed_model_ids = None
+    parsed_model_ids = parse_id_list(model_ids)
 
     try:
         payload = prediction_service.get_match_predictions(

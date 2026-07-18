@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("DB_PASSWORD", "test-db-password")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
+os.environ.setdefault("AUTH_ENABLED", "false")
 
 from api.main import create_app
 

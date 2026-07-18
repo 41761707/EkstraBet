@@ -68,6 +68,9 @@ class LeagueRoundResponse(BaseModel):
     """Round metadata for a league season."""
 
     round_number: int = Field(..., description="Round number")
+    round_label: str = Field(
+        ...,
+        description="Display label for regular or special rounds")
     game_date: str = Field(..., description="Latest game date in the round")
 
 

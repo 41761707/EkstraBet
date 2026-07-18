@@ -40,8 +40,12 @@ class TestMatchService(unittest.TestCase):
             "away_team_sc": 8,
             "home_team_sog": 5,
             "away_team_sog": 3,
+            "home_team_fk": 6,
+            "away_team_fk": 8,
             "home_team_ck": 6,
             "away_team_ck": 4,
+            "home_team_off": 2,
+            "away_team_off": 1,
             "home_team_fouls": 11,
             "away_team_fouls": 14,
             "home_team_yc": 2,
@@ -72,6 +76,10 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(matches, [])
 
     @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
         "backend.services.match_service.league_repository.league_exists",
         return_value=True)
     @patch(
@@ -79,7 +87,8 @@ class TestMatchService(unittest.TestCase):
     def test_get_league_matches_maps_summary_fields(
         self,
         mock_fetch: unittest.mock.MagicMock,
-        _mock_exists: unittest.mock.MagicMock) -> None:
+        _mock_exists: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
         mock_fetch.return_value = self._sample_match_frame()
         matches = get_league_matches(
             1,
@@ -91,6 +100,28 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(matches[0]["id"], 100)
         self.assertTrue(matches[0]["is_played"])
         self.assertEqual(matches[0]["home_team"]["name"], "Legia")
+        self.assertEqual(matches[0]["round_label"], "5")
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={973: "Quarter-final"})
+    @patch(
+        "backend.services.match_service.league_repository.league_exists",
+        return_value=True)
+    @patch(
+        "backend.services.match_service.match_repository.fetch_league_matches")
+    def test_get_league_matches_resolves_special_round_label(
+        self,
+        mock_fetch: unittest.mock.MagicMock,
+        _mock_exists: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        frame = self._sample_match_frame()
+        frame.loc[0, "round"] = 973
+        mock_fetch.return_value = frame
+        matches = get_league_matches(1, 12)
+        self.assertEqual(matches[0]["round"], 973)
+        self.assertEqual(matches[0]["round_label"], "Quarter-final")
 
     @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id",
@@ -100,6 +131,21 @@ class TestMatchService(unittest.TestCase):
         _mock_fetch: unittest.mock.MagicMock) -> None:
         self.assertIsNone(get_match_details(999999))
 
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
     @patch("backend.services.match_service.odds_service.get_match_odds_items")
     @patch(
         "backend.services.match_service.prediction_service"
@@ -110,7 +156,11 @@ class TestMatchService(unittest.TestCase):
         self,
         mock_fetch_match: unittest.mock.MagicMock,
         mock_fetch_predictions: unittest.mock.MagicMock,
-        mock_fetch_odds: unittest.mock.MagicMock) -> None:
+        mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
         mock_fetch_match.return_value = self._sample_match_frame()
         mock_fetch_predictions.return_value = [{
             "prediction_id": 10,
@@ -139,7 +189,23 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(len(details["odds"]), 1)
         self.assertIsNotNone(details["stats"])
         self.assertEqual(details["stats"]["home_xg"], 1.8)
+        self.assertEqual(details["head_to_head"]["played"], 0)
 
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
     @patch(
         "backend.services.match_service.odds_service.get_match_odds_items",
         return_value=[])
@@ -152,7 +218,11 @@ class TestMatchService(unittest.TestCase):
         self,
         mock_fetch_match: unittest.mock.MagicMock,
         mock_fetch_predictions: unittest.mock.MagicMock,
-        _mock_fetch_odds: unittest.mock.MagicMock) -> None:
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
         frame = self._sample_match_frame()
         frame.loc[0, "result"] = "0"
         frame.loc[0, "home_team_goals"] = None

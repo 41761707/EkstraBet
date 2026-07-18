@@ -6,6 +6,7 @@ from typing import Optional, List
 
 from api.schemas.match import MatchDetails
 from api.utils import execute_query
+from api.routers.utils import parse_id_list
 from backend.services import match_service
 
 # Konfiguracja logowania
@@ -14,71 +15,71 @@ logger = logging.getLogger(__name__)
 # === MODELE PYDANTIC ===
 
 class SeasonResponse(BaseModel):
-    """Model odpowiedzi dla sezonu"""
-    season_id: int = Field(..., description="ID sezonu")
-    years: str = Field(..., description="Lata sezonu (np. '2023/24')")
+    """Response model for a season."""
+    season_id: int = Field(..., description="Season ID")
+    years: str = Field(..., description="Season years (e.g. '2023/24')")
 
 class SeasonsListResponse(BaseModel):
-    """Model odpowiedzi dla listy sezonów"""
-    seasons: List[SeasonResponse] = Field(..., description="Lista sezonów")
-    total_count: int = Field(..., description="Całkowita liczba sezonów")
+    """Response model for a season list."""
+    seasons: List[SeasonResponse] = Field(..., description="Season list")
+    total_count: int = Field(..., description="Total number of seasons")
 
 class RoundResponse(BaseModel):
-    """Model odpowiedzi dla rundy"""
-    round_number: int = Field(..., description="Numer rundy")
-    game_date: str = Field(..., description="Data gry (ostatnia w rundzie)")
+    """Response model for a round."""
+    round_number: int = Field(..., description="Round number")
+    game_date: str = Field(..., description="Game date (latest in the round)")
 
 class RoundsListResponse(BaseModel):
-    """Model odpowiedzi dla listy rund"""
-    rounds: List[RoundResponse] = Field(..., description="Lista rund")
-    total_count: int = Field(..., description="Całkowita liczba rund")
+    """Response model for a round list."""
+    rounds: List[RoundResponse] = Field(..., description="Round list")
+    total_count: int = Field(..., description="Total number of rounds")
 
 class MatchResponse(BaseModel):
-    """Model odpowiedzi dla meczu z drużynami"""
-    home_id: int = Field(..., description="ID drużyny gospodarzy")
-    home: str = Field(..., description="Nazwa drużyny gospodarzy")
-    home_shortcut: str = Field(..., description="Skrót drużyny gospodarzy")
-    guest_id: int = Field(..., description="ID drużyny gości")
-    guest: str = Field(..., description="Nazwa drużyny gości")
-    guest_shortcut: str = Field(..., description="Skrót drużyny gości")
-    date: str = Field(..., description="Data meczu (format DD.MM)")
-    home_goals: Optional[int] = Field(None, description="Bramki drużyny gospodarzy")
-    away_goals: Optional[int] = Field(None, description="Bramki drużyny gości")
-    round: Optional[int] = Field(None, description="Numer rundy")
-    result: str = Field(..., description="Wynik meczu")
+    """Response model for a match with team data."""
+    home_id: int = Field(..., description="Home team ID")
+    home: str = Field(..., description="Home team name")
+    home_shortcut: str = Field(..., description="Home team shortcut")
+    guest_id: int = Field(..., description="Away team ID")
+    guest: str = Field(..., description="Away team name")
+    guest_shortcut: str = Field(..., description="Away team shortcut")
+    date: str = Field(..., description="Match date (DD.MM format)")
+    home_goals: Optional[int] = Field(None, description="Home team goals")
+    away_goals: Optional[int] = Field(None, description="Away team goals")
+    round: Optional[int] = Field(None, description="Round number")
+    result: str = Field(..., description="Match result")
 
 class MatchesListResponse(BaseModel):
-    """Model odpowiedzi dla listy meczów"""
-    matches: List[MatchResponse] = Field(..., description="Lista meczów")
-    total_count: int = Field(..., description="Całkowita liczba meczów")
+    """Response model for a match list."""
+    matches: List[MatchResponse] = Field(..., description="Match list")
+    total_count: int = Field(..., description="Total number of matches")
 
 class TeamInSeasonResponse(BaseModel):
-    """Model odpowiedzi dla drużyny w sezonie"""
-    id: int = Field(..., description="ID drużyny")
-    name: str = Field(..., description="Nazwa drużyny")
+    """Response model for a team in a season."""
+    id: int = Field(..., description="Team ID")
+    name: str = Field(..., description="Team name")
 
 class TeamsInSeasonListResponse(BaseModel):
-    """Model odpowiedzi dla listy drużyn w sezonie"""
-    teams: List[TeamInSeasonResponse] = Field(..., description="Lista drużyn")
-    total_count: int = Field(..., description="Całkowita liczba drużyn")
+    """Response model for teams in a season."""
+    teams: List[TeamInSeasonResponse] = Field(..., description="Team list")
+    total_count: int = Field(..., description="Total number of teams")
 
 # === ROUTER ===
-router = APIRouter(prefix="/matches", tags=["Mecze"])
+router = APIRouter(prefix="/matches", tags=["Matches"])
 
 @router.get("/", tags=["System"])
 async def matches_info():
-    """Endpoint główny - informacje o module matches"""
+    """Return module metadata and available endpoints."""
     return {
         "module": "EkstraBet Matches API",
-        "version": "1.0.0", 
-        "description": "API do zarządzania danymi meczów",
+        "version": "1.0.0",
+        "description": "Match data and schedule endpoints",
         "endpoints": [
-            "/matches/seasons/{league_id} - Sezony dla danej ligi",
-            "/matches/rounds/{league_id}/{season_id} - Rundy dla danego sezonu w lidze",
-            "/matches/{match_id}/details - Full match details",
-            "/matches/{league_id}/{season_id} - Mecze z drużynami dla danego sezonu w lidze",
-            "/matches/teams-in-season/{league_id}/{season_id} - Drużyny grające w sezonie zasadniczym"
-        ]
+            "GET /matches/seasons/{league_id} - Seasons for a league",
+            "GET /matches/rounds/{league_id}/{season_id} - Rounds for a season",
+            "GET /matches/{match_id}/details - Full match details",
+            "GET /matches/{league_id}/{season_id} - Matches with teams for a season",
+            "GET /matches/teams-in-season/{league_id}/{season_id} - Teams in regular season",
+        ],
     }
 
 @router.get("/seasons/{league_id}", response_model=SeasonsListResponse)
@@ -86,13 +87,13 @@ async def get_seasons_for_league(
     league_id: int
 ) -> SeasonsListResponse:
     """
-    Pobiera wszystkie sezony dla danej ligi
-    
+    Return all seasons for a league.
+
     Args:
-        league_id: ID ligi
-        
+        league_id: League ID
+
     Returns:
-        Lista sezonów posortowana od najnowszych
+        Season list sorted from newest to oldest
     """
     try:
         # Zapytanie o sezony dla danej ligi (parametryzowane)
@@ -127,7 +128,9 @@ async def get_seasons_for_league(
         )
     except Exception as e:
         logger.error(f"Błąd w get_seasons_for_league dla ligi {league_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Błąd pobierania sezonów dla ligi {league_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch seasons for league {league_id}")
 
 @router.get("/rounds/{league_id}/{season_id}", response_model=RoundsListResponse)
 async def get_rounds_for_season(
@@ -135,14 +138,14 @@ async def get_rounds_for_season(
     season_id: int
 ) -> RoundsListResponse:
     """
-    Pobiera wszystkie rundy dla danego sezonu w lidze
-    
+    Return all rounds for a season in a league.
+
     Args:
-        league_id: ID ligi
-        season_id: ID sezonu
-        
+        league_id: League ID
+        season_id: Season ID
+
     Returns:
-        Lista rund posortowana chronologicznie (najnowsza kolejka na początku, najstarsza na końcu)
+        Round list sorted chronologically (newest round first)
     """
     try:
         # Zapytanie o rundy dla danego sezonu w lidze (parametryzowane)
@@ -189,7 +192,11 @@ async def get_rounds_for_season(
         
     except Exception as e:
         logger.error(f"Błąd w get_rounds_for_season dla ligi {league_id}, sezonu {season_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Błąd pobierania rund dla ligi {league_id}, sezonu {season_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch rounds for league {league_id}, "
+                f"season {season_id}"))
 
 @router.get("/{match_id}/details", response_model=MatchDetails)
 async def get_match_details(
@@ -199,19 +206,7 @@ async def get_match_details(
         description="Comma-separated model IDs, e.g. '1,2,3'")
 ) -> MatchDetails:
     """Return teams, score, predictions, odds and basic stats for a match."""
-    parsed_model_ids: list[int] | None = None
-    if model_ids is not None:
-        try:
-            parsed_model_ids = [
-                int(model_id.strip())
-                for model_id in model_ids.split(",")
-                if model_id.strip()]
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid model_ids format. Use e.g. '1,2,3'") from exc
-        if not parsed_model_ids:
-            parsed_model_ids = None
+    parsed_model_ids = parse_id_list(model_ids)
     try:
         details = match_service.get_match_details(
             match_id,
@@ -238,14 +233,14 @@ async def get_matches_with_teams(
     season_id: int
 ) -> MatchesListResponse:
     """
-    Pobiera wszystkie mecze z danymi drużyn dla danego sezonu w lidze
-    
+    Return all matches with team data for a season in a league.
+
     Args:
-        league_id: ID ligi
-        season_id: ID sezonu
-        
+        league_id: League ID
+        season_id: Season ID
+
     Returns:
-        Lista meczów z danymi drużyn posortowana od najnowszych dat
+        Match list with team data sorted from newest dates
     """
     try:
         # Zapytanie o mecze z danymi drużyn dla danego sezonu w lidze
@@ -311,7 +306,11 @@ async def get_matches_with_teams(
         
     except Exception as e:
         logger.error(f"Błąd w get_matches_with_teams dla ligi {league_id}, sezonu {season_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Błąd pobierania meczów z drużynami dla ligi {league_id}, sezonu {season_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch matches with teams for league {league_id}, "
+                f"season {season_id}"))
 
 @router.get("/teams-in-season/{league_id}/{season_id}", response_model=TeamsInSeasonListResponse)
 async def get_teams_in_season(
@@ -319,14 +318,14 @@ async def get_teams_in_season(
     season_id: int
 ) -> TeamsInSeasonListResponse:
     """
-    Pobiera wszystkie drużyny które rozegrały choć jeden mecz w sezonie zasadniczym
-    
+    Return all teams that played at least one match in the regular season.
+
     Args:
-        league_id: ID ligi
-        season_id: ID sezonu
-        
+        league_id: League ID
+        season_id: Season ID
+
     Returns:
-        Lista drużyn posortowana alfabetycznie według nazwy
+        Team list sorted alphabetically by name
     """
     try:
         # Zapytanie o drużyny grające w sezonie zasadniczym
@@ -370,4 +369,8 @@ async def get_teams_in_season(
         
     except Exception as e:
         logger.error(f"Błąd w get_teams_in_season dla ligi {league_id}, sezonu {season_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Błąd pobierania drużyn w sezonie dla ligi {league_id}, sezonu {season_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch teams in season for league {league_id}, "
+                f"season {season_id}"))

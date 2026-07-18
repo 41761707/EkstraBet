@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 16.11.2025
+###### Ostatnia data modyfikacji: 17.07.2026
 
 ## Opis struktury bazy
 
@@ -45,6 +45,7 @@
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
+- [USERS](#users) (Konta użytkowników aplikacji web / API)
 
 ## Legenda
 
@@ -1236,3 +1237,34 @@ Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. 
 **Sposób generowania danych do tabeli**:  
 
 Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencjalne rozszerzenia wkrótce)
+
+---
+
+### USERS
+
+(Konta użytkowników aplikacji EkstraBet — logowanie do UI/API; nie mylić z `GAMBLERS`)
+
+
+| POLE            | DOMENA       | ZAKRES  | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| --------------- | ------------ | ------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**          | INT          | INT     | Wewnętrzny klucz główny (zestawienia, admin) — nieeksponowany w API   | AUTOMATYCZNIE GENEROWANY |
+| UUID            | CHAR(36)     | STRING  | Publiczny identyfikator (JWT `sub`, odpowiedzi API) — UNIQUE NOT NULL | NULL                     |
+| USERNAME        | VARCHAR(50)  | STRING  | Login                                                                 | NULL                     |
+| PASSWORD_HASH   | VARCHAR(255) | STRING  | Hash bcrypt hasła                                                     | NULL                     |
+| DISPLAY_NAME    | VARCHAR(100) | STRING  | Nazwa wyświetlana w UI                                                | NULL                     |
+| IS_ACTIVE       | TINYINT      | INT     | 1 = konto aktywne, 0 = zablokowane                                    | 1                        |
+| CREATED_AT      | DATETIME     | DATETIME| Data utworzenia konta                                                 | CURRENT_TIMESTAMP        |
+| UPDATED_AT      | DATETIME     | DATETIME| Data ostatniej aktualizacji                                           | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `USERNAME`
+- **Unikalny indeks:** `UUID` (kontrakt publiczny — JWT `sub` i API zawsze używają UUID, nigdy wewnętrznego `ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Konta dodawane ręcznie (INSERT). Hash hasła: `python scripts/hash_password.py <haslo>`.
+UUID przy INSERT: `UUID()` (MySQL) albo `uuid4` w seedzie.
+Wyrównanie schematu (jeśli baza odbiega): `sql/align_users_auth_contract.sql`.

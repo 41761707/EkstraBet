@@ -119,3 +119,16 @@ def fetch_rounds_for_league_season(
     """
     with get_db_connection() as conn:
         return pd.read_sql(query, conn, params=(league_id, season_id))
+
+
+def fetch_special_round_names() -> dict[int, str]:
+    """Return special round id to display name mapping."""
+    query = "SELECT id, name FROM special_rounds"
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn)
+    if frame.empty:
+        return {}
+    return {
+        int(row["id"]): str(row["name"])
+        for _, row in frame.iterrows()
+    }

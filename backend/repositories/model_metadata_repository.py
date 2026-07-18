@@ -66,7 +66,7 @@ def fetch_models() -> pd.DataFrame:
         ORDER BY m.name
     """
     with get_db_connection() as conn:
-        return pd.read_sql(query)
+        return pd.read_sql(query, conn)
 
 
 def fetch_model_by_id(model_id: int) -> pd.DataFrame:

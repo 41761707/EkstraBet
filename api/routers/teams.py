@@ -12,126 +12,128 @@ from backend.services import team_service
 logger = logging.getLogger(__name__)
 
 class TeamResponse(BaseModel):
-    """Model odpowiedzi dla pojedynczej drużyny"""
-    id: int = Field(..., description="ID drużyny")
-    name: str = Field(..., description="Nazwa drużyny")
-    shortcut: str = Field(None, description="Skrót nazwy drużyny")
-    country_id: int = Field(..., description="ID kraju")
-    country_name: str = Field(None, description="Nazwa kraju")
-    country_emoji: str = Field(None, description="Flaga kraju")
-    sport_id: int = Field(..., description="ID sportu")
-    sport_name: str = Field(None, description="Nazwa sportu")
+    """Response model for a single team."""
+    id: int = Field(..., description="Team ID")
+    name: str = Field(..., description="Team name")
+    shortcut: str = Field(None, description="Team name shortcut")
+    country_id: int = Field(..., description="Country ID")
+    country_name: str = Field(None, description="Country name")
+    country_emoji: str = Field(None, description="Country flag")
+    sport_id: int = Field(..., description="Sport ID")
+    sport_name: str = Field(None, description="Sport name")
 
 class TeamsListResponse(BaseModel):
-    """Model odpowiedzi dla listy drużyn"""
-    teams: list[TeamResponse] = Field(..., description="Lista drużyn")
-    total_count: int = Field(..., description="Całkowita liczba drużyn")
-    page: int = Field(..., description="Numer strony")
-    page_size: int = Field(..., description="Rozmiar strony")
+    """Response model for a team list."""
+    teams: list[TeamResponse] = Field(..., description="Team list")
+    total_count: int = Field(..., description="Total number of teams")
+    page: int = Field(..., description="Page number")
+    page_size: int = Field(..., description="Page size")
 
 class TeamStatsResponse(BaseModel):
-    """Model odpowiedzi dla statystyk drużyny"""
-    team_id: int = Field(..., description="ID drużyny")
-    team_name: str = Field(..., description="Nazwa drużyny")
-    season_id: Optional[int] = Field(None, description="ID sezonu (opcjonalny filtr)")
-    season_years: Optional[str] = Field(None, description="Lata sezonu (opcjonalny filtr)")
-    last_n_matches: Optional[int] = Field(None, description="Liczba ostatnich meczów (opcjonalny filtr)")
-    total_matches: int = Field(..., description="Całkowita liczba meczów")
-    home_matches: int = Field(..., description="Liczba meczów u siebie")
-    away_matches: int = Field(..., description="Liczba meczów na wyjeździe")
-    wins: int = Field(..., description="Liczba wygranych")
-    draws: int = Field(..., description="Liczba remisów")
-    losses: int = Field(..., description="Liczba przegranych")
-    goals_scored: int = Field(..., description="Bramki strzelone")
-    goals_conceded: int = Field(..., description="Bramki stracone")
+    """Response model for team statistics."""
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    season_id: Optional[int] = Field(None, description="Season ID (optional filter)")
+    season_years: Optional[str] = Field(None, description="Season years (optional filter)")
+    last_n_matches: Optional[int] = Field(None, description="Number of recent matches (optional filter)")
+    total_matches: int = Field(..., description="Total number of matches")
+    home_matches: int = Field(..., description="Number of home matches")
+    away_matches: int = Field(..., description="Number of away matches")
+    wins: int = Field(..., description="Number of wins")
+    draws: int = Field(..., description="Number of draws")
+    losses: int = Field(..., description="Number of losses")
+    goals_scored: int = Field(..., description="Goals scored")
+    goals_conceded: int = Field(..., description="Goals conceded")
 
 class TeamBTTSResponse(BaseModel):
-    """Model odpowiedzi dla statystyk BTTS (Both Teams To Score) drużyny"""
-    team_id: int = Field(..., description="ID drużyny")
-    team_name: str = Field(..., description="Nazwa drużyny")
-    season_id: Optional[int] = Field(None, description="ID sezonu (jeśli filtrowane)")
-    season_years: Optional[str] = Field(None, description="Lata sezonu (jeśli filtrowane)")
-    last_n_matches: Optional[int] = Field(None, description="Liczba ostatnich meczów (jeśli filtrowane)")
-    total_matches: int = Field(..., description="Całkowita liczba meczów")
-    btts_yes: int = Field(..., description="Liczba meczów, w których obie drużyny strzeliły")
-    btts_no: int = Field(..., description="Liczba meczów, w których nie obie drużyny strzeliły")
-    btts_yes_percentage: float = Field(..., description="Procent meczów BTTS Tak")
-    btts_no_percentage: float = Field(..., description="Procent meczów BTTS Nie")
+    """Response model for team BTTS (Both Teams To Score) statistics."""
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    season_id: Optional[int] = Field(None, description="Season ID (when filtered)")
+    season_years: Optional[str] = Field(None, description="Season years (when filtered)")
+    last_n_matches: Optional[int] = Field(None, description="Number of recent matches (when filtered)")
+    total_matches: int = Field(..., description="Total number of matches")
+    btts_yes: int = Field(..., description="Matches where both teams scored")
+    btts_no: int = Field(..., description="Matches where both teams did not score")
+    btts_yes_percentage: float = Field(..., description="BTTS yes match percentage")
+    btts_no_percentage: float = Field(..., description="BTTS no match percentage")
 
 class TeamHockeyStatsResponse(BaseModel):
-    """Model odpowiedzi dla statystyk hokejowych drużyny"""
-    team_id: int = Field(..., description="ID drużyny")
-    team_name: str = Field(..., description="Nazwa drużyny")
-    season_id: Optional[int] = Field(None, description="ID sezonu")
-    last_n_matches: Optional[int] = Field(None, description="Liczba ostatnich meczów")
-    total_matches: int = Field(..., description="Liczba meczów")
-    wins: int = Field(..., description="Liczba wygranych")
-    losses: int = Field(..., description="Liczba przegranych")
-    overtime_wins: int = Field(..., description="Liczba wygranych w dogrywce")
-    overtime_loses: int = Field(..., description="Liczba przegranych w dogrywce")
-    goals_for: int = Field(..., description="Bramki strzelone")
-    goals_against: int = Field(..., description="Bramki stracone")
-    overtime_matches: int = Field(..., description="Mecze z dogrywką")
-    shootout_matches: int = Field(..., description="Mecze rozstrzygnięte w karnych")
-    avg_shots_on_target_for: float = Field(..., description="Średnia strzałów na bramkę na mecz")
-    avg_shots_on_target_against: float = Field(..., description="Średnia strzałów na bramkę przeciwko")
-    avg_saves_percentage: float = Field(..., description="Średnia skuteczność obron")
-    avg_powerplay_percentage: float = Field(..., description="Średnia skuteczność przewagi")
-    avg_faceoff_percentage: float = Field(..., description="Średnia skuteczność wznowień")
-    avg_hits_per_game: float = Field(..., description="Średnia uderzeń na mecz")
+    """Response model for hockey team statistics."""
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    season_id: Optional[int] = Field(None, description="Season ID")
+    last_n_matches: Optional[int] = Field(None, description="Number of recent matches")
+    total_matches: int = Field(..., description="Number of matches")
+    wins: int = Field(..., description="Number of wins")
+    losses: int = Field(..., description="Number of losses")
+    overtime_wins: int = Field(..., description="Number of overtime wins")
+    overtime_loses: int = Field(..., description="Number of overtime losses")
+    goals_for: int = Field(..., description="Goals scored")
+    goals_against: int = Field(..., description="Goals conceded")
+    overtime_matches: int = Field(..., description="Matches decided in overtime")
+    shootout_matches: int = Field(..., description="Matches decided in shootout")
+    avg_shots_on_target_for: float = Field(..., description="Average shots on goal per match")
+    avg_shots_on_target_against: float = Field(..., description="Average shots on goal against per match")
+    avg_saves_percentage: float = Field(..., description="Average save percentage")
+    avg_powerplay_percentage: float = Field(..., description="Average power play percentage")
+    avg_faceoff_percentage: float = Field(..., description="Average faceoff win percentage")
+    avg_hits_per_game: float = Field(..., description="Average hits per match")
 
 class HockeyPlayerRosterResponse(BaseModel):
-    """Model zawodnika w składzie"""
-    player_id: int = Field(..., description="ID zawodnika")
-    first_name: str = Field(..., description="Imię")
-    last_name: str = Field(..., description="Nazwisko")
-    common_name: str = Field(..., description="Imię i nazwisko")
-    country: str = Field(..., description="Kraj pochodzenia")
-    position: str = Field(..., description="Pozycja (G/D/LW/C/RW)")
-    line: Optional[int] = Field(None, description="Linia (1-4)")
-    is_injured: bool = Field(..., description="Czy kontuzjowany")
+    """Response model for a roster player."""
+    player_id: int = Field(..., description="Player ID")
+    first_name: str = Field(..., description="First name")
+    last_name: str = Field(..., description="Last name")
+    common_name: str = Field(..., description="Full name")
+    country: str = Field(..., description="Country of origin")
+    position: str = Field(..., description="Position (G/D/LW/C/RW)")
+    line: Optional[int] = Field(None, description="Line (1-4)")
+    is_injured: bool = Field(..., description="Whether the player is injured")
 
 class HockeyTeamRosterResponse(BaseModel):
-    """Model składu drużyny hokejowej"""
-    team_id: int = Field(..., description="ID drużyny")
-    team_name: str = Field(..., description="Nazwa drużyny")
-    goalkeepers: List[HockeyPlayerRosterResponse] = Field(..., description="Bramkarze")
-    defensemen: List[HockeyPlayerRosterResponse] = Field(..., description="Obrońcy")
-    forwards: List[HockeyPlayerRosterResponse] = Field(..., description="Napastnicy")
-    injured_players: int = Field(..., description="Liczba kontuzjowanych")
+    """Response model for a hockey team roster."""
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    goalkeepers: List[HockeyPlayerRosterResponse] = Field(..., description="Goalkeepers")
+    defensemen: List[HockeyPlayerRosterResponse] = Field(..., description="Defensemen")
+    forwards: List[HockeyPlayerRosterResponse] = Field(..., description="Forwards")
+    injured_players: int = Field(..., description="Number of injured players")
 
 class HeadToHeadResponse(BaseModel):
-    """Model statystyk H2H"""
-    team_1_id: int = Field(..., description="ID pierwszej drużyny")
-    team_2_id: int = Field(..., description="ID drugiej drużyny")
-    last_meetings: List[dict] = Field(..., description="Ostatnie 5 spotkań")
+    """Response model for head-to-head statistics."""
+    team_1_id: int = Field(..., description="First team ID")
+    team_2_id: int = Field(..., description="Second team ID")
+    last_meetings: List[dict] = Field(..., description="Last 5 meetings")
 
-# Inicjalizacja routera dla modułu teams
-router = APIRouter(prefix="/teams", tags=["Drużyny"])
+router = APIRouter(prefix="/teams", tags=["Teams"])
 
-@router.get("/")
+@router.get("/", tags=["System"])
 async def teams_info():
-    """Endpoint główny - informacje o module teams"""
+    """Return module metadata and available endpoints."""
     return {
         "module": "EkstraBet Teams API",
         "version": "1.0.0",
-        "description": "API do zarządzania danymi drużyn",
+        "description": "Team data, statistics and profile endpoints",
         "endpoints": [
-            "/teams/all - Wszystkie drużyny",
-            "/teams/search - Wyszukiwanie drużyn z filtrami",
-            "/teams/{team_id}/profile - Team profile with form and split stats",
-            "/teams/{team_id}/stats - Statystyki drużyny (z opcjonalnym filtrem sezonu)",
-            "/teams/{team_id}/btts - Statystyki BTTS drużyny (z opcjonalnym filtrem sezonu)",
-            "/teams/{team_id}/hockey-stats - Szczegółowe statystyki hokejowe drużyny",
-            "/teams/{team_id}/roster - Aktualny skład drużyny hokejowej",
-            "/teams/{team_id}/head-to-head/{opponent_id} - Statystyki bezpośrednich spotkań"
-        ]
+            "GET /teams/all - All teams",
+            "GET /teams/search - Search teams with filters",
+            "GET /teams/{team_id}/profile - Team profile with form and split stats",
+            "GET /teams/{team_id}/stats - Team statistics (optional season filter)",
+            "GET /teams/{team_id}/btts - Team BTTS statistics (optional season filter)",
+            "GET /teams/{team_id}/hockey-stats - Detailed hockey team statistics",
+            "GET /teams/{team_id}/roster - Current hockey team roster",
+            "GET /teams/head-to-head - Head-to-head statistics",
+        ],
     }
 
 @router.get("/{team_id}/profile", response_model=TeamProfileResponse)
 async def get_team_profile(
     team_id: int,
-    season_id: int = Query(..., ge=1, description="Season ID"),
+    season_id: int | None = Query(
+        None,
+        ge=1,
+        description="Optional season ID filter"),
     league_id: int | None = Query(
         None,
         ge=1,
@@ -172,8 +174,8 @@ async def get_team_profile(
 
 @router.get("/all", response_model=TeamsListResponse)
 async def get_all_teams(
-    page: int = Query(1, ge=1, description="Numer strony"),
-    page_size: int  = Query(50, ge=1, le=500, description="Rozmiar strony")
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int  = Query(50, ge=1, le=500, description="Page size")
 ) -> TeamsListResponse:
     """
     Zwraca wszystkie drużyny w bazie danych z paginacją
@@ -230,18 +232,18 @@ async def get_all_teams(
         )
     except Exception as e:
         logger.error(f"Błąd w get_all_teams: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania listy drużyn")
+        raise HTTPException(status_code=500, detail="Failed to fetch team list")
 
 @router.get("/search", response_model=TeamsListResponse)
 async def get_specific_teams(
-    country_id = Query(None, description="ID kraju"),
-    country_name = Query(None, description="Nazwa kraju (częściowe dopasowanie)"),
-    sport_id = Query(None, description="ID sportu"),
-    sport_name = Query(None, description="Nazwa sportu (częściowe dopasowanie)"),
-    team_name = Query(None, description="Nazwa drużyny (częściowe dopasowanie)"),
-    team_shortcut = Query(None, description="Skrót drużyny"),
-    page: int = Query(1, ge=1, description="Numer strony"),
-    page_size: int = Query(50, ge=1, le=500, description="Rozmiar strony")
+    country_id = Query(None, description="Country ID"),
+    country_name = Query(None, description="Country name (partial match)"),
+    sport_id = Query(None, description="Sport ID"),
+    sport_name = Query(None, description="Sport name (partial match)"),
+    team_name = Query(None, description="Team name (partial match)"),
+    team_shortcut = Query(None, description="Team shortcut"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=500, description="Page size")
 ) -> TeamsListResponse:
     """
     Wyszukuje drużyny na podstawie różnych filtrów
@@ -351,13 +353,15 @@ async def get_specific_teams(
         
     except Exception as e:
         logger.error(f"Błąd w get_specific_teams: {e}")
-        raise HTTPException(status_code=500, detail="Błąd wyszukiwania drużyn")
+        raise HTTPException(status_code=500, detail="Failed to search teams")
 
 @router.get("/{team_id}/stats", response_model=TeamStatsResponse)
 async def get_team_stats(
     team_id: int,
-    season_id: Optional[int] = Query(None, description="ID sezonu (opcjonalny filtr)"),
-    last_n_matches: Optional[int] = Query(None, ge=1, le=100, description="Ostatnie N meczów (opcjonalny filtr, max 100)")
+    season_id: Optional[int] = Query(None, description="Season ID (optional filter)"),
+    last_n_matches: Optional[int] = Query(
+        None, ge=1, le=100,
+        description="Last N matches (optional filter, max 100)")
 ) -> TeamStatsResponse:
     """
     Pobiera szczegółowe statystyki dla konkretnej drużyny
@@ -385,7 +389,7 @@ async def get_team_stats(
         team_df = execute_query(team_query, (team_id,))
         
         if team_df.empty:
-            raise HTTPException(status_code=404, detail="Drużyna nie została znaleziona")
+            raise HTTPException(status_code=404, detail="Team not found")
         
         team_name = team_df.iloc[0]['NAME']
         
@@ -404,7 +408,7 @@ async def get_team_stats(
             season_df = execute_query(season_query, (season_id,))
             
             if season_df.empty:
-                raise HTTPException(status_code=404, detail="Sezon nie został znaleziony")
+                raise HTTPException(status_code=404, detail="Season not found")
                 
             season_info = season_id
             season_years = season_df.iloc[0]['YEARS']
@@ -543,13 +547,15 @@ async def get_team_stats(
         raise
     except Exception as e:
         logger.error(f"Błąd w get_team_stats: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania statystyk drużyny")
+        raise HTTPException(status_code=500, detail="Failed to fetch team statistics")
 
 @router.get("/{team_id}/btts", response_model=TeamBTTSResponse)
 async def get_team_btts_stats(
     team_id: int,
-    season_id: Optional[int] = Query(None, description="ID sezonu (opcjonalny filtr)"),
-    last_n_matches: Optional[int] = Query(None, ge=1, le=100, description="Ostatnie N meczów (opcjonalny filtr, max 100)")
+    season_id: Optional[int] = Query(None, description="Season ID (optional filter)"),
+    last_n_matches: Optional[int] = Query(
+        None, ge=1, le=100,
+        description="Last N matches (optional filter, max 100)")
 ) -> TeamBTTSResponse:
     """
     Pobiera statystyki BTTS (Both Teams To Score) dla konkretnej drużyny
@@ -576,7 +582,7 @@ async def get_team_btts_stats(
         team_df = execute_query(team_query, (team_id,))
         
         if team_df.empty:
-            raise HTTPException(status_code=404, detail="Drużyna nie została znaleziona")
+            raise HTTPException(status_code=404, detail="Team not found")
         
         team_name = team_df.iloc[0]['NAME']
         
@@ -595,7 +601,7 @@ async def get_team_btts_stats(
             season_df = execute_query(season_query, (season_id,))
             
             if season_df.empty:
-                raise HTTPException(status_code=404, detail="Sezon nie został znaleziony")
+                raise HTTPException(status_code=404, detail="Season not found")
                 
             season_info = season_id
             season_years = season_df.iloc[0]['YEARS']
@@ -706,13 +712,15 @@ async def get_team_btts_stats(
         raise
     except Exception as e:
         logger.error(f"Błąd w get_team_btts_stats: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania statystyk BTTS drużyny")
+        raise HTTPException(status_code=500, detail="Failed to fetch team BTTS statistics")
     
 @router.get("/head-to-head", response_model=HeadToHeadResponse)
 async def get_head_to_head_stats(
-    team_1_id: int = Query(..., description="ID pierwszej drużyny"),
-    team_2_id: int = Query(..., description="ID drugiej drużyny"),
-    last_n_meetings: Optional[int] = Query(5, ge=1, le=100, description="Liczba ostatnich spotkań do uwzględnienia w statystykach")
+    team_1_id: int = Query(..., description="First team ID"),
+    team_2_id: int = Query(..., description="Second team ID"),
+    last_n_meetings: Optional[int] = Query(
+        5, ge=1, le=100,
+        description="Number of recent meetings to include in statistics")
 ) -> HeadToHeadResponse:
     """
     Pobiera statystyki bezpośrednich pojedynków (H2H) między dwiema drużynami
@@ -766,13 +774,15 @@ async def get_head_to_head_stats(
         
     except Exception as e:
         logger.error(f"Błąd w get_head_to_head_stats: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania statystyk H2H")
+        raise HTTPException(status_code=500, detail="Failed to fetch head-to-head statistics")
 
 @router.get("/{team_id}/hockey-stats", response_model=TeamHockeyStatsResponse)
 async def get_team_hockey_stats(
     team_id: int,
-    season_id: Optional[int] = Query(None, description="ID sezonu (opcjonalny filtr)"),
-    last_n_matches: Optional[int] = Query(None, ge=1, le=100, description="Ostatnie N meczów (opcjonalny filtr, max 100)")
+    season_id: Optional[int] = Query(None, description="Season ID (optional filter)"),
+    last_n_matches: Optional[int] = Query(
+        None, ge=1, le=100,
+        description="Last N matches (optional filter, max 100)")
 ) -> TeamHockeyStatsResponse:
     """
     Pobiera szczegółowe statystyki hokejowe dla konkretnej drużyny
@@ -798,7 +808,7 @@ async def get_team_hockey_stats(
         team_df = execute_query(team_query, (team_id,))
         
         if team_df.empty:
-            raise HTTPException(status_code=404, detail="Drużyna nie została znaleziona")
+            raise HTTPException(status_code=404, detail="Team not found")
         
         team_name = team_df.iloc[0]['NAME']
         sport_id = team_df.iloc[0]['SPORT_ID']
@@ -810,7 +820,7 @@ async def get_team_hockey_stats(
         sport_df = execute_query(sport_query, (int(sport_id),))
         
         if not sport_df.empty and 'hokej' not in sport_df.iloc[0]['NAME'].lower():
-            raise HTTPException(status_code=400, detail="Statystyki hokejowe dostępne tylko dla drużyn hokejowych")
+            raise HTTPException(status_code=400, detail="Hockey statistics are available only for hockey teams")
         
         # Sprawdzenie sezonu jeśli podano
         season_years = None
@@ -824,7 +834,7 @@ async def get_team_hockey_stats(
             season_df = execute_query(season_query, (season_id,))
             
             if season_df.empty:
-                raise HTTPException(status_code=404, detail="Sezon nie został znaleziony")
+                raise HTTPException(status_code=404, detail="Season not found")
                 
             season_years = season_df.iloc[0]['YEARS']
         
@@ -1078,7 +1088,7 @@ async def get_team_hockey_stats(
         raise
     except Exception as e:
         logger.error(f"Błąd w get_team_hockey_stats: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania statystyk hokejowych drużyny")
+        raise HTTPException(status_code=500, detail="Failed to fetch hockey team statistics")
 
 @router.get("/{team_id}/roster", response_model=HockeyTeamRosterResponse)
 async def get_hockey_team_roster(team_id: int) -> HockeyTeamRosterResponse:
@@ -1108,7 +1118,7 @@ async def get_hockey_team_roster(team_id: int) -> HockeyTeamRosterResponse:
         team_df = execute_query(team_query, (team_id,))
         
         if team_df.empty:
-            raise HTTPException(status_code=404, detail="Drużyna nie została znaleziona")
+            raise HTTPException(status_code=404, detail="Team not found")
         
         team_name = team_df.iloc[0]['NAME']
         sport_id = team_df.iloc[0]['SPORT_ID']
@@ -1120,7 +1130,7 @@ async def get_hockey_team_roster(team_id: int) -> HockeyTeamRosterResponse:
         sport_df = execute_query(sport_query, (int(sport_id),))
         
         if not sport_df.empty and 'hokej' not in sport_df.iloc[0]['NAME'].lower():
-            raise HTTPException(status_code=400, detail="Skład dostępny tylko dla drużyn hokejowych")
+            raise HTTPException(status_code=400, detail="Roster is available only for hockey teams")
         
         # Zapytanie o aktualny skład drużyny
         roster_query = """
@@ -1198,4 +1208,4 @@ async def get_hockey_team_roster(team_id: int) -> HockeyTeamRosterResponse:
         raise
     except Exception as e:
         logger.error(f"Błąd w get_team_roster: {e}")
-        raise HTTPException(status_code=500, detail="Błąd pobierania składu drużyny")
+        raise HTTPException(status_code=500, detail="Failed to fetch team roster")

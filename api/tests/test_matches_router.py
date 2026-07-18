@@ -11,8 +11,50 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("DB_PASSWORD", "test-db-password")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
+os.environ.setdefault("AUTH_ENABLED", "false")
 
 from api.main import create_app
+
+
+def _season_match_point(
+    *,
+    match_id: int,
+    team_fouls: int,
+    opponent_fouls: int,
+    total_fouls: int,
+) -> dict[str, object]:
+    return {
+        "match_id": match_id,
+        "match_date": datetime(2025, 3, 15, 18, 0),
+        "opponent_shortcut": "LPO",
+        "opponent_name": "Lech",
+        "total_goals": 3,
+        "btts": True,
+        "result": "W",
+        "home_team_name": "Legia",
+        "away_team_name": "Lech",
+        "home_goals": 2,
+        "away_goals": 1,
+        "is_home": True,
+        "team_cards": 2,
+        "opponent_cards": 2,
+        "total_cards": 4,
+        "team_offsides": 2,
+        "opponent_offsides": 1,
+        "total_offsides": 3,
+        "team_corners": 7,
+        "opponent_corners": 4,
+        "total_corners": 11,
+        "team_shots": 14,
+        "opponent_shots": 9,
+        "total_shots": 23,
+        "team_shots_on_target": 6,
+        "opponent_shots_on_target": 3,
+        "total_shots_on_target": 9,
+        "team_fouls": team_fouls,
+        "opponent_fouls": opponent_fouls,
+        "total_fouls": total_fouls,
+    }
 
 
 class TestMatchesRouter(unittest.TestCase):
@@ -38,7 +80,9 @@ class TestMatchesRouter(unittest.TestCase):
             "id": 100,
             "league_id": 1,
             "season_id": 12,
+            "sport_id": 1,
             "round": 5,
+            "round_label": "5",
             "game_date": datetime(2025, 3, 15, 18, 0),
             "home_team": {
                 "id": 10,
@@ -54,6 +98,7 @@ class TestMatchesRouter(unittest.TestCase):
             "away_goals": 1,
             "result": "1",
             "is_played": True,
+            "sport_id": 1,
             "final_predictions": [{
                 "prediction_id": 10,
                 "event_id": 1,
@@ -75,6 +120,8 @@ class TestMatchesRouter(unittest.TestCase):
                 "odds": 1.95,
             }],
             "stats": {
+                "home_goals": 2,
+                "away_goals": 1,
                 "home_xg": 1.8,
                 "away_xg": 1.1,
                 "home_possession": 55,
@@ -83,8 +130,12 @@ class TestMatchesRouter(unittest.TestCase):
                 "away_shots": 8,
                 "home_shots_on_goal": 5,
                 "away_shots_on_goal": 3,
+                "home_free_kicks": 6,
+                "away_free_kicks": 8,
                 "home_corners": 6,
                 "away_corners": 4,
+                "home_offsides": 2,
+                "away_offsides": 1,
                 "home_fouls": 11,
                 "away_fouls": 14,
                 "home_yellow_cards": 2,
@@ -92,6 +143,40 @@ class TestMatchesRouter(unittest.TestCase):
                 "home_red_cards": 0,
                 "away_red_cards": 1,
             },
+            "hockey_stats": None,
+            "hockey_boxscore": None,
+            "has_player_stats": False,
+            "head_to_head": {
+                "team_id": 10,
+                "opponent_id": 20,
+                "played": 0,
+                "wins": 0,
+                "draws": 0,
+                "losses": 0,
+                "goals_for": 0,
+                "goals_conceded": 0,
+                "btts_count": 0,
+                "btts_percentage": 0.0,
+                "avg_goals_per_match": 0.0,
+                "meetings": [],
+            },
+            "home_team_history": [
+                _season_match_point(
+                    match_id=101,
+                    team_fouls=11,
+                    opponent_fouls=14,
+                    total_fouls=25,
+                ),
+            ],
+            "away_team_history": [
+                _season_match_point(
+                    match_id=102,
+                    team_fouls=9,
+                    opponent_fouls=13,
+                    total_fouls=22,
+                ),
+            ],
+            "boxscore": None,
         }
         response = self.client.get("/matches/100/details")
         self.assertEqual(response.status_code, 200)
@@ -99,6 +184,14 @@ class TestMatchesRouter(unittest.TestCase):
         self.assertEqual(payload["id"], 100)
         self.assertEqual(payload["home_team"]["name"], "Legia")
         self.assertEqual(len(payload["final_predictions"]), 1)
+        home_history = payload["home_team_history"][0]
+        self.assertEqual(home_history["team_fouls"], 11)
+        self.assertEqual(home_history["opponent_fouls"], 14)
+        self.assertEqual(home_history["total_fouls"], 25)
+        away_history = payload["away_team_history"][0]
+        self.assertEqual(away_history["team_fouls"], 9)
+        self.assertEqual(away_history["opponent_fouls"], 13)
+        self.assertEqual(away_history["total_fouls"], 22)
 
     def test_invalid_match_id_is_rejected(self) -> None:
         response = self.client.get("/matches/0/details")

@@ -262,12 +262,13 @@ def btts_bar_chart(date, opponent, btts, team_name):
         'BTTS': reversed(btts)
     }
     df = pd.DataFrame(data).reset_index(drop=True)
+    bar_heights = [1.0 if value == 1 else 0.35 for value in df['BTTS']]
     # Konfiguracja stylu wykresu
     sns.set_theme(style="darkgrid")
     # Inicjalizacja wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
     # Tworzenie słupków - początkowo wszystkie szare
-    bars = ax.bar(df.index, df['BTTS'], color='gray')
+    bars = ax.bar(df.index, bar_heights, color='gray')
     # Obliczenie statystyk
     hit_rate = (df['BTTS'] == 1).mean() * 100
     btts_count = (df['BTTS'] == 1).sum()
@@ -573,14 +574,15 @@ def winner_bar_chart_v2(results, team_name):
     draws = results.count('X')
     loses = results.count('L')
     data = {
-    'Label': ["Porażki", "Remisy", "Wygrane"],
-    'Results' : [loses, draws, wins]
+    'Label': ["Wygrane", "Remisy", "Porażki"],
+    'Results' : [wins, draws, loses]
     }
     sns.set_theme(style="darkgrid")
     df = pd.DataFrame(data)
     # Ustawienia wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.barh(df.index, df['Results'], color=['orangered', 'slategrey', 'lightgreen'])
+    bars = ax.barh(df.index, df['Results'], color=['lightgreen', 'slategrey', 'orangered'])
+    ax.invert_yaxis()
     ax.grid(False)
     ax.set_yticks(df.index)
     ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
@@ -601,14 +603,15 @@ def winner_bar_chart_with_ot(results, team_name):
     overtime_losses = results.count('PPD')
     losses = results.count('L')
     data = {
-    'Label': ["Porażki", "PPD", "WPD", "Wygrane"],
-    'Results' : [losses, overtime_losses, overtime_wins, wins]
+    'Label': ["Wygrane", "WPD", "PPD", "Porażki"],
+    'Results' : [wins, overtime_wins, overtime_losses, losses]
     }
     sns.set_theme(style="darkgrid")
     df = pd.DataFrame(data)
     # Ustawienia wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.barh(df.index, df['Results'], color=['red', 'lightcoral', 'lightgreen', 'green'])
+    bars = ax.barh(df.index, df['Results'], color=['green', 'lightgreen', 'lightcoral', 'red'])
+    ax.invert_yaxis()
     ax.grid(False)
     ax.set_yticks(df.index)
     ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
@@ -642,14 +645,15 @@ def winner_bar_chart(opponent, home_team, result, team_name):
             else:
                 wins = wins + 1
     data = {
-    'Label': ["Porażki", "Remisy", "Wygrane"],
-    'Results' : [loses, draws, wins]
+    'Label': ["Wygrane", "Remisy", "Porażki"],
+    'Results' : [wins, draws, loses]
     }
     sns.set_theme(style="darkgrid")
     df = pd.DataFrame(data)
     # Ustawienia wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.barh(df.index, df['Results'], color=['orangered', 'slategrey', 'lightgreen'])
+    bars = ax.barh(df.index, df['Results'], color=['lightgreen', 'slategrey', 'orangered'])
+    ax.invert_yaxis()
     ax.grid(False)
     ax.set_yticks(df.index)
     ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize = 20)
@@ -676,8 +680,8 @@ def winner_bar_chart_basketball(results, team_name):
     losses = results.count('2')
     
     data = {
-        'Label': ["Porażki", "Wygrane"],
-        'Results': [losses, wins]
+        'Label': ["Wygrane", "Porażki"],
+        'Results': [wins, losses]
     }
     
     sns.set_theme(style="darkgrid")
@@ -685,7 +689,8 @@ def winner_bar_chart_basketball(results, team_name):
     
     # Ustawienia wykresu
     fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.barh(df.index, df['Results'], color=['red', 'green'])
+    bars = ax.barh(df.index, df['Results'], color=['green', 'red'])
+    ax.invert_yaxis()
     ax.grid(False)
     ax.set_yticks(df.index)
     ax.set_yticklabels([f"{label}" for label in df['Label']], fontsize=20)
