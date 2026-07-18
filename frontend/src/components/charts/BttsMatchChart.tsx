@@ -4,6 +4,10 @@ import {
 } from "@/components/charts/chartBarDensity";
 import { ChartScrollArea } from "@/components/charts/ChartScrollArea";
 import {
+  getChartPointsScrollKey,
+  type CompactScrollAlign,
+} from "@/components/charts/chartScrollUtils";
+import {
   CHART_COLOR_NEGATIVE,
   CHART_COLOR_POSITIVE,
 } from "@/lib/chartColors";
@@ -18,6 +22,7 @@ interface BttsMatchChartProps {
   title: string;
   teamName: string;
   points: BttsMatchChartPoint[];
+  compactScrollAlign?: CompactScrollAlign;
 }
 
 type ChartSize = "compact" | "expanded";
@@ -66,6 +71,7 @@ export function BttsMatchChart({
   title,
   teamName,
   points,
+  compactScrollAlign,
 }: BttsMatchChartProps) {
   if (points.length === 0) {
     return null;
@@ -86,6 +92,8 @@ export function BttsMatchChart({
 
       <ChartScrollArea
         chartTitle={chartTitle}
+        compactScrollAlign={compactScrollAlign}
+        scrollKey={getChartPointsScrollKey(points)}
         expandedChildren={<BttsBars points={points} size="expanded" />}
       >
         <BttsBars points={points} size="compact" />

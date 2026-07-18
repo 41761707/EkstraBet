@@ -40,6 +40,7 @@ export function BasketballTeamCharts({
           value: point.total_points,
         }))}
         thresholdLine={ouLine}
+        compactScrollAlign="start"
       />,
     );
   }
@@ -57,6 +58,7 @@ export function BasketballTeamCharts({
           value: point.team_points,
         }))}
         thresholdLine={average(teamPoints)}
+        compactScrollAlign="start"
       />,
       <VerticalStatChart
         key="opponent-points"
@@ -67,6 +69,7 @@ export function BasketballTeamCharts({
           value: point.opponent_points,
         }))}
         thresholdLine={average(opponentPoints)}
+        compactScrollAlign="start"
       />,
     );
   }

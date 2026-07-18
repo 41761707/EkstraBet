@@ -1,6 +1,10 @@
 import { getChartBarDensityClasses } from "@/components/charts/chartBarDensity";
 import { ChartScrollArea } from "@/components/charts/ChartScrollArea";
 import {
+  getChartPointsScrollKey,
+  type CompactScrollAlign,
+} from "@/components/charts/chartScrollUtils";
+import {
   CHART_COLOR_NEGATIVE,
   CHART_COLOR_POSITIVE,
 } from "@/lib/chartColors";
@@ -16,6 +20,7 @@ interface VerticalStatChartProps {
   playerName: string;
   points: VerticalStatChartPoint[];
   thresholdLine: number;
+  compactScrollAlign?: CompactScrollAlign;
 }
 
 type ChartSize = "compact" | "expanded";
@@ -74,6 +79,7 @@ export function VerticalStatChart({
   playerName,
   points,
   thresholdLine,
+  compactScrollAlign,
 }: VerticalStatChartProps) {
   if (points.length === 0) {
     return null;
@@ -98,6 +104,8 @@ export function VerticalStatChart({
 
       <ChartScrollArea
         chartTitle={chartTitle}
+        compactScrollAlign={compactScrollAlign}
+        scrollKey={getChartPointsScrollKey(points)}
         expandedChildren={
           <VerticalStatBars
             points={points}
