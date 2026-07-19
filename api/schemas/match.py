@@ -368,6 +368,47 @@ class HockeyMatchBoxscore(BaseModel):
         description="Skater stats")
 
 
+PlayedBetterFinalAssessment = Literal[
+    "HOME_PLAYED_BETTER",
+    "DRAW",
+    "AWAY_PLAYED_BETTER"]
+
+
+class MatchModelAssessment(BaseModel):
+    """Post-match quality assessment from an ML assessment model."""
+
+    model_id: int = Field(..., description="Model ID")
+    model_name: str = Field(..., description="Model name from models table")
+    model_version: str = Field(..., description="Artifact / config version")
+    assessment_type: str = Field(
+        ...,
+        description="Assessment family, e.g. PLAYED_BETTER")
+    home_played_better_probability: float = Field(
+        ...,
+        description="Probability that the home team played better")
+    draw_probability: float = Field(
+        ...,
+        description="Probability of quality draw")
+    away_played_better_probability: float = Field(
+        ...,
+        description="Probability that the away team played better")
+    final_assessment: PlayedBetterFinalAssessment = Field(
+        ...,
+        description="Chosen final assessment label")
+    confidence: float | None = Field(
+        None,
+        description="Gap between top and second probability")
+    dominance_score: float | None = Field(
+        None,
+        description="Raw home dominance score from the labeler")
+    feature_snapshot: dict[str, float] | None = Field(
+        None,
+        description="Feature values used for the assessment")
+    updated_at: datetime | None = Field(
+        None,
+        description="Last upsert timestamp")
+
+
 class MatchDetails(BaseModel):
     """Full match payload for the match detail page."""
 
@@ -419,3 +460,6 @@ class MatchDetails(BaseModel):
     hockey_boxscore: HockeyMatchBoxscore | None = Field(
         None,
         description="Hockey player stats when available for a played match")
+    model_assessments: list[MatchModelAssessment] = Field(
+        default_factory=list,
+        description="Post-match model assessments (e.g. PLAYED_BETTER)")

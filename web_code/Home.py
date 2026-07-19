@@ -34,10 +34,10 @@ def main():
     with st.expander("O projekcie"):
         st.markdown("""
         <div style='padding: 10px; font-family: Arial, sans-serif; color: #e0e0e0;'>
-            <h2 style='color: #4fc3f7; border-bottom: 2px solid #4fc3f7; padding-bottom: 5px;'>Ekstrabet - Inteligentny Asystent Bukmacherski</h2>
+            <h2 style='color: #4fc3f7; border-bottom: 2px solid #4fc3f7; padding-bottom: 5px;'>Ekstrabet - Asystent Statystyczno-Predykcyjny</h2>
             <p style='line-height: 1.6;'>
-                Ekstrabet to zaawansowane narzędzie analityczne stworzone dla miłośników sportu i zakładów bukmacherskich. 
-                Wykorzystując uczenie maszynowe i statystykę, pomaga w podejmowaniu świadomych decyzji przy obstawianiu meczów piłkarskich.
+                Ekstrabet to zaawansowane narzędzie analityczne stworzone dla miłośników sportu. 
+                Wykorzystując uczenie maszynowe i statystykę, pomaga w podejmowaniu świadomych decyzji przy obstawianiu meczów sportowych.
             </p>
             <div style='background-color: #2d2d2d; border-left: 4px solid #4fc3f7; padding: 10px; margin: 10px 0;'>
                 <p style='margin: 0; color: #ffffff;'><strong>Główne założenia projektu:</strong></p>

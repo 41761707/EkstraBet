@@ -177,6 +177,7 @@ class TestMatchesRouter(unittest.TestCase):
                 ),
             ],
             "boxscore": None,
+            "model_assessments": [],
         }
         response = self.client.get("/matches/100/details")
         self.assertEqual(response.status_code, 200)

@@ -8,6 +8,7 @@ import { MatchPrematchStatsSection } from "@/components/matches/MatchPrematchSta
 import { MatchOddsGroupedTables } from "@/components/MatchOddsGroupedTables";
 import { MatchPredictionsTable } from "@/components/MatchPredictionsTable";
 import { MatchStatsPanel } from "@/components/MatchStatsPanel";
+import { PlayedBetterAssessmentPanel } from "@/components/matches/PlayedBetterAssessmentPanel";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { StatusMessage } from "@/components/StatusMessage";
 import type { MatchDetails } from "@/types/api";
@@ -118,11 +119,20 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
       ) : null}
 
       {activeTab === "stats" && !match.hockey_stats && match.stats ? (
-        <MatchStatsPanel
-          stats={match.stats}
-          homeTeamName={match.home_team.name}
-          awayTeamName={match.away_team.name}
-        />
+        <div className="space-y-6">
+          <MatchStatsPanel
+            stats={match.stats}
+            homeTeamName={match.home_team.name}
+            awayTeamName={match.away_team.name}
+          />
+          <PlayedBetterAssessmentPanel
+            assessments={match.model_assessments}
+            homeTeamName={match.home_team.name}
+            awayTeamName={match.away_team.name}
+            homeGoals={match.home_goals}
+            awayGoals={match.away_goals}
+          />
+        </div>
       ) : null}
 
       {activeTab === "boxscore" && match.has_player_stats ? (

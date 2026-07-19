@@ -1,10 +1,18 @@
 """Business logic for match schedule and detail endpoints."""
 
 from __future__ import annotations
+
+import json
+import logging
 from datetime import date, datetime
 from typing import Any
+
 import pandas as pd
-from backend.repositories import league_repository, match_repository
+
+from backend.repositories import (
+    league_repository,
+    match_assessment_repository,
+    match_repository)
 from backend.repositories.sport_league_repository import HOCKEY_SPORT_ID
 from backend.services import odds_service, prediction_service
 from backend.services.match_score import map_score_resolution
@@ -16,6 +24,8 @@ from backend.sports.hockey.season_match_point import map_hockey_season_match_poi
 from backend.services.team_service import (
     _build_head_to_head_summary,
     _map_season_match_point)
+
+logger = logging.getLogger(__name__)
 
 
 def _to_datetime(value: object) -> datetime | date | None:
@@ -142,6 +152,95 @@ def _map_player_stat_row(row: pd.Series) -> dict[str, Any]:
         "fouls_won": _map_player_stat_value(row.get("fouls_won")),
         "saves": _map_player_stat_value(row.get("saves"))
     }
+
+
+_VALID_FINAL_ASSESSMENTS = frozenset({
+    "HOME_PLAYED_BETTER",
+    "DRAW",
+    "AWAY_PLAYED_BETTER"
+})
+
+
+def _parse_feature_snapshot(value: object) -> dict[str, float] | None:
+    """Parse JSON feature_snapshot from DB into a float dict."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    raw: object = value
+    if isinstance(value, str):
+        try:
+            raw = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    snapshot: dict[str, float] = {}
+    for key, item in raw.items():
+        try:
+            if item is None or (isinstance(item, float) and pd.isna(item)):
+                continue
+            snapshot[str(key)] = float(item)
+        except (TypeError, ValueError):
+            continue
+    return snapshot or None
+
+
+def _map_assessment_row(row: pd.Series) -> dict[str, Any] | None:
+    """Map one assessment row or return None when the row is invalid."""
+    final_assessment = str(row["final_assessment"])
+    if final_assessment not in _VALID_FINAL_ASSESSMENTS:
+        logger.warning(
+            "Skipping assessment with invalid final_assessment=%s model_id=%s",
+            final_assessment,
+            row.get("model_id"))
+        return None
+    return {
+        "model_id": int(row["model_id"]),
+        "model_name": str(row["model_name"]),
+        "model_version": str(row["model_version"]),
+        "assessment_type": str(row["assessment_type"]),
+        "home_played_better_probability": float(
+            row["home_played_better_probability"]),
+        "draw_probability": float(row["draw_probability"]),
+        "away_played_better_probability": float(
+            row["away_played_better_probability"]),
+        "final_assessment": final_assessment,
+        "confidence": _optional_float(row.get("confidence")),
+        "dominance_score": _optional_float(row.get("dominance_score")),
+        "feature_snapshot": _parse_feature_snapshot(
+            row.get("feature_snapshot")),
+        "updated_at": _to_datetime(row.get("updated_at"))
+    }
+
+
+def _map_match_assessments(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    """Map assessment rows to API dictionaries, skipping invalid rows."""
+    if frame.empty:
+        return []
+    assessments: list[dict[str, Any]] = []
+    for _, row in frame.iterrows():
+        try:
+            mapped = _map_assessment_row(row)
+        except (TypeError, ValueError, KeyError) as exc:
+            logger.warning(
+                "Skipping malformed assessment row model_id=%s: %s",
+                row.get("model_id"),
+                exc)
+            continue
+        if mapped is not None:
+            assessments.append(mapped)
+    return assessments
+
+
+def _safe_fetch_match_assessments(match_id: int) -> list[dict[str, Any]]:
+    """Load assessments without failing the whole match details payload."""
+    try:
+        frame = match_assessment_repository.fetch_match_assessments(match_id)
+        return _map_match_assessments(frame)
+    except Exception:
+        logger.exception(
+            "Failed to load model assessments for match_id=%s",
+            match_id)
+        return []
 
 
 def _map_match_boxscore(match_id: int) -> list[dict[str, Any]] | None:
@@ -310,6 +409,7 @@ def get_match_details(
         football_stats = _map_basic_stats(row)
 
     has_hockey_boxscore = hockey_boxscore is not None
+    model_assessments = _safe_fetch_match_assessments(match_id)
 
     return {
         **summary,
@@ -327,5 +427,6 @@ def get_match_details(
             away_team_id,
             away_history_frame),
         "boxscore": boxscore,
-        "hockey_boxscore": hockey_boxscore
+        "hockey_boxscore": hockey_boxscore,
+        "model_assessments": model_assessments
     }
