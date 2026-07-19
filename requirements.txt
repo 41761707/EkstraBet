@@ -16,6 +16,9 @@ tqdm
 tabulate
 tensorflow
 scikit-learn
+pandas
+numpy
+joblib
 fastapi
 uvicorn
 pydantic

@@ -1,0 +1,102 @@
+{
+  "model_name": "FOOTBALL_PLAYED_BETTER_NOXG_V1",
+  "sport_id": 1,
+  "task_type": "match_assessment",
+  "assessment_type": "PLAYED_BETTER",
+  "model_version": "1.0.0",
+  "source_table": "matches",
+  "required_columns": [
+    "home_team_sc",
+    "away_team_sc",
+    "home_team_sog",
+    "away_team_sog",
+    "home_team_bp",
+    "away_team_bp",
+    "home_team_ck",
+    "away_team_ck"
+  ],
+  "feature_builder": "FootballMatchStatsFeatureBuilder",
+  "labeler": "FootballPlayedBetterLabeler",
+  "trainer": "SklearnTrainer",
+  "artifact_path": "models/artifacts/dev/football_played_better_noxg_v1",
+  "output_columns": [
+    "home_played_better_probability",
+    "draw_probability",
+    "away_played_better_probability"
+  ],
+  "write_policy": "upsert",
+  "events": {},
+  "feature_config": {
+    "source_columns": [
+      "home_team_bp",
+      "away_team_bp",
+      "home_team_sc",
+      "away_team_sc",
+      "home_team_sog",
+      "away_team_sog",
+      "home_team_fk",
+      "away_team_fk",
+      "home_team_ck",
+      "away_team_ck",
+      "home_team_off",
+      "away_team_off",
+      "home_team_fouls",
+      "away_team_fouls",
+      "home_team_yc",
+      "away_team_yc",
+      "home_team_rc",
+      "away_team_rc"
+    ],
+    "required_columns": [
+      "home_team_sc",
+      "away_team_sc",
+      "home_team_sog",
+      "away_team_sog",
+      "home_team_bp",
+      "away_team_bp",
+      "home_team_ck",
+      "away_team_ck"
+    ],
+    "imputable_columns": [
+      "home_team_fk",
+      "away_team_fk",
+      "home_team_off",
+      "away_team_off",
+      "home_team_fouls",
+      "away_team_fouls",
+      "home_team_yc",
+      "away_team_yc",
+      "home_team_rc",
+      "away_team_rc"
+    ],
+    "include_goals_as_features": false,
+    "missing_data_policy": "reject_required_impute_optional",
+    "require_positive_xg": false,
+    "exclude_positive_xg": true
+  },
+  "training_config": {
+    "algorithm": "HistGradientBoostingClassifier",
+    "test_size": 0.2,
+    "validation_size": 0.1,
+    "random_state": 42,
+    "calibration_method": "isotonic",
+    "class_thresholds": {
+      "draw_abs_score": 0.15
+    }
+  },
+  "labeler_config": {
+    "temperature": 1.0,
+    "draw_threshold": 0.15,
+    "weights": {
+      "shots_diff": 1.0,
+      "shots_on_goal_diff": 1.2,
+      "possession_diff": 0.8,
+      "corners_diff": 0.6,
+      "free_kicks_diff": 0.2,
+      "offsides_diff": -0.1,
+      "fouls_diff": -0.4,
+      "yellow_cards_diff": -0.5,
+      "red_cards_diff": -1.5
+    }
+  }
+}
