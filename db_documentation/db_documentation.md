@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 17.07.2026
+###### Ostatnia data modyfikacji: 18.07.2026
 
 ## Opis struktury bazy
 
@@ -33,7 +33,9 @@
 - [HOCKEY_ROSTERS](#hockey_rosters) (aktualne składy drużyn hokejowych)
 - [LEAGUES](#leagues) (spis analizowanych lig)
 - [MATCHES](#matches) (wszystkie analizowane mecze)
+- [MATCH_MODEL_ASSESSMENTS](#match_model_assessments) (oceny meczów po fakcie z modeli assessment)
 - [MODELS](#models) (lista stworzonych modeli predykcyjnych)
+- [MODEL_TRAINING_RUNS](#model_training_runs) (audyt przebiegów trenowania / ewaluacji modeli)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
 - [PARLAY_EVENTS](#parlay_events) (Szczegóły kuponów)
 - [PLAYER_NAME_MAPPINGS](#player_name_mappings) (mapowania nazw zawodników dla różnych bukmacherów)
@@ -922,6 +924,46 @@ Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (*
 
 ---
 
+### MATCH_MODEL_ASSESSMENTS
+
+(Oceny meczów *po fakcie* z modeli assessment — np. kto zagrał lepiej. Nie mylić z `PREDICTIONS` / `FINAL_PREDICTIONS`, które dotyczą predykcji przyszłych zdarzeń zakładkowych.)
+
+
+| POLE                             | DOMENA       | ZAKRES  | UWAGI                                                                                                                                                         | WARTOŚC DOMYŚLNA         |
+| -------------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **ID**                           | INT          | INT     | ID oceny                                                                                                                                                      | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*                       | INT          | INT     | Klucz obcy, powiązanie z tabelą *matches*                                                                                                                     | NOT NULL                 |
+| *MODEL_ID*                       | INT          | INT     | Klucz obcy, powiązanie z tabelą *models* (musi być aktywny przy zapisie)                                                                                      | NOT NULL                 |
+| MODEL_VERSION                    | VARCHAR(64)  | STRING  | Wersja artefaktu / konfiguracji modelu (np. `1.0.0`)                                                                                                           | NOT NULL                 |
+| SPORT_ID                         | INT          | INT     | Sport meczu (denormalizacja z kontekstu modelu; spójność z `matches.sport_id`)                                                                                | NOT NULL                 |
+| ASSESSMENT_TYPE                  | VARCHAR(64)  | STRING  | Typ oceny (np. `PLAYED_BETTER`); pozwala rozróżnić kolejne rodziny assessmentów                                                                               | NOT NULL                 |
+| HOME_PLAYED_BETTER_PROBABILITY   | FLOAT        | [0, 1]  | Prawdopodobieństwo, że gospodarz zagrał lepiej                                                                                                                | NOT NULL                 |
+| DRAW_PROBABILITY                 | FLOAT        | [0, 1]  | Prawdopodobieństwo remisu jakości gry                                                                                                                         | NOT NULL                 |
+| AWAY_PLAYED_BETTER_PROBABILITY   | FLOAT        | [0, 1]  | Prawdopodobieństwo, że gość zagrał lepiej                                                                                                                     | NOT NULL                 |
+| FINAL_ASSESSMENT                 | VARCHAR(32)  | STRING  | Wybrana etykieta końcowa (`HOME_PLAYED_BETTER` / `DRAW` / `AWAY_PLAYED_BETTER`)                                                                               | NOT NULL                 |
+| CONFIDENCE                       | FLOAT        | [0, 1]  | Różnica między najwyższym a drugim prawdopodobieństwem (pewnność decyzji)                                                                                     | NULL                     |
+| DOMINANCE_SCORE                  | FLOAT        | FLOAT   | Surowy score dominacji gospodarza z labelera (ważona różnica feature’ów)                                                                                      | NULL                     |
+| FEATURE_SNAPSHOT                 | JSON         | JSON    | Snapshot feature’ów użytych przy ocenie (audyt / debug)                                                                                                       | NULL                     |
+| ARTIFACT_PATH                    | VARCHAR(255) | STRING  | Ścieżka do katalogu artefaktów modelu użytego przy ocenie                                                                                                     | NULL                     |
+| CREATED_AT                       | TIMESTAMP    | DATETIME| Data utworzenia wiersza                                                                                                                                       | CURRENT_TIMESTAMP        |
+| UPDATED_AT                       | TIMESTAMP    | DATETIME| Data ostatniej aktualizacji (upsert)                                                                                                                          | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)` (`fk_match_model_assessments_match`)
+- Klucz obcy: `MODEL_ID` → `models(ID)` (`fk_match_model_assessments_model`)
+- **Unikalny indeks:** `unique_match_model_assessment` (`MATCH_ID`, `MODEL_ID`, `MODEL_VERSION`, `ASSESSMENT_TYPE`) — jeden wiersz na mecz/model/wersję/typ; zapis przez `ON DUPLICATE KEY UPDATE`
+- Indeks: `idx_match_model_assessments_match_id` (`MATCH_ID`)
+- Indeks: `idx_match_model_assessments_model_id` (`MODEL_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane zapisywane przez pipeline ML (`models/pipeline/persistence/match_assessment_writer.py`) przy komendach `assess-match` / `assess-batch` z flagą `--write-db` (`models/scripts/model_runner.py`).
+
+---
+
 ### MODELS
 
 (lista stworzonych modeli predykcyjnych)
@@ -944,7 +986,40 @@ Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (*
 
 **Sposób generowania danych do tabeli**:
 
-Dane do tabeli dodawane są **ręcznie** w ramach konfiguracji nowych modeli predykcyjnych. Każdy nowy model musi być dodany do tej tabeli przed pierwszym użyciem.
+Dane do tabeli dodawane są **ręcznie** w ramach konfiguracji nowych modeli predykcyjnych. Każdy nowy model musi być dodany do tej tabeli przed pierwszym użyciem (seed SQL, np. `sql/migrations/002_seed_football_played_better_v1.sql`, `sql/migrations/003_seed_football_played_better_noxg_v1.sql`). Modele assessment (`FOOTBALL_PLAYED_BETTER_V1`, `FOOTBALL_PLAYED_BETTER_NOXG_V1`) zapisują wyniki do `MATCH_MODEL_ASSESSMENTS`, a nie do `PREDICTIONS`.
+
+---
+
+### MODEL_TRAINING_RUNS
+
+(Opcjonalny audyt przebiegów trenowania i ewaluacji modeli ML — metryki, feature’y, ścieżki artefaktów. Nie przechowuje predykcji ani ocen meczów.)
+
+
+| POLE                 | DOMENA       | ZAKRES  | UWAGI                                                                                          | WARTOŚC DOMYŚLNA         |
+| -------------------- | ------------ | ------- | ---------------------------------------------------------------------------------------------- | ------------------------ |
+| **ID**               | INT          | INT     | ID przebiegu                                                                                   | AUTOMATYCZNIE GENEROWANY |
+| *MODEL_ID*           | INT          | INT     | Klucz obcy, powiązanie z tabelą *models*                                                       | NOT NULL                 |
+| MODEL_VERSION        | VARCHAR(64)  | STRING  | Wersja modelu powiązana z przebiegiem                                                          | NOT NULL                 |
+| RUN_TYPE             | VARCHAR(32)  | STRING  | Typ przebiegu (np. `train`, `evaluate`)                                                        | NOT NULL                 |
+| ARTIFACT_PATH        | VARCHAR(255) | STRING  | Ścieżka katalogu artefaktów (joblib/JSON)                                                      | NOT NULL                 |
+| CONFIG_PATH          | VARCHAR(255) | STRING  | Ścieżka pliku konfiguracji treningu / ewaluacji                                                | NOT NULL                 |
+| TRAINING_STARTED_AT  | TIMESTAMP    | DATETIME| Start przebiegu                                                                                | NULL                     |
+| TRAINING_FINISHED_AT | TIMESTAMP    | DATETIME| Koniec przebiegu                                                                               | NULL                     |
+| METRICS              | JSON         | JSON    | Metryki jakości (accuracy, log-loss, Brier, calibration itd.)                                  | NULL                     |
+| FEATURE_COLUMNS      | JSON         | JSON    | Lista kolumn feature’ów użytych w przebiegu                                                    | NOT NULL                 |
+| DATA_FILTERS         | JSON         | JSON    | Filtry zbioru danych (np. kohorta xG, `required_columns`, `sport_id`)                          | NULL                     |
+| CREATED_AT           | TIMESTAMP    | DATETIME| Data utworzenia wiersza audytu                                                                 | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MODEL_ID` → `models(ID)` (`fk_model_training_runs_model`)
+- Indeks: `idx_model_training_runs_model_id` (`MODEL_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Tabela audytowa utworzona wraz z `MATCH_MODEL_ASSESSMENTS`. Zapis przebiegów jest opcjonalny — pipeline może logować tu wyniki `train` / `evaluate` z `models/scripts/model_runner.py` (metryki + lista feature’ów + filtry danych).
 
 ---
 
