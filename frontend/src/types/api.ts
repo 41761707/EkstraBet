@@ -498,6 +498,26 @@ export interface HockeyMatchBoxscore {
   skaters: HockeySkaterBoxscoreRow[];
 }
 
+export type PlayedBetterFinalAssessment =
+  | "HOME_PLAYED_BETTER"
+  | "DRAW"
+  | "AWAY_PLAYED_BETTER";
+
+export interface MatchModelAssessment {
+  model_id: number;
+  model_name: string;
+  model_version: string;
+  assessment_type: string;
+  home_played_better_probability: number;
+  draw_probability: number;
+  away_played_better_probability: number;
+  final_assessment: PlayedBetterFinalAssessment;
+  confidence: number | null;
+  dominance_score: number | null;
+  feature_snapshot: Record<string, number> | null;
+  updated_at: string | null;
+}
+
 export interface MatchDetails {
   id: number;
   league_id: number;
@@ -523,6 +543,7 @@ export interface MatchDetails {
   away_team_history: TeamSeasonMatchPoint[];
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
+  model_assessments: MatchModelAssessment[];
 }
 
 export type SettlementStatus = "pending" | "won" | "lost";

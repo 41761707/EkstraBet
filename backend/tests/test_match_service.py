@@ -151,10 +151,15 @@ class TestMatchService(unittest.TestCase):
         "backend.services.match_service.prediction_service"
         ".get_match_final_predictions")
     @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        return_value=pd.DataFrame())
+    @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id")
     def test_get_match_details_includes_predictions_odds_and_stats(
         self,
         mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
         mock_fetch_predictions: unittest.mock.MagicMock,
         mock_fetch_odds: unittest.mock.MagicMock,
         _mock_has_player_stats: unittest.mock.MagicMock,
@@ -190,6 +195,7 @@ class TestMatchService(unittest.TestCase):
         self.assertIsNotNone(details["stats"])
         self.assertEqual(details["stats"]["home_xg"], 1.8)
         self.assertEqual(details["head_to_head"]["played"], 0)
+        self.assertEqual(details["model_assessments"], [])
 
     @patch(
         "backend.services.match_service.league_repository"
@@ -213,10 +219,15 @@ class TestMatchService(unittest.TestCase):
         "backend.services.match_service.prediction_service"
         ".get_match_final_predictions")
     @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        return_value=pd.DataFrame())
+    @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id")
     def test_get_match_details_marks_unplayed_match(
         self,
         mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
         mock_fetch_predictions: unittest.mock.MagicMock,
         _mock_fetch_odds: unittest.mock.MagicMock,
         _mock_has_player_stats: unittest.mock.MagicMock,
@@ -232,6 +243,112 @@ class TestMatchService(unittest.TestCase):
         details = get_match_details(100)
         assert details is not None
         self.assertFalse(details["is_played"])
+        self.assertEqual(details["model_assessments"], [])
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
+    @patch(
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments")
+    @patch(
+        "backend.services.match_service.match_repository.fetch_match_by_id")
+    def test_get_match_details_maps_model_assessments(
+        self,
+        mock_fetch_match: unittest.mock.MagicMock,
+        mock_fetch_assessments: unittest.mock.MagicMock,
+        _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        mock_fetch_match.return_value = self._sample_match_frame()
+        mock_fetch_assessments.return_value = pd.DataFrame([{
+            "model_id": 6,
+            "model_name": "FOOTBALL_PLAYED_BETTER_V1",
+            "model_version": "1.0.0",
+            "assessment_type": "PLAYED_BETTER",
+            "home_played_better_probability": 0.55,
+            "draw_probability": 0.25,
+            "away_played_better_probability": 0.20,
+            "final_assessment": "HOME_PLAYED_BETTER",
+            "confidence": 0.30,
+            "dominance_score": 0.8,
+            "feature_snapshot": '{"xg_diff": 1.2, "possession_diff": 10}',
+            "updated_at": datetime(2025, 3, 16, 12, 0),
+        }])
+        details = get_match_details(100)
+        assert details is not None
+        self.assertEqual(len(details["model_assessments"]), 1)
+        assessment = details["model_assessments"][0]
+        self.assertEqual(assessment["model_id"], 6)
+        self.assertEqual(assessment["assessment_type"], "PLAYED_BETTER")
+        self.assertEqual(assessment["final_assessment"], "HOME_PLAYED_BETTER")
+        self.assertEqual(assessment["feature_snapshot"]["xg_diff"], 1.2)
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
+    @patch(
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        side_effect=RuntimeError("db down"))
+    @patch(
+        "backend.services.match_service.match_repository.fetch_match_by_id")
+    def test_get_match_details_returns_empty_assessments_on_error(
+        self,
+        mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
+        _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        mock_fetch_match.return_value = self._sample_match_frame()
+        details = get_match_details(100)
+        assert details is not None
+        self.assertEqual(details["model_assessments"], [])
+        self.assertIsNotNone(details["stats"])
 
 
 if __name__ == "__main__":

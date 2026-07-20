@@ -110,7 +110,14 @@ export function HomeStaticSections() {
               ⚽ Piłka nożna — Zawodnicy
             </Link>
           </li>
-          <li>🏒 NHL — Zawodnicy (wkrótce w nowej wersji)</li>
+          <li>
+            <Link
+              href="/players?sport_id=2"
+              className="text-sky-300 transition hover:text-sky-200"
+            >
+              🏒 NHL — Zawodnicy
+            </Link>
+          </li>
           <li>🏀 NBA — Zawodnicy (wkrótce w nowej wersji)</li>
         </ul>
       </HomeSection>
@@ -118,13 +125,13 @@ export function HomeStaticSections() {
       <HomeSection title="O projekcie">
         <div className="space-y-4">
           <h3 className="border-b border-sky-500/40 pb-2 text-lg font-semibold text-sky-300">
-            Ekstrabet — Inteligentny Asystent Bukmacherski
+            Ekstrabet — Asystent Statystyczno-Predykcyjny
           </h3>
           <p className="text-sm leading-relaxed">
             Ekstrabet to zaawansowane narzędzie analityczne stworzone dla
-            miłośników sportu i zakładów bukmacherskich. Wykorzystując uczenie
-            maszynowe i statystykę, pomaga w podejmowaniu świadomych decyzji przy
-            obstawianiu meczów piłkarskich.
+            miłośników sportu. Wykorzystując uczenie maszynowe i statystykę,
+            pomaga w podejmowaniu świadomych decyzji przy obstawianiu meczów
+            sportowych.
           </p>
           <div className="rounded-lg border-l-4 border-sky-400 bg-slate-800/60 p-4">
             <p className="font-medium text-white">Główne założenia projektu:</p>

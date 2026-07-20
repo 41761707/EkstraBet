@@ -6,9 +6,9 @@ import { ApiError, getLeagues } from "@/lib/api";
 import type { LeagueSummary } from "@/types/api";
 
 export const metadata: Metadata = {
-  title: "EkstraBet - Inteligentny Asystent Bukmacherski",
+  title: "EkstraBet - Asystent Statystyczno-Predykcyjny",
   description:
-    "Inteligentny asystent bukmacherski — analizy lig, modele predykcyjne i rekomendacje zakładów.",
+    "Asystent statystyczno-predykcyjny — analizy lig, modele predykcyjne i rekomendacje zakładów sportowych.",
 };
 
 export default async function HomePage() {
@@ -29,7 +29,7 @@ export default async function HomePage() {
     <div className="space-y-8">
       <section className="space-y-3 text-center sm:text-left">
         <h1 className="text-3xl font-bold text-white">
-          EkstraBet - Inteligentny Asystent Bukmacherski - Sezon 1
+          EkstraBet - Asystent Statystyczno-Predykcyjny - Sezon 1
         </h1>
         <p className="max-w-3xl text-slate-300">
           Oficjalny start od momentu rozpoczęcia sezonu 2026/2027 dla każdej z
