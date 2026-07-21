@@ -65,4 +65,10 @@ Dwa komplementarne modele:
 
 **Nie jest importowany przez:** `api/` (poza metadanymi z DB), `frontend/`.
 
+**Wyjątek (tylko lokalnie):** endpoint `POST /predictions/preview` może
+załadować `models.pipeline` przez
+`backend/services/prediction_preview_service.py`, wyłącznie gdy
+`EKSTRABET_ML_PREVIEW=1`. Ścieżki `artifact_dir` w configach JSON są
+względne względem roota repozytorium (`REPO_ROOT`), nie względem CWD procesu.
+
 Pełna mapa: [docs/repository-structure.md](../docs/repository-structure.md).

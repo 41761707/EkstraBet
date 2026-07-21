@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel, Field
+from pydantic import model_validator
 
 
 class EventFamilyRef(BaseModel):
@@ -96,3 +99,66 @@ class MatchPredictionListResponse(BaseModel):
         description="Match predictions")
     total_count: int = Field(..., description="Total predictions returned")
     match_id: int = Field(..., description="Match ID")
+
+
+class PredictionPreviewRequest(BaseModel):
+    """Input pair and optional match context for synchronous inference."""
+
+    home_team_id: int = Field(..., ge=1, description="Home team ID")
+    away_team_id: int = Field(..., ge=1, description="Away team ID")
+    league_id: int | None = Field(None, ge=1, description="Optional league ID")
+    as_of_date: date = Field(
+        default_factory=date.today,
+        description="Prediction cutoff date")
+
+    @model_validator(mode="after")
+    def validate_distinct_teams(self) -> PredictionPreviewRequest:
+        """Ensure a team is not matched against itself."""
+        if self.home_team_id == self.away_team_id:
+            raise ValueError("Home and away teams must be different")
+        return self
+
+
+class ResultPredictionPreview(BaseModel):
+    """Three-way football result probabilities."""
+
+    p_home: float = Field(..., ge=0.0, le=1.0)
+    p_draw: float = Field(..., ge=0.0, le=1.0)
+    p_away: float = Field(..., ge=0.0, le=1.0)
+
+
+class BttsPredictionPreview(BaseModel):
+    """Both-teams-to-score probabilities."""
+
+    p_yes: float = Field(..., ge=0.0, le=1.0)
+    p_no: float = Field(..., ge=0.0, le=1.0)
+
+
+class ExactScorePredictionPreview(BaseModel):
+    """Probability assigned to one exact scoreline."""
+
+    score: str = Field(..., description="Scoreline in home:away format")
+    probability: float = Field(..., ge=0.0, le=1.0)
+
+
+class GoalsPredictionPreview(BaseModel):
+    """Poisson goal projections and derived markets."""
+
+    lambda_home: float = Field(..., ge=0.0)
+    lambda_away: float = Field(..., ge=0.0)
+    total_buckets: dict[str, float] = Field(
+        ...,
+        description="Total-goal bucket probabilities")
+    over_25: float = Field(..., ge=0.0, le=1.0)
+    under_25: float = Field(..., ge=0.0, le=1.0)
+    top_exact_scores: list[ExactScorePredictionPreview] = Field(
+        ...,
+        description="Most probable exact scorelines")
+
+
+class PredictionPreviewResponse(BaseModel):
+    """Typed prediction preview returned for a team pair."""
+
+    result: ResultPredictionPreview
+    btts: BttsPredictionPreview
+    goals: GoalsPredictionPreview

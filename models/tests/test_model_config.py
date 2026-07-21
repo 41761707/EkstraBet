@@ -37,8 +37,9 @@ def test_load_model_config_accepts_valid_file(tmp_path: Path) -> None:
     path.write_text(json.dumps(_valid_payload()), encoding="utf-8")
     config = load_model_config(path)
     assert config.model_name == "FOOTBALL_PLAYED_BETTER_V1"
-    assert config.artifact_dir == Path(
-        "models/artifacts/dev/football_played_better_v1")
+    assert config.artifact_dir == (
+        REPO_ROOT / "models/artifacts/dev/football_played_better_v1"
+    ).resolve()
     assert config.feature_config.include_goals_as_features is False
     assert config.feature_config.sport_id == 1
     assert len(config.output_columns) == 3

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from typing import Any, Callable
 
 import pandas as pd
@@ -51,9 +52,19 @@ def register_trainer(name: str) -> Callable[[type], type]:
 
 def _ensure_components_loaded() -> None:
     """Import concrete components so registration decorators run."""
-    from models.pipeline.features import football_match_stats 
-    from models.pipeline.labels import football_played_better
-    from models.pipeline.training import sklearn_trainer
+    module_names = [
+        "models.pipeline.features.football_match_stats",
+        "models.pipeline.features.sequence_builder",
+        "models.pipeline.labels.football_played_better",
+        "models.pipeline.labels.football_result",
+        "models.pipeline.labels.football_btts",
+        "models.pipeline.labels.football_goals_poisson",
+        "models.pipeline.training.lstm_trainer",
+        "models.pipeline.training.poisson_trainer",
+        "models.pipeline.training.sklearn_trainer"
+    ]
+    for module_name in module_names:
+        import_module(module_name)
 
 
 def get_feature_builder(name: str) -> Any:
@@ -103,7 +114,53 @@ def validate_events(config: ModelRunConfig) -> None:
     """Validate optional event mappings when a model declares them."""
     if not config.events:
         return
-    for event_key, event_id in config.events.items():
-        if not event_key or event_id is None:
+    for event_key, event_reference in config.events.items():
+        if not event_key or event_reference is None:
             raise RegistryError(
-                f"Invalid event mapping: {event_key!r} -> {event_id!r}")
+                f"Invalid event mapping: "
+                f"{event_key!r} -> {event_reference!r}")
+        if isinstance(event_reference, str) and not event_reference.strip():
+            raise RegistryError(
+                f"Invalid event mapping: "
+                f"{event_key!r} -> {event_reference!r}")
+
+
+def resolve_event_id(
+        event_reference: int | str,
+        connection: Any | None = None) -> int:
+    """Resolve an event ID, accepting either an ID or an exact event name."""
+    if isinstance(event_reference, int):
+        return event_reference
+    query = "SELECT id FROM events WHERE name = %s ORDER BY id LIMIT 1"
+    if connection is not None:
+        return _resolve_event_with_connection(
+            connection, query, event_reference)
+    with get_db_connection() as conn:
+        return _resolve_event_with_connection(conn, query, event_reference)
+
+
+def _resolve_event_with_connection(
+        connection: Any,
+        query: str,
+        event_name: str) -> int:
+    cursor = connection.cursor()
+    try:
+        cursor.execute(query, (event_name,))
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+    if row is None:
+        raise RegistryError(f"Event '{event_name}' is missing")
+    if isinstance(row, dict):
+        return int(row["id"])
+    return int(row[0])
+
+
+def resolve_event_map(
+        events: dict[str, int | str],
+        connection: Any | None = None) -> dict[str, int]:
+    """Resolve every configured event reference to its database ID."""
+    return {
+        key: resolve_event_id(reference, connection)
+        for key, reference in events.items()
+    }

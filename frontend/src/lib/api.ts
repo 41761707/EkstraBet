@@ -36,6 +36,9 @@ import type {
   PlayerSeasonsResponse,
   FootballPlayersListResponse,
   PlayerMatchStatsResponse,
+  PredictionPreviewRequest,
+  PredictionPreviewResponse,
+  TeamsListResponse,
 } from "@/types/api";
 
 import { getServerAuthHeaders } from "@/lib/auth";
@@ -308,6 +311,51 @@ export async function getTeamProfile(
     limit: options.limit,
     opponent_id: options.opponentId,
   });
+}
+
+export async function getFootballTeams(): Promise<TeamsListResponse> {
+  const pageSize = 500;
+  const firstPage = await fetchApi<TeamsListResponse>("/teams/search", {
+    sport_id: 1,
+    page: 1,
+    page_size: pageSize,
+  });
+  const pageCount = Math.ceil(firstPage.total_count / pageSize);
+  if (pageCount <= 1) {
+    return firstPage;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      fetchApi<TeamsListResponse>("/teams/search", {
+        sport_id: 1,
+        page: index + 2,
+        page_size: pageSize,
+      }),
+    ),
+  );
+  return {
+    ...firstPage,
+    teams: [
+      ...firstPage.teams,
+      ...remainingPages.flatMap((page) => page.teams),
+    ],
+  };
+}
+
+export async function previewPrediction(
+  request: PredictionPreviewRequest,
+): Promise<PredictionPreviewResponse> {
+  return fetchApi<PredictionPreviewResponse>(
+    "/predictions/preview",
+    undefined,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      cache: "no-store",
+    },
+  );
 }
 
 export async function getMatchDetails(
