@@ -106,8 +106,8 @@ _MATCH_DETAIL_STATS_COLUMNS = """
 _MATCH_SCORE_RESOLUTION_COLUMNS = """
     fsr.OT AS fsr_ot,
     fsr.PEN AS fsr_pen,
-    fsr.home_team_goals_post_ot AS fsr_regulation_home_goals,
-    fsr.away_team_goals_post_ot AS fsr_regulation_away_goals,
+    fsr.home_team_goals_post_ot AS fsr_post_ot_home_goals,
+    fsr.away_team_goals_post_ot AS fsr_post_ot_away_goals,
     fsr.home_team_pen_score AS fsr_penalties_home_goals,
     fsr.away_team_pen_score AS fsr_penalties_away_goals
 """

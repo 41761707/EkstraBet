@@ -41,8 +41,8 @@ export interface TeamInMatch {
 export interface MatchScoreResolution {
   has_extra_time: boolean;
   has_penalties: boolean;
-  regulation_home_goals: number | null;
-  regulation_away_goals: number | null;
+  post_ot_home_goals: number | null;
+  post_ot_away_goals: number | null;
   penalties_home_goals: number | null;
   penalties_away_goals: number | null;
   overtime_winner?: number | null;

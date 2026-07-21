@@ -22,8 +22,8 @@ class TestMapScoreResolution(unittest.TestCase):
         row = pd.Series({
             "fsr_ot": 1,
             "fsr_pen": 0,
-            "fsr_regulation_home_goals": 2,
-            "fsr_regulation_away_goals": 2,
+            "fsr_post_ot_home_goals": 2,
+            "fsr_post_ot_away_goals": 2,
             "fsr_penalties_home_goals": 0,
             "fsr_penalties_away_goals": 0,
         })
@@ -31,15 +31,15 @@ class TestMapScoreResolution(unittest.TestCase):
         assert resolution is not None
         self.assertTrue(resolution["has_extra_time"])
         self.assertFalse(resolution["has_penalties"])
-        self.assertEqual(resolution["regulation_home_goals"], 2)
+        self.assertEqual(resolution["post_ot_home_goals"], 2)
         self.assertIsNone(resolution["penalties_home_goals"])
 
     def test_maps_penalty_shootout(self) -> None:
         row = pd.Series({
             "fsr_ot": 1,
             "fsr_pen": 1,
-            "fsr_regulation_home_goals": 2,
-            "fsr_regulation_away_goals": 2,
+            "fsr_post_ot_home_goals": 2,
+            "fsr_post_ot_away_goals": 2,
             "fsr_penalties_home_goals": 4,
             "fsr_penalties_away_goals": 3,
         })
@@ -65,7 +65,7 @@ class TestMapHockeyScoreResolution(unittest.TestCase):
         assert resolution is not None
         self.assertTrue(resolution["has_extra_time"])
         self.assertFalse(resolution["has_penalties"])
-        self.assertEqual(resolution["regulation_home_goals"], 4)
+        self.assertEqual(resolution["post_ot_home_goals"], 4)
 
     def test_maps_shootout_from_so_flag(self) -> None:
         row = pd.Series({
