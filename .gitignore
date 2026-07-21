@@ -235,3 +235,5 @@ db_module.py
 /tasks/
 models/artifacts/dev/**/*
 *.joblib
+# Scalery release są wymagane do inference (trening zapisuje scaler.joblib)
+!models/artifacts/release/**/scaler.joblib

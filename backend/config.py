@@ -81,6 +81,9 @@ class Settings(BaseSettings):
     enable_cache: bool = Field(
         default=False,
         description="Whether response caching is enabled")
+    ekstrabet_ml_preview: bool = Field(
+        default=False,
+        description="Whether synchronous ML prediction preview is enabled")
 
     @field_validator("cors_origins", "cors_methods", mode="before")
     @classmethod

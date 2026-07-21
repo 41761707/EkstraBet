@@ -278,6 +278,51 @@ export interface TeamSummary {
   sport_name: string | null;
 }
 
+export interface TeamsListResponse {
+  teams: TeamSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PredictionPreviewRequest {
+  home_team_id: number;
+  away_team_id: number;
+  league_id?: number;
+  as_of_date?: string;
+}
+
+export interface ResultPredictionPreview {
+  p_home: number;
+  p_draw: number;
+  p_away: number;
+}
+
+export interface BttsPredictionPreview {
+  p_yes: number;
+  p_no: number;
+}
+
+export interface ExactScorePredictionPreview {
+  score: string;
+  probability: number;
+}
+
+export interface GoalsPredictionPreview {
+  lambda_home: number;
+  lambda_away: number;
+  total_buckets: Record<string, number>;
+  over_25: number;
+  under_25: number;
+  top_exact_scores: ExactScorePredictionPreview[];
+}
+
+export interface PredictionPreviewResponse {
+  result: ResultPredictionPreview;
+  btts: BttsPredictionPreview;
+  goals: GoalsPredictionPreview;
+}
+
 export interface TeamSplitStats {
   played: number;
   wins: number;

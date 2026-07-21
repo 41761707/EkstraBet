@@ -46,6 +46,12 @@ export async function AppHeader() {
             Zawodnicy
           </Link>
           <Link
+            href="/predictions/simulate"
+            className="rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white"
+          >
+            Symulacja
+          </Link>
+          <Link
             href="/chat"
             className="rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white"
           >

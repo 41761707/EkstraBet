@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+
 import joblib
 
 
 ARTIFACT_MODEL_NAME = "model.joblib"
+ARTIFACT_KERAS_MODEL_NAME = "model.keras"
+ARTIFACT_SCALER_NAME = "scaler.joblib"
 ARTIFACT_FEATURES_NAME = "feature_columns.json"
 ARTIFACT_METRICS_NAME = "metrics.json"
 ARTIFACT_META_NAME = "meta.json"
@@ -33,6 +36,50 @@ def load_model_artifact(artifact_dir: Path) -> Any:
     target = Path(artifact_dir) / ARTIFACT_MODEL_NAME
     if not target.is_file():
         raise FileNotFoundError(f"Model artifact not found: {target}")
+    return joblib.load(target)
+
+
+def save_keras_model_artifact(artifact_dir: Path, model: Any) -> Path:
+    """Persist a Keras model without importing TensorFlow in this module."""
+    target = ensure_artifact_dir(artifact_dir) / ARTIFACT_KERAS_MODEL_NAME
+    model.save(target)
+    return target
+
+
+def load_keras_model_artifact(
+        artifact_dir: Path,
+        custom_objects: dict[str, Any] | None = None) -> Any:
+    """Load a Keras model while keeping TensorFlow imports inference-local."""
+    target = Path(artifact_dir) / ARTIFACT_KERAS_MODEL_NAME
+    if not target.is_file():
+        raise FileNotFoundError(f"Keras model artifact not found: {target}")
+    try:
+        from tensorflow import keras
+    except ImportError as exc:
+        raise RuntimeError(
+            "TensorFlow is required to load Keras model artifacts") from exc
+    return keras.models.load_model(
+        target,
+        custom_objects=custom_objects or {},
+        compile=False)
+
+
+def save_scaler_artifact(artifact_dir: Path, scaler: Any) -> Path:
+    """Persist a fitted feature scaler with joblib."""
+    target = ensure_artifact_dir(artifact_dir) / ARTIFACT_SCALER_NAME
+    joblib.dump(scaler, target)
+    return target
+
+
+def load_scaler_artifact(
+        artifact_dir: Path,
+        required: bool = False) -> Any | None:
+    """Load an optional feature scaler from an artifact directory."""
+    target = Path(artifact_dir) / ARTIFACT_SCALER_NAME
+    if not target.is_file():
+        if required:
+            raise FileNotFoundError(f"Scaler artifact not found: {target}")
+        return None
     return joblib.load(target)
 
 

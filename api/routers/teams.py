@@ -16,12 +16,12 @@ class TeamResponse(BaseModel):
     """Response model for a single team."""
     id: int = Field(..., description="Team ID")
     name: str = Field(..., description="Team name")
-    shortcut: str = Field(None, description="Team name shortcut")
+    shortcut: str | None = Field(None, description="Team name shortcut")
     country_id: int = Field(..., description="Country ID")
-    country_name: str = Field(None, description="Country name")
-    country_emoji: str = Field(None, description="Country flag")
+    country_name: str | None = Field(None, description="Country name")
+    country_emoji: str | None = Field(None, description="Country flag")
     sport_id: int = Field(..., description="Sport ID")
-    sport_name: str = Field(None, description="Sport name")
+    sport_name: str | None = Field(None, description="Sport name")
 
 class TeamsListResponse(BaseModel):
     """Response model for a team list."""

@@ -8,11 +8,14 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from api.schemas.prediction import (
     MatchPredictionListResponse,
+    PredictionPreviewRequest,
+    PredictionPreviewResponse,
     PredictionSearchResponse,
     TeamPredictionListResponse)
+from api.routers.utils import parse_id_list
 from backend.config import get_settings
 from backend.services import prediction_service
-from api.routers.utils import parse_id_list
+from backend.services import prediction_preview_service
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +33,47 @@ async def predictions_info() -> dict[str, object]:
             "GET /predictions/search - Search predictions with filters",
             "GET /predictions/team/{team_id}/{season_id} - Team predictions",
             "GET /predictions/match/{match_id} - Final match predictions",
+            "POST /predictions/preview - Preview future-event predictions",
         ],
     }
+
+
+@router.post(
+    "/preview",
+    response_model=PredictionPreviewResponse,
+    summary="Preview a future football match",
+    description=(
+        "Runs synchronous local ML inference for a home and away team. "
+        "Requires EKSTRABET_ML_PREVIEW=1"),
+    responses={
+        409: {"description": "Insufficient team match history"},
+        503: {"description": "ML preview is disabled"}
+    })
+async def preview_prediction(
+    request: PredictionPreviewRequest
+) -> PredictionPreviewResponse:
+    """Return future-event probabilities for an arbitrary team pair."""
+    if not get_settings().ekstrabet_ml_preview:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "ML prediction preview is disabled. "
+                "Set EKSTRABET_ML_PREVIEW=1 to enable local inference"))
+
+    try:
+        payload = prediction_preview_service.preview_prediction(
+            home_team_id=request.home_team_id,
+            away_team_id=request.away_team_id,
+            league_id=request.league_id,
+            as_of_date=request.as_of_date)
+        return PredictionPreviewResponse(**payload)
+    except prediction_preview_service.PredictionPreviewHistoryError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to generate prediction preview")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate prediction preview") from exc
 
 
 @router.get("/search", response_model=PredictionSearchResponse)

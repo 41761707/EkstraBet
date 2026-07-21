@@ -3,10 +3,24 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+from datetime import date
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from backend.config import REPO_ROOT
+
+
+def _resolve_artifact_dir(value: Any) -> Path:
+    """Resolve relative artifact paths against the repository root."""
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (REPO_ROOT / path).resolve()
 
 
 class FeatureConfig(BaseModel):
@@ -58,7 +72,7 @@ class ModelRunConfig(BaseModel):
     sport_id: int
     task_type: str
     artifact_dir: Path
-    events: dict[str, int] = Field(default_factory=dict)
+    events: dict[str, int | str] = Field(default_factory=dict)
     feature_config: FeatureConfig
     training_config: TrainingConfig | None = None
     labeler_config: LabelerConfig = Field(default_factory=LabelerConfig)
@@ -76,7 +90,7 @@ class ModelRunConfig(BaseModel):
     @field_validator("artifact_dir", mode="before")
     @classmethod
     def _coerce_artifact_dir(cls, value: Any) -> Path:
-        return Path(value)
+        return _resolve_artifact_dir(value)
 
     @model_validator(mode="after")
     def _validate_required_fields(self) -> ModelRunConfig:
@@ -130,7 +144,119 @@ class EvaluationReport(BaseModel):
     skipped_matches: int = 0
 
 
-def load_model_config(path: Path) -> ModelRunConfig:
+class FutureEventsRunConfig(ModelRunConfig):
+    """Configuration for result, BTTS, or Poisson future-event runs."""
+
+    sport_id: int = 1
+    task_type: Literal["result", "btts", "goals_poisson"]
+    window_size: int = Field(default=8, ge=1)
+    ratings: dict[str, Any] = Field(default_factory=dict)
+    sequence_feature_columns: list[str] = Field(default_factory=list)
+    static_feature_columns: list[str] = Field(default_factory=list)
+    date_to: date | None = None
+    batch_size: int = Field(default=64, ge=1)
+    epochs: int = Field(default=50, ge=1)
+    patience: int = Field(default=7, ge=1)
+    learning_rate: float = Field(default=0.001, gt=0.0)
+    lstm_units: int = Field(default=32, ge=1)
+    dense_units: int = Field(default=32, ge=1)
+    top_exact_scores: int = Field(default=5, ge=1)
+    max_goals: int = Field(default=5, ge=1)
+
+
+class MatchupInput(BaseModel):
+    """Input identifying a future football matchup."""
+
+    home_team_id: int
+    away_team_id: int
+    league_id: int | None = None
+    season_id: int | None = None
+    as_of_date: date
+    match_id: int | None = None
+
+    @field_validator("as_of_date", mode="before")
+    @classmethod
+    def _coerce_as_of_date(cls, value: Any) -> date:
+        # game_date z MySQL ma godzinę kickoffu — bierzemy dzień kalendarzowy
+        if isinstance(value, datetime):
+            return value.date()
+        if hasattr(value, "to_pydatetime"):
+            return value.to_pydatetime().date()
+        if hasattr(value, "date") and not isinstance(value, date):
+            return value.date()
+        return value
+
+    @model_validator(mode="after")
+    def _validate_team_pair(self) -> MatchupInput:
+        if self.home_team_id == self.away_team_id:
+            raise ValueError("home_team_id and away_team_id must differ")
+        return self
+
+
+@dataclass(frozen=True)
+class SequenceBatch:
+    """Dual team sequences and static matchup features."""
+
+    X_home: np.ndarray
+    X_away: np.ndarray
+    X_static: np.ndarray
+
+    def __post_init__(self) -> None:
+        if self.X_home.ndim != 3 or self.X_away.ndim != 3:
+            raise ValueError("Team sequence arrays must be three-dimensional")
+        if self.X_static.ndim != 2:
+            raise ValueError("Static feature array must be two-dimensional")
+        batch_sizes = {
+            self.X_home.shape[0],
+            self.X_away.shape[0],
+            self.X_static.shape[0]
+        }
+        if len(batch_sizes) != 1:
+            raise ValueError("All sequence batch inputs must have equal size")
+
+
+@dataclass(frozen=True)
+class ResultPrediction:
+    """Calibrated 1X2 probabilities from the result classifier."""
+
+    p_home: float
+    p_draw: float
+    p_away: float
+
+
+@dataclass(frozen=True)
+class BttsPrediction:
+    """Calibrated both-teams-to-score probabilities."""
+
+    p_yes: float
+    p_no: float
+
+
+@dataclass(frozen=True)
+class GoalsPoissonPrediction:
+    """Poisson lambdas and derived score and goal markets."""
+
+    lambda_home: float
+    lambda_away: float
+    score_matrix: np.ndarray
+    total_buckets: dict[str, float]
+    over_25: float
+    under_25: float
+    top_exact_scores: list[tuple[str, float]]
+
+
+@dataclass(frozen=True)
+class PredictionWriteRow:
+    """One event probability prepared for prediction persistence."""
+
+    match_id: int
+    model_id: int
+    event_id: int
+    value: float
+    is_final: bool = False
+
+
+def load_model_config(path: Path) -> ModelRunConfig | FutureEventsRunConfig:
     """Load and validate a model config JSON file."""
     config_path = Path(path)
     if not config_path.is_file():
@@ -143,7 +269,11 @@ def load_model_config(path: Path) -> ModelRunConfig:
         raise ValueError("artifact_path must not be empty")
     if not raw.get("output_columns"):
         raise ValueError("output_columns must not be empty")
-    config = ModelRunConfig.model_validate(raw)
+    future_tasks = {"result", "btts", "goals_poisson"}
+    config_class = (
+        FutureEventsRunConfig
+        if raw.get("task_type") in future_tasks else ModelRunConfig)
+    config = config_class.model_validate(raw)
     config.config_path = config_path
     # sport_id modelu musi trafić do feature buildera (filtr wierszy)
     if config.feature_config.sport_id is None:

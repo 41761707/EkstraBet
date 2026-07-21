@@ -1,0 +1,72 @@
+{
+  "model_name": "FOOTBALL_RESULT_V2",
+  "sport_id": 1,
+  "task_type": "result",
+  "model_version": "2.0.0",
+  "artifact_dir": "models/artifacts/dev/football_result_v2",
+  "feature_builder": "FutureEventsFeatureBuilder",
+  "labeler": "FootballResultLabeler",
+  "trainer": "LstmTrainer",
+  "output_columns": ["p_home", "p_draw", "p_away"],
+  "window_size": 8,
+  "ratings": {
+    "elo": true,
+    "gap": true,
+    "czech": true
+  },
+  "events": {
+    "result_home": 1,
+    "result_draw": 2,
+    "result_away": 3
+  },
+  "sequence_feature_columns": [
+    "result_points",
+    "goals_for",
+    "goals_against",
+    "xg_for",
+    "xg_against",
+    "shots",
+    "shots_on_goal",
+    "possession",
+    "elo_before",
+    "gap_attack_before",
+    "gap_defense_before",
+    "is_home",
+    "btts",
+    "total_goals"
+  ],
+  "static_feature_columns": [
+    "elo_home",
+    "elo_away",
+    "elo_diff",
+    "home_attack",
+    "home_defense",
+    "away_attack",
+    "away_defense",
+    "home_attack_away_defense",
+    "away_attack_home_defense",
+    "home_czech_win_rate",
+    "away_czech_win_rate",
+    "league_avg_goals",
+    "league_btts_rate",
+    "league_over_25_rate",
+    "h2h_home_win_rate",
+    "h2h_draw_rate",
+    "home_rest_days",
+    "away_rest_days",
+    "rest_days_diff",
+    "league_tier"
+  ],
+  "feature_config": {},
+  "training_config": {
+    "validation_size": 0.15,
+    "test_size": 0.15,
+    "random_state": 42
+  },
+  "epochs": 50,
+  "batch_size": 64,
+  "patience": 7,
+  "learning_rate": 0.001,
+  "lstm_units": 32,
+  "dense_units": 32
+}
