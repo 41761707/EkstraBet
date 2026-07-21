@@ -39,8 +39,8 @@ def map_hockey_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     return {
         "has_extra_time": has_overtime_only,
         "has_penalties": has_shootout,
-        "regulation_home_goals": _optional_int(row.get("home_team_goals")),
-        "regulation_away_goals": _optional_int(row.get("away_team_goals")),
+        "post_ot_home_goals": _optional_int(row.get("home_team_goals")),
+        "post_ot_away_goals": _optional_int(row.get("away_team_goals")),
         "penalties_home_goals": None,
         "penalties_away_goals": None,
         "overtime_winner": ot_winner or None,
@@ -56,8 +56,8 @@ def map_basketball_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     return {
         "has_extra_time": True,
         "has_penalties": False,
-        "regulation_home_goals": None,
-        "regulation_away_goals": None,
+        "post_ot_home_goals": None,
+        "post_ot_away_goals": None,
         "penalties_home_goals": None,
         "penalties_away_goals": None,
         "overtime_winner": None,
@@ -93,10 +93,10 @@ def map_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     return {
         "has_extra_time": has_extra_time,
         "has_penalties": has_penalties,
-        "regulation_home_goals": _optional_int(
-            row.get("fsr_regulation_home_goals")),
-        "regulation_away_goals": _optional_int(
-            row.get("fsr_regulation_away_goals")),
+        "post_ot_home_goals": _optional_int(
+            row.get("fsr_post_ot_home_goals")),
+        "post_ot_away_goals": _optional_int(
+            row.get("fsr_post_ot_away_goals")),
         "penalties_home_goals": (
             _optional_int(row.get("fsr_penalties_home_goals"))
             if has_penalties else None),

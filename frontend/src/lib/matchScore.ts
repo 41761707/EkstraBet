@@ -33,8 +33,8 @@ export function resolveMatchScore(match: MatchScoreInput): ResolvedMatchScore {
   }
 
   if (resolution.has_penalties) {
-    const regulationHome = resolution.regulation_home_goals ?? home;
-    const regulationAway = resolution.regulation_away_goals ?? away;
+    const postOtHome = resolution.post_ot_home_goals ?? home;
+    const postOtAway = resolution.post_ot_away_goals ?? away;
     const penaltiesHome = resolution.penalties_home_goals;
     const penaltiesAway = resolution.penalties_away_goals;
     const penaltyNote =
@@ -46,13 +46,15 @@ export function resolveMatchScore(match: MatchScoreInput): ResolvedMatchScore {
         : "po rzutach karnych";
 
     return {
-      main: scorePair(regulationHome, regulationAway),
+      main: scorePair(postOtHome, postOtAway),
       note: penaltyNote,
     };
   }
 
+  const postOtHome = resolution.post_ot_home_goals ?? home;
+  const postOtAway = resolution.post_ot_away_goals ?? away;
   return {
-    main: scorePair(home, away),
+    main: scorePair(postOtHome, postOtAway),
     note: "po dogrywce",
   };
 }

@@ -28,12 +28,12 @@ class MatchScoreResolution(BaseModel):
     has_penalties: bool = Field(
         ...,
         description="Whether the match was decided on penalties")
-    regulation_home_goals: int | None = Field(
+    post_ot_home_goals: int | None = Field(
         None,
-        description="Home goals after regulation time")
-    regulation_away_goals: int | None = Field(
+        description="Home goals after extra time")
+    post_ot_away_goals: int | None = Field(
         None,
-        description="Away goals after regulation time")
+        description="Away goals after extra time")
     penalties_home_goals: int | None = Field(
         None,
         description="Home penalty shootout goals")
