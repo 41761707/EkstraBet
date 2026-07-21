@@ -5,8 +5,9 @@ from pydantic import BaseModel, Field
 import logging
 from typing import Optional, List
 from api.utils import execute_query
+from api.schemas.player import TeamPlayerStatLeadersResponse
 from api.schemas.team_profile import TeamProfileResponse
-from backend.services import team_service
+from backend.services import player_service, team_service
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ async def teams_info():
             "GET /teams/all - All teams",
             "GET /teams/search - Search teams with filters",
             "GET /teams/{team_id}/profile - Team profile with form and split stats",
+            "GET /teams/{team_id}/player-stat-leaders - Football player leaders for matches",
             "GET /teams/{team_id}/stats - Team statistics (optional season filter)",
             "GET /teams/{team_id}/btts - Team BTTS statistics (optional season filter)",
             "GET /teams/{team_id}/hockey-stats - Detailed hockey team statistics",
@@ -126,6 +128,89 @@ async def teams_info():
             "GET /teams/head-to-head - Head-to-head statistics",
         ],
     }
+
+
+def _parse_match_ids(raw: str) -> list[int]:
+    """Parse comma-separated match ids into unique positive integers."""
+    values: list[int] = []
+    seen: set[int] = set()
+    for chunk in raw.split(","):
+        piece = chunk.strip()
+        if not piece:
+            continue
+        try:
+            match_id = int(piece)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="match_ids must be comma-separated integers",
+            ) from exc
+        if match_id < 1:
+            raise HTTPException(
+                status_code=422,
+                detail="match_ids must be positive integers",
+            )
+        if match_id in seen:
+            continue
+        seen.add(match_id)
+        values.append(match_id)
+    if not values:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide at least one match_id",
+        )
+    if len(values) > 20:
+        raise HTTPException(
+            status_code=422,
+            detail="At most 20 match_ids are allowed",
+        )
+    return values
+
+
+@router.get(
+    "/{team_id}/player-stat-leaders",
+    response_model=TeamPlayerStatLeadersResponse,
+)
+async def get_team_player_stat_leaders(
+    team_id: int,
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    stat: str = Query(
+        ...,
+        description=(
+            "One of goals, assists, shots, shots_on_target, "
+            "fouls_conceded, yellow_cards"
+        ),
+    ),
+    match_ids: str = Query(
+        ...,
+        description="Comma-separated match IDs to aggregate",
+    ),
+    top: int = Query(8, ge=1, le=20, description="Max leader rows"),
+) -> TeamPlayerStatLeadersResponse:
+    """Return football player leaders for a team over selected matches."""
+    parsed_match_ids = _parse_match_ids(match_ids)
+    try:
+        payload = player_service.get_football_team_player_stat_leaders(
+            team_id=team_id,
+            season_id=season_id,
+            stat=stat,
+            match_ids=parsed_match_ids,
+            top=top,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch player-stat-leaders for team %s: %s",
+            team_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch player stat leaders",
+        ) from exc
+    return TeamPlayerStatLeadersResponse(**payload)
+
 
 @router.get("/{team_id}/profile", response_model=TeamProfileResponse)
 async def get_team_profile(

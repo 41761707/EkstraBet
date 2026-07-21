@@ -182,3 +182,25 @@ class HockeyPlayerMatchStatsResponse(BaseModel):
     matches: list[HockeyPlayerMatchStat] = Field(
         ...,
         description="Match log")
+
+
+class TeamPlayerStatLeaderRow(BaseModel):
+    """One player in a team leaderboard for a selected stat."""
+
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    total: int = Field(..., description="Aggregated stat total")
+    appearances: int = Field(..., description="Matches counted")
+    average: float = Field(..., description="Average per appearance")
+
+
+class TeamPlayerStatLeadersResponse(BaseModel):
+    """Aggregated player leaders for a team and match set."""
+
+    team_id: int = Field(..., description="Team ID")
+    season_id: int = Field(..., description="Season ID")
+    stat: str = Field(..., description="Aggregated statistic key")
+    match_ids: list[int] = Field(..., description="Match IDs used")
+    leaders: list[TeamPlayerStatLeaderRow] = Field(
+        ...,
+        description="Leaderboard rows")

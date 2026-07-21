@@ -949,11 +949,15 @@ export interface ChatAnswer {
   warnings: string[];
 }
 
+export type ChatProvider = "cursor" | "openrouter";
+
 export interface ChatRequest {
   messages: Pick<ChatMessage, "role" | "content">[];
   sport: ChatSportContext;
+  provider?: ChatProvider;
 }
 
 export interface ChatResponse {
   answer: ChatAnswer;
+  provider: ChatProvider;
 }
