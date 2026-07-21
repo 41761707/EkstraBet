@@ -7,7 +7,10 @@ from typing import Any
 import pandas as pd
 
 from backend.repositories import player_repository
-
+from backend.repositories.team_player_stats_repository import (
+    ALLOWED_FOOTBALL_LEADER_STATS,
+    fetch_football_team_player_stat_leaders
+)
 FOOTBALL_SPORT_ID = 1
 HOCKEY_SPORT_ID = 2
 BASKETBALL_SPORT_ID = 3
@@ -331,4 +334,41 @@ def get_hockey_player_match_stats(
         "player_role": "goalie" if is_goalie else "skater",
         "summary": _build_hockey_summary(stats_frame, is_goalie),
         "matches": rows,
+    }
+
+
+def get_football_team_player_stat_leaders(
+    team_id: int,
+    season_id: int,
+    stat: str,
+    match_ids: list[int],
+    top: int = 8
+) -> dict[str, Any]:
+    """Return aggregated football player leaders for team match ids."""
+    if stat not in ALLOWED_FOOTBALL_LEADER_STATS:
+        raise ValueError(f"Unsupported leader stat: {stat}")
+
+    unique_match_ids = list(dict.fromkeys(match_ids))[:20]
+    frame = fetch_football_team_player_stat_leaders(
+        team_id=team_id,
+        season_id=season_id,
+        stat=stat,
+        match_ids=unique_match_ids,
+        top=top
+    )
+    leaders: list[dict[str, Any]] = []
+    for _, row in frame.iterrows():
+        leaders.append({
+            "player_id": int(row["player_id"]),
+            "player_name": str(row["player_name"]),
+            "total": int(row["total"]),
+            "appearances": int(row["appearances"]),
+            "average": float(row["average"])
+        })
+    return {
+        "team_id": team_id,
+        "season_id": season_id,
+        "stat": stat,
+        "match_ids": unique_match_ids,
+        "leaders": leaders
     }

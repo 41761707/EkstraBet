@@ -578,8 +578,8 @@ Dane do tabeli generowane są w ramach działania modułu **opta_scrapper.py**
 | *MATCH_ID*             | INT    | INT    | Klucz obcy, powiązanie z tabelą *matches*                                                                                                                 | NULL                     |
 | OT                     | INT    | {0,1}  | Flaga, czy w meczu odbyła się dogrywka (teoretycznie z aktualną strukturą bazy to flaga zawsze będzie równa 1, jednak w przyszłości może się to zmienić!) | 1                        |
 | PEN                    | INT    | {0,1}  | Flaga, czy w meczu odbyła się seria jedynastek                                                                                                            | 0                        |
-| home_team_goals_pre_ot | INT    | INT    | Liczba bramek strzelona przez drużynę gospodarzy podczas regularnego czasu gry                                                                            | NULL                     |
-| away_team_goals_pre_ot | INT    | INT    | Liczba bramek strzelona przez drużynę gości podczas regularnego czasu gry                                                                                 | NULL                     |
+| home_team_goals_post_ot | INT    | INT    | Liczba bramek strzelona przez drużynę gospodarzy podczas regularnego czasu gry                                                                            | NULL                     |
+| away_team_goals_post_ot | INT    | INT    | Liczba bramek strzelona przez drużynę gości podczas regularnego czasu gry                                                                                 | NULL                     |
 | home_team_pen_score    | INT    | INT    | Liczba trafionych karnych przez gospodarzy w ramach konkursu jedynastek                                                                                   | NULL                     |
 | away_team_pen_score    | INT    | INT    | Liczba trafionych karnych przez gości w ramach konkursu jedynastek                                                                                        | NULL                     |
 
