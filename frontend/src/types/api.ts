@@ -579,6 +579,7 @@ export interface MatchDetails {
   is_played: boolean;
   score_resolution: MatchScoreResolution | null;
   final_predictions: MatchPredictionItem[];
+  prediction_analysis: PredictionPreviewResponse | null;
   odds: OddsItem[];
   stats: MatchBasicStats | null;
   hockey_stats: HockeyMatchStats | null;

@@ -1,4 +1,4 @@
-/** Semantyczne kolory wykresów: nie/poniżej = czerwony, tak/powyżej/gospodarz = zielony, remis/gość = żółty. */
+/** Semantyczne kolory: nie/poniżej/gość = czerwony, tak/powyżej/gospodarz = zielony, remis = żółty. */
 
 export const CHART_COLOR_NEGATIVE = "#d95757";
 export const CHART_COLOR_POSITIVE = "#52b788";
@@ -77,7 +77,7 @@ export function getSemanticBarColor(label: string): string {
     return CHART_COLOR_DRAW;
   }
   if (isAwayWinLabel(normalized)) {
-    return CHART_COLOR_DRAW;
+    return CHART_COLOR_NEGATIVE;
   }
   if (isHomeWinLabel(normalized)) {
     return CHART_COLOR_POSITIVE;

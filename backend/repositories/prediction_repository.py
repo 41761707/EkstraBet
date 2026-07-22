@@ -149,6 +149,37 @@ def fetch_match_final_predictions(
         return pd.read_sql(query, conn, params=tuple(params))
 
 
+def fetch_match_market_predictions(
+    match_id: int,
+    model_ids: list[int] | None = None) -> pd.DataFrame:
+    """Return all stored market predictions for chart reconstruction."""
+    conditions = ["p.match_id = %s"]
+    params: list[object] = [match_id]
+
+    if model_ids:
+        placeholders = ",".join(["%s"] * len(model_ids))
+        conditions.append(f"p.model_id IN ({placeholders})")
+        params.extend(model_ids)
+
+    where_clause = " AND ".join(conditions)
+    query = f"""
+        SELECT
+            p.id AS prediction_id,
+            p.event_id,
+            e.name AS event_name,
+            p.model_id,
+            md.name AS model_name,
+            p.value
+        FROM predictions p
+        JOIN events e ON p.event_id = e.id
+        LEFT JOIN models md ON p.model_id = md.id
+        WHERE {where_clause}
+        ORDER BY p.event_id, p.id DESC
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=tuple(params))
+
+
 def team_exists(team_id: int) -> bool:
     """Return True when the team id exists in the database."""
     query = "SELECT 1 FROM teams WHERE id = %s LIMIT 1"

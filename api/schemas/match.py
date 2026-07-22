@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from api.schemas.odds import OddsItem
 from api.schemas.prediction import MatchPredictionItem
+from api.schemas.prediction import PredictionPreviewResponse
 
 FormResult = Literal["W", "D", "L", "WPD", "PPD"]
 
@@ -435,6 +436,11 @@ class MatchDetails(BaseModel):
     final_predictions: list[MatchPredictionItem] = Field(
         ...,
         description="Final model predictions")
+    prediction_analysis: PredictionPreviewResponse | None = Field(
+        None,
+        description=(
+            "Full market analysis reconstructed from stored predictions "
+            "for chart rendering"))
     odds: list[OddsItem] = Field(..., description="Bookmaker odds")
     stats: MatchBasicStats | None = Field(
         None,

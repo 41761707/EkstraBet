@@ -149,6 +149,10 @@ class TestMatchService(unittest.TestCase):
     @patch("backend.services.match_service.odds_service.get_match_odds_items")
     @patch(
         "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
         ".get_match_final_predictions")
     @patch(
         "backend.services.match_service.match_assessment_repository"
@@ -161,6 +165,7 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_match: unittest.mock.MagicMock,
         _mock_fetch_assessments: unittest.mock.MagicMock,
         mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
         mock_fetch_odds: unittest.mock.MagicMock,
         _mock_has_player_stats: unittest.mock.MagicMock,
         _mock_fetch_h2h: unittest.mock.MagicMock,
@@ -191,6 +196,7 @@ class TestMatchService(unittest.TestCase):
         assert details is not None
         self.assertEqual(details["id"], 100)
         self.assertEqual(len(details["final_predictions"]), 1)
+        self.assertIsNone(details["prediction_analysis"])
         self.assertEqual(len(details["odds"]), 1)
         self.assertIsNotNone(details["stats"])
         self.assertEqual(details["stats"]["home_xg"], 1.8)
@@ -217,6 +223,10 @@ class TestMatchService(unittest.TestCase):
         return_value=[])
     @patch(
         "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
         ".get_match_final_predictions")
     @patch(
         "backend.services.match_service.match_assessment_repository"
@@ -229,6 +239,7 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_match: unittest.mock.MagicMock,
         _mock_fetch_assessments: unittest.mock.MagicMock,
         mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
         _mock_fetch_odds: unittest.mock.MagicMock,
         _mock_has_player_stats: unittest.mock.MagicMock,
         _mock_fetch_h2h: unittest.mock.MagicMock,
@@ -265,6 +276,10 @@ class TestMatchService(unittest.TestCase):
         return_value=[])
     @patch(
         "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
         ".get_match_final_predictions",
         return_value=[])
     @patch(
@@ -277,6 +292,7 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_match: unittest.mock.MagicMock,
         mock_fetch_assessments: unittest.mock.MagicMock,
         _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
         _mock_fetch_odds: unittest.mock.MagicMock,
         _mock_has_player_stats: unittest.mock.MagicMock,
         _mock_fetch_h2h: unittest.mock.MagicMock,
@@ -326,6 +342,10 @@ class TestMatchService(unittest.TestCase):
         return_value=[])
     @patch(
         "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
         ".get_match_final_predictions",
         return_value=[])
     @patch(
@@ -339,6 +359,7 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_match: unittest.mock.MagicMock,
         _mock_fetch_assessments: unittest.mock.MagicMock,
         _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
         _mock_fetch_odds: unittest.mock.MagicMock,
         _mock_has_player_stats: unittest.mock.MagicMock,
         _mock_fetch_h2h: unittest.mock.MagicMock,

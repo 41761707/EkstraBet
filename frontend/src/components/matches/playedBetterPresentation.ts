@@ -2,6 +2,7 @@ import type {
   MatchModelAssessment,
   PlayedBetterFinalAssessment,
 } from "@/types/api";
+import { buildPieSlicesFromSegments } from "@/lib/pieSlices";
 
 export type ReplayCellSide = "home" | "draw" | "away";
 
@@ -238,37 +239,6 @@ export interface PieSlice {
   isFullCircle: boolean;
 }
 
-function polarPoint(
-  cx: number,
-  cy: number,
-  radius: number,
-  angleDeg: number,
-): { x: number; y: number } {
-  const radians = ((angleDeg - 90) * Math.PI) / 180;
-  return {
-    x: cx + radius * Math.cos(radians),
-    y: cy + radius * Math.sin(radians),
-  };
-}
-
-function describeWedge(
-  cx: number,
-  cy: number,
-  radius: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const start = polarPoint(cx, cy, radius, endAngle);
-  const end = polarPoint(cx, cy, radius, startAngle);
-  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-  return [
-    `M ${cx} ${cy}`,
-    `L ${start.x} ${start.y}`,
-    `A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`,
-    "Z",
-  ].join(" ");
-}
-
 /** Build SVG pie slices from normalized percents (home/draw/away). */
 export function buildPieSlices(
   percents: Record<ReplayCellSide, number>,
@@ -277,31 +247,15 @@ export function buildPieSlices(
   cy = 50,
 ): PieSlice[] {
   const order: ReplayCellSide[] = ["home", "draw", "away"];
-  let angle = 0;
-  const slices: PieSlice[] = [];
-
-  for (const side of order) {
-    const percent = percents[side];
-    if (percent <= 0) {
-      slices.push({ side, percent: 0, path: null, isFullCircle: false });
-      continue;
-    }
-    if (percent >= 100) {
-      slices.push({ side, percent: 100, path: null, isFullCircle: true });
-      angle = 360;
-      continue;
-    }
-    const sweep = (percent / 100) * 360;
-    const startAngle = angle;
-    const endAngle = angle + sweep;
-    slices.push({
-      side,
-      percent,
-      path: describeWedge(cx, cy, radius, startAngle, endAngle),
-      isFullCircle: false,
-    });
-    angle = endAngle;
-  }
-
-  return slices;
+  return buildPieSlicesFromSegments(
+    order.map((side) => ({ id: side, percent: percents[side] })),
+    radius,
+    cx,
+    cy,
+  ).map((slice) => ({
+    side: slice.id as ReplayCellSide,
+    percent: slice.percent,
+    path: slice.path,
+    isFullCircle: slice.isFullCircle,
+  }));
 }

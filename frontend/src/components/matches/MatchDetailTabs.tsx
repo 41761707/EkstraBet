@@ -11,6 +11,8 @@ import { MatchStatsPanel } from "@/components/MatchStatsPanel";
 import { PlayedBetterAssessmentPanel } from "@/components/matches/PlayedBetterAssessmentPanel";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { StatusMessage } from "@/components/StatusMessage";
+import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
+import { teamChartLabel } from "@/components/predictions/predictionChartModel";
 import type { MatchDetails } from "@/types/api";
 
 interface MatchDetailTabsProps {
@@ -40,6 +42,8 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   ];
 
   const visibleTabs = tabs.filter((tab) => tab.visible);
+  const homeTeamLabel = teamChartLabel(match.home_team);
+  const awayTeamLabel = teamChartLabel(match.away_team);
 
   return (
     <div className="space-y-6">
@@ -78,6 +82,15 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
 
       {activeTab === "predictions" ? (
         <div className="space-y-4">
+          {match.prediction_analysis ? (
+            <PredictionSimulationResult
+              result={match.prediction_analysis}
+              homeTeamLabel={homeTeamLabel}
+              awayTeamLabel={awayTeamLabel}
+              title="Analiza predykcji"
+            />
+          ) : null}
+
           <ExpandableSection
             title={`Predykcje (${match.final_predictions.length})`}
             defaultOpen

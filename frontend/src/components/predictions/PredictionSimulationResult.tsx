@@ -1,93 +1,70 @@
 "use client";
 
+import { HorizontalProbabilityBars } from "@/components/charts/HorizontalProbabilityBars";
+import { ProbabilityDonutChart } from "@/components/charts/ProbabilityDonutChart";
+import { VerticalProbabilityBars } from "@/components/charts/VerticalProbabilityBars";
+import {
+  buildPredictionChartModel,
+  formatSegmentProbability,
+} from "@/components/predictions/predictionChartModel";
 import type { PredictionPreviewResponse } from "@/types/api";
 
 interface PredictionSimulationResultProps {
   result: PredictionPreviewResponse;
-}
-
-function formatProbability(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
+  homeTeamLabel: string;
+  awayTeamLabel: string;
+  title?: string;
 }
 
 export function PredictionSimulationResult({
   result,
+  homeTeamLabel,
+  awayTeamLabel,
+  title = "Wynik symulacji",
 }: PredictionSimulationResultProps) {
-  const sortedBuckets = Object.entries(result.goals.total_buckets).sort(
-    ([left], [right]) => left.localeCompare(right, "pl", { numeric: true }),
-  );
+  const chart = buildPredictionChartModel(result, homeTeamLabel, awayTeamLabel);
+  const hasExpectedGoals =
+    chart.lambdaHome > 0 || chart.lambdaAway > 0;
 
   return (
     <section className="space-y-4" aria-live="polite">
-      <h2 className="text-2xl font-semibold text-white">Wynik symulacji</h2>
+      <h2 className="text-2xl font-semibold text-white">{title}</h2>
       <div className="grid gap-4 md:grid-cols-3">
-        <ResultCard
+        <ProbabilityDonutChart
           title="Rezultat 1X2"
-          values={[
-            ["Gospodarz", result.result.p_home],
-            ["Remis", result.result.p_draw],
-            ["Gość", result.result.p_away],
-          ]}
+          segments={chart.result1x2}
+          ariaLabel={`1X2: ${homeTeamLabel} ${formatSegmentProbability(result.result.p_home)}, remis ${formatSegmentProbability(result.result.p_draw)}, ${awayTeamLabel} ${formatSegmentProbability(result.result.p_away)}`}
         />
-        <ResultCard
+        <ProbabilityDonutChart
           title="Obie strzelą"
-          values={[
-            ["Tak", result.btts.p_yes],
-            ["Nie", result.btts.p_no],
-          ]}
+          segments={chart.btts}
+          ariaLabel={`BTTS: tak ${formatSegmentProbability(result.btts.p_yes)}, nie ${formatSegmentProbability(result.btts.p_no)}`}
         />
-        <ResultCard
+        <ProbabilityDonutChart
           title="Suma 2,5 gola"
-          values={[
-            ["Powyżej", result.goals.over_25],
-            ["Poniżej", result.goals.under_25],
-          ]}
+          segments={chart.overUnder}
+          ariaLabel={`Over/Under 2.5: powyżej ${formatSegmentProbability(result.goals.over_25)}, poniżej ${formatSegmentProbability(result.goals.under_25)}`}
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ResultCard
+        <VerticalProbabilityBars
           title="Liczba goli"
-          values={sortedBuckets.map(([bucket, probability]) => [
-            bucket,
-            probability,
-          ])}
+          points={chart.goalBuckets}
+          emptyMessage="Brak rozkładu liczby goli."
         />
-        <ResultCard
+        <HorizontalProbabilityBars
           title="Najbardziej prawdopodobne wyniki"
-          values={result.goals.top_exact_scores.map((score) => [
-            score.score,
-            score.probability,
-          ])}
+          points={chart.exactScores}
+          emptyMessage="Brak najbardziej prawdopodobnych wyników."
         />
       </div>
-      <p className="text-sm text-slate-400">
-        Oczekiwane gole: gospodarze {result.goals.lambda_home.toFixed(2)}, goście{" "}
-        {result.goals.lambda_away.toFixed(2)}.
-      </p>
+      {hasExpectedGoals ? (
+        <p className="text-sm text-slate-400">
+          Oczekiwane gole: gospodarze {chart.lambdaHome.toFixed(2)}, goście{" "}
+          {chart.lambdaAway.toFixed(2)}.
+        </p>
+      ) : null}
     </section>
-  );
-}
-
-interface ResultCardProps {
-  title: string;
-  values: (string | number)[][];
-}
-
-function ResultCard({ title, values }: ResultCardProps) {
-  return (
-    <article className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
-      <h3 className="mb-3 font-semibold text-sky-300">{title}</h3>
-      <dl className="space-y-2">
-        {values.map(([label, value]) => (
-          <div key={String(label)} className="flex justify-between gap-4">
-            <dt className="text-slate-300">{label}</dt>
-            <dd className="font-medium text-white">
-              {formatProbability(Number(value))}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </article>
   );
 }
