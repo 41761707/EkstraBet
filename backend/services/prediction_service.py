@@ -44,6 +44,18 @@ def _optional_float(value: object) -> float | None:
     return float(value)
 
 
+def _to_unit_probability(value: float) -> float:
+    """Convert DB percentage (0-100) to unit probability [0, 1].
+
+    Pipeline writes percentages via ``_db_percentage``, including sub-1%
+    exact scores (e.g. 0.98 means 0.98%, not probability 0.98).
+    """
+    probability = float(value)
+    if probability < 0.0:
+        return 0.0
+    return min(probability / 100.0, 1.0)
+
+
 def _map_event_family(row: pd.Series) -> dict[str, Any] | None:
     """Map event family columns when present on a dataframe row."""
     family_id = _optional_int(row.get("event_family_id"))
@@ -54,6 +66,14 @@ def _map_event_family(row: pd.Series) -> dict[str, Any] | None:
         "id": family_id,
         "name": str(family_name)
     }
+
+
+def _map_prediction_value(value: object) -> float | None:
+    """Map DB percentage to API unit probability [0, 1]."""
+    raw_value = _optional_float(value)
+    if raw_value is None:
+        return None
+    return _to_unit_probability(raw_value)
 
 
 def _map_prediction_row(row: pd.Series) -> dict[str, Any]:
@@ -68,7 +88,7 @@ def _map_prediction_row(row: pd.Series) -> dict[str, Any]:
         "model_name": (
             str(row["model_name"])
             if pd.notna(row.get("model_name")) else None),
-        "value": float(row["value"])
+        "value": _to_unit_probability(float(row["value"]))
     }
 
 
@@ -83,7 +103,7 @@ def _map_final_prediction_row(row: pd.Series) -> dict[str, Any]:
         "event_family": _map_event_family(row),
         "model_id": int(row["model_id"]),
         "model_name": str(model_name) if pd.notna(model_name) else None,
-        "value": _optional_float(row.get("value")),
+        "value": _map_prediction_value(row.get("value")),
         "outcome": (
             int(outcome)
             if outcome is not None and pd.notna(outcome) else None)
@@ -144,7 +164,7 @@ def get_team_predictions(
             "model_name": (
                 str(row["model_name"])
                 if pd.notna(row.get("model_name")) else None),
-            "value": _optional_float(row.get("value")),
+            "value": _map_prediction_value(row.get("value")),
             "outcome": (
                 int(outcome)
                 if outcome is not None and pd.notna(outcome) else None)
@@ -189,18 +209,6 @@ def get_match_final_predictions(
         _map_final_prediction_row(row)
         for _, row in frame.iterrows()
     ]
-
-
-def _to_unit_probability(value: float) -> float:
-    """Convert DB percentage (0-100) to unit probability [0, 1].
-
-    Pipeline writes percentages via ``_db_percentage``, including sub-1%
-    exact scores (e.g. 0.98 means 0.98%, not probability 0.98).
-    """
-    probability = float(value)
-    if probability < 0.0:
-        return 0.0
-    return min(probability / 100.0, 1.0)
 
 
 def _dedupe_latest_by_event(

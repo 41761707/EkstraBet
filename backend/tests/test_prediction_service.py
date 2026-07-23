@@ -32,7 +32,7 @@ class TestPredictionService(unittest.TestCase):
                 "event_family_name": "REZULTAT",
                 "model_id": 3,
                 "model_name": "Model A",
-                "value": 0.55,
+                "value": 55.0,
             }]),
             1)
         payload = search_predictions(match_id=100)
@@ -40,6 +40,7 @@ class TestPredictionService(unittest.TestCase):
         prediction = payload["predictions"][0]
         self.assertEqual(prediction["event_family"]["name"], "REZULTAT")
         self.assertEqual(prediction["model_name"], "Model A")
+        self.assertAlmostEqual(prediction["value"], 0.55)
 
     @patch(
         "backend.services.prediction_service.match_repository.match_exists",
@@ -67,14 +68,14 @@ class TestPredictionService(unittest.TestCase):
             "event_family_name": "REZULTAT",
             "model_id": 3,
             "model_name": "Model A",
-            "value": 0.55,
+            "value": 55.0,
             "outcome": 1,
         }])
         payload = get_match_predictions(100)
         assert payload is not None
         prediction = payload["match_predictions"][0]
         self.assertEqual(prediction["prediction_id"], 10)
-        self.assertEqual(prediction["value"], 0.55)
+        self.assertAlmostEqual(prediction["value"], 0.55)
         self.assertEqual(prediction["outcome"], 1)
 
     def test_map_market_predictions_to_analysis_builds_preview_shape(

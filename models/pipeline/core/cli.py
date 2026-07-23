@@ -148,12 +148,20 @@ def build_parser() -> argparse.ArgumentParser:
         "predict-batch",
         help=(
             "Predict configured future-event families from a JSON pair list "
+            "or upcoming DB matches with result='0' "
             "(pass any non-empty subset of family configs)"))
     _add_future_config_args(future_batch_parser)
     future_batch_parser.add_argument(
         "--pairs-file",
         type=Path,
         help="JSON list containing MatchupInput-compatible objects")
+    future_batch_parser.add_argument(
+        "--league-id",
+        type=int,
+        default=None,
+        help=(
+            "Limit auto-loaded upcoming matches to one league "
+            "(ignored when --pairs-file is set)"))
     future_batch_parser.add_argument(
         "--date-from",
         type=date.fromisoformat,
@@ -308,14 +316,32 @@ def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def run_predict_batch(args: argparse.Namespace) -> list[dict[str, Any]]:
-    """Run configured future-event artifacts for matchups from JSON."""
+def run_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
+    """Run future-event artifacts; skip matchups that cannot be predicted."""
     raw_matchups = _load_batch_matchups(args)
     matchups = [MatchupInput.model_validate(item) for item in raw_matchups]
     predictor = _future_predictor(args)
-    predictions = predictor.predict_batch(matchups)
     results: list[dict[str, Any]] = []
-    for matchup, prediction in zip(matchups, predictions):
+    skipped = 0
+    for matchup in matchups:
+        try:
+            prediction = predictor.predict_pair(matchup)
+        except Exception as exc:
+            skipped += 1
+            logger.error(
+                "Skipping match_id=%s home=%s away=%s: %s",
+                matchup.match_id,
+                matchup.home_team_id,
+                matchup.away_team_id,
+                exc)
+            results.append({
+                "matchup": matchup.model_dump(),
+                "predictions": None,
+                "written": 0,
+                "skipped": True,
+                "error": str(exc)
+            })
+            continue
         written = 0
         if args.write_db:
             written = _persist_future_prediction(
@@ -323,9 +349,15 @@ def run_predict_batch(args: argparse.Namespace) -> list[dict[str, Any]]:
         results.append({
             "matchup": matchup.model_dump(),
             "predictions": _json_value(prediction),
-            "written": written
+            "written": written,
+            "skipped": False
         })
-    return results
+    return {
+        "processed": len(matchups),
+        "predicted": len(matchups) - skipped,
+        "skipped": skipped,
+        "results": results
+    }
 
 
 def _load_batch_matchups(args: argparse.Namespace) -> list[dict[str, Any]]:
@@ -338,7 +370,11 @@ def _load_batch_matchups(args: argparse.Namespace) -> list[dict[str, Any]]:
     from models.pipeline.data.match_history_repository import (
         fetch_upcoming_matches)
 
-    frame = fetch_upcoming_matches(1, args.date_from, args.date_to)
+    frame = fetch_upcoming_matches(
+        1,
+        args.date_from,
+        args.date_to,
+        league_id=args.league_id)
     return [{
         "home_team_id": int(row["home_team"]),
         "away_team_id": int(row["away_team"]),

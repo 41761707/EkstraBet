@@ -470,8 +470,16 @@ class FutureEventsFeatureBuilder:
         away = build_team_sequence(
             timeline, matchup.away_team_id, matchup.as_of_date,
             config.window_size, config.sequence_feature_columns)
-        if home is None or away is None:
-            raise ValueError("At least one team has insufficient match history")
+        missing_team_ids = [
+            team_id
+            for team_id, sequence in (
+                (matchup.home_team_id, home),
+                (matchup.away_team_id, away))
+            if sequence is None]
+        if missing_team_ids:
+            joined = ", ".join(str(team_id) for team_id in missing_team_ids)
+            raise ValueError(
+                f"Insufficient match history for team id(s): {joined}")
         league_id = _league_id(timeline, matchup)
         static = build_matchup_static(
             matchup.home_team_id,

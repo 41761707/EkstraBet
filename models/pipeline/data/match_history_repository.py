@@ -63,21 +63,28 @@ def fetch_finished_matches(
 def fetch_upcoming_matches(
         sport_id: int,
         date_from: date | datetime,
-        date_to: date | datetime | None = None) -> pd.DataFrame:
-    """Fetch scheduled matches from a date, optionally bounded by an end date."""
-    date_filter = ""
+        date_to: date | datetime | None = None,
+        league_id: int | None = None) -> pd.DataFrame:
+    """Fetch scheduled matches from a date, optionally by league and end date."""
+    if date_from is None:
+        date_from = datetime.now()
+    filters = [
+        "m.sport_id = %s",
+        "m.game_date >= %s",
+        "(m.result = '0' OR m.result IS NULL)"
+    ]
     params: tuple[object, ...] = (sport_id, date_from)
     if date_to is not None:
-        date_filter = "AND m.game_date < %s"
+        filters.append("m.game_date < %s")
         params = (*params, date_to)
+    if league_id is not None:
+        filters.append("m.league = %s")
+        params = (*params, league_id)
     query = f"""
         SELECT
             {_match_select_clause()}
         FROM matches m
-        WHERE m.sport_id = %s
-          AND m.game_date >= %s
-          {date_filter}
-          AND (m.result = '0' OR m.result IS NULL)
+        WHERE {" AND ".join(filters)}
         ORDER BY m.game_date, m.id
     """
     with get_db_connection() as connection:
