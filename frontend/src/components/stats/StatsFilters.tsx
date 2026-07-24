@@ -120,7 +120,7 @@ export function StatsFilters({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MultiSelectCheckboxGroup
-          label="Leagues"
+          label="Ligi"
           name="stats-leagues"
           options={leagues}
           selectedIds={state.leagueIds}
@@ -129,7 +129,7 @@ export function StatsFilters({
           }
         />
         <MultiSelectCheckboxGroup
-          label="Result models"
+          label="Modele rezultatu"
           name="stats-result-models"
           options={resultModels}
           selectedIds={state.modelResultIds}
@@ -138,7 +138,7 @@ export function StatsFilters({
           }
         />
         <MultiSelectCheckboxGroup
-          label="OU models"
+          label="Modele OU"
           name="stats-ou-models"
           options={ouModels}
           selectedIds={state.modelOuIds}
@@ -147,7 +147,7 @@ export function StatsFilters({
           }
         />
         <MultiSelectCheckboxGroup
-          label="BTTS models"
+          label="Modele BTTS"
           name="stats-btts-models"
           options={bttsModels}
           selectedIds={state.modelBttsIds}
@@ -159,7 +159,7 @@ export function StatsFilters({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Season</span>
+          <span className="font-medium text-slate-200">Sezon</span>
           <select
             value={state.seasonId ?? ""}
             onChange={(event) =>
@@ -172,7 +172,7 @@ export function StatsFilters({
             }
             className={inputClassName}
           >
-            <option value="">All seasons</option>
+            <option value="">Wszystkie sezony</option>
             {seasons.map((season) => (
               <option key={season.id} value={season.id}>
                 {season.label}
@@ -182,7 +182,7 @@ export function StatsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Stat type</span>
+          <span className="font-medium text-slate-200">Typ statystyki</span>
           <select
             value={state.statType}
             onChange={(event) =>
@@ -193,7 +193,7 @@ export function StatsFilters({
             }
             className={inputClassName}
           >
-            <option value="all">All</option>
+            <option value="all">Wszystkie</option>
             <option value="ou">Over/Under</option>
             <option value="btts">BTTS</option>
             <option value="result">1X2</option>
@@ -201,7 +201,7 @@ export function StatsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Group by</span>
+          <span className="font-medium text-slate-200">Grupuj według</span>
           <select
             value={state.groupBy}
             onChange={(event) =>
@@ -212,14 +212,14 @@ export function StatsFilters({
             }
             className={inputClassName}
           >
-            <option value="none">None</option>
-            <option value="league">League</option>
-            <option value="team">Team (single league)</option>
+            <option value="none">Brak</option>
+            <option value="league">Liga</option>
+            <option value="team">Drużyna (jedna liga)</option>
           </select>
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Aggregation metric</span>
+          <span className="font-medium text-slate-200">Metryka agregacji</span>
           <select
             value={state.aggregationMetric}
             onChange={(event) =>
@@ -231,15 +231,15 @@ export function StatsFilters({
             }
             className={inputClassName}
           >
-            <option value="accuracy">Accuracy</option>
-            <option value="profit">Profit</option>
+            <option value="accuracy">Trafność</option>
+            <option value="profit">Zysk</option>
           </select>
         </label>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Date from</span>
+          <span className="font-medium text-slate-200">Data od</span>
           <input
             type="date"
             value={state.dateFrom}
@@ -253,7 +253,7 @@ export function StatsFilters({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Date to</span>
+          <span className="font-medium text-slate-200">Data do</span>
           <input
             type="date"
             value={state.dateTo}
@@ -267,7 +267,7 @@ export function StatsFilters({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Round from</span>
+          <span className="font-medium text-slate-200">Kolejka od</span>
           <input
             type="number"
             min={1}
@@ -282,7 +282,7 @@ export function StatsFilters({
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Round to</span>
+          <span className="font-medium text-slate-200">Kolejka do</span>
           <input
             type="number"
             min={1}
@@ -311,7 +311,7 @@ export function StatsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          Settled matches only
+          Tylko rozliczone mecze
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -325,7 +325,7 @@ export function StatsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          Positive EV only
+          Tylko dodatnie EV
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -339,7 +339,7 @@ export function StatsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          Apply 12% tax
+          Uwzględnij podatek 12%
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -353,7 +353,7 @@ export function StatsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          League characteristics
+          Charakterystyka ligi
         </label>
       </div>
 
@@ -362,14 +362,14 @@ export function StatsFilters({
           type="submit"
           className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
         >
-          Apply filters
+          Zastosuj filtry
         </button>
         <button
           type="button"
           onClick={handleReset}
           className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
         >
-          Reset
+          Resetuj
         </button>
       </div>
     </form>

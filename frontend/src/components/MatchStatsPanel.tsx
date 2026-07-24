@@ -19,7 +19,7 @@ interface StatDefinition {
 const statDefinitions: StatDefinition[] = [
   { label: "Bramki", homeKey: "home_goals", awayKey: "away_goals" },
   {
-    label: "Expected Goals (xG)",
+    label: "Oczekiwane gole (xG)",
     homeKey: "home_xg",
     awayKey: "away_xg",
     decimals: 2,

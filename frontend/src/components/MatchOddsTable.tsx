@@ -15,9 +15,9 @@ export function MatchOddsTable({ odds }: MatchOddsTableProps) {
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Bookmaker</th>
-            <th className="px-4 py-3 font-medium">Event</th>
-            <th className="px-4 py-3 text-center font-medium">Odds</th>
+            <th className="px-4 py-3 font-medium">Bukmacher</th>
+            <th className="px-4 py-3 font-medium">Wydarzenie</th>
+            <th className="px-4 py-3 text-center font-medium">Kurs</th>
           </tr>
         </thead>
         <tbody>

@@ -115,21 +115,21 @@ export function BetsFilters({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MultiSelectCheckboxGroup
-          label="Leagues"
+          label="Ligi"
           name="leagues"
           options={leagues}
           selectedIds={state.leagueIds}
           onChange={(leagueIds) => setState((current) => ({ ...current, leagueIds }))}
         />
         <MultiSelectCheckboxGroup
-          label="Events"
+          label="Wydarzenia"
           name="events"
           options={events}
           selectedIds={state.eventIds}
           onChange={(eventIds) => setState((current) => ({ ...current, eventIds }))}
         />
         <MultiSelectCheckboxGroup
-          label="Models"
+          label="Modele"
           name="models"
           options={models}
           selectedIds={state.modelIds}
@@ -139,7 +139,7 @@ export function BetsFilters({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Match date</span>
+          <span className="font-medium text-slate-200">Data meczu</span>
           <input
             type="date"
             value={state.matchDate}
@@ -154,7 +154,7 @@ export function BetsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Min odds</span>
+          <span className="font-medium text-slate-200">Min. kurs</span>
           <input
             type="number"
             min={1}
@@ -172,7 +172,7 @@ export function BetsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Sort by</span>
+          <span className="font-medium text-slate-200">Sortuj według</span>
           <select
             value={state.sortBy}
             onChange={(event) =>
@@ -184,13 +184,13 @@ export function BetsFilters({
             className={inputClassName}
           >
             <option value="ev">EV</option>
-            <option value="probability">Probability</option>
-            <option value="game_date">Match date</option>
+            <option value="probability">Prawdopodobieństwo</option>
+            <option value="game_date">Data meczu</option>
           </select>
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Sort order</span>
+          <span className="font-medium text-slate-200">Kolejność</span>
           <select
             value={state.sortOrder}
             onChange={(event) =>
@@ -201,8 +201,8 @@ export function BetsFilters({
             }
             className={inputClassName}
           >
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
+            <option value="desc">Malejąco</option>
+            <option value="asc">Rosnąco</option>
           </select>
         </label>
       </div>
@@ -220,7 +220,7 @@ export function BetsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          From now only
+          Tylko od teraz
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -234,7 +234,7 @@ export function BetsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          Positive EV only
+          Tylko dodatnie EV
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -248,12 +248,12 @@ export function BetsFilters({
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
-          Apply 12% tax
+          Uwzględnij podatek 12%
         </label>
       </div>
 
       <label className="block max-w-xs space-y-2 text-sm">
-        <span className="font-medium text-slate-200">Settlement status</span>
+        <span className="font-medium text-slate-200">Status rozliczenia</span>
         <select
           value={state.settlementStatus}
           onChange={(event) =>
@@ -264,10 +264,10 @@ export function BetsFilters({
           }
           className={inputClassName}
         >
-          <option value="">All</option>
-          <option value="pending">Pending</option>
-          <option value="won">Won</option>
-          <option value="lost">Lost</option>
+          <option value="">Wszystkie</option>
+          <option value="pending">Oczekujący</option>
+          <option value="won">Wygrany</option>
+          <option value="lost">Przegrany</option>
         </select>
       </label>
 
@@ -276,14 +276,14 @@ export function BetsFilters({
           type="submit"
           className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
         >
-          Apply filters
+          Zastosuj filtry
         </button>
         <button
           type="button"
           onClick={handleReset}
           className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
         >
-          Reset
+          Resetuj
         </button>
       </div>
     </form>

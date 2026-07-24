@@ -26,13 +26,13 @@ function BreakdownTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Type</th>
-            <th className="px-4 py-3 text-right font-medium">Total</th>
-            <th className="px-4 py-3 text-right font-medium">Correct</th>
-            <th className="px-4 py-3 text-right font-medium">Accuracy</th>
-            <th className="px-4 py-3 text-right font-medium">Share</th>
+            <th className="px-4 py-3 font-medium">Typ</th>
+            <th className="px-4 py-3 text-right font-medium">Łącznie</th>
+            <th className="px-4 py-3 text-right font-medium">Trafione</th>
+            <th className="px-4 py-3 text-right font-medium">Trafność</th>
+            <th className="px-4 py-3 text-right font-medium">Udział</th>
             {showProfit ? (
-              <th className="px-4 py-3 text-right font-medium">Profit</th>
+              <th className="px-4 py-3 text-right font-medium">Zysk</th>
             ) : null}
           </tr>
         </thead>
@@ -85,13 +85,13 @@ function SummaryCards({
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
         <p className="text-xs uppercase tracking-wide text-slate-400">
-          {label} total
+          {label} łącznie
         </p>
         <p className="mt-1 text-2xl font-semibold text-white">{total}</p>
       </div>
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
         <p className="text-xs uppercase tracking-wide text-slate-400">
-          {label} correct
+          {label} trafione
         </p>
         <p className="mt-1 text-2xl font-semibold text-emerald-300">
           {correct}
@@ -99,7 +99,7 @@ function SummaryCards({
       </div>
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
         <p className="text-xs uppercase tracking-wide text-slate-400">
-          {label} accuracy
+          {label} trafność
         </p>
         <p className="mt-1 text-2xl font-semibold text-sky-300">
           {formatPercent(accuracyPct)}
@@ -107,7 +107,7 @@ function SummaryCards({
       </div>
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
         <p className="text-xs uppercase tracking-wide text-slate-400">
-          {label} profit
+          {label} zysk
         </p>
         <p className="mt-1 text-2xl font-semibold text-amber-300">
           {formatProfit(profitTotal)}
@@ -127,10 +127,10 @@ export function AnalyticsCategoryPanel({
 
       <div className="space-y-4">
         <h4 className="text-sm font-medium uppercase tracking-wide text-slate-400">
-          Predictions
+          Predykcje
         </h4>
         <SummaryCards
-          label="Predictions"
+          label="Predykcje"
           total={category.predictions.total}
           correct={category.predictions.correct}
           accuracyPct={category.predictions.accuracy_pct}
@@ -138,11 +138,11 @@ export function AnalyticsCategoryPanel({
         />
         <div className="grid gap-4 lg:grid-cols-2">
           <DistributionChart
-            title="Prediction distribution"
+            title="Rozkład predykcji"
             data={category.predictions.charts.distribution}
           />
           <ComparisonChart
-            title="Prediction outcomes"
+            title="Wyniki predykcji"
             data={category.predictions.charts.comparison}
           />
         </div>
@@ -154,10 +154,10 @@ export function AnalyticsCategoryPanel({
 
       <div className="space-y-4">
         <h4 className="text-sm font-medium uppercase tracking-wide text-slate-400">
-          Bets
+          Zakłady
         </h4>
         <SummaryCards
-          label="Bets"
+          label="Zakłady"
           total={category.bets.total}
           correct={category.bets.correct}
           accuracyPct={category.bets.accuracy_pct}
@@ -165,11 +165,11 @@ export function AnalyticsCategoryPanel({
         />
         <div className="grid gap-4 lg:grid-cols-2">
           <DistributionChart
-            title="Bet distribution"
+            title="Rozkład zakładów"
             data={category.bets.charts.distribution}
           />
           <ComparisonChart
-            title="Bet outcomes"
+            title="Wyniki zakładów"
             data={category.bets.charts.comparison}
           />
         </div>

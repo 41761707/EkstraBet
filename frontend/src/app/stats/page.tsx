@@ -104,12 +104,12 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     const message =
       error instanceof ApiError
         ? error.message
-        : "Unable to load filter options from the API.";
+        : "Nie udało się załadować opcji filtrów z API.";
 
     return (
       <StatusMessage
         variant="error"
-        title="Failed to load statistics filters"
+        title="Nie udało się załadować filtrów statystyk"
         message={message}
       />
     );
@@ -173,17 +173,17 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
             href="/"
             className="text-sm text-sky-300 transition hover:text-sky-200"
           >
-            ← Back to leagues
+            Powrót do lig
           </Link>
-          <h1 className="text-3xl font-bold text-white">Statistics corner</h1>
+          <h1 className="text-3xl font-bold text-white">Kącik statystyczny</h1>
           <p className="text-slate-300">
-            Model effectiveness for predictions and bets with chart-ready
-            analytics from the API.
+            Skuteczność modeli predykcji i zakładów — analityka z API gotowa do
+            wykresów.
           </p>
         </section>
 
         <section className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
-          <h2 className="text-lg font-semibold text-white">Filters</h2>
+          <h2 className="text-lg font-semibold text-white">Filtry</h2>
           <StatsFilters
             leagues={leagues}
             seasons={seasons}
@@ -197,8 +197,8 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
         {categories.length === 0 ? (
           <StatusMessage
             variant="empty"
-            title="No statistics"
-            message="No analytics data matched the selected filters."
+            title="Brak statystyk"
+            message="Brak danych analitycznych dla wybranych filtrów."
           />
         ) : (
           <div className="space-y-10">
@@ -220,6 +220,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
         {analytics.league_characteristics ? (
           <LeagueCharacteristicsPanel
             characteristics={analytics.league_characteristics}
+            labels="pl"
           />
         ) : null}
       </div>
@@ -228,12 +229,12 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     const message =
       error instanceof ApiError
         ? error.message
-        : "Unable to load model analytics from the API.";
+        : "Nie udało się załadować analityki modeli z API.";
 
     return (
       <StatusMessage
         variant="error"
-        title="Failed to load statistics"
+        title="Nie udało się załadować statystyk"
         message={message}
       />
     );

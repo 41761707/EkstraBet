@@ -126,8 +126,8 @@ export default async function TeamPage({
     return (
       <StatusMessage
         variant="empty"
-        title="Season required"
-        message="Open this team from a league page or add season_id and league_id to the URL."
+        title="Wymagany sezon"
+        message="Otwórz tę drużynę ze strony ligi albo dodaj season_id i league_id do adresu URL."
       />
     );
   }
@@ -153,7 +153,7 @@ export default async function TeamPage({
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-sm text-sky-300">
             <Link href="/" className="transition hover:text-sky-200">
-              ← Leagues
+              Ligi
             </Link>
             {leagueId && leagueSlug ? (
               <>
@@ -247,17 +247,20 @@ export default async function TeamPage({
 
           {profile.head_to_head ? (
             <ExpandableSection
-              title={`Head-to-head vs ${profile.head_to_head.opponent_id}`}
+              title={`Bezpośrednie mecze (H2H) vs ${profile.head_to_head.opponent_id}`}
             >
               <div className="space-y-4">
                 <div className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <H2HStat label="Played" value={profile.head_to_head.played} />
                   <H2HStat
-                    label="Record"
-                    value={`${profile.head_to_head.wins}W ${profile.head_to_head.draws}D ${profile.head_to_head.losses}L`}
+                    label="Rozegrane"
+                    value={profile.head_to_head.played}
                   />
                   <H2HStat
-                    label="Goals"
+                    label="Bilans"
+                    value={`${profile.head_to_head.wins}Z ${profile.head_to_head.draws}R ${profile.head_to_head.losses}P`}
+                  />
+                  <H2HStat
+                    label="Bramki"
                     value={`${profile.head_to_head.goals_for}:${profile.head_to_head.goals_conceded}`}
                   />
                   {sportId !== HOCKEY_SPORT_ID ? (
@@ -300,12 +303,12 @@ export default async function TeamPage({
     const message =
       error instanceof ApiError
         ? error.message
-        : "Unable to load team profile from the API.";
+        : "Nie udało się załadować profilu drużyny z API.";
 
     return (
       <StatusMessage
         variant="error"
-        title="Failed to load team"
+        title="Nie udało się załadować drużyny"
         message={message}
       />
     );

@@ -12,14 +12,14 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as LoginBody;
   } catch {
-    return NextResponse.json({ detail: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ detail: "Nieprawidłowa treść żądania" }, { status: 400 });
   }
 
   const username = body.username?.trim() ?? "";
   const password = body.password ?? "";
   if (!username || !password) {
     return NextResponse.json(
-      { detail: "Username and password are required" },
+      { detail: "Nazwa użytkownika i hasło są wymagane" },
       { status: 400 },
     );
   }
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const detail =
       typeof payload.detail === "string"
         ? payload.detail
-        : "Invalid username or password";
+        : "Nieprawidłowa nazwa użytkownika lub hasło";
     return NextResponse.json({ detail }, { status: upstream.status || 401 });
   }
 

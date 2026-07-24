@@ -60,7 +60,7 @@ export default async function MatchPage({
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-sm text-sky-300">
             <Link href="/" className="transition hover:text-sky-200">
-              ← Leagues
+              Ligi
             </Link>
             <span className="text-slate-600">/</span>
             <Link href={leagueHref} className="transition hover:text-sky-200">
@@ -104,12 +104,12 @@ export default async function MatchPage({
     const message =
       error instanceof ApiError
         ? error.message
-        : "Unable to load match details from the API.";
+        : "Nie udało się załadować szczegółów meczu z API.";
 
     return (
       <StatusMessage
         variant="error"
-        title="Failed to load match"
+        title="Nie udało się załadować meczu"
         message={message}
       />
     );

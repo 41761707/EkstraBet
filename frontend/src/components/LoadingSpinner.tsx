@@ -3,7 +3,7 @@ interface LoadingSpinnerProps {
 }
 
 export function LoadingSpinner({
-  label = "Loading data...",
+  label = "Ładowanie danych...",
 }: LoadingSpinnerProps) {
   return (
     <div

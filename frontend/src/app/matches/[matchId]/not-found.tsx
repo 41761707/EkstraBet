@@ -6,14 +6,14 @@ export default function MatchNotFound() {
     <div className="space-y-4">
       <StatusMessage
         variant="empty"
-        title="Match not found"
-        message="The requested match does not exist or is not available."
+        title="Nie znaleziono meczu"
+        message="Żądany mecz nie istnieje lub jest niedostępny."
       />
       <Link
         href="/"
         className="inline-block rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
       >
-        Back to leagues
+        Powrót do lig
       </Link>
     </div>
   );

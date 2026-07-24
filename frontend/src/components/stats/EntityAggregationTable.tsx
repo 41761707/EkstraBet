@@ -27,17 +27,17 @@ export function EntityAggregationTable({
         <table className="min-w-full text-sm">
           <thead className="bg-slate-900/80 text-left text-slate-400">
             <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Nazwa</th>
               {metric === "accuracy" ? (
                 <>
                   <th className="px-4 py-3 text-right font-medium">
-                    Predictions
+                    Predykcje
                   </th>
-                  <th className="px-4 py-3 text-right font-medium">Correct</th>
-                  <th className="px-4 py-3 text-right font-medium">Accuracy</th>
+                  <th className="px-4 py-3 text-right font-medium">Trafione</th>
+                  <th className="px-4 py-3 text-right font-medium">Trafność</th>
                 </>
               ) : (
-                <th className="px-4 py-3 text-right font-medium">Profit</th>
+                <th className="px-4 py-3 text-right font-medium">Zysk</th>
               )}
             </tr>
           </thead>
@@ -82,6 +82,11 @@ const categoryLabels: Record<string, string> = {
   result: "1X2",
 };
 
+const metricLabels: Record<"accuracy" | "profit", string> = {
+  accuracy: "Trafność",
+  profit: "Zysk",
+};
+
 export function AggregationsSection({
   byTeam,
   byLeague,
@@ -95,7 +100,7 @@ export function AggregationsSection({
 
   return (
     <section className="space-y-8">
-      <h2 className="text-2xl font-semibold text-white">Aggregations</h2>
+      <h2 className="text-2xl font-semibold text-white">Agregacje</h2>
 
       {byTeam ? (
         <div className="space-y-6">
@@ -107,7 +112,7 @@ export function AggregationsSection({
             return (
               <EntityAggregationTable
                 key={`team-${key}`}
-                title={`Team accuracy — ${categoryLabels[key]}`}
+                title={`Trafność drużyn — ${categoryLabels[key]}`}
                 rows={rows}
                 metric="accuracy"
               />
@@ -126,7 +131,7 @@ export function AggregationsSection({
             return (
               <EntityAggregationTable
                 key={`league-${key}`}
-                title={`League ${byLeague.metric} — ${categoryLabels[key]}`}
+                title={`${metricLabels[byLeague.metric]} lig — ${categoryLabels[key]}`}
                 rows={rows}
                 metric={byLeague.metric}
               />

@@ -86,7 +86,7 @@ export function BttsMatchChart({
       <div>
         <h4 className="text-sm font-semibold text-white">{chartTitle}</h4>
         <p className="mt-1 text-xs text-slate-400">
-          Liczba BTTS: {bttsCount} · Hitrate BTTS: {formatPercent(hitRate)}
+          Liczba BTTS: {bttsCount} · Skuteczność BTTS: {formatPercent(hitRate)}
         </p>
       </div>
 

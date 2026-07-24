@@ -7,14 +7,14 @@ interface TeamSplitStatsTableProps {
 }
 
 const columns = [
-  { key: "played", label: "MP" },
-  { key: "wins", label: "W" },
-  { key: "draws", label: "D" },
-  { key: "losses", label: "L" },
-  { key: "goals_for", label: "GF" },
-  { key: "goals_conceded", label: "GA" },
-  { key: "goal_difference", label: "GD" },
-  { key: "points", label: "Pts" },
+  { key: "played", label: "M" },
+  { key: "wins", label: "Z" },
+  { key: "draws", label: "R" },
+  { key: "losses", label: "P" },
+  { key: "goals_for", label: "BZ" },
+  { key: "goals_conceded", label: "BS" },
+  { key: "goal_difference", label: "RB" },
+  { key: "points", label: "Pkt" },
 ] as const;
 
 export function TeamSplitStatsTable({
@@ -23,9 +23,9 @@ export function TeamSplitStatsTable({
   away,
 }: TeamSplitStatsTableProps) {
   const rows = [
-    { label: "Overall", stats: overall },
-    { label: "Home", stats: home },
-    { label: "Away", stats: away },
+    { label: "Ogółem", stats: overall },
+    { label: "U siebie", stats: home },
+    { label: "Na wyjeździe", stats: away },
   ];
 
   return (
@@ -33,7 +33,7 @@ export function TeamSplitStatsTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Scope</th>
+            <th className="px-4 py-3 font-medium">Zakres</th>
             {columns.map((column) => (
               <th
                 key={column.key}
