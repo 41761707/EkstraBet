@@ -5,7 +5,7 @@ import {
   formatOdds,
   formatPercent,
 } from "@/lib/format";
-import type { BetRecommendation } from "@/types/api";
+import type { BetRecommendation, SettlementStatus } from "@/types/api";
 
 interface BetRecommendationsTableProps {
   recommendations: BetRecommendation[];
@@ -16,6 +16,12 @@ const settlementStyles: Record<string, string> = {
   pending: "text-amber-300",
   won: "text-emerald-300",
   lost: "text-red-300",
+};
+
+const settlementLabels: Record<SettlementStatus, string> = {
+  pending: "Oczekujący",
+  won: "Wygrany",
+  lost: "Przegrany",
 };
 
 export function BetRecommendationsTable({
@@ -31,14 +37,14 @@ export function BetRecommendationsTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Date</th>
-            <th className="px-4 py-3 font-medium">League</th>
-            <th className="px-4 py-3 font-medium">Match</th>
-            <th className="px-4 py-3 font-medium">Event</th>
+            <th className="px-4 py-3 font-medium">Data</th>
+            <th className="px-4 py-3 font-medium">Liga</th>
+            <th className="px-4 py-3 font-medium">Mecz</th>
+            <th className="px-4 py-3 font-medium">Wydarzenie</th>
             <th className="px-4 py-3 font-medium">Model</th>
-            <th className="px-4 py-3 font-medium">Bookmaker</th>
-            <th className="px-4 py-3 text-right font-medium">Odds</th>
-            <th className="px-4 py-3 text-right font-medium">Prob.</th>
+            <th className="px-4 py-3 font-medium">Bukmacher</th>
+            <th className="px-4 py-3 text-right font-medium">Kurs</th>
+            <th className="px-4 py-3 text-right font-medium">Prawd.</th>
             <th className="px-4 py-3 text-right font-medium">EV</th>
             <th className="px-4 py-3 font-medium">Status</th>
           </tr>
@@ -90,9 +96,10 @@ export function BetRecommendationsTable({
                   {formatEv(evValue)}
                 </td>
                 <td
-                  className={`px-4 py-3 capitalize ${settlementStyles[bet.settlement_status] ?? "text-slate-300"}`}
+                  className={`px-4 py-3 ${settlementStyles[bet.settlement_status] ?? "text-slate-300"}`}
                 >
-                  {bet.settlement_status}
+                  {settlementLabels[bet.settlement_status] ??
+                    bet.settlement_status}
                 </td>
               </tr>
             );

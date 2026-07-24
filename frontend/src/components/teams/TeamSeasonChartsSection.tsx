@@ -132,7 +132,7 @@ export function TeamSeasonChartsSection({
                 className="w-full accent-sky-400"
               />
               <p className="text-xs text-slate-500">
-                Próg dla wykresu bramek i hitrate Over.
+                Próg dla wykresu bramek i skuteczności Over.
               </p>
             </label>
 
@@ -275,8 +275,8 @@ export function TeamSeasonChartsSection({
         {displayedRecentMatches.length === 0 ? (
           <StatusMessage
             variant="empty"
-            title="No recent matches"
-            message="No played matches found for the selected lookback."
+            title="Brak ostatnich meczów"
+            message="Nie znaleziono rozegranych meczów dla wybranego zakresu."
           />
         ) : (
           <div className="grid gap-3">

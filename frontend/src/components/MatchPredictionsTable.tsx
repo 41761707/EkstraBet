@@ -17,10 +17,12 @@ export function MatchPredictionsTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Event</th>
+            <th className="px-4 py-3 font-medium">Wydarzenie</th>
             <th className="px-4 py-3 font-medium">Model</th>
-            <th className="px-4 py-3 text-center font-medium">Probability</th>
-            <th className="px-4 py-3 text-center font-medium">Outcome</th>
+            <th className="px-4 py-3 text-center font-medium">
+              Prawdopodobieństwo
+            </th>
+            <th className="px-4 py-3 text-center font-medium">Wynik</th>
           </tr>
         </thead>
         <tbody>
@@ -47,8 +49,8 @@ export function MatchPredictionsTable({
                 {prediction.outcome === null
                   ? "—"
                   : prediction.outcome === 1
-                    ? "Hit"
-                    : "Miss"}
+                    ? "Trafiony"
+                    : "Chybiony"}
               </td>
             </tr>
           ))}

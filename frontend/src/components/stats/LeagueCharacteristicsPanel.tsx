@@ -110,7 +110,7 @@ function BucketList({
 export function LeagueCharacteristicsPanel({
   characteristics,
   title,
-  labels = "en",
+  labels = "pl",
 }: LeagueCharacteristicsPanelProps) {
   const isPolish = labels === "pl";
 

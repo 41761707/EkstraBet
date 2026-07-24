@@ -98,8 +98,8 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
             {match.final_predictions.length === 0 ? (
               <StatusMessage
                 variant="empty"
-                title="No predictions"
-                message="Final predictions are not available for this match."
+                title="Brak predykcji"
+                message="Predykcje końcowe nie są dostępne dla tego meczu."
               />
             ) : (
               <MatchPredictionsTable predictions={match.final_predictions} />
@@ -110,8 +110,8 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
             {match.odds.length === 0 ? (
               <StatusMessage
                 variant="empty"
-                title="No odds"
-                message="Bookmaker odds are not available for this match."
+                title="Brak kursów"
+                message="Kursy bukmacherskie nie są dostępne dla tego meczu."
               />
             ) : (
               <MatchOddsGroupedTables

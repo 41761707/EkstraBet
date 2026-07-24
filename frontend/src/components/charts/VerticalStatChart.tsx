@@ -97,7 +97,8 @@ export function VerticalStatChart({
       <div>
         <h4 className="text-sm font-semibold text-white">{chartTitle}</h4>
         <p className="mt-1 text-xs text-slate-400">
-          Średnia: {average.toFixed(1)} · Hitrate O {thresholdLine.toFixed(1)}:{" "}
+          Średnia: {average.toFixed(1)} · Skuteczność O{" "}
+          {thresholdLine.toFixed(1)}:{" "}
           {formatPercent(hitRate)}
         </p>
       </div>

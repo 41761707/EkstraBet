@@ -66,8 +66,6 @@ def fetch_upcoming_matches(
         date_to: date | datetime | None = None,
         league_id: int | None = None) -> pd.DataFrame:
     """Fetch scheduled matches from a date, optionally by league and end date."""
-    if date_from is None:
-        date_from = datetime.now()
     filters = [
         "m.sport_id = %s",
         "m.game_date >= %s",

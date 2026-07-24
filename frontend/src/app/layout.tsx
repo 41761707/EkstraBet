@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "EkstraBet",
-  description: "Sports analytics and betting assistant powered by FastAPI",
+  description: "Asystent analityki sportowej",
 };
 
 export default function RootLayout({

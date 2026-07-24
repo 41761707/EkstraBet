@@ -12,7 +12,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
     <div className="space-y-4">
       <StatusMessage
         variant="error"
-        title="Something went wrong"
+        title="Coś poszło nie tak"
         message={error.message}
       />
       <button
@@ -20,7 +20,7 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
         onClick={reset}
         className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
       >
-        Try again
+        Spróbuj ponownie
       </button>
     </div>
   );

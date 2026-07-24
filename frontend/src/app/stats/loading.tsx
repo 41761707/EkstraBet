@@ -1,5 +1,5 @@
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function StatsLoading() {
-  return <LoadingSpinner label="Loading model statistics..." />;
+  return <LoadingSpinner label="Ładowanie statystyk modeli..." />;
 }

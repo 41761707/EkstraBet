@@ -32,7 +32,7 @@ export function MultiSelectCheckboxGroup({
         className={`overflow-y-auto rounded-lg border border-slate-700/80 bg-slate-900/50 p-3 ${maxHeightClassName}`}
       >
         {options.length === 0 ? (
-          <p className="text-sm text-slate-400">No options available.</p>
+          <p className="text-sm text-slate-400">Brak dostępnych opcji.</p>
         ) : (
           <div className="space-y-2">
             {options.map((option) => {

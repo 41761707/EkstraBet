@@ -66,7 +66,7 @@ export function ComparisonChart({ data, title }: ComparisonChartProps) {
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span>{label}</span>
                 <span>
-                  {correct} / {incorrect} (ok/err)
+                  {correct} / {incorrect} (trafione/chybione)
                 </span>
               </div>
               <div className="flex h-3 overflow-hidden rounded-full bg-slate-800">
@@ -75,14 +75,14 @@ export function ComparisonChart({ data, title }: ComparisonChartProps) {
                     width: `${correctWidth}%`,
                     backgroundColor: CHART_COLOR_POSITIVE,
                   }}
-                  title={`Correct: ${correct}`}
+                  title={`Trafione: ${correct}`}
                 />
                 <div
                   style={{
                     width: `${incorrectWidth}%`,
                     backgroundColor: CHART_COLOR_NEGATIVE,
                   }}
-                  title={`Incorrect: ${incorrect}`}
+                  title={`Chybione: ${incorrect}`}
                 />
               </div>
             </div>
@@ -95,14 +95,14 @@ export function ComparisonChart({ data, title }: ComparisonChartProps) {
             className="inline-block h-2 w-2 rounded-full"
             style={{ backgroundColor: CHART_COLOR_POSITIVE }}
           />
-          Correct
+          Trafione
         </span>
         <span className="flex items-center gap-1">
           <span
             className="inline-block h-2 w-2 rounded-full"
             style={{ backgroundColor: CHART_COLOR_NEGATIVE }}
           />
-          Incorrect
+          Chybione
         </span>
       </div>
     </div>

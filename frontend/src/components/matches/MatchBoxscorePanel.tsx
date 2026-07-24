@@ -22,12 +22,12 @@ interface HighlightStat {
 const HIGHLIGHT_STATS: HighlightStat[] = [
   { key: "goals", label: "G", accent: true },
   { key: "assists", label: "A", accent: true },
-  { key: "shots", label: "Strz" },
+  { key: "shots", label: "Shots" },
   { key: "shots_on_target", label: "SoT" },
-  { key: "passes", label: "Pod" },
-  { key: "tackles", label: "Wśl" },
-  { key: "yellow_cards", label: "ŻK" },
-  { key: "red_cards", label: "CK" },
+  { key: "passes", label: "Passes" },
+  { key: "tackles", label: "Tackles" },
+  { key: "yellow_cards", label: "Yellow Cards" },
+  { key: "red_cards", label: "Red Cards" },
 ];
 
 function formatStatValue(value: number | null | undefined): string {

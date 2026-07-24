@@ -27,13 +27,13 @@ export function LeagueCard({ league }: LeagueCardProps) {
         </div>
         {league.active ? (
           <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">
-            Active
+            Aktywna
           </span>
         ) : null}
       </div>
       {league.last_update ? (
         <p className="mt-3 text-xs text-slate-500">
-          Updated: {league.last_update}
+          Aktualizacja: {league.last_update}
         </p>
       ) : null}
     </Link>

@@ -84,12 +84,12 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
     const message =
       error instanceof ApiError
         ? error.message
-        : "Unable to load filter options from the API.";
+        : "Nie udało się załadować filtrów bukmacherskich z API.";
 
     return (
       <StatusMessage
         variant="error"
-        title="Failed to load betting filters"
+        title="Nie udało się załadować filtrów bukmacherskich"
         message={message}
       />
     );
@@ -119,17 +119,16 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
             href="/"
             className="text-sm text-sky-300 transition hover:text-sky-200"
           >
-            ← Back to leagues
+            ← Powrót do lig
           </Link>
-          <h1 className="text-3xl font-bold text-white">Betting corner</h1>
+          <h1 className="text-3xl font-bold text-white">Kącik Bukmacherski</h1>
           <p className="text-slate-300">
-            Bet recommendations with expected value, filtered via URL query
-            parameters.
+            Rekomendowane zakłady na dowolne ligi i zakłady 
           </p>
         </section>
 
         <section className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
-          <h2 className="text-lg font-semibold text-white">Filters</h2>
+          <h2 className="text-lg font-semibold text-white">Filtry</h2>
           <BetsFilters
             leagues={leagues}
             events={events}
@@ -141,18 +140,18 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
         <section className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-semibold text-white">
-              Recommendations
+              Rekomendacje
             </h2>
             <span className="text-sm text-slate-400">
-              {response.total_count} bets
+              {response.total_count} zakładów
             </span>
           </div>
 
           {response.recommendations.length === 0 ? (
             <StatusMessage
               variant="empty"
-              title="No recommendations"
-              message="Try adjusting filters or selecting a different match date."
+              title="Nie ma rekomendacji"
+              message="Spróbuj dopasować filtry lub wybrać inną datę meczu."
             />
           ) : (
             <>
@@ -176,12 +175,12 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
     const message =
       error instanceof ApiError
         ? error.message
-        : "Unable to load bet recommendations from the API.";
+        : "Nie udało się załadować rekomendacji bukmacherskich z API.";
 
     return (
       <StatusMessage
         variant="error"
-        title="Failed to load recommendations"
+        title="Nie udało się załadować rekomendacji bukmacherskich"
         message={message}
       />
     );
