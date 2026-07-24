@@ -1180,7 +1180,7 @@ Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_playe
 | *MATCH_ID* | INT    | INT>0  | Klucz obcy, powiązanie z tabelą *matches* | NULL                     |
 | *EVENT_ID* | INT    | INT>0  | Klucz obcy, powiązanie z tabelą *events*  | NULL                     |
 | *MODEL_ID* | INT    | INT>0  | Klucz obcy, powiązanie z tabelą *models*  | NULL                     |
-| VALUE      | FLOAT  | [0,1]  | Prawdopodobieństwo danego zdarzenia       | NULL                     |
+| VALUE      | FLOAT  | [0,100] | Prawdopodobieństwo zdarzenia w procentach (pipeline zapisuje przez `_db_percentage`; API konwertuje do [0,1]) | NULL                     |
 
 
 **Ograniczenia/Indeksy:**

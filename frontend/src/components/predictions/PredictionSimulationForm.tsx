@@ -2,6 +2,7 @@
 
 import { StatusMessage } from "@/components/StatusMessage";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
+import { teamChartLabel } from "@/components/predictions/predictionChartModel";
 import { usePredictionSimulation } from "@/components/predictions/usePredictionSimulation";
 import type { TeamSummary } from "@/types/api";
 
@@ -33,6 +34,14 @@ function TeamSelect({ label, value, teams, onChange }: TeamSelectProps) {
       </select>
     </label>
   );
+}
+
+function findTeamLabel(teams: TeamSummary[], teamId: number): string {
+  const team = teams.find((item) => item.id === teamId);
+  if (!team) {
+    return `Drużyna ${teamId}`;
+  }
+  return teamChartLabel(team);
 }
 
 export function PredictionSimulationForm({
@@ -111,7 +120,11 @@ export function PredictionSimulationForm({
       ) : null}
 
       {simulation.result ? (
-        <PredictionSimulationResult result={simulation.result} />
+        <PredictionSimulationResult
+          result={simulation.result}
+          homeTeamLabel={findTeamLabel(teams, simulation.homeTeamId)}
+          awayTeamLabel={findTeamLabel(teams, simulation.awayTeamId)}
+        />
       ) : null}
     </div>
   );

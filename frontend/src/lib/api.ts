@@ -398,6 +398,7 @@ export function normalizeMatchDetails(payload: MatchDetails): MatchDetails {
   return {
     ...payload,
     final_predictions: payload.final_predictions ?? [],
+    prediction_analysis: payload.prediction_analysis ?? null,
     odds: payload.odds ?? [],
     has_player_stats: payload.has_player_stats ?? false,
     head_to_head:

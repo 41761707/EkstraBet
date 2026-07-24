@@ -115,3 +115,45 @@ def test_future_predictor_rejects_empty_config_set() -> None:
         goals_config=None)
     with pytest.raises(ValueError, match="At least one"):
         _future_predictor(args)
+
+
+def test_run_predict_batch_skips_insufficient_history_and_continues(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.pipeline.core import cli as cli_module
+
+    good = MatchupInput(
+        home_team_id=10,
+        away_team_id=20,
+        league_id=19,
+        as_of_date=date(2026, 7, 24),
+        match_id=101)
+    bad = MatchupInput(
+        home_team_id=30,
+        away_team_id=40,
+        league_id=19,
+        as_of_date=date(2026, 7, 24),
+        match_id=102)
+    predictor = MagicMock()
+    predictor.predict_pair.side_effect = [
+        ValueError("Insufficient match history for team id(s): 30"),
+        {"btts": BttsPrediction(0.55, 0.45)}
+    ]
+    monkeypatch.setattr(
+        cli_module,
+        "_load_batch_matchups",
+        lambda _args: [bad.model_dump(), good.model_dump()])
+    monkeypatch.setattr(
+        cli_module, "_future_predictor", lambda _args: predictor)
+
+    payload = cli_module.run_predict_batch(SimpleNamespace(
+        write_db=False,
+        select_finals=False))
+
+    assert payload["processed"] == 2
+    assert payload["predicted"] == 1
+    assert payload["skipped"] == 1
+    assert payload["results"][0]["skipped"] is True
+    assert "30" in payload["results"][0]["error"]
+    assert payload["results"][1]["skipped"] is False
+    assert payload["results"][1]["predictions"]["btts"]["p_yes"] == pytest.approx(
+        0.55)

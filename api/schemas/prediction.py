@@ -27,7 +27,10 @@ class PredictionItem(BaseModel):
         description="Primary event family mapping")
     model_id: int = Field(..., description="Model ID")
     model_name: str | None = Field(None, description="Model name")
-    value: float = Field(..., description="Predicted probability", ge=0.0)
+    value: float = Field(
+        ...,
+        description="Predicted probability in 0-1 range",
+        ge=0.0)
 
 
 class PredictionSearchResponse(BaseModel):
@@ -55,7 +58,7 @@ class TeamPredictionItem(BaseModel):
     model_name: str | None = Field(None, description="Model name")
     value: float | None = Field(
         None,
-        description="Predicted probability when available")
+        description="Predicted probability in 0-1 range when available")
     outcome: int | None = Field(
         None,
         description="Prediction outcome (0/1) when evaluated")
@@ -85,7 +88,7 @@ class MatchPredictionItem(BaseModel):
     model_name: str | None = Field(None, description="Model name")
     value: float | None = Field(
         None,
-        description="Predicted probability when available")
+        description="Predicted probability in 0-1 range when available")
     outcome: int | None = Field(
         None,
         description="Prediction outcome (0/1) when evaluated")

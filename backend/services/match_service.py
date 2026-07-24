@@ -362,6 +362,9 @@ def get_match_details(
     final_predictions = prediction_service.get_match_final_predictions(
         match_id,
         model_ids=model_ids)
+    prediction_analysis = prediction_service.get_match_prediction_analysis(
+        match_id,
+        model_ids=model_ids)
     odds = odds_service.get_match_odds_items(match_id)
 
     home_team_id = int(row["home_id"])
@@ -415,6 +418,7 @@ def get_match_details(
         **summary,
         "sport_id": sport_id,
         "final_predictions": final_predictions,
+        "prediction_analysis": prediction_analysis,
         "odds": odds,
         "stats": football_stats,
         "hockey_stats": hockey_stats,
