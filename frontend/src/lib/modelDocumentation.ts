@@ -59,7 +59,7 @@ const SHARED_SEQUENCE_INPUTS = [
 ];
 
 const SHARED_SEQUENCE_FEATURE_ENGINEERING = [
-  "Okno historyczne window_size=8 dla obu drużyn (FutureEventsFeatureBuilder)",
+  "Okno historyczne - pobieranie danych z ostatnich 8 spotkań",
   "Ratingi Elo, GAP (atak/obrona) oraz Czech przed meczem",
   "Statystyki meczowe w sekwencji: gole, xG, strzały, posiadanie, BTTS, suma goli",
   "Cechy statyczne: różnice Elo, dopasowanie atak–obrona, średnie ligowe, H2H, rest days, league tier",

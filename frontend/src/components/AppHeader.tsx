@@ -20,7 +20,7 @@ export async function AppHeader() {
             EkstraBet
           </span>
         </Link>
-        <nav className="flex items-center gap-1 text-sm text-slate-300">
+        <nav className="flex max-w-full flex-wrap items-center justify-end gap-1 text-sm text-slate-300">
           <Link
             href="/"
             className="rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white"
@@ -50,6 +50,12 @@ export async function AppHeader() {
             className="rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white"
           >
             Symulacja
+          </Link>
+          <Link
+            href="/o-modelach"
+            className="rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white"
+          >
+            O modelach
           </Link>
           <Link
             href="/chat"

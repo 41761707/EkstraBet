@@ -94,8 +94,8 @@ export default async function AboutModelsPage() {
         <p className="max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">
           Poniżej znajdziesz opis pięciu aktualnych modeli: jak powstają cechy,
           jak działa inferencja, co oznaczają wyjścia i jakie są ograniczenia.
-          Metadane dostępności pochodzą z API; treść algorytmów jest
-          wersjonowaną dokumentacją frontendu.
+          Informacje o dostępności modeli pochodzą z API, treść algorytmów jest
+          wersjonowaną dokumentacją.
         </p>
       </header>
 

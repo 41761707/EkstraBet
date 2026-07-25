@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { HomeSection } from "@/components/home/HomeSection";
 
@@ -32,11 +33,26 @@ const roadmapItems = [
   "Utworzenie profili użytkownika do personalizacji filtrów",
 ];
 
-const faqItems = [
+const faqItems: { question: string; answer: ReactNode }[] = [
   {
     question: "Jak działają modele predykcyjne w Ekstrabet?",
-    answer:
-      "Nasze modele wykorzystują uczenie maszynowe do analizy historycznych danych meczowych, statystyk drużyn i zawodników. Algorytmy analizują wzorce w danych i na tej podstawie przewidują prawdopodobieństwa różnych wyników meczów. Więcej informacji zostanie opublikowanych w specjalnej sekcji „Działanie modeli”.",
+    answer: (
+      <>
+        Nasze modele wykorzystują uczenie maszynowe do analizy historycznych
+        danych meczowych, statystyk drużyn i zawodników. Algorytmy analizują
+        wzorce w danych i na tej podstawie przewidują prawdopodobieństwa
+        różnych wyników meczów. Szczegółowy opis pięciu aktualnych modeli,
+        cech, ograniczeń oraz interaktywny przykład rozliczenia znajdziesz na
+        stronie{" "}
+        <Link
+          href="/o-modelach"
+          className="text-sky-300 transition hover:text-sky-200"
+        >
+          O modelach
+        </Link>
+        .
+      </>
+    ),
   },
   {
     question: "Ile lig i dyscyplin sportowych obsługuje system?",
