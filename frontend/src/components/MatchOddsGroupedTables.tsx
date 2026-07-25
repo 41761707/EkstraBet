@@ -1,3 +1,15 @@
+"use client";
+
+import { useState } from "react";
+
+import {
+  nextOddsSortState,
+  ODDS_SORT_BOOKMAKER_KEY,
+  resolveOddsSortValue,
+  sortOddsRows,
+  type OddsColumn,
+  type OddsSortState,
+} from "@/components/matchOddsTableModel";
 import { formatOdds } from "@/lib/format";
 import type { MatchPredictionItem, OddsItem } from "@/types/api";
 
@@ -28,17 +40,6 @@ const EVENT_IDS = {
   bttsNo: 172,
 } as const;
 
-function predictionOdds(
-  predictions: MatchPredictionItem[],
-  eventId: number,
-): number | null {
-  const prediction = predictions.find((item) => item.event_id === eventId);
-  if (!prediction || prediction.value === null || prediction.value <= 0) {
-    return null;
-  }
-  return Number((1 / prediction.value).toFixed(2));
-}
-
 function buildOddsLookup(odds: OddsItem[]): Map<string, number> {
   const lookup = new Map<string, number>();
   for (const item of odds) {
@@ -54,10 +55,68 @@ function formatCell(value: number | null | undefined): string {
   return formatOdds(value);
 }
 
+function ariaSortValue(
+  sort: OddsSortState | null,
+  key: string,
+): "ascending" | "descending" | "none" {
+  if (sort === null || sort.key !== key) {
+    return "none";
+  }
+  return sort.direction === "asc" ? "ascending" : "descending";
+}
+
+function sortIndicator(sort: OddsSortState | null, key: string): string {
+  if (sort === null || sort.key !== key) {
+    return "";
+  }
+  return sort.direction === "asc" ? "↑" : "↓";
+}
+
+interface SortableHeaderProps {
+  label: string;
+  sortKey: string;
+  sort: OddsSortState | null;
+  align?: "left" | "center";
+  onSort: (key: string) => void;
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  align = "left",
+  onSort,
+}: SortableHeaderProps) {
+  const indicator = sortIndicator(sort, sortKey);
+  const isActive = sort !== null && sort.key === sortKey;
+
+  return (
+    <th
+      className={`px-4 py-3 font-medium ${align === "center" ? "text-center" : "text-left"}`}
+      aria-sort={ariaSortValue(sort, sortKey)}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
+          isActive ? "text-slate-200" : "text-slate-400"
+        } ${align === "center" ? "justify-center" : ""}`}
+      >
+        <span>{label}</span>
+        {indicator ? (
+          <span aria-hidden="true" className="text-sky-300">
+            {indicator}
+          </span>
+        ) : null}
+      </button>
+    </th>
+  );
+}
+
 interface OddsTableProps {
   title: string;
   bookmakers: readonly string[];
-  columns: { key: string; label: string; eventId: number }[];
+  columns: OddsColumn[];
   lookup: Map<string, number>;
   predictions: MatchPredictionItem[];
 }
@@ -69,7 +128,16 @@ function OddsTable({
   lookup,
   predictions,
 }: OddsTableProps) {
-  const rows = ["USTALONE", ...bookmakers];
+  const [sort, setSort] = useState<OddsSortState | null>(null);
+  const baseRows = ["USTALONE", ...bookmakers];
+  const rows =
+    sort === null
+      ? baseRows
+      : sortOddsRows(baseRows, sort, columns, lookup, predictions);
+
+  const handleSort = (key: string) => {
+    setSort((current) => nextOddsSortState(current, key));
+  };
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-700/80">
@@ -79,14 +147,21 @@ function OddsTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/60 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Bukmacher</th>
+            <SortableHeader
+              label="Bukmacher"
+              sortKey={ODDS_SORT_BOOKMAKER_KEY}
+              sort={sort}
+              onSort={handleSort}
+            />
             {columns.map((column) => (
-              <th
+              <SortableHeader
                 key={column.key}
-                className="px-4 py-3 text-center font-medium"
-              >
-                {column.label}
-              </th>
+                label={column.label}
+                sortKey={column.key}
+                sort={sort}
+                align="center"
+                onSort={handleSort}
+              />
             ))}
           </tr>
         </thead>
@@ -98,10 +173,12 @@ function OddsTable({
             >
               <td className="px-4 py-3 font-medium text-white">{bookmaker}</td>
               {columns.map((column) => {
-                const value =
-                  bookmaker === "USTALONE"
-                    ? predictionOdds(predictions, column.eventId)
-                    : lookup.get(`${bookmaker}:${column.eventId}`) ?? null;
+                const value = resolveOddsSortValue(
+                  bookmaker,
+                  column.eventId,
+                  lookup,
+                  predictions,
+                );
                 return (
                   <td
                     key={column.key}

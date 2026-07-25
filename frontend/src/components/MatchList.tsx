@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MatchScoreDisplay } from "@/components/MatchScoreDisplay";
-import { formatMatchDate } from "@/lib/format";
+import { formatMatchDateTime } from "@/lib/format";
 import type { MatchSummary } from "@/types/api";
 
 interface MatchListProps {
@@ -41,7 +41,7 @@ export function MatchList({
       <table className="min-w-full table-fixed text-sm">
         <thead className="bg-slate-900/80 text-center text-slate-400">
           <tr>
-            <th className="w-[12%] px-4 py-3 font-medium">Data</th>
+            <th className="w-[16%] px-4 py-3 font-medium">Data</th>
             {hideRoundColumn ? null : (
               <th className="w-[10%] px-4 py-3 font-medium">Kolejka</th>
             )}
@@ -61,7 +61,7 @@ export function MatchList({
                   href={`/matches/${match.id}`}
                   className="transition hover:text-sky-200"
                 >
-                  {formatMatchDate(match.game_date)}
+                  {formatMatchDateTime(match.game_date)}
                 </Link>
               </td>
               {hideRoundColumn ? null : (
