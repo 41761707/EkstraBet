@@ -6,6 +6,7 @@ import { MatchBoxscorePanel } from "@/components/matches/MatchBoxscorePanel";
 import { HockeyMatchStatsPanel } from "@/components/matches/HockeyMatchStatsPanel";
 import { MatchPrematchStatsSection } from "@/components/matches/MatchPrematchStatsSection";
 import { MatchOddsGroupedTables } from "@/components/MatchOddsGroupedTables";
+import { buildUstaloneMarketPredictions } from "@/components/matchOddsTableModel";
 import { MatchPredictionsTable } from "@/components/MatchPredictionsTable";
 import { MatchStatsPanel } from "@/components/MatchStatsPanel";
 import { PlayedBetterAssessmentPanel } from "@/components/matches/PlayedBetterAssessmentPanel";
@@ -116,7 +117,10 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
             ) : (
               <MatchOddsGroupedTables
                 odds={match.odds}
-                predictions={match.final_predictions}
+                predictions={buildUstaloneMarketPredictions(
+                  match.prediction_analysis,
+                  match.final_predictions,
+                )}
               />
             )}
           </ExpandableSection>

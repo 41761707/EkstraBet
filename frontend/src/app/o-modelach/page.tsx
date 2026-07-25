@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { ModelsCatalog } from "@/components/models/ModelsCatalog";
 import { PredictionOutcomeExample } from "@/components/models/PredictionOutcomeExample";
+import { RatingsGlossary } from "@/components/models/RatingsGlossary";
 import { StatusMessage } from "@/components/StatusMessage";
 import { getModelDetails, getModels } from "@/lib/api";
 import {
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
   title: "O modelach | EkstraBet",
   description:
     "Opis modeli predykcyjnych EkstraBet: dane wejściowe, algorytmy, " +
-    "interpretacja wyników, ograniczenia oraz interaktywny przykład rozliczenia.",
+    "interpretacja wyników, ograniczenia, kluczowe pojęcia oraz przykład " +
+    "predykcji przedmeczowej.",
 };
 
 function detailsFromSummary(summary: ModelSummary): ModelDetailsResponse {
@@ -92,10 +94,13 @@ export default async function AboutModelsPage() {
       <header className="space-y-3">
         <h1 className="text-3xl font-bold text-white">O modelach</h1>
         <p className="max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">
-          Poniżej znajdziesz opis pięciu aktualnych modeli: jak powstają cechy,
-          jak działa inferencja, co oznaczają wyjścia i jakie są ograniczenia.
-          Informacje o dostępności modeli pochodzą z API, treść algorytmów jest
-          wersjonowaną dokumentacją.
+          Podstrona przedstawia opis aktualnych modeli: jak powstają cechy,
+          jak działa inferencja, co oznaczają wyjścia, jakie są ograniczenia
+          oraz tłumaczy kluczowe pojęcia (LSTM, logit, Softmax, Elo, GAP,
+          Czech). Informacje o dostępności pochodzą bezpośrednio z API.
+        </p>
+        <p>
+        UWAGA: mechanizmy predykcyjne mogą ulec zmianie w przyszłości, przy weryfikowaniu opisu należy zapoznać się z wersją algorytmu!
         </p>
       </header>
 
@@ -107,6 +112,7 @@ export default async function AboutModelsPage() {
         />
       ) : null}
 
+      <RatingsGlossary />
       <ModelsCatalog models={models} />
       <PredictionOutcomeExample />
     </div>

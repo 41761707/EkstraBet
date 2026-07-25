@@ -41,8 +41,8 @@ const faqItems: { question: string; answer: ReactNode }[] = [
         Nasze modele wykorzystują uczenie maszynowe do analizy historycznych
         danych meczowych, statystyk drużyn i zawodników. Algorytmy analizują
         wzorce w danych i na tej podstawie przewidują prawdopodobieństwa
-        różnych wyników meczów. Szczegółowy opis pięciu aktualnych modeli,
-        cech, ograniczeń oraz interaktywny przykład rozliczenia znajdziesz na
+        różnych wyników meczów. Szczegółowy opis aktualnych modeli, cech,
+        ograniczeń, kluczowych pojęć oraz przykład predykcji znajdziesz na
         stronie{" "}
         <Link
           href="/o-modelach"

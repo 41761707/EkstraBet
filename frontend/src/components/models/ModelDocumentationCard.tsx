@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ExpandableSection } from "@/components/ExpandableSection";
+import { MathText } from "@/components/models/MathText";
 import { formatProbability } from "@/lib/format";
 import type { DocumentedModelView } from "@/lib/modelDocumentation";
 
@@ -13,7 +14,7 @@ function BulletList({ items }: { items: string[] }) {
   return (
     <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
       {items.map((item) => (
-        <li key={item}>{item}</li>
+        <MathText key={item} as="li" text={item} className="leading-relaxed" />
       ))}
     </ul>
   );
@@ -122,13 +123,17 @@ export function ModelDocumentationCard({
         </div>
 
         <ContentBlock title="Przeznaczenie">
-          <p className="text-sm leading-relaxed text-slate-300">{model.purpose}</p>
+          <MathText
+            text={model.purpose}
+            className="text-sm leading-relaxed text-slate-300"
+          />
         </ContentBlock>
 
         <ContentBlock title="Algorytm">
-          <p className="text-sm leading-relaxed text-slate-300">
-            {model.algorithm}
-          </p>
+          <MathText
+            text={model.algorithm}
+            className="text-sm leading-relaxed text-slate-300"
+          />
         </ContentBlock>
 
         <ContentBlock title="Wejścia">
@@ -142,7 +147,12 @@ export function ModelDocumentationCard({
         <ContentBlock title="Etapy predykcji">
           <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-300">
             {model.predictionSteps.map((step) => (
-              <li key={step}>{step}</li>
+              <MathText
+                key={step}
+                as="li"
+                text={step}
+                className="leading-relaxed"
+              />
             ))}
           </ol>
         </ContentBlock>

@@ -5,7 +5,9 @@ import {
   getModelDocumentation,
   getModelsByPhase,
   hasCompleteDocumentation,
+  MODEL_CONCEPT_GLOSSARY,
   MODEL_DOCUMENTATION,
+  RATING_GLOSSARY,
   toDocumentedModelView,
   type CurrentModelName,
 } from "@/lib/modelDocumentation";
@@ -117,6 +119,27 @@ describe("MODEL_DOCUMENTATION", () => {
     expect(
       result.metrics.every((metric) => metric.value !== null),
     ).toBe(true);
+  });
+
+  it("documents LSTM, logit, Softmax, Elo, GAP and Czech for transparency", () => {
+    expect(MODEL_CONCEPT_GLOSSARY.map((entry) => entry.id)).toEqual([
+      "lstm",
+      "logit",
+      "softmax",
+      "elo",
+      "gap",
+      "czech",
+    ]);
+    expect(RATING_GLOSSARY.map((entry) => entry.id)).toEqual([
+      "elo",
+      "gap",
+      "czech",
+    ]);
+    for (const entry of MODEL_CONCEPT_GLOSSARY) {
+      expect(entry.title.length).toBeGreaterThan(0);
+      expect(entry.summary.length).toBeGreaterThan(0);
+      expect(entry.details.length).toBeGreaterThan(0);
+    }
   });
 });
 

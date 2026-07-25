@@ -14,3 +14,9 @@ body {
 a {
   text-decoration: none;
 }
+
+/* KaTeX inherits page colors on the dark documentation UI */
+.katex {
+  color: inherit;
+  font-size: 1.05em;
+}

@@ -1,4 +1,7 @@
-import type { MatchPredictionItem } from "@/types/api";
+import type {
+  MatchPredictionItem,
+  PredictionPreviewResponse,
+} from "@/types/api";
 
 export type OddsSortDirection = "asc" | "desc";
 
@@ -13,9 +16,52 @@ export interface OddsColumn {
   eventId: number;
 }
 
+/** Unit probability for a market event (enough for USTALONE odds). */
+export interface MarketEventProbability {
+  event_id: number;
+  value: number | null;
+}
+
 export const ODDS_SORT_BOOKMAKER_KEY = "bookmaker" as const;
 
+export const ODDS_MARKET_EVENT_IDS = {
+  home: 1,
+  draw: 2,
+  away: 3,
+  over: 8,
+  under: 12,
+  bttsYes: 6,
+  bttsNo: 172,
+} as const;
+
 const USTALONE_ROW_NAME = "USTALONE";
+
+/**
+ * Build USTALONE probabilities for all odds-table markets.
+ * Prefers full prediction_analysis (all outcomes); falls back to final
+ * predictions (favorites only) when analysis is unavailable.
+ */
+export function buildUstaloneMarketPredictions(
+  analysis: PredictionPreviewResponse | null,
+  fallbackPredictions: readonly MatchPredictionItem[] = [],
+): MarketEventProbability[] {
+  if (analysis !== null) {
+    return [
+      { event_id: ODDS_MARKET_EVENT_IDS.home, value: analysis.result.p_home },
+      { event_id: ODDS_MARKET_EVENT_IDS.draw, value: analysis.result.p_draw },
+      { event_id: ODDS_MARKET_EVENT_IDS.away, value: analysis.result.p_away },
+      { event_id: ODDS_MARKET_EVENT_IDS.bttsYes, value: analysis.btts.p_yes },
+      { event_id: ODDS_MARKET_EVENT_IDS.bttsNo, value: analysis.btts.p_no },
+      { event_id: ODDS_MARKET_EVENT_IDS.over, value: analysis.goals.over_25 },
+      { event_id: ODDS_MARKET_EVENT_IDS.under, value: analysis.goals.under_25 },
+    ];
+  }
+
+  return fallbackPredictions.map((item) => ({
+    event_id: item.event_id,
+    value: item.value,
+  }));
+}
 
 /** Cycle sort direction for a column click. */
 export function nextOddsSortState(
@@ -57,7 +103,7 @@ export function resolveOddsSortValue(
   rowName: string,
   eventId: number,
   lookup: ReadonlyMap<string, number>,
-  predictions: readonly MatchPredictionItem[],
+  predictions: readonly MarketEventProbability[],
 ): number | null {
   if (rowName === USTALONE_ROW_NAME) {
     const prediction = predictions.find((item) => item.event_id === eventId);
@@ -98,7 +144,7 @@ export function sortOddsRows(
   sort: OddsSortState,
   columns: readonly OddsColumn[],
   lookup: ReadonlyMap<string, number>,
-  predictions: readonly MatchPredictionItem[],
+  predictions: readonly MarketEventProbability[],
 ): string[] {
   if (rows.length === 0) {
     return [];

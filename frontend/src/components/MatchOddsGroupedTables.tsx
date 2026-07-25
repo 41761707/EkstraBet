@@ -4,18 +4,21 @@ import { useState } from "react";
 
 import {
   nextOddsSortState,
+  ODDS_MARKET_EVENT_IDS,
   ODDS_SORT_BOOKMAKER_KEY,
   resolveOddsSortValue,
   sortOddsRows,
+  type MarketEventProbability,
   type OddsColumn,
   type OddsSortState,
 } from "@/components/matchOddsTableModel";
 import { formatOdds } from "@/lib/format";
-import type { MatchPredictionItem, OddsItem } from "@/types/api";
+import type { OddsItem } from "@/types/api";
 
 interface MatchOddsGroupedTablesProps {
   odds: OddsItem[];
-  predictions: MatchPredictionItem[];
+  /** Unit probabilities for all market events (USTALONE row). */
+  predictions: MarketEventProbability[];
 }
 
 const BOOKMAKER_ORDER = [
@@ -29,16 +32,6 @@ const BOOKMAKER_ORDER = [
   "Fuksiarz",
   "Betters",
 ] as const;
-
-const EVENT_IDS = {
-  home: 1,
-  draw: 2,
-  away: 3,
-  over: 8,
-  under: 12,
-  bttsYes: 6,
-  bttsNo: 172,
-} as const;
 
 function buildOddsLookup(odds: OddsItem[]): Map<string, number> {
   const lookup = new Map<string, number>();
@@ -118,7 +111,7 @@ interface OddsTableProps {
   bookmakers: readonly string[];
   columns: OddsColumn[];
   lookup: Map<string, number>;
-  predictions: MatchPredictionItem[];
+  predictions: MarketEventProbability[];
 }
 
 function OddsTable({
@@ -217,9 +210,21 @@ export function MatchOddsGroupedTables({
         title="Porównanie kursów z estymacją na rezultat:"
         bookmakers={bookmakers}
         columns={[
-          { key: "home", label: "Gospodarz", eventId: EVENT_IDS.home },
-          { key: "draw", label: "Remis", eventId: EVENT_IDS.draw },
-          { key: "away", label: "Gość", eventId: EVENT_IDS.away },
+          {
+            key: "home",
+            label: "Gospodarz",
+            eventId: ODDS_MARKET_EVENT_IDS.home,
+          },
+          {
+            key: "draw",
+            label: "Remis",
+            eventId: ODDS_MARKET_EVENT_IDS.draw,
+          },
+          {
+            key: "away",
+            label: "Gość",
+            eventId: ODDS_MARKET_EVENT_IDS.away,
+          },
         ]}
         lookup={lookup}
         predictions={predictions}
@@ -228,8 +233,16 @@ export function MatchOddsGroupedTables({
         title="Porównanie kursów z estymacją na OU:"
         bookmakers={bookmakers}
         columns={[
-          { key: "under", label: "UNDER 2.5", eventId: EVENT_IDS.under },
-          { key: "over", label: "OVER 2.5", eventId: EVENT_IDS.over },
+          {
+            key: "under",
+            label: "UNDER 2.5",
+            eventId: ODDS_MARKET_EVENT_IDS.under,
+          },
+          {
+            key: "over",
+            label: "OVER 2.5",
+            eventId: ODDS_MARKET_EVENT_IDS.over,
+          },
         ]}
         lookup={lookup}
         predictions={predictions}
@@ -238,8 +251,16 @@ export function MatchOddsGroupedTables({
         title="Porównanie kursów z estymacją na BTTS:"
         bookmakers={bookmakers}
         columns={[
-          { key: "bttsYes", label: "BTTS TAK", eventId: EVENT_IDS.bttsYes },
-          { key: "bttsNo", label: "BTTS NIE", eventId: EVENT_IDS.bttsNo },
+          {
+            key: "bttsYes",
+            label: "BTTS TAK",
+            eventId: ODDS_MARKET_EVENT_IDS.bttsYes,
+          },
+          {
+            key: "bttsNo",
+            label: "BTTS NIE",
+            eventId: ODDS_MARKET_EVENT_IDS.bttsNo,
+          },
         ]}
         lookup={lookup}
         predictions={predictions}
