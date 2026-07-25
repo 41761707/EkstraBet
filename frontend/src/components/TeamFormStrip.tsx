@@ -28,7 +28,7 @@ const formTitles: Record<TeamFormResult, string> = {
 export function TeamFormStrip({ form }: TeamFormStripProps) {
   if (form.length === 0) {
     return (
-      <p className="text-sm text-slate-400">Brak danych o ostatniej formie.</p>
+      <p className="text-sm text-slate-400">Brak danych o ostatnich meczach.</p>
     );
   }
 

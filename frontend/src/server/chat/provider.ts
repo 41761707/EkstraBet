@@ -7,7 +7,6 @@ import {
   OFF_TOPIC_REFUSAL_TEXT,
 } from "@/server/chat/topicFilter";
 
-/** Hard topic gate shared by OpenRouter and Cursor routes. */
 export function maybeRefuseOffTopic(
   messages: { role: string; content: string }[],
 ): ChatAnswer | null {

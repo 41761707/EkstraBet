@@ -11,10 +11,6 @@ import type { ChatResponse } from "@/types/api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * Production chat endpoint — OpenRouter only.
- * Cursor must use /api/chat/cursor; sending provider=cursor here is rejected.
- */
 export async function POST(request: Request) {
   try {
     assertChatRateLimit(clientKeyFromRequest(request));

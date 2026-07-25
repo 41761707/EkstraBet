@@ -49,8 +49,8 @@ export function MatchPredictionsTable({
                 {prediction.outcome === null
                   ? "—"
                   : prediction.outcome === 1
-                    ? "Trafiony"
-                    : "Chybiony"}
+                    ? "Poprawny"
+                    : "Błędny"}
               </td>
             </tr>
           ))}
