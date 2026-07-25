@@ -37,6 +37,7 @@ function sampleApiDetails(
     sport_id: 1,
     sport_name: "Football",
     event_families: [],
+    supported_events: [],
     total_events: 0,
     ...overrides,
   };
