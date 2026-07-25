@@ -738,6 +738,13 @@ export interface ModelEventFamily {
   name: string;
 }
 
+export interface ModelSupportedEvent {
+  id: number;
+  name: string;
+  family_id: number;
+  family_name: string;
+}
+
 export interface ModelDetailsResponse {
   id: number;
   name: string;
@@ -745,6 +752,7 @@ export interface ModelDetailsResponse {
   sport_id: number;
   sport_name: string | null;
   event_families: ModelEventFamily[];
+  supported_events: ModelSupportedEvent[];
   total_events: number;
 }
 

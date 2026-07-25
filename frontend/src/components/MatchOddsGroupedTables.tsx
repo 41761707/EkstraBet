@@ -4,18 +4,21 @@ import { useState } from "react";
 
 import {
   nextOddsSortState,
+  ODDS_MARKET_EVENT_IDS,
   ODDS_SORT_BOOKMAKER_KEY,
   resolveOddsSortValue,
   sortOddsRows,
+  type MarketEventProbability,
   type OddsColumn,
   type OddsSortState,
 } from "@/components/matchOddsTableModel";
 import { formatOdds } from "@/lib/format";
-import type { MatchPredictionItem, OddsItem } from "@/types/api";
+import type { OddsItem } from "@/types/api";
 
 interface MatchOddsGroupedTablesProps {
   odds: OddsItem[];
-  predictions: MatchPredictionItem[];
+  /** Unit probabilities for all market events (USTALONE row). */
+  predictions: MarketEventProbability[];
 }
 
 const BOOKMAKER_ORDER = [
@@ -29,16 +32,6 @@ const BOOKMAKER_ORDER = [
   "Fuksiarz",
   "Betters",
 ] as const;
-
-const EVENT_IDS = {
-  home: 1,
-  draw: 2,
-  away: 3,
-  over: 8,
-  under: 12,
-  bttsYes: 6,
-  bttsNo: 172,
-} as const;
 
 function buildOddsLookup(odds: OddsItem[]): Map<string, number> {
   const lookup = new Map<string, number>();
@@ -92,7 +85,7 @@ function SortableHeader({
 
   return (
     <th
-      className={`px-4 py-3 font-medium ${align === "center" ? "text-center" : "text-left"}`}
+      className={`whitespace-nowrap px-3 py-3 font-medium ${align === "center" ? "text-center" : "text-left"}`}
       aria-sort={ariaSortValue(sort, sortKey)}
     >
       <button
@@ -118,7 +111,7 @@ interface OddsTableProps {
   bookmakers: readonly string[];
   columns: OddsColumn[];
   lookup: Map<string, number>;
-  predictions: MatchPredictionItem[];
+  predictions: MarketEventProbability[];
 }
 
 function OddsTable({
@@ -140,11 +133,11 @@ function OddsTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="min-w-0 rounded-xl border border-slate-700/80">
       <p className="border-b border-slate-700/80 bg-slate-900/80 px-4 py-3 text-sm font-medium text-slate-200">
         {title}
       </p>
-      <table className="min-w-full text-sm">
+      <table className="w-full text-sm">
         <thead className="bg-slate-900/60 text-left text-slate-400">
           <tr>
             <SortableHeader
@@ -171,7 +164,9 @@ function OddsTable({
               key={bookmaker}
               className="border-t border-slate-800/80 hover:bg-slate-900/50"
             >
-              <td className="px-4 py-3 font-medium text-white">{bookmaker}</td>
+              <td className="whitespace-nowrap px-3 py-3 font-medium text-white">
+                {bookmaker}
+              </td>
               {columns.map((column) => {
                 const value = resolveOddsSortValue(
                   bookmaker,
@@ -182,7 +177,7 @@ function OddsTable({
                 return (
                   <td
                     key={column.key}
-                    className="px-4 py-3 text-center font-semibold text-emerald-300"
+                    className="whitespace-nowrap px-3 py-3 text-center font-semibold text-emerald-300"
                   >
                     {formatCell(value)}
                   </td>
@@ -210,14 +205,26 @@ export function MatchOddsGroupedTables({
   );
 
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
       <OddsTable
         title="Porównanie kursów z estymacją na rezultat:"
         bookmakers={bookmakers}
         columns={[
-          { key: "home", label: "Gospodarz", eventId: EVENT_IDS.home },
-          { key: "draw", label: "Remis", eventId: EVENT_IDS.draw },
-          { key: "away", label: "Gość", eventId: EVENT_IDS.away },
+          {
+            key: "home",
+            label: "Gospodarz",
+            eventId: ODDS_MARKET_EVENT_IDS.home,
+          },
+          {
+            key: "draw",
+            label: "Remis",
+            eventId: ODDS_MARKET_EVENT_IDS.draw,
+          },
+          {
+            key: "away",
+            label: "Gość",
+            eventId: ODDS_MARKET_EVENT_IDS.away,
+          },
         ]}
         lookup={lookup}
         predictions={predictions}
@@ -226,8 +233,16 @@ export function MatchOddsGroupedTables({
         title="Porównanie kursów z estymacją na OU:"
         bookmakers={bookmakers}
         columns={[
-          { key: "under", label: "UNDER 2.5", eventId: EVENT_IDS.under },
-          { key: "over", label: "OVER 2.5", eventId: EVENT_IDS.over },
+          {
+            key: "under",
+            label: "UNDER 2.5",
+            eventId: ODDS_MARKET_EVENT_IDS.under,
+          },
+          {
+            key: "over",
+            label: "OVER 2.5",
+            eventId: ODDS_MARKET_EVENT_IDS.over,
+          },
         ]}
         lookup={lookup}
         predictions={predictions}
@@ -236,8 +251,16 @@ export function MatchOddsGroupedTables({
         title="Porównanie kursów z estymacją na BTTS:"
         bookmakers={bookmakers}
         columns={[
-          { key: "bttsYes", label: "BTTS TAK", eventId: EVENT_IDS.bttsYes },
-          { key: "bttsNo", label: "BTTS NIE", eventId: EVENT_IDS.bttsNo },
+          {
+            key: "bttsYes",
+            label: "BTTS TAK",
+            eventId: ODDS_MARKET_EVENT_IDS.bttsYes,
+          },
+          {
+            key: "bttsNo",
+            label: "BTTS NIE",
+            eventId: ODDS_MARKET_EVENT_IDS.bttsNo,
+          },
         ]}
         lookup={lookup}
         predictions={predictions}

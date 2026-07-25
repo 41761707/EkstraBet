@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildUstaloneMarketPredictions,
   isMissingOddsValue,
   nextOddsSortState,
+  ODDS_MARKET_EVENT_IDS,
   ODDS_SORT_BOOKMAKER_KEY,
   resolveOddsSortValue,
   sortOddsRows,
   type OddsColumn,
 } from "@/components/matchOddsTableModel";
-import type { MatchPredictionItem } from "@/types/api";
+import type {
+  MatchPredictionItem,
+  PredictionPreviewResponse,
+} from "@/types/api";
 
 const HOME_COLUMN: OddsColumn = {
   key: "home",
@@ -33,6 +38,87 @@ function makePrediction(
     outcome: null,
   };
 }
+
+function makeAnalysis(
+  overrides: Partial<{
+    p_home: number;
+    p_draw: number;
+    p_away: number;
+    p_yes: number;
+    p_no: number;
+    over_25: number;
+    under_25: number;
+  }> = {},
+): PredictionPreviewResponse {
+  return {
+    result: {
+      p_home: overrides.p_home ?? 0.3,
+      p_draw: overrides.p_draw ?? 0.3,
+      p_away: overrides.p_away ?? 0.4,
+    },
+    btts: {
+      p_yes: overrides.p_yes ?? 0.45,
+      p_no: overrides.p_no ?? 0.55,
+    },
+    goals: {
+      lambda_home: 0,
+      lambda_away: 0,
+      total_buckets: {},
+      over_25: overrides.over_25 ?? 0.35,
+      under_25: overrides.under_25 ?? 0.65,
+      top_exact_scores: [],
+    },
+  };
+}
+
+describe("buildUstaloneMarketPredictions", () => {
+  it("maps all market outcomes from prediction_analysis", () => {
+    const analysis = makeAnalysis({
+      p_home: 0.25,
+      p_draw: 0.35,
+      p_away: 0.4,
+      p_yes: 0.48,
+      p_no: 0.52,
+      over_25: 0.41,
+      under_25: 0.59,
+    });
+
+    expect(buildUstaloneMarketPredictions(analysis)).toEqual([
+      { event_id: ODDS_MARKET_EVENT_IDS.home, value: 0.25 },
+      { event_id: ODDS_MARKET_EVENT_IDS.draw, value: 0.35 },
+      { event_id: ODDS_MARKET_EVENT_IDS.away, value: 0.4 },
+      { event_id: ODDS_MARKET_EVENT_IDS.bttsYes, value: 0.48 },
+      { event_id: ODDS_MARKET_EVENT_IDS.bttsNo, value: 0.52 },
+      { event_id: ODDS_MARKET_EVENT_IDS.over, value: 0.41 },
+      { event_id: ODDS_MARKET_EVENT_IDS.under, value: 0.59 },
+    ]);
+  });
+
+  it("falls back to final predictions when analysis is null", () => {
+    const fallback = [makePrediction(3, 0.4), makePrediction(12, 0.62)];
+    expect(buildUstaloneMarketPredictions(null, fallback)).toEqual([
+      { event_id: 3, value: 0.4 },
+      { event_id: 12, value: 0.62 },
+    ]);
+  });
+
+  it("prefers analysis over favorite-only final predictions", () => {
+    const analysis = makeAnalysis({ p_away: 0.4, under_25: 0.62 });
+    const favoritesOnly = [makePrediction(3, 0.4)];
+    const result = buildUstaloneMarketPredictions(analysis, favoritesOnly);
+
+    expect(result).toHaveLength(7);
+    expect(
+      resolveOddsSortValue("USTALONE", ODDS_MARKET_EVENT_IDS.home, new Map(), result),
+    ).toBe(Number((1 / 0.3).toFixed(2)));
+    expect(
+      resolveOddsSortValue("USTALONE", ODDS_MARKET_EVENT_IDS.away, new Map(), result),
+    ).toBe(2.5);
+    expect(
+      resolveOddsSortValue("USTALONE", ODDS_MARKET_EVENT_IDS.over, new Map(), result),
+    ).toBe(Number((1 / 0.35).toFixed(2)));
+  });
+});
 
 describe("nextOddsSortState", () => {
   it("starts odds column with desc when current is null", () => {

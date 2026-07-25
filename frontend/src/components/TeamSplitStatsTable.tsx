@@ -7,14 +7,14 @@ interface TeamSplitStatsTableProps {
 }
 
 const columns = [
-  { key: "played", label: "M" },
-  { key: "wins", label: "Z" },
-  { key: "draws", label: "R" },
-  { key: "losses", label: "P" },
-  { key: "goals_for", label: "BZ" },
-  { key: "goals_conceded", label: "BS" },
-  { key: "goal_difference", label: "RB" },
-  { key: "points", label: "Pkt" },
+  { key: "played", label: "MP" },
+  { key: "wins", label: "W" },
+  { key: "draws", label: "D" },
+  { key: "losses", label: "L" },
+  { key: "goals_for", label: "GF" },
+  { key: "goals_conceded", label: "GA" },
+  { key: "goal_difference", label: "GD" },
+  { key: "points", label: "Pts" },
 ] as const;
 
 export function TeamSplitStatsTable({
