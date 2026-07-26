@@ -12,7 +12,11 @@ import pandas as pd
 from backend.repositories import (
     league_repository,
     match_assessment_repository,
-    match_repository)
+    match_repository,
+    team_repository)
+from backend.repositories.match_repository import (
+    DEFAULT_MATCH_SEARCH_LIMIT,
+    MAX_MATCH_SEARCH_LIMIT)
 from backend.repositories.sport_league_repository import HOCKEY_SPORT_ID
 from backend.services import odds_service, prediction_service
 from backend.services.match_score import map_score_resolution
@@ -346,6 +350,131 @@ def get_league_matches(
         _map_match_summary_row(row, special_rounds)
         for _, row in frame.iterrows()
     ]
+
+
+def _normalize_team_query(value: str | None) -> str | None:
+    """Trim a team query string and treat blanks as missing."""
+    if value is None:
+        return None
+    normalized = " ".join(value.split())
+    return normalized or None
+
+
+def _resolve_team_from_query(
+    query: str,
+    sport_id: int | None,
+    warnings: list[str],
+    label: str) -> tuple[int | None, str | None]:
+    """Resolve a team name query to the top matching team id."""
+    candidates = team_repository.search_teams_by_name(
+        query,
+        sport_id=sport_id,
+        limit=5)
+    if candidates.empty:
+        warnings.append(f"No team matched {label}={query!r}")
+        return None, None
+    if len(candidates) > 1:
+        names = ", ".join(str(row["name"]) for _, row in candidates.iterrows())
+        warnings.append(
+            f"Multiple teams matched {label}={query!r}; "
+            f"using top match among: {names}")
+    top = candidates.iloc[0]
+    return int(top["id"]), str(top["name"])
+
+
+def search_matches(
+    *,
+    team_a_query: str | None = None,
+    team_b_query: str | None = None,
+    sport_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    from_now: bool = True,
+    played: bool | None = None,
+    page_size: int = DEFAULT_MATCH_SEARCH_LIMIT) -> dict[str, Any]:
+    """Search matches by team names with optional date and status filters."""
+    normalized_a = _normalize_team_query(team_a_query)
+    normalized_b = _normalize_team_query(team_b_query)
+    if normalized_a is None and normalized_b is None:
+        raise ValueError(
+            "At least one of team_a_query or team_b_query is required")
+
+    capped_page_size = max(
+        1,
+        min(int(page_size), MAX_MATCH_SEARCH_LIMIT))
+    warnings: list[str] = []
+    team_a_id: int | None = None
+    team_a_name: str | None = None
+    team_b_id: int | None = None
+    team_b_name: str | None = None
+
+    if normalized_a is not None:
+        team_a_id, team_a_name = _resolve_team_from_query(
+            normalized_a,
+            sport_id,
+            warnings,
+            "team_a_query")
+    if normalized_b is not None:
+        team_b_id, team_b_name = _resolve_team_from_query(
+            normalized_b,
+            sport_id,
+            warnings,
+            "team_b_query")
+
+    filters_applied: dict[str, Any] = {
+        "team_a_id": team_a_id,
+        "team_b_id": team_b_id,
+        "team_a_query": normalized_a,
+        "team_b_query": normalized_b,
+        "team_a_name": team_a_name,
+        "team_b_name": team_b_name,
+        "sport_id": sport_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "from_now": from_now,
+        "played": played,
+        "page_size": capped_page_size,
+        "warnings": warnings
+    }
+
+    # para A vs B wymaga obu ID; częściowa resolucja nie degraduje do jednej drużyny
+    pair_incomplete = (
+        normalized_a is not None
+        and normalized_b is not None
+        and (team_a_id is None or team_b_id is None))
+    if pair_incomplete or (team_a_id is None and team_b_id is None):
+        return {
+            "matches": [],
+            "total_count": 0,
+            "filters_applied": filters_applied
+        }
+
+    frame = match_repository.search_matches(
+        team_a_id=team_a_id,
+        team_b_id=team_b_id,
+        sport_id=sport_id,
+        date_from=date_from,
+        date_to=date_to,
+        from_now=from_now,
+        played=played,
+        limit=capped_page_size)
+    if frame.empty:
+        return {
+            "matches": [],
+            "total_count": 0,
+            "filters_applied": filters_applied
+        }
+
+    special_rounds = league_repository.fetch_special_round_names()
+    matches = [
+        _map_match_summary_row(row, special_rounds)
+        for _, row in frame.iterrows()
+    ]
+    return {
+        "matches": matches,
+        "total_count": len(matches),
+        "filters_applied": filters_applied
+    }
 
 
 def get_match_details(

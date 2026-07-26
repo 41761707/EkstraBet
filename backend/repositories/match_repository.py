@@ -132,6 +132,77 @@ _MATCH_DETAIL_SELECT_COLUMNS = f"""
 """
 
 MAX_MATCH_HISTORY = 50
+DEFAULT_MATCH_SEARCH_LIMIT = 10
+MAX_MATCH_SEARCH_LIMIT = 20
+
+
+def search_matches(
+    *,
+    team_a_id: int | None = None,
+    team_b_id: int | None = None,
+    sport_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    from_now: bool = True,
+    played: bool | None = None,
+    limit: int = DEFAULT_MATCH_SEARCH_LIMIT) -> pd.DataFrame:
+    """Return matches filtered by teams, sport, date and played status."""
+    if team_a_id is None and team_b_id is None:
+        raise ValueError("At least one of team_a_id or team_b_id is required")
+
+    capped_limit = max(1, min(int(limit), MAX_MATCH_SEARCH_LIMIT))
+    conditions: list[str] = []
+    params: list[object] = []
+
+    if team_a_id is not None and team_b_id is not None:
+        # mecz między dwiema drużynami w dowolnej kolejności H/A
+        conditions.append(
+            "((m.home_team = %s AND m.away_team = %s) "
+            "OR (m.home_team = %s AND m.away_team = %s))")
+        params.extend([team_a_id, team_b_id, team_b_id, team_a_id])
+    elif team_a_id is not None:
+        conditions.append("(m.home_team = %s OR m.away_team = %s)")
+        params.extend([team_a_id, team_a_id])
+    else:
+        conditions.append("(m.home_team = %s OR m.away_team = %s)")
+        params.extend([team_b_id, team_b_id])
+
+    if sport_id is not None:
+        conditions.append("m.sport_id = %s")
+        params.append(sport_id)
+
+    if from_now:
+        conditions.append("m.game_date >= CURRENT_TIMESTAMP")
+
+    if date_from is not None:
+        conditions.append("CAST(m.game_date AS DATE) >= %s")
+        params.append(date_from)
+
+    if date_to is not None:
+        conditions.append("CAST(m.game_date AS DATE) <= %s")
+        params.append(date_to)
+
+    if played is True:
+        conditions.append("m.result != '0'")
+    elif played is False:
+        conditions.append("m.result = '0'")
+
+    # nadchodzące / from_now: najbliższe pierwsze; inaczej najnowsze pierwsze
+    order_direction = "ASC" if from_now or played is False else "DESC"
+    where_clause = " AND ".join(conditions)
+    query = f"""
+        SELECT
+            {_MATCH_BASE_COLUMNS}
+        FROM matches m
+        JOIN teams t1 ON m.home_team = t1.id
+        JOIN teams t2 ON m.away_team = t2.id
+        WHERE {where_clause}
+        ORDER BY m.game_date {order_direction}
+        LIMIT %s
+    """
+    params.append(capped_limit)
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=tuple(params))
 
 
 def fetch_league_matches(

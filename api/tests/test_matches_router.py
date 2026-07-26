@@ -203,6 +203,113 @@ class TestMatchesRouter(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
 
 
+class TestMatchSearchRouter(unittest.TestCase):
+    """HTTP contract tests for GET /matches/search."""
+
+    def setUp(self) -> None:
+        self.client = TestClient(create_app())
+
+    def test_search_requires_team_query(self) -> None:
+        response = self.client.get("/matches/search")
+        self.assertEqual(response.status_code, 422)
+
+    def test_search_rejects_invalid_date_range(self) -> None:
+        response = self.client.get(
+            "/matches/search"
+            "?team_a_query=Legia&date_from=2026-07-20&date_to=2026-07-10")
+        self.assertEqual(response.status_code, 422)
+
+    def test_search_rejects_page_size_above_max(self) -> None:
+        response = self.client.get(
+            "/matches/search?team_a_query=Legia&page_size=21")
+        self.assertEqual(response.status_code, 422)
+
+    @patch("api.routers.matches.match_service.search_matches")
+    def test_search_returns_payload(
+        self,
+        mock_search: unittest.mock.MagicMock) -> None:
+        mock_search.return_value = {
+            "matches": [{
+                "id": 119435,
+                "league_id": 1,
+                "season_id": 12,
+                "round": 8,
+                "round_label": "8",
+                "game_date": datetime(2026, 7, 28, 18, 0),
+                "home_team": {
+                    "id": 10,
+                    "name": "Górnik Zabrze",
+                    "shortcut": "GOR"
+                },
+                "away_team": {
+                    "id": 20,
+                    "name": "Śląsk Wrocław",
+                    "shortcut": "SLA"
+                },
+                "home_goals": None,
+                "away_goals": None,
+                "result": "0",
+                "is_played": False,
+                "score_resolution": None
+            }],
+            "total_count": 1,
+            "filters_applied": {
+                "team_a_id": 10,
+                "team_b_id": 20,
+                "team_a_query": "Górnik",
+                "team_b_query": "Śląsk",
+                "team_a_name": "Górnik Zabrze",
+                "team_b_name": "Śląsk Wrocław",
+                "sport_id": 1,
+                "date_from": None,
+                "date_to": None,
+                "from_now": True,
+                "played": False,
+                "page_size": 10,
+                "warnings": []
+            }
+        }
+        response = self.client.get(
+            "/matches/search"
+            "?team_a_query=Górnik&team_b_query=Śląsk&sport_id=1&played=false")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total_count"], 1)
+        self.assertEqual(payload["matches"][0]["id"], 119435)
+        self.assertEqual(payload["filters_applied"]["team_a_id"], 10)
+        mock_search.assert_called_once()
+
+    @patch(
+        "api.routers.matches.match_service.search_matches",
+        return_value={
+            "matches": [],
+            "total_count": 0,
+            "filters_applied": {
+                "team_a_id": 10,
+                "team_b_id": None,
+                "team_a_query": "Legia",
+                "team_b_query": None,
+                "team_a_name": "Legia Warszawa",
+                "team_b_name": None,
+                "sport_id": None,
+                "date_from": None,
+                "date_to": None,
+                "from_now": True,
+                "played": None,
+                "page_size": 10,
+                "warnings": []
+            }
+        })
+    def test_search_returns_empty_list(
+        self,
+        _mock_search: unittest.mock.MagicMock) -> None:
+        response = self.client.get("/matches/search?team_a_query=Legia")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["matches"], [])
+        self.assertEqual(payload["total_count"], 0)
+
+
 class TestLeagueMatchesRouter(unittest.TestCase):
     """HTTP contract tests for league match schedule endpoint."""
 

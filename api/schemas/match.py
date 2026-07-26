@@ -82,6 +82,48 @@ class LeagueMatchesListResponse(BaseModel):
     season_id: int = Field(..., description="Season ID")
 
 
+class MatchSearchFiltersApplied(BaseModel):
+    """Filters echoed back by GET /matches/search."""
+
+    team_a_id: int | None = Field(None, description="Resolved team A ID")
+    team_b_id: int | None = Field(None, description="Resolved team B ID")
+    team_a_query: str | None = Field(
+        None,
+        description="Original team A name query")
+    team_b_query: str | None = Field(
+        None,
+        description="Original team B name query")
+    team_a_name: str | None = Field(
+        None,
+        description="Resolved team A display name")
+    team_b_name: str | None = Field(
+        None,
+        description="Resolved team B display name")
+    sport_id: int | None = Field(None, description="Sport ID filter")
+    date_from: date | None = Field(None, description="Inclusive start date")
+    date_to: date | None = Field(None, description="Inclusive end date")
+    from_now: bool | None = Field(
+        None,
+        description="Whether only future kick-offs were requested")
+    played: bool | None = Field(
+        None,
+        description="Played status filter when provided")
+    page_size: int | None = Field(None, description="Applied page size")
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Non-fatal resolution warnings")
+
+
+class MatchSearchResponse(BaseModel):
+    """Response model for GET /matches/search."""
+
+    matches: list[MatchSummary] = Field(..., description="Matched fixtures")
+    total_count: int = Field(..., description="Number of returned matches")
+    filters_applied: MatchSearchFiltersApplied = Field(
+        ...,
+        description="Resolved filters used for the search")
+
+
 class MatchBasicStats(BaseModel):
     """Aggregated in-match statistics stored on the match row."""
 
