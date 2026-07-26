@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from backend.services.match_service import (
+    get_daily_matches,
     get_league_matches,
     get_match_details,
     search_matches)
@@ -586,6 +587,163 @@ class TestMatchSearchService(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertIn("Multiple teams matched", warnings[0])
         self.assertEqual(payload["filters_applied"]["team_a_id"], 10)
+
+
+class TestDailyMatchesService(unittest.TestCase):
+    """Tests for daily active-league match aggregation."""
+
+    def _daily_match_row(
+        self,
+        *,
+        match_id: int,
+        league_id: int,
+        league_name: str,
+        sport_id: int,
+        sport_name: str,
+        game_date: datetime,
+        result: str = "0",
+        home_goals: int | None = None,
+        away_goals: int | None = None,
+        home_name: str = "Home",
+        away_name: str = "Away") -> dict[str, object]:
+        return {
+            "id": match_id,
+            "league_id": league_id,
+            "season_id": 12,
+            "sport_id": sport_id,
+            "round": 1,
+            "game_date": game_date,
+            "result": result,
+            "home_team_goals": home_goals,
+            "away_team_goals": away_goals,
+            "home_id": match_id * 10,
+            "home_name": home_name,
+            "home_shortcut": "HOM",
+            "away_id": match_id * 10 + 1,
+            "away_name": away_name,
+            "away_shortcut": "AWY",
+            "league_name": league_name,
+            "sport_name": sport_name
+        }
+
+    @patch(
+        "backend.services.match_service.match_repository.fetch_daily_matches",
+        return_value=pd.DataFrame())
+    def test_get_daily_matches_returns_empty_list(
+        self,
+        mock_fetch: unittest.mock.MagicMock) -> None:
+        matches = get_daily_matches(date(2026, 7, 26))
+        self.assertEqual(matches, [])
+        mock_fetch.assert_called_once_with(date(2026, 7, 26))
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository.fetch_daily_matches")
+    def test_get_daily_matches_maps_played_and_unplayed_fields(
+        self,
+        mock_fetch: unittest.mock.MagicMock,
+        mock_special_rounds: unittest.mock.MagicMock) -> None:
+        mock_fetch.return_value = pd.DataFrame([
+            self._daily_match_row(
+                match_id=1,
+                league_id=10,
+                league_name="Ekstraklasa",
+                sport_id=1,
+                sport_name="Piłka nożna",
+                game_date=datetime(2026, 7, 26, 15, 0),
+                result="1",
+                home_goals=2,
+                away_goals=0,
+                home_name="Legia",
+                away_name="Lech"),
+            self._daily_match_row(
+                match_id=2,
+                league_id=20,
+                league_name="NHL",
+                sport_id=2,
+                sport_name="Hokej",
+                game_date=datetime(2026, 7, 26, 20, 0),
+                result="0",
+                home_name="Rangers",
+                away_name="Bruins")
+        ])
+
+        matches = get_daily_matches(date(2026, 7, 26))
+
+        self.assertEqual(len(matches), 2)
+        played = matches[0]
+        self.assertEqual(played["id"], 1)
+        self.assertEqual(played["league_name"], "Ekstraklasa")
+        self.assertEqual(played["sport_id"], 1)
+        self.assertEqual(played["sport_name"], "Piłka nożna")
+        self.assertTrue(played["is_played"])
+        self.assertEqual(played["home_goals"], 2)
+        self.assertEqual(played["home_team"]["name"], "Legia")
+
+        unplayed = matches[1]
+        self.assertEqual(unplayed["id"], 2)
+        self.assertEqual(unplayed["league_name"], "NHL")
+        self.assertEqual(unplayed["sport_id"], 2)
+        self.assertEqual(unplayed["sport_name"], "Hokej")
+        self.assertFalse(unplayed["is_played"])
+        self.assertIsNone(unplayed["home_goals"])
+        mock_special_rounds.assert_called_once_with()
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository.fetch_daily_matches")
+    def test_get_daily_matches_preserves_sport_league_order(
+        self,
+        mock_fetch: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        # kolejność jak po ORDER BY sport_name, league_name, game_date
+        mock_fetch.return_value = pd.DataFrame([
+            self._daily_match_row(
+                match_id=10,
+                league_id=2,
+                league_name="NBA",
+                sport_id=3,
+                sport_name="Koszykówka",
+                game_date=datetime(2026, 7, 26, 18, 0)),
+            self._daily_match_row(
+                match_id=11,
+                league_id=3,
+                league_name="NHL",
+                sport_id=2,
+                sport_name="Hokej",
+                game_date=datetime(2026, 7, 26, 19, 0)),
+            self._daily_match_row(
+                match_id=12,
+                league_id=1,
+                league_name="Ekstraklasa",
+                sport_id=1,
+                sport_name="Piłka nożna",
+                game_date=datetime(2026, 7, 26, 15, 0)),
+            self._daily_match_row(
+                match_id=13,
+                league_id=1,
+                league_name="Ekstraklasa",
+                sport_id=1,
+                sport_name="Piłka nożna",
+                game_date=datetime(2026, 7, 26, 17, 30))
+        ])
+
+        matches = get_daily_matches(date(2026, 7, 26))
+        self.assertEqual(
+            [item["id"] for item in matches],
+            [10, 11, 12, 13])
+        self.assertEqual(
+            [item["sport_name"] for item in matches],
+            ["Koszykówka", "Hokej", "Piłka nożna", "Piłka nożna"])
+        self.assertEqual(
+            [item["league_name"] for item in matches],
+            ["NBA", "NHL", "Ekstraklasa", "Ekstraklasa"])
 
 
 if __name__ == "__main__":

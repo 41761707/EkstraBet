@@ -1,8 +1,11 @@
 """SQL queries for match schedule and detail data."""
 
 from __future__ import annotations
-from datetime import date
+
+from datetime import date, datetime, time, timedelta
+
 import pandas as pd
+
 from backend.database import get_db_connection
 
 _MATCH_BASE_COLUMNS = """
@@ -241,6 +244,39 @@ def fetch_league_matches(
     """
     with get_db_connection() as conn:
         return pd.read_sql(query, conn, params=tuple(params))
+
+
+def fetch_daily_matches(match_date: date) -> pd.DataFrame:
+    """Return active-league matches for a calendar day.
+
+    Uses a half-open ``[start, next_day)`` filter on ``game_date`` so the
+    existing date index can be used without casting to DATE.
+    """
+    # półotwarty zakres dnia — bez CAST, żeby zadziałał idx_matches_date
+    day_start = datetime.combine(match_date, time.min)
+    day_end = day_start + timedelta(days=1)
+    query = f"""
+        SELECT
+            {_MATCH_SELECT_COLUMNS},
+            l.name AS league_name,
+            s.name AS sport_name
+        FROM matches m
+        JOIN teams t1 ON m.home_team = t1.id
+        JOIN teams t2 ON m.away_team = t2.id
+        JOIN leagues l ON m.league = l.id
+        JOIN sports s ON m.sport_id = s.id
+        {_MATCH_SCORE_RESOLUTION_JOIN}
+        {_HOCKEY_MATCHES_ADD_JOIN}
+        WHERE m.game_date >= %s
+            AND m.game_date < %s
+            AND l.active = 1
+        ORDER BY s.id ASC, l.name ASC, m.game_date ASC
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(
+            query,
+            conn,
+            params=(day_start, day_end))
 
 
 def match_exists(match_id: int) -> bool:
