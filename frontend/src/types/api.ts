@@ -72,6 +72,28 @@ export interface LeagueMatchesListResponse {
   season_id: number;
 }
 
+export interface MatchSearchFiltersApplied {
+  team_a_id?: number | null;
+  team_b_id?: number | null;
+  team_a_query?: string | null;
+  team_b_query?: string | null;
+  team_a_name?: string | null;
+  team_b_name?: string | null;
+  sport_id?: number | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  from_now?: boolean | null;
+  played?: boolean | null;
+  page_size?: number | null;
+  warnings?: string[];
+}
+
+export interface MatchSearchResponse {
+  matches: MatchSummary[];
+  total_count: number;
+  filters_applied: MatchSearchFiltersApplied;
+}
+
 export type StandingScope = "overall" | "home" | "away" | "ou_btts";
 
 export interface TraditionalStandingRow {
@@ -625,6 +647,41 @@ export interface BetRecommendationsResponse {
   recommendations: BetRecommendation[];
   total_count: number;
   filters_applied: Record<string, unknown>;
+}
+
+export type OpportunitySource = "bet" | "prediction";
+export type OpportunityRankingBasis = "ev_after_tax" | "ev" | "probability";
+
+export interface MarketOpportunity {
+  match_id: number;
+  sport_id: number;
+  league_id: number;
+  league_name: string;
+  game_date: string;
+  home_team: string;
+  away_team: string;
+  event_id: number;
+  event_name: string;
+  model_id: number | null;
+  model_name: string | null;
+  probability: number | null;
+  probability_pct: number | null;
+  odds: number | null;
+  bookmaker_id: number | null;
+  bookmaker_name: string | null;
+  implied_probability: number | null;
+  ev: number | null;
+  ev_after_tax: number | null;
+  source: OpportunitySource;
+  ranking_basis: OpportunityRankingBasis;
+}
+
+export interface MarketOpportunitiesResponse {
+  opportunities: MarketOpportunity[];
+  total_count: number;
+  filters_applied: Record<string, unknown>;
+  source_counts: Record<string, number>;
+  warnings: string[];
 }
 
 export type AnalyticsStatType = "ou" | "btts" | "result" | "all";

@@ -19,13 +19,19 @@ vi.mock("@/server/chat/tools/http", () => ({
 
 import { fetchReadOnly } from "@/server/chat/tools/http";
 import {
+  addIsoCalendarDays,
   analyzeMatchBet,
   computeEv,
   computeEvAfterTax,
+  findMatchOpportunities,
+  getWarsawDateIso,
+  listMarketOpportunities,
   matchEventByQuery,
   parseMarketQuery,
   pickBestOdds,
 } from "@/server/chat/tools/markets";
+import { searchMatches } from "@/server/chat/tools/matches";
+import type { MarketOpportunity } from "@/types/api";
 
 const mockedFetch = vi.mocked(fetchReadOnly);
 
@@ -424,6 +430,51 @@ function makeOdds(overrides?: Partial<OddsItem>): OddsItem {
 
 function strongSotMatches(value: number): TeamSeasonMatchPoint[] {
   return Array.from({ length: 10 }, () => makeSotMatch(value, 2));
+}
+
+/** Serie z hit rate w zakresie 0.6–0.9, żeby buildStatisticalCandidates nie odrzucał kandydatów. */
+function viableStatMatches(role: "strong" | "soft"): TeamSeasonMatchPoint[] {
+  const strong = [
+    { for: 5, against: 1, total: 10 },
+    { for: 6, against: 2, total: 11 },
+    { for: 5, against: 1, total: 9 },
+    { for: 4, against: 2, total: 10 },
+    { for: 5, against: 1, total: 12 },
+    { for: 6, against: 2, total: 11 },
+    { for: 5, against: 1, total: 10 },
+    { for: 4, against: 2, total: 9 },
+    { for: 5, against: 1, total: 11 },
+    { for: 6, against: 2, total: 12 },
+  ];
+  const soft = [
+    { for: 1, against: 5, total: 10 },
+    { for: 2, against: 6, total: 11 },
+    { for: 1, against: 5, total: 9 },
+    { for: 2, against: 4, total: 10 },
+    { for: 1, against: 5, total: 12 },
+    { for: 2, against: 6, total: 11 },
+    { for: 1, against: 5, total: 10 },
+    { for: 2, against: 4, total: 9 },
+    { for: 1, against: 5, total: 11 },
+    { for: 2, against: 6, total: 12 },
+  ];
+  const values = role === "strong" ? strong : soft;
+  return values.map((entry, index) => ({
+    ...makeSotMatch(entry.for, entry.against, index % 2 === 0),
+    match_id: index + 1,
+    team_shots: entry.for * 2,
+    opponent_shots: entry.against * 2,
+    total_shots: entry.total * 2,
+    team_shots_on_target: entry.for,
+    opponent_shots_on_target: entry.against,
+    total_shots_on_target: entry.total,
+    team_corners: entry.for,
+    opponent_corners: entry.against,
+    total_corners: entry.total,
+    home_goals: index % 2 === 0 ? Math.min(entry.for, 3) : Math.min(entry.against, 2),
+    away_goals: index % 2 === 0 ? Math.min(entry.against, 2) : Math.min(entry.for, 3),
+    total_goals: Math.min(entry.total, 4),
+  }));
 }
 
 function makeGoalsMatch(
@@ -943,5 +994,484 @@ describe("analyze_match_bet", () => {
     expect(result.data).toBeNull();
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(mockedFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("getWarsawDateIso / addIsoCalendarDays", () => {
+  it("formats a fixed UTC instant as Europe/Warsaw calendar date", () => {
+    // 2026-07-25 22:30 UTC = 2026-07-26 in Warsaw (CEST)
+    const iso = getWarsawDateIso(new Date("2026-07-25T22:30:00.000Z"));
+    expect(iso).toBe("2026-07-26");
+  });
+
+  it("adds calendar days without timezone drift", () => {
+    expect(addIsoCalendarDays("2026-07-26", 1)).toBe("2026-07-27");
+    expect(addIsoCalendarDays("2026-07-26", 6)).toBe("2026-08-01");
+  });
+});
+
+describe("search_matches", () => {
+  it("calls /matches/search once and returns a table", async () => {
+    const match = makeMatchSummary();
+    mockedFetch.mockResolvedValue({
+      matches: [match],
+      total_count: 1,
+      filters_applied: { warnings: [] },
+    });
+
+    const result = await searchMatches({
+      team_a_query: "Górnik",
+      team_b_query: "Śląsk",
+      sport_id: 1,
+    });
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      "/matches/search",
+      expect.objectContaining({
+        team_a_query: "Górnik",
+        team_b_query: "Śląsk",
+        from_now: true,
+        page_size: 10,
+      }),
+    );
+    expect(result.name).toBe("search_matches");
+    const data = result.data as { matches: MatchSummary[]; total_count: number };
+    expect(data.matches).toHaveLength(1);
+    expect(result.table?.rows).toHaveLength(1);
+  });
+});
+
+describe("list_market_opportunities", () => {
+  function makeOpportunity(
+    overrides?: Partial<MarketOpportunity>,
+  ): MarketOpportunity {
+    return {
+      match_id: 1,
+      sport_id: 1,
+      league_id: 1,
+      league_name: "Ekstraklasa",
+      game_date: "2026-07-26T18:00:00",
+      home_team: "Legia",
+      away_team: "Lech",
+      event_id: 8,
+      event_name: "Powyżej 2.5 gola",
+      model_id: 3,
+      model_name: "OU",
+      probability: 0.55,
+      probability_pct: 55,
+      odds: 2.1,
+      bookmaker_id: 1,
+      bookmaker_name: "STS",
+      implied_probability: 1 / 2.1,
+      ev: 0.155,
+      ev_after_tax: 0.0164,
+      source: "bet",
+      ranking_basis: "ev_after_tax",
+      ...overrides,
+    };
+  }
+
+  it("makes exactly one HTTP call for today scope", async () => {
+    mockedFetch.mockResolvedValue({
+      opportunities: [
+        makeOpportunity(),
+        makeOpportunity({
+          match_id: 2,
+          source: "prediction",
+          odds: null,
+          ev: null,
+          ev_after_tax: null,
+          ranking_basis: "probability",
+          bookmaker_id: null,
+          bookmaker_name: null,
+          implied_probability: null,
+        }),
+      ],
+      total_count: 2,
+      filters_applied: { sport_id: 1 },
+      source_counts: { bet: 1, prediction: 1 },
+      warnings: ["Uzupełniono ranking predykcjami bez kursu."],
+    });
+
+    const result = await listMarketOpportunities({
+      sport_id: 1,
+      date_scope: "today",
+    });
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      "/bets/opportunities",
+      expect.objectContaining({
+        sport_id: 1,
+        match_date: getWarsawDateIso(),
+        from_now: true,
+        positive_ev_only: true,
+        apply_tax: true,
+        include_prediction_fallback: true,
+        one_per_match: true,
+        limit: 10,
+      }),
+    );
+    expect(result.name).toBe("list_market_opportunities");
+    const data = result.data as {
+      opportunities: MarketOpportunity[];
+      source_counts: Record<string, number>;
+    };
+    expect(data.opportunities).toHaveLength(2);
+    expect(data.source_counts.bet).toBe(1);
+    expect(result.table?.rows.some((row) => row[0] === "predykcja bez kursu")).toBe(
+      true,
+    );
+    expect(result.warnings.some((w) => /predykcjami/.test(w))).toBe(true);
+  });
+
+  it("returns empty list without further calls", async () => {
+    mockedFetch.mockResolvedValue({
+      opportunities: [],
+      total_count: 0,
+      filters_applied: {},
+      source_counts: { bet: 0, prediction: 0 },
+      warnings: [],
+    });
+
+    const result = await listMarketOpportunities({
+      sport_id: 1,
+      date_scope: "tomorrow",
+    });
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        match_date: addIsoCalendarDays(getWarsawDateIso(), 1),
+      }),
+    );
+    expect(result.summary).toMatch(/Brak opportunities/);
+    const data = result.data as { opportunities: unknown[] };
+    expect(data.opportunities).toHaveLength(0);
+  });
+
+  it("uses date_from/date_to for next_7_days", async () => {
+    mockedFetch.mockResolvedValue({
+      opportunities: [],
+      total_count: 0,
+      filters_applied: {},
+      source_counts: {},
+      warnings: [],
+    });
+
+    await listMarketOpportunities({
+      sport_id: 1,
+      date_scope: "next_7_days",
+    });
+
+    const today = getWarsawDateIso();
+    expect(mockedFetch).toHaveBeenCalledWith(
+      "/bets/opportunities",
+      expect.objectContaining({
+        date_from: today,
+        date_to: addIsoCalendarDays(today, 6),
+        match_date: undefined,
+      }),
+    );
+  });
+});
+
+describe("find_match_opportunities", () => {
+  it("prioritizes bet -> prediction -> statistics and respects limit", async () => {
+    mockAnalyzeSources({
+      bets: [
+        makeBet({ event_id: 8, event_name: "Powyżej 2.5 gola", ev_after_tax: 0.08 }),
+        makeBet({
+          bet_id: 2,
+          event_id: 6,
+          event_name: "Obie strzelą",
+          ev_after_tax: 0.05,
+        }),
+      ],
+      predictions: [
+        makePrediction({
+          event_id: 12,
+          event_name: "Poniżej 2.5 gola",
+          value: 0.7,
+        }),
+        makePrediction({
+          prediction_id: 2,
+          event_id: 99,
+          event_name: "Remis",
+          value: 0.62,
+        }),
+      ],
+      odds: [],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        strongSotMatches(5),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        Array.from({ length: 10 }, () => makeSotMatch(2, 5)),
+      ),
+    });
+
+    const result = await findMatchOpportunities({
+      match_id: 119435,
+      limit: 3,
+      sport_id: 1,
+    });
+
+    expect(result.name).toBe("find_match_opportunities");
+    const data = result.data as {
+      opportunities: Array<{
+        primary_evidence_source: string;
+        event_id: number | null;
+        event_name: string;
+      }>;
+    };
+    expect(data.opportunities).toHaveLength(3);
+    expect(data.opportunities[0]?.primary_evidence_source).toBe("bet");
+    expect(data.opportunities[1]?.primary_evidence_source).toBe("bet");
+    expect(data.opportunities[2]?.primary_evidence_source).toBe("prediction");
+    // Under 2.5 (12) is complementary to Over 2.5 (8) already taken from bets
+    expect(
+      data.opportunities.some((item) => item.event_id === 12),
+    ).toBe(false);
+    expect(data.opportunities[2]?.event_id).toBe(99);
+  });
+
+  it("returns prediction and statistics without odds/bets", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [
+        makePrediction({
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          value: 0.66,
+        }),
+      ],
+      odds: [],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        viableStatMatches("strong"),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        viableStatMatches("soft"),
+      ),
+    });
+
+    const result = await findMatchOpportunities({
+      match_id: 119435,
+      limit: 3,
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      opportunities: Array<{
+        primary_evidence_source: string;
+        odds_available: boolean;
+        note: string | null;
+      }>;
+    };
+    expect(data.opportunities.length).toBeGreaterThan(0);
+    expect(data.opportunities[0]?.primary_evidence_source).toBe("prediction");
+    expect(data.opportunities[0]?.odds_available).toBe(false);
+    expect(data.opportunities[0]?.note).toMatch(/bez kursu/);
+    expect(
+      data.opportunities.some(
+        (item) => item.primary_evidence_source === "statistics",
+      ),
+    ).toBe(true);
+  });
+
+  it("returns empty controlled result when all tiers are empty", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [],
+      odds: [],
+      profileHome: makeProfile(makeTeam(1, "Górnik Zabrze"), [
+        makeSotMatch(4, 2),
+      ]),
+      profileAway: makeProfile(makeTeam(2, "Śląsk Wrocław"), [
+        makeSotMatch(2, 4),
+      ]),
+    });
+
+    const result = await findMatchOpportunities({
+      match_id: 119435,
+      limit: 3,
+      sport_id: 1,
+    });
+
+    const data = result.data as { opportunities: unknown[] };
+    expect(data.opportunities).toHaveLength(0);
+    expect(result.warnings.some((w) => /Brak dodatnich bets/i.test(w))).toBe(
+      true,
+    );
+  });
+
+  it("does not include opposing statistical directions for the same line", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [],
+      odds: [],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        viableStatMatches("strong"),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        viableStatMatches("soft"),
+      ),
+    });
+
+    const result = await findMatchOpportunities({
+      match_id: 119435,
+      limit: 5,
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      opportunities: Array<{
+        statistical: {
+          stat: string;
+          subject: string;
+          line: number;
+          direction: string;
+        } | null;
+      }>;
+    };
+    const keys = data.opportunities
+      .filter((item) => item.statistical)
+      .map(
+        (item) =>
+          `${item.statistical!.stat}:${item.statistical!.subject}:${item.statistical!.line}`,
+      );
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.length).toBe(new Set(keys).size);
+  });
+
+  it("drops negative-EV and low-probability predictions from discovery tier", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [
+        makePrediction({
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          value: 0.4,
+        }),
+        makePrediction({
+          prediction_id: 2,
+          event_id: 99,
+          event_name: "Remis",
+          value: 0.4,
+        }),
+        makePrediction({
+          prediction_id: 3,
+          event_id: 100,
+          event_name: "Wygrana gospodarzy",
+          value: 0.62,
+        }),
+      ],
+      odds: [
+        {
+          id: 1,
+          match_id: 119435,
+          bookmaker_id: 1,
+          bookmaker_name: "STS",
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          event_family: null,
+          odds: 2.0,
+        },
+      ],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        viableStatMatches("strong"),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        viableStatMatches("soft"),
+      ),
+    });
+
+    const result = await findMatchOpportunities({
+      match_id: 119435,
+      limit: 3,
+      sport_id: 1,
+      apply_tax: true,
+    });
+
+    const data = result.data as {
+      opportunities: Array<{
+        event_id: number | null;
+        primary_evidence_source: string;
+        odds_available: boolean;
+      }>;
+    };
+    // EV = 0.4*2*0.88 - 1 < 0 → odrzucone; Remis 0.4 < 0.55 → odrzucone
+    expect(data.opportunities.some((item) => item.event_id === 8)).toBe(false);
+    expect(data.opportunities.some((item) => item.event_id === 99)).toBe(false);
+    expect(data.opportunities.some((item) => item.event_id === 100)).toBe(true);
+    expect(
+      data.opportunities.some(
+        (item) => item.primary_evidence_source === "statistics",
+      ),
+    ).toBe(true);
+  });
+
+  it("dedupes statistical OU 2.5 goals against model Over/Under 2.5", async () => {
+    mockAnalyzeSources({
+      bets: [
+        makeBet({
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          ev_after_tax: 0.08,
+        }),
+      ],
+      predictions: [],
+      odds: [],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        viableStatMatches("strong"),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        viableStatMatches("soft"),
+      ),
+    });
+
+    const result = await findMatchOpportunities({
+      match_id: 119435,
+      limit: 5,
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      opportunities: Array<{
+        event_id: number | null;
+        event_name: string;
+        primary_evidence_source: string;
+        statistical: { stat: string; subject: string; line: number } | null;
+      }>;
+    };
+
+    expect(data.opportunities[0]?.primary_evidence_source).toBe("bet");
+    expect(data.opportunities[0]?.event_id).toBe(8);
+    expect(
+      data.opportunities.some(
+        (item) =>
+          item.statistical?.stat === "goals" &&
+          item.statistical.subject === "total" &&
+          item.statistical.line === 2.5,
+      ),
+    ).toBe(false);
+    expect(
+      data.opportunities.some(
+        (item) =>
+          item.primary_evidence_source === "statistics" &&
+          /2\.5.*[Bb]ramk|2\.5.*[Gg]ol/i.test(item.event_name) &&
+          /suma/i.test(item.event_name),
+      ),
+    ).toBe(false);
   });
 });

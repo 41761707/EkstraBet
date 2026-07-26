@@ -333,6 +333,47 @@ export const CHAT_TOOL_CATALOG = {
       },
     },
   },
+  search_matches: {
+    description:
+      "Searches fixtures by one or two team names. Prefer upcoming (from_now=true). Returns match_id, date, teams and status.",
+    args: {
+      team_a_query: {
+        type: "string",
+        description: "First team search phrase",
+        required: true,
+      },
+      team_b_query: {
+        type: "string",
+        description: "Optional second team search phrase",
+      },
+      from_now: {
+        type: "boolean",
+        description: "Only future kick-offs (default true)",
+      },
+      played: {
+        type: "boolean",
+        description: "Filter played (true) or unplayed (false); omit for both",
+      },
+      date_from: {
+        type: "string",
+        description: "Inclusive start date YYYY-MM-DD",
+      },
+      date_to: {
+        type: "string",
+        description: "Inclusive end date YYYY-MM-DD",
+      },
+      page_size: {
+        type: "number",
+        description: "Page size 1-20 (default 10)",
+        minimum: 1,
+        maximum: 20,
+      },
+      sport_id: {
+        type: "number",
+        description: "Sport id from GUI context",
+      },
+    },
+  },
   analyze_match_bet: {
     description:
       "Critiques a specific bet/market for one match using bets, model probability, odds and historical statistics. Use for 'czy warto zagrać' / 'oceń zdarzenie' / critique questions. Returns verdict with supporting and contradicting evidence; works without odds.",
@@ -404,6 +445,100 @@ export const CHAT_TOOL_CATALOG = {
       },
     },
   },
+  list_market_opportunities: {
+    description:
+      "Global ranking of market opportunities across all leagues of the selected sport for today/tomorrow/week. One HTTP call — never fan-out per league. Prefer for 'najlepsze zakłady dzisiaj'.",
+    args: {
+      date_scope: {
+        type: "string",
+        description: "Date window relative to Europe/Warsaw",
+        enum: ["today", "tomorrow", "next_7_days", "custom"],
+      },
+      match_date: {
+        type: "string",
+        description: "Exact day YYYY-MM-DD when date_scope=custom",
+      },
+      date_from: {
+        type: "string",
+        description: "Inclusive start YYYY-MM-DD for custom range",
+      },
+      date_to: {
+        type: "string",
+        description: "Inclusive end YYYY-MM-DD for custom range",
+      },
+      from_now: {
+        type: "boolean",
+        description: "Exclude already started matches (default true)",
+      },
+      positive_ev_only: {
+        type: "boolean",
+        description: "Keep only positive EV when odds exist (default true)",
+      },
+      apply_tax: {
+        type: "boolean",
+        description: "Rank using EV after 12% tax (default true)",
+      },
+      include_prediction_fallback: {
+        type: "boolean",
+        description: "Fill slots from final predictions when bets are scarce (default true)",
+      },
+      one_per_match: {
+        type: "boolean",
+        description: "At most one opportunity per match (default true)",
+      },
+      limit: {
+        type: "number",
+        description: "Max rows 1-20 (default 10)",
+        minimum: 1,
+        maximum: 20,
+      },
+      sport_id: {
+        type: "number",
+        description: "Sport id from GUI context",
+      },
+    },
+  },
+  find_match_opportunities: {
+    description:
+      "Finds interesting events for one specific match from bets, model predictions and statistical trends. Use for 'co ciekawego w tym meczu' / propose stats for a fixture.",
+    args: {
+      team_a_query: {
+        type: "string",
+        description: "First team search phrase; required when match_id is missing",
+      },
+      team_b_query: {
+        type: "string",
+        description: "Second team search phrase; required when match_id is missing",
+      },
+      match_id: {
+        type: "number",
+        description: "Known match id; skips team search when provided",
+        minimum: 1,
+      },
+      limit: {
+        type: "number",
+        description: "Max opportunities 1-5 (default 3)",
+        minimum: 1,
+        maximum: 5,
+      },
+      include_statistical: {
+        type: "boolean",
+        description: "Include statistical candidates (default true)",
+      },
+      apply_tax: {
+        type: "boolean",
+        description: "Use EV after 12% tax for bet tier (default true)",
+      },
+      from_now: {
+        type: "boolean",
+        description: "Prefer upcoming fixtures when searching (default true)",
+      },
+      sport_id: {
+        type: "number",
+        description: "Sport id from GUI context",
+      },
+    },
+  },
   get_league_standings: {
     description: "Gets league standings for one season by league_id and season_id.",
     args: {
@@ -458,7 +593,10 @@ export const CHAT_TOOL_NAMES = [
   "get_player_stat_summary",
   "get_matchup_projection",
   "get_match_details",
+  "search_matches",
   "analyze_match_bet",
+  "list_market_opportunities",
+  "find_match_opportunities",
   "get_league_table",
   "get_league_standings",
 ] as const satisfies readonly ChatToolName[];

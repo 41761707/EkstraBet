@@ -1,13 +1,16 @@
 /**
- * Market parsing helpers, EV calculations and analyze_match_bet tool.
+ * Market parsing helpers, EV calculations and match market tools.
  */
 
 import type {
   BetRecommendation,
   BetRecommendationsResponse,
+  ChatTableSpec,
   FootballPlayerMatchStat,
   FootballPlayerMatchStatsResponse,
   FootballPlayersListResponse,
+  MarketOpportunitiesResponse,
+  MarketOpportunity,
   MatchDetails,
   MatchPredictionItem,
   MatchSummary,
@@ -15,15 +18,16 @@ import type {
   TeamProfile,
 } from "@/types/api";
 
-import { booleanArg, floatArg, numberArg, stringArg } from "./args";
+import { booleanArg, enumArg, floatArg, numberArg, stringArg } from "./args";
 import { fetchReadOnly, getEndpoint } from "./http";
 import {
   assessPlayerMarket,
   assessTeamMarket,
+  buildStatisticalCandidates,
 } from "./statisticalMarkets";
 import { normalizeSearchText } from "./text";
 import type { ToolResult } from "./types";
-import { FOOTBALL_SPORT_ID } from "./types";
+import { FOOTBALL_SPORT_ID, STAT_LABELS } from "./types";
 
 interface MatchPredictionListResponse {
   match_predictions: MatchPredictionItem[];
@@ -2003,4 +2007,747 @@ function emptyAnalyzeResult(
 
 function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+// --- date helpers / list_market_opportunities / find_match_opportunities ---
+
+export type DateScope = "today" | "tomorrow" | "next_7_days" | "custom";
+
+const DATE_SCOPE_ENUM = [
+  "today",
+  "tomorrow",
+  "next_7_days",
+  "custom",
+] as const satisfies readonly DateScope[];
+
+export interface MatchOpportunityItem {
+  match_id: number;
+  home_team: string;
+  away_team: string;
+  game_date: string;
+  event_id: number | null;
+  event_name: string;
+  model_id: number | null;
+  model_name: string | null;
+  probability: number | null;
+  probability_pct: number | null;
+  best_odds: number | null;
+  best_bookmaker: string | null;
+  implied_probability: number | null;
+  ev: number | null;
+  ev_after_tax: number | null;
+  primary_evidence_source: EvidenceSource;
+  available_evidence_sources: EvidenceSource[];
+  verdict_basis: VerdictBasis;
+  verdict: MarketVerdict;
+  odds_available: boolean;
+  statistical: StatisticalMarketAssessment | null;
+  note: string | null;
+}
+
+/**
+ * Calendar date YYYY-MM-DD in Europe/Warsaw (chat must not guess "today").
+ */
+export function getWarsawDateIso(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Warsaw",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** Add calendar days to an ISO date string without timezone drift. */
+export function addIsoCalendarDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const utc = new Date(Date.UTC(year!, month! - 1, day!));
+  utc.setUTCDate(utc.getUTCDate() + days);
+  return utc.toISOString().slice(0, 10);
+}
+
+/**
+ * Global market ranking for the selected sport — exactly one HTTP call.
+ */
+export async function listMarketOpportunities(
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  const sportId = numberArg(args, "sport_id", { required: true, min: 1 })!;
+  const fromNow = booleanArg(args, "from_now") ?? true;
+  const positiveEvOnly = booleanArg(args, "positive_ev_only") ?? true;
+  const applyTax = booleanArg(args, "apply_tax") ?? true;
+  const includePredictionFallback =
+    booleanArg(args, "include_prediction_fallback") ?? true;
+  const onePerMatch = booleanArg(args, "one_per_match") ?? true;
+  const limit = numberArg(args, "limit", { min: 1, max: 20 }) ?? 10;
+  const dateParams = resolveOpportunityDateParams(args);
+
+  const requestParams = {
+    sport_id: sportId,
+    match_date: dateParams.match_date,
+    date_from: dateParams.date_from,
+    date_to: dateParams.date_to,
+    from_now: fromNow,
+    positive_ev_only: positiveEvOnly,
+    apply_tax: applyTax,
+    include_prediction_fallback: includePredictionFallback,
+    one_per_match: onePerMatch,
+    limit,
+  };
+
+  const response = await fetchReadOnly<MarketOpportunitiesResponse>(
+    "/bets/opportunities",
+    requestParams,
+  );
+  const opportunities = response.opportunities ?? [];
+  const warnings = [
+    ...dateParams.warnings,
+    ...(response.warnings ?? []),
+  ];
+
+  return {
+    name: "list_market_opportunities",
+    summary: buildListOpportunitiesSummary(opportunities, dateParams),
+    data: {
+      opportunities,
+      total_count: response.total_count,
+      filters_applied: response.filters_applied,
+      source_counts: response.source_counts,
+      date_scope: dateParams.date_scope,
+    },
+    table: buildListOpportunitiesTable(opportunities),
+    dataSources: [
+      {
+        label: "Globalny ranking opportunities",
+        endpoint: getEndpoint("/bets/opportunities"),
+        params: {
+          sport_id: sportId,
+          match_date: dateParams.match_date ?? null,
+          date_from: dateParams.date_from ?? null,
+          date_to: dateParams.date_to ?? null,
+          from_now: fromNow,
+          positive_ev_only: positiveEvOnly,
+          apply_tax: applyTax,
+          include_prediction_fallback: includePredictionFallback,
+          one_per_match: onePerMatch,
+          limit,
+        },
+      },
+    ],
+    warnings,
+  };
+}
+
+/**
+ * Discover interesting events for one match (bets -> prediction -> statistics).
+ */
+export async function findMatchOpportunities(
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  const limit = numberArg(args, "limit", { min: 1, max: 5 }) ?? 3;
+  const includeStatistical = booleanArg(args, "include_statistical") ?? true;
+  const applyTax = booleanArg(args, "apply_tax") ?? true;
+  const fromNow = booleanArg(args, "from_now") ?? true;
+  const sportId = numberArg(args, "sport_id", { min: 1 });
+
+  const context = await resolveAnalyzeMatchContext({
+    matchId: numberArg(args, "match_id", { min: 1 }),
+    teamAQuery: stringArg(args, "team_a_query", { maxLength: 80 }),
+    teamBQuery: stringArg(args, "team_b_query", { maxLength: 80 }),
+    fromNow,
+    sportId,
+  });
+  if (!context) {
+    return {
+      name: "find_match_opportunities",
+      summary: "Nie znaleziono meczu do wyszukania zdarzeń.",
+      data: null,
+      dataSources: [],
+      warnings: [
+        "Podaj match_id albo obie nazwy drużyn (team_a_query i team_b_query).",
+      ],
+    };
+  }
+
+  const evidence = await fetchFindEvidence({
+    match: context.match,
+    applyTax,
+    sportId: sportId ?? context.sportId,
+  });
+  const candidates = buildFindOpportunityCandidates({
+    match: context.match,
+    evidence,
+    applyTax,
+    includeStatistical,
+    sportId: sportId ?? context.sportId,
+    limit,
+  });
+
+  const warnings = [...context.warnings, ...evidence.warnings];
+  if (candidates.length === 0) {
+    warnings.push(
+      "Brak dodatnich bets, użytecznych predykcji i wystarczających kandydatów statystycznych.",
+    );
+  }
+
+  return {
+    name: "find_match_opportunities",
+    summary: buildFindOpportunitiesSummary(context.match, candidates),
+    data: {
+      match: context.match,
+      opportunities: candidates,
+      total_count: candidates.length,
+    },
+    table: buildFindOpportunitiesTable(candidates),
+    dataSources: [...context.dataSources, ...evidence.dataSources],
+    warnings,
+  };
+}
+
+function resolveOpportunityDateParams(args: Record<string, unknown>): {
+  date_scope: DateScope;
+  match_date?: string;
+  date_from?: string;
+  date_to?: string;
+  warnings: string[];
+} {
+  const dateScope = enumArg(args, "date_scope", DATE_SCOPE_ENUM, "today");
+  const warnings: string[] = [];
+  const today = getWarsawDateIso();
+
+  if (dateScope === "today") {
+    return { date_scope: dateScope, match_date: today, warnings };
+  }
+  if (dateScope === "tomorrow") {
+    return {
+      date_scope: dateScope,
+      match_date: addIsoCalendarDays(today, 1),
+      warnings,
+    };
+  }
+  if (dateScope === "next_7_days") {
+    return {
+      date_scope: dateScope,
+      date_from: today,
+      date_to: addIsoCalendarDays(today, 6),
+      warnings,
+    };
+  }
+
+  const matchDate = stringArg(args, "match_date", { maxLength: 10 });
+  const dateFrom = stringArg(args, "date_from", { maxLength: 10 });
+  const dateTo = stringArg(args, "date_to", { maxLength: 10 });
+  if (matchDate) {
+    return { date_scope: dateScope, match_date: matchDate, warnings };
+  }
+  if (dateFrom || dateTo) {
+    return {
+      date_scope: dateScope,
+      date_from: dateFrom,
+      date_to: dateTo,
+      warnings,
+    };
+  }
+
+  warnings.push(
+    "date_scope=custom bez dat — użyłem dzisiejszej daty (Europe/Warsaw).",
+  );
+  return { date_scope: dateScope, match_date: today, warnings };
+}
+
+function buildListOpportunitiesSummary(
+  opportunities: MarketOpportunity[],
+  dateParams: { date_scope: DateScope; match_date?: string; date_from?: string; date_to?: string },
+): string {
+  if (opportunities.length === 0) {
+    return `Brak opportunities dla zakresu ${describeDateScope(dateParams)}.`;
+  }
+  return `Znaleziono ${opportunities.length} opportunities (${describeDateScope(dateParams)}).`;
+}
+
+function describeDateScope(params: {
+  date_scope: DateScope;
+  match_date?: string;
+  date_from?: string;
+  date_to?: string;
+}): string {
+  if (params.match_date) {
+    return `${params.date_scope}: ${params.match_date}`;
+  }
+  if (params.date_from || params.date_to) {
+    return `${params.date_scope}: ${params.date_from ?? "…"}–${params.date_to ?? "…"}`;
+  }
+  return params.date_scope;
+}
+
+function buildListOpportunitiesTable(
+  opportunities: MarketOpportunity[],
+): ChatTableSpec {
+  return {
+    title: "Market opportunities",
+    columns: [
+      "Źródło",
+      "Mecz",
+      "Liga",
+      "Event",
+      "Model",
+      "Prob %",
+      "Kurs",
+      "EV",
+      "EV po podatku",
+    ],
+    rows: opportunities.map((row) => [
+      row.source === "prediction" && row.odds == null
+        ? "predykcja bez kursu"
+        : row.source,
+      `${row.home_team} vs ${row.away_team}`,
+      row.league_name,
+      row.event_name,
+      row.model_name ?? "—",
+      row.probability_pct != null ? row.probability_pct.toFixed(1) : "—",
+      row.odds != null ? row.odds.toFixed(2) : "—",
+      row.ev != null ? formatPct(row.ev) : "—",
+      row.ev_after_tax != null ? formatPct(row.ev_after_tax) : "—",
+    ]),
+  };
+}
+
+async function fetchFindEvidence(params: {
+  match: MatchSummary;
+  applyTax: boolean;
+  sportId: number;
+}): Promise<{
+  bets: BetRecommendation[];
+  predictions: MatchPredictionItem[];
+  odds: OddsItem[];
+  profileA: TeamProfile | null;
+  profileB: TeamProfile | null;
+  warnings: string[];
+  dataSources: ToolResult["dataSources"];
+}> {
+  const warnings: string[] = [];
+  const dataSources: ToolResult["dataSources"] = [];
+  const matchId = params.match.id;
+
+  const settled = await Promise.allSettled([
+    fetchReadOnly<BetRecommendationsResponse>("/bets/recommendations", {
+      match_id: matchId,
+      apply_tax: params.applyTax,
+      page_size: 50,
+    }),
+    fetchReadOnly<MatchPredictionListResponse>(
+      `/predictions/match/${matchId}`,
+    ),
+    fetchReadOnly<MatchOddsListResponse>(`/odds/match/${matchId}`),
+    fetchReadOnly<TeamProfile>(`/teams/${params.match.home_team.id}/profile`, {
+      limit: 10,
+    }),
+    fetchReadOnly<TeamProfile>(`/teams/${params.match.away_team.id}/profile`, {
+      limit: 10,
+    }),
+  ]);
+
+  const betsResponse = takeSettled(
+    settled[0],
+    warnings,
+    "Nie udało się pobrać rekomendacji bets.",
+  );
+  const predictionsResponse = takeSettled(
+    settled[1],
+    warnings,
+    "Nie udało się pobrać predykcji modelu.",
+  );
+  const oddsResponse = takeSettled(
+    settled[2],
+    warnings,
+    "Nie udało się pobrać kursów.",
+  );
+  const profileA = takeSettled(
+    settled[3],
+    warnings,
+    "Nie udało się pobrać profilu gospodarza.",
+  );
+  const profileB = takeSettled(
+    settled[4],
+    warnings,
+    "Nie udało się pobrać profilu gościa.",
+  );
+
+  dataSources.push(
+    ...buildEvidenceDataSources({
+      match: params.match,
+      applyTax: params.applyTax,
+      bets: Boolean(betsResponse),
+      predictions: Boolean(predictionsResponse),
+      odds: Boolean(oddsResponse),
+      profileA: Boolean(profileA),
+      profileB: Boolean(profileB),
+    }),
+  );
+
+  return {
+    bets: betsResponse?.recommendations ?? [],
+    predictions: predictionsResponse?.match_predictions ?? [],
+    odds: oddsResponse?.odds ?? [],
+    profileA: profileA ?? null,
+    profileB: profileB ?? null,
+    warnings,
+    dataSources,
+  };
+}
+
+function buildFindOpportunityCandidates(params: {
+  match: MatchSummary;
+  evidence: {
+    bets: BetRecommendation[];
+    predictions: MatchPredictionItem[];
+    odds: OddsItem[];
+    profileA: TeamProfile | null;
+    profileB: TeamProfile | null;
+  };
+  applyTax: boolean;
+  includeStatistical: boolean;
+  sportId: number;
+  limit: number;
+}): MatchOpportunityItem[] {
+  const usedKeys = new Set<string>();
+  const selected: MatchOpportunityItem[] = [];
+
+  const betTier = buildBetTierCandidates(params);
+  // zostawiamy miejsce na statistics, gdy są włączone
+  const predictionCap =
+    params.includeStatistical && params.limit > 1
+      ? params.limit - 1
+      : params.limit;
+  const predictionTier = buildPredictionTierCandidates(params).slice(
+    0,
+    predictionCap,
+  );
+  const statisticalTier = params.includeStatistical
+    ? buildStatisticalTierCandidates(params)
+    : [];
+
+  for (const tier of [betTier, predictionTier, statisticalTier]) {
+    for (const item of tier) {
+      if (selected.length >= params.limit) {
+        return selected;
+      }
+      const keys = opportunityConflictKeys(item);
+      if (keys.some((key) => usedKeys.has(key))) {
+        continue;
+      }
+      for (const key of keys) {
+        usedKeys.add(key);
+      }
+      selected.push(item);
+    }
+  }
+
+  return selected;
+}
+
+function buildBetTierCandidates(params: {
+  match: MatchSummary;
+  evidence: { bets: BetRecommendation[]; predictions: MatchPredictionItem[]; odds: OddsItem[] };
+  applyTax: boolean;
+}): MatchOpportunityItem[] {
+  const rows = params.evidence.bets
+    .filter((bet) => {
+      const metric = params.applyTax ? bet.ev_after_tax : bet.ev;
+      return metric != null && metric > 0;
+    })
+    .sort((left, right) => {
+      const leftMetric =
+        (params.applyTax ? left.ev_after_tax : left.ev) ?? Number.NEGATIVE_INFINITY;
+      const rightMetric =
+        (params.applyTax ? right.ev_after_tax : right.ev) ?? Number.NEGATIVE_INFINITY;
+      return rightMetric - leftMetric;
+    });
+
+  return rows.map((bet) => {
+    const available: EvidenceSource[] = ["bet"];
+    if (
+      params.evidence.predictions.some((row) => row.event_id === bet.event_id)
+    ) {
+      available.push("prediction");
+    }
+    return {
+      match_id: params.match.id,
+      home_team: params.match.home_team.name,
+      away_team: params.match.away_team.name,
+      game_date: String(params.match.game_date),
+      event_id: bet.event_id,
+      event_name: bet.event_name,
+      model_id: bet.model_id,
+      model_name: bet.model_name,
+      probability: bet.probability,
+      probability_pct: bet.probability_pct,
+      best_odds: bet.odds,
+      best_bookmaker: bet.bookmaker_name,
+      implied_probability: bet.odds > 0 ? 1 / bet.odds : null,
+      ev: bet.ev,
+      ev_after_tax: params.applyTax ? bet.ev_after_tax : null,
+      primary_evidence_source: "bet" as const,
+      available_evidence_sources: available,
+      verdict_basis: "value" as const,
+      verdict: verdictFromEv(
+        (params.applyTax ? bet.ev_after_tax : bet.ev) ?? 0,
+      ),
+      odds_available: true,
+      statistical: null,
+      note: null,
+    };
+  });
+}
+
+function buildPredictionTierCandidates(params: {
+  match: MatchSummary;
+  evidence: { predictions: MatchPredictionItem[]; odds: OddsItem[] };
+  applyTax: boolean;
+}): MatchOpportunityItem[] {
+  const bestByEvent = new Map<number, MatchPredictionItem>();
+  for (const row of params.evidence.predictions) {
+    if (row.value == null) {
+      continue;
+    }
+    const existing = bestByEvent.get(row.event_id);
+    if (!existing || (existing.value ?? 0) < row.value) {
+      bestByEvent.set(row.event_id, row);
+    }
+  }
+
+  const items: MatchOpportunityItem[] = [];
+  for (const row of bestByEvent.values()) {
+    const probability = row.value!;
+    const quote = pickBestOdds(params.evidence.odds, row.event_id);
+    const oddsAvailable = quote !== null;
+    const ev =
+      oddsAvailable && quote ? computeEv(probability, quote.odds) : null;
+    const evAfterTax =
+      oddsAvailable && quote && params.applyTax
+        ? computeEvAfterTax(probability, quote.odds)
+        : null;
+    const candidate: MatchOpportunityItem = {
+      match_id: params.match.id,
+      home_team: params.match.home_team.name,
+      away_team: params.match.away_team.name,
+      game_date: String(params.match.game_date),
+      event_id: row.event_id,
+      event_name: row.event_name,
+      model_id: row.model_id,
+      model_name: row.model_name,
+      probability,
+      probability_pct: probability * 100,
+      best_odds: quote?.odds ?? null,
+      best_bookmaker: quote?.bookmaker_name ?? null,
+      implied_probability: quote ? 1 / quote.odds : null,
+      ev,
+      ev_after_tax: evAfterTax,
+      primary_evidence_source: "prediction",
+      available_evidence_sources: ["prediction"],
+      verdict_basis: oddsAvailable ? "value" : "probability",
+      verdict:
+        oddsAvailable && ev != null
+          ? verdictFromEv(
+              params.applyTax && evAfterTax != null ? evAfterTax : ev,
+            )
+          : verdictFromRate(probability),
+      odds_available: oddsAvailable,
+      statistical: null,
+      note: oddsAvailable ? null : "predykcja bez kursu",
+    };
+    if (!isQualityPredictionCandidate(candidate, params.applyTax)) {
+      continue;
+    }
+    items.push(candidate);
+  }
+
+  return items.sort((left, right) => {
+    if (left.odds_available && right.odds_available) {
+      const leftEv =
+        (params.applyTax ? left.ev_after_tax : left.ev) ??
+        Number.NEGATIVE_INFINITY;
+      const rightEv =
+        (params.applyTax ? right.ev_after_tax : right.ev) ??
+        Number.NEGATIVE_INFINITY;
+      if (leftEv !== rightEv) {
+        return rightEv - leftEv;
+      }
+    }
+    return (right.probability ?? 0) - (left.probability ?? 0);
+  });
+}
+
+/** Discovery: z kursem tylko dodatni EV; bez kursu — min. prawdopodobieństwo. */
+const MIN_PREDICTION_PROBABILITY = 0.55;
+
+function isQualityPredictionCandidate(
+  item: Pick<
+    MatchOpportunityItem,
+    "odds_available" | "ev" | "ev_after_tax" | "probability"
+  >,
+  applyTax: boolean,
+): boolean {
+  if (item.odds_available) {
+    const metric = applyTax ? item.ev_after_tax : item.ev;
+    return metric != null && metric > 0;
+  }
+  return (
+    item.probability != null && item.probability >= MIN_PREDICTION_PROBABILITY
+  );
+}
+
+function buildStatisticalTierCandidates(params: {
+  match: MatchSummary;
+  evidence: { profileA: TeamProfile | null; profileB: TeamProfile | null };
+  sportId: number;
+}): MatchOpportunityItem[] {
+  if (!params.evidence.profileA || !params.evidence.profileB) {
+    return [];
+  }
+
+  const assessments = buildStatisticalCandidates(
+    params.evidence.profileA,
+    params.evidence.profileB,
+    { sportId: params.sportId, limit: 10 },
+  );
+
+  return assessments.map((assessment) => ({
+    match_id: params.match.id,
+    home_team: params.match.home_team.name,
+    away_team: params.match.away_team.name,
+    game_date: String(params.match.game_date),
+    event_id: null,
+    event_name: formatStatisticalEventName(assessment),
+    model_id: null,
+    model_name: null,
+    probability: null,
+    probability_pct: null,
+    best_odds: null,
+    best_bookmaker: null,
+    implied_probability: null,
+    ev: null,
+    ev_after_tax: null,
+    primary_evidence_source: "statistics" as const,
+    available_evidence_sources: ["statistics"] as EvidenceSource[],
+    verdict_basis: "statistical_support" as const,
+    verdict: assessment.verdict,
+    odds_available: false,
+    statistical: assessment,
+    note: assessment.label,
+  }));
+}
+
+function formatStatisticalEventName(
+  assessment: StatisticalMarketAssessment,
+): string {
+  const direction =
+    assessment.direction === "over" ? "Powyżej" : "Poniżej";
+  const statKey = assessment.stat;
+  const statLabel =
+    statKey && statKey in STAT_LABELS
+      ? STAT_LABELS[statKey as keyof typeof STAT_LABELS]
+      : String(statKey ?? "statystyka");
+  const subjectLabel =
+    assessment.subject === "home"
+      ? "gospodarz"
+      : assessment.subject === "away"
+        ? "gość"
+        : assessment.subject === "total"
+          ? "suma meczu"
+          : "zawodnik";
+  return `${direction} ${assessment.line} ${statLabel} (${subjectLabel})`;
+}
+
+/**
+ * Mapuje znane linie statystyczne na pary eventów modelu (OU 2.5).
+ * BTTS nie wchodzi do generatora linii — tu tylko goals total 2.5.
+ */
+function statisticalKnownEventId(
+  statistical: StatisticalMarketAssessment | null,
+): number | null {
+  if (!statistical) {
+    return null;
+  }
+  if (
+    statistical.stat === "goals" &&
+    statistical.subject === "total" &&
+    statistical.line === 2.5
+  ) {
+    return statistical.direction === "over" ? 8 : 12;
+  }
+  return null;
+}
+
+/** Soft-dedupe nazw: „Powyżej 2.5 gola” ≈ „Powyżej 2.5 Bramki (suma meczu)”. */
+function normalizeOpportunityMarketName(eventName: string): string {
+  const withoutParens = eventName.replace(/\([^)]*\)/g, " ");
+  return normalizeMarketText(withoutParens)
+    .replace(/\b(bramk\w*|gol[aeiy]?)\b/g, "gol")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function opportunityConflictKeys(item: MatchOpportunityItem): string[] {
+  const keys: string[] = [];
+  const eventId = item.event_id ?? statisticalKnownEventId(item.statistical);
+
+  if (eventId != null) {
+    const complement = COMPLEMENTARY_EVENT_IDS[eventId];
+    keys.push(
+      complement != null
+        ? `event:${Math.min(eventId, complement)}`
+        : `event:${eventId}`,
+    );
+  }
+
+  if (item.statistical?.stat != null && item.statistical.subject != null) {
+    keys.push(
+      `stat:${item.statistical.stat}:${item.statistical.subject}:${item.statistical.line}`,
+    );
+  }
+
+  keys.push(`name:${normalizeOpportunityMarketName(item.event_name)}`);
+  return keys;
+}
+
+function buildFindOpportunitiesSummary(
+  match: MatchSummary,
+  candidates: MatchOpportunityItem[],
+): string {
+  const date = String(match.game_date).slice(0, 10);
+  if (candidates.length === 0) {
+    return `${match.home_team.name} vs ${match.away_team.name} (${date}): brak ciekawych zdarzeń.`;
+  }
+  const sources = candidates
+    .map((item) => item.primary_evidence_source)
+    .join(", ");
+  return `${match.home_team.name} vs ${match.away_team.name} (${date}): ${candidates.length} propozycji (${sources}).`;
+}
+
+function buildFindOpportunitiesTable(
+  candidates: MatchOpportunityItem[],
+): ChatTableSpec {
+  return {
+    title: "Propozycje zdarzeń meczu",
+    columns: [
+      "Źródło",
+      "Event",
+      "Prob %",
+      "Kurs",
+      "EV",
+      "Hit rate",
+      "Werdykt",
+    ],
+    rows: candidates.map((item) => [
+      item.primary_evidence_source,
+      item.event_name,
+      item.probability_pct != null ? item.probability_pct.toFixed(1) : "—",
+      item.best_odds != null ? item.best_odds.toFixed(2) : "—",
+      item.ev != null ? formatPct(item.ev) : "—",
+      item.statistical
+        ? formatPct(item.statistical.combined_hit_rate)
+        : "—",
+      item.verdict,
+    ]),
+  };
 }

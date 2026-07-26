@@ -1,6 +1,11 @@
-import type { ChatTableSpec, MatchDetails } from "@/types/api";
+import type {
+  ChatTableSpec,
+  MatchDetails,
+  MatchSearchResponse,
+  MatchSummary,
+} from "@/types/api";
 
-import { numberArg } from "./args";
+import { booleanArg, numberArg, stringArg } from "./args";
 import { fetchReadOnly, getEndpoint } from "./http";
 import type { ToolResult } from "./types";
 
@@ -107,5 +112,87 @@ export async function getMatchDetails(
       },
     ],
     warnings: [],
+  };
+}
+
+/**
+ * Search fixtures by one or two team names (upcoming by default).
+ */
+export async function searchMatches(
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  const teamAQuery = stringArg(args, "team_a_query", {
+    required: true,
+    maxLength: 80,
+  })!;
+  const teamBQuery = stringArg(args, "team_b_query", { maxLength: 80 });
+  const fromNow = booleanArg(args, "from_now") ?? true;
+  const played = booleanArg(args, "played");
+  const dateFrom = stringArg(args, "date_from", { maxLength: 10 });
+  const dateTo = stringArg(args, "date_to", { maxLength: 10 });
+  const pageSize = numberArg(args, "page_size", { min: 1, max: 20 }) ?? 10;
+  const sportId = numberArg(args, "sport_id", { min: 1 });
+
+  const params = {
+    team_a_query: teamAQuery,
+    team_b_query: teamBQuery,
+    sport_id: sportId,
+    from_now: fromNow,
+    played,
+    date_from: dateFrom,
+    date_to: dateTo,
+    page_size: pageSize,
+  };
+
+  const response = await fetchReadOnly<MatchSearchResponse>(
+    "/matches/search",
+    params,
+  );
+  const warnings = [...(response.filters_applied?.warnings ?? [])];
+  const matches = response.matches;
+
+  return {
+    name: "search_matches",
+    summary:
+      matches.length === 0
+        ? `Brak meczów dla zapytania "${teamAQuery}"${teamBQuery ? ` / "${teamBQuery}"` : ""}.`
+        : `Znaleziono ${matches.length} mecz(ów) dla "${teamAQuery}"${teamBQuery ? ` / "${teamBQuery}"` : ""}.`,
+    data: {
+      matches,
+      total_count: response.total_count,
+      filters_applied: response.filters_applied,
+    },
+    table: buildSearchMatchesTable(matches),
+    dataSources: [
+      {
+        label: "Wyszukiwanie meczów",
+        endpoint: getEndpoint("/matches/search"),
+        params: {
+          team_a_query: teamAQuery,
+          team_b_query: teamBQuery ?? null,
+          sport_id: sportId ?? null,
+          from_now: fromNow,
+          played: played ?? null,
+          date_from: dateFrom ?? null,
+          date_to: dateTo ?? null,
+          page_size: pageSize,
+        },
+      },
+    ],
+    warnings,
+  };
+}
+
+function buildSearchMatchesTable(matches: MatchSummary[]): ChatTableSpec {
+  return {
+    title: "Znalezione mecze",
+    columns: ["Data", "Gospodarz", "Gość", "Status", "match_id"],
+    rows: matches.map((match) => [
+      String(match.game_date).slice(0, 10),
+      match.home_team.name,
+      match.away_team.name,
+      match.is_played ? "Rozegrany" : "Nierozgrany",
+      match.id,
+    ]),
   };
 }

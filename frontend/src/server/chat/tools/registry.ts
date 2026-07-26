@@ -6,8 +6,8 @@ import {
 } from "@/server/chat/audit";
 
 import { getLeagueStandings, getLeagueTable, listLeagues } from "./leagues";
-import { analyzeMatchBet } from "./markets";
-import { getMatchDetails } from "./matches";
+import { analyzeMatchBet, findMatchOpportunities, listMarketOpportunities } from "./markets";
+import { getMatchDetails, searchMatches } from "./matches";
 import {
   getPlayerStatSummary,
   getTeamPlayerStatLeader,
@@ -37,7 +37,10 @@ const TOOL_RUNNERS: Record<
   get_player_stat_summary: getPlayerStatSummary,
   get_matchup_projection: getMatchupProjection,
   get_match_details: getMatchDetails,
+  search_matches: searchMatches,
   analyze_match_bet: analyzeMatchBet,
+  list_market_opportunities: listMarketOpportunities,
+  find_match_opportunities: findMatchOpportunities,
   get_league_table: getLeagueTable,
   get_league_standings: getLeagueStandings,
 };
