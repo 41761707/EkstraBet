@@ -95,6 +95,81 @@ export function hasWarsawNaiveDateTimePassed(
   return kickoff <= getWarsawDateTimeIso(now);
 }
 
+/**
+ * Add hours to a naive Warsaw wall-clock datetime (YYYY-MM-DDTHH:mm:ss).
+ * Arithmetic uses UTC calendar math on the wall-clock parts — no TZ shift.
+ */
+export function addHoursToWarsawNaiveDateTime(
+  naiveDateTime: string,
+  hours: number,
+): string | null {
+  const normalized = normalizeWarsawNaiveDateTime(naiveDateTime);
+  if (!normalized) {
+    return null;
+  }
+
+  const [datePart, timePart] = normalized.split("T");
+  const [year, month, day] = datePart!.split("-").map(Number);
+  const [hour, minute, second] = timePart!.split(":").map(Number);
+  const utc = new Date(
+    Date.UTC(year!, month! - 1, day!, hour!, minute!, second!),
+  );
+  utc.setUTCHours(utc.getUTCHours() + hours);
+
+  const yyyy = String(utc.getUTCFullYear()).padStart(4, "0");
+  const mm = String(utc.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(utc.getUTCDate()).padStart(2, "0");
+  const hh = String(utc.getUTCHours()).padStart(2, "0");
+  const min = String(utc.getUTCMinutes()).padStart(2, "0");
+  const ss = String(utc.getUTCSeconds()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`;
+}
+
+/**
+ * True when Warsaw wall clock is strictly after kick-off and before kick-off + window.
+ * Used as a soft "happening now" signal when live status is unavailable.
+ */
+export function isWarsawNaiveMatchInProgress(
+  naiveKickoff: string,
+  now: Date = new Date(),
+  windowHours: number = 2,
+): boolean {
+  const kickoff = normalizeWarsawNaiveDateTime(naiveKickoff);
+  if (!kickoff) {
+    return false;
+  }
+
+  const windowEnd = addHoursToWarsawNaiveDateTime(kickoff, windowHours);
+  if (!windowEnd) {
+    return false;
+  }
+
+  const nowWarsaw = getWarsawDateTimeIso(now);
+  return kickoff < nowWarsaw && nowWarsaw < windowEnd;
+}
+
+/**
+ * True when at least `windowHours` have passed since kick-off in Warsaw wall clock.
+ * Used to flag unfinished matches that should already have a result.
+ */
+export function isWarsawNaiveMatchPastResultWindow(
+  naiveKickoff: string,
+  now: Date = new Date(),
+  windowHours: number = 2,
+): boolean {
+  const kickoff = normalizeWarsawNaiveDateTime(naiveKickoff);
+  if (!kickoff) {
+    return false;
+  }
+
+  const windowEnd = addHoursToWarsawNaiveDateTime(kickoff, windowHours);
+  if (!windowEnd) {
+    return false;
+  }
+
+  return getWarsawDateTimeIso(now) >= windowEnd;
+}
+
 /** Add calendar days to an ISO date string without timezone drift. */
 export function addIsoCalendarDays(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);

@@ -6,7 +6,10 @@ import {
   type DailyMatchGroup,
   type DailyMatchLeagueGroup,
 } from "@/lib/dailyMatches";
-import { hasWarsawNaiveDateTimePassed } from "@/lib/date";
+import {
+  isWarsawNaiveMatchInProgress,
+  isWarsawNaiveMatchPastResultWindow,
+} from "@/lib/date";
 import {
   BASKETBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
@@ -17,11 +20,9 @@ interface HomeTodayMatchesProps {
   matches: DailyMatchSummary[];
   matchDate: string;
   errorMessage?: string;
-  /** Optional clock for deterministic awaiting-result checks. */
+  /** Optional clock for deterministic in-progress checks. */
   now?: Date;
 }
-
-type MatchPulseStatus = "score" | "vs" | "awaiting";
 
 const FOOTBALL_SPORT_ID = 1;
 
@@ -68,30 +69,37 @@ function extractKickoffTime(gameDate: string): string {
   return timeMatch?.[1] ?? "—";
 }
 
-function resolveMatchPulseStatus(
+type MatchPulseDotTone = "default" | "live" | "missingResult";
+
+function resolveMatchPulseDotTone(
   match: DailyMatchSummary,
   now: Date,
-): MatchPulseStatus {
+): MatchPulseDotTone {
   if (match.is_played) {
-    return "score";
+    return "default";
   }
-  if (hasWarsawNaiveDateTimePassed(match.game_date, now)) {
-    return "awaiting";
+  if (isWarsawNaiveMatchInProgress(match.game_date, now)) {
+    return "live";
   }
-  return "vs";
+  if (isWarsawNaiveMatchPastResultWindow(match.game_date, now)) {
+    return "missingResult";
+  }
+  return "default";
 }
 
-function teamHref(
-  teamId: number,
-  seasonId: number,
-  leagueId: number,
-): string {
-  const params = new URLSearchParams({
-    season_id: String(seasonId),
-    league_id: String(leagueId),
-  });
-  return `/teams/${teamId}?${params.toString()}`;
-}
+const MATCH_PULSE_DOT_CLASS: Record<MatchPulseDotTone, string> = {
+  default: "bg-slate-500/80",
+  live: "bg-red-500",
+  missingResult: "bg-amber-400",
+};
+
+const MATCH_PULSE_ROW_CLASS: Record<MatchPulseDotTone, string> = {
+  default:
+    "border-slate-700/70 bg-slate-950/40 hover:border-sky-500/40 hover:bg-slate-900/55",
+  live: "border-slate-700/70 bg-slate-950/40 hover:border-sky-500/40 hover:bg-slate-900/55",
+  missingResult:
+    "border-amber-400/50 bg-amber-950/25 hover:border-amber-300/60 hover:bg-amber-950/35",
+};
 
 function MatchPulseRow({
   match,
@@ -100,21 +108,21 @@ function MatchPulseRow({
   match: DailyMatchSummary;
   now: Date;
 }) {
-  const status = resolveMatchPulseStatus(match, now);
+  const dotTone = resolveMatchPulseDotTone(match, now);
   const timelineLabel = match.is_played
     ? "Koniec"
     : extractKickoffTime(match.game_date);
 
   return (
-    <article className="relative rounded-lg border border-slate-700/70 bg-slate-950/40 px-3 py-3 sm:px-4">
+    <Link
+      href={`/matches/${match.id}`}
+      className={`relative block rounded-lg border px-3 py-3 transition sm:px-4 ${MATCH_PULSE_ROW_CLASS[dotTone]}`}
+      aria-label={`${match.home_team.name} vs ${match.away_team.name}`}
+    >
       <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
         <div className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-2">
           <span
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              status === "awaiting"
-                ? "bg-slate-300/80"
-                : "bg-slate-500/80"
-            }`}
+            className={`h-2 w-2 shrink-0 rounded-full ${MATCH_PULSE_DOT_CLASS[dotTone]}`}
             aria-hidden="true"
           />
           <time
@@ -126,51 +134,24 @@ function MatchPulseRow({
         </div>
 
         <div className="min-w-0 space-y-1 border-l border-slate-700/80 pl-3 sm:border-l-0 sm:pl-0">
-          <Link
-            href={teamHref(
-              match.home_team.id,
-              match.season_id,
-              match.league_id,
-            )}
-            className="block truncate text-sm font-medium text-white transition hover:text-sky-200"
-          >
+          <p className="truncate text-sm font-medium text-white">
             {match.home_team.name}
-          </Link>
-          <Link
-            href={teamHref(
-              match.away_team.id,
-              match.season_id,
-              match.league_id,
-            )}
-            className="block truncate text-sm font-medium text-slate-200 transition hover:text-sky-200"
-          >
+          </p>
+          <p className="truncate text-sm font-medium text-slate-200">
             {match.away_team.name}
-          </Link>
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center sm:gap-2">
-          <div className="min-w-[4.5rem] text-sm font-semibold text-slate-100 sm:text-right">
-            {status === "score" ? (
+          {match.is_played ? (
+            <div className="min-w-[4.5rem] text-sm font-semibold text-slate-100 sm:text-right">
               <MatchScoreDisplay match={match} size="sm" />
-            ) : null}
-            {status === "vs" ? (
-              <span className="text-slate-400">vs</span>
-            ) : null}
-            {status === "awaiting" ? (
-              <span className="text-xs font-medium text-slate-400">
-                Oczekuje na wynik
-              </span>
-            ) : null}
-          </div>
-          <Link
-            href={`/matches/${match.id}`}
-            className="text-xs font-medium text-sky-300 transition hover:text-sky-200"
-          >
-            Szczegóły
-          </Link>
+            </div>
+          ) : null}
+          <span className="text-xs font-medium text-sky-300">Szczegóły</span>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }
 

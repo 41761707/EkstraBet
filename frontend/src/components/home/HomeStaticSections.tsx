@@ -79,7 +79,7 @@ const faqItems: { question: string; answer: ReactNode }[] = [
 export function HomeStaticSections() {
   return (
     <>
-      <HomeSection title="Co oferuje strona" defaultOpen>
+      <HomeSection title="Co oferuje strona">
         <div className="space-y-4">
           <p className="text-sm leading-relaxed text-slate-300">
             Ekstrabet łączy analizę sportową z rekomendacjami opartymi na

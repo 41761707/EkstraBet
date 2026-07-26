@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addHoursToWarsawNaiveDateTime,
   addIsoCalendarDays,
   getWarsawDateIso,
   getWarsawDateTimeIso,
   hasWarsawNaiveDateTimePassed,
+  isWarsawNaiveMatchInProgress,
+  isWarsawNaiveMatchPastResultWindow,
   normalizeWarsawNaiveDateTime,
 } from "@/lib/date";
 
@@ -78,6 +81,90 @@ describe("hasWarsawNaiveDateTimePassed", () => {
         new Date("2026-07-26T16:00:00.000Z"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("addHoursToWarsawNaiveDateTime", () => {
+  it("adds hours within the same day", () => {
+    expect(addHoursToWarsawNaiveDateTime("2026-07-26T14:30:00", 2)).toBe(
+      "2026-07-26T16:30:00",
+    );
+  });
+
+  it("crosses midnight when needed", () => {
+    expect(addHoursToWarsawNaiveDateTime("2026-07-26T23:00:00", 2)).toBe(
+      "2026-07-27T01:00:00",
+    );
+  });
+});
+
+describe("isWarsawNaiveMatchInProgress", () => {
+  it("is true strictly after kick-off and before kick-off + 2h", () => {
+    // 13:00 UTC = 15:00 Warsaw — kick-off 14:30 Warsaw, within 2h window
+    expect(
+      isWarsawNaiveMatchInProgress(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T13:00:00.000Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false before kick-off", () => {
+    // 12:00 UTC = 14:00 Warsaw — kick-off 14:30 still ahead
+    expect(
+      isWarsawNaiveMatchInProgress(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T12:00:00.000Z"),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false at exact kick-off and at/after window end", () => {
+    // 12:30 UTC = 14:30 Warsaw — exact kick-off
+    expect(
+      isWarsawNaiveMatchInProgress(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T12:30:00.000Z"),
+      ),
+    ).toBe(false);
+
+    // 14:30 UTC = 16:30 Warsaw — exactly kick-off + 2h
+    expect(
+      isWarsawNaiveMatchInProgress(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T14:30:00.000Z"),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("isWarsawNaiveMatchPastResultWindow", () => {
+  it("is true at and after kick-off + 2h", () => {
+    // 14:30 UTC = 16:30 Warsaw — exactly kick-off + 2h
+    expect(
+      isWarsawNaiveMatchPastResultWindow(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T14:30:00.000Z"),
+      ),
+    ).toBe(true);
+
+    // 15:00 UTC = 17:00 Warsaw — more than 2h after kick-off
+    expect(
+      isWarsawNaiveMatchPastResultWindow(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T15:00:00.000Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false inside the 2h window", () => {
+    // 13:00 UTC = 15:00 Warsaw — still within 2h of 14:30 kick-off
+    expect(
+      isWarsawNaiveMatchPastResultWindow(
+        "2026-07-26T14:30:00",
+        new Date("2026-07-26T13:00:00.000Z"),
+      ),
+    ).toBe(false);
   });
 });
 
