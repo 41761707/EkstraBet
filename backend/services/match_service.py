@@ -352,6 +352,23 @@ def get_league_matches(
     ]
 
 
+def get_daily_matches(match_date: date) -> list[dict[str, Any]]:
+    """Return daily matches for active leagues with sport and league context."""
+    frame = match_repository.fetch_daily_matches(match_date)
+    if frame.empty:
+        return []
+    # nazwy rund specjalnych pobieramy raz dla całego dnia
+    special_rounds = league_repository.fetch_special_round_names()
+    matches: list[dict[str, Any]] = []
+    for _, row in frame.iterrows():
+        summary = _map_match_summary_row(row, special_rounds)
+        summary["league_name"] = str(row["league_name"])
+        summary["sport_id"] = int(row["sport_id"])
+        summary["sport_name"] = str(row["sport_name"])
+        matches.append(summary)
+    return matches
+
+
 def _normalize_team_query(value: str | None) -> str | None:
     """Trim a team query string and treat blanks as missing."""
     if value is None:

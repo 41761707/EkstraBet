@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { HomeLeaguesList } from "@/components/home/HomeLeaguesList";
 import { HomeSection } from "@/components/home/HomeSection";
 import { HomeStaticSections } from "@/components/home/HomeStaticSections";
-import { ApiError, getLeagues } from "@/lib/api";
-import type { LeagueSummary } from "@/types/api";
+import { HomeTodayMatches } from "@/components/home/HomeTodayMatches";
+import { ApiError, getDailyMatches, getLeagues } from "@/lib/api";
+import { getWarsawDateIso } from "@/lib/dailyMatches";
+import type { DailyMatchSummary, LeagueSummary } from "@/types/api";
 
 export const metadata: Metadata = {
   title: "EkstraBet - Asystent Statystyczno-Predykcyjny",
@@ -11,18 +13,39 @@ export const metadata: Metadata = {
     "Asystent statystyczno-predykcyjny — analizy lig, modele predykcyjne i rekomendacje zakładów sportowych.",
 };
 
+function resolveLoadErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
 export default async function HomePage() {
+  const matchDate = getWarsawDateIso();
+
+  const [leaguesResult, matchesResult] = await Promise.allSettled([
+    getLeagues({ active: true }),
+    getDailyMatches(matchDate),
+  ]);
+
   let leagues: LeagueSummary[] = [];
   let leaguesError: string | undefined;
+  let matches: DailyMatchSummary[] = [];
+  let matchesError: string | undefined;
 
-  try {
-    const response = await getLeagues({ active: true });
-    leagues = response.leagues;
-  } catch (error) {
-    leaguesError =
-      error instanceof ApiError
-        ? error.message
-        : "Nie udało się połączyć z API backendu.";
+  if (leaguesResult.status === "fulfilled") {
+    leagues = leaguesResult.value.leagues;
+  } else {
+    leaguesError = resolveLoadErrorMessage(
+      leaguesResult.reason,
+      "Nie udało się połączyć z API backendu.",
+    );
+  }
+
+  if (matchesResult.status === "fulfilled") {
+    matches = matchesResult.value.matches;
+  } else {
+    matchesError = resolveLoadErrorMessage(
+      matchesResult.reason,
+      "Nie udało się połączyć z API backendu.",
+    );
   }
 
   return (
@@ -38,8 +61,17 @@ export default async function HomePage() {
       </section>
 
       <div className="space-y-4">
-        <HomeSection title="Lista obsługiwanych lig" id="ligy">
+
+        <HomeSection title="Lista obsługiwanych lig" id="ligy" defaultOpen>
           <HomeLeaguesList leagues={leagues} errorMessage={leaguesError} />
+        </HomeSection>
+
+        <HomeSection title="Dzisiejsze mecze" id="dzisiejsze-mecze">
+          <HomeTodayMatches
+            matches={matches}
+            matchDate={matchDate}
+            errorMessage={matchesError}
+          />
         </HomeSection>
 
         <HomeStaticSections />

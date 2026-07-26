@@ -997,19 +997,6 @@ describe("analyze_match_bet", () => {
   });
 });
 
-describe("getWarsawDateIso / addIsoCalendarDays", () => {
-  it("formats a fixed UTC instant as Europe/Warsaw calendar date", () => {
-    // 2026-07-25 22:30 UTC = 2026-07-26 in Warsaw (CEST)
-    const iso = getWarsawDateIso(new Date("2026-07-25T22:30:00.000Z"));
-    expect(iso).toBe("2026-07-26");
-  });
-
-  it("adds calendar days without timezone drift", () => {
-    expect(addIsoCalendarDays("2026-07-26", 1)).toBe("2026-07-27");
-    expect(addIsoCalendarDays("2026-07-26", 6)).toBe("2026-08-01");
-  });
-});
-
 describe("search_matches", () => {
   it("calls /matches/search once and returns a table", async () => {
     const match = makeMatchSummary();

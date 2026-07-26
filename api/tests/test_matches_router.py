@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -201,6 +201,91 @@ class TestMatchesRouter(unittest.TestCase):
     def test_invalid_model_ids_format_returns_400(self) -> None:
         response = self.client.get("/matches/100/details?model_ids=abc")
         self.assertEqual(response.status_code, 400)
+
+
+class TestDailyMatchesRouter(unittest.TestCase):
+    """HTTP contract tests for GET /matches/daily."""
+
+    def setUp(self) -> None:
+        self.client = TestClient(create_app())
+
+    def test_daily_requires_match_date(self) -> None:
+        response = self.client.get("/matches/daily")
+        self.assertEqual(response.status_code, 422)
+
+    def test_daily_rejects_invalid_match_date(self) -> None:
+        response = self.client.get("/matches/daily?match_date=not-a-date")
+        self.assertEqual(response.status_code, 422)
+
+    @patch(
+        "api.routers.matches.match_service.get_daily_matches",
+        return_value=[])
+    def test_daily_returns_empty_list(
+        self,
+        mock_get_daily: unittest.mock.MagicMock) -> None:
+        response = self.client.get("/matches/daily?match_date=2026-07-26")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["match_date"], "2026-07-26")
+        self.assertEqual(payload["matches"], [])
+        self.assertEqual(payload["total_count"], 0)
+        mock_get_daily.assert_called_once_with(date(2026, 7, 26))
+
+    @patch("api.routers.matches.match_service.get_daily_matches")
+    def test_daily_returns_payload(
+        self,
+        mock_get_daily: unittest.mock.MagicMock) -> None:
+        mock_get_daily.return_value = [{
+            "id": 100,
+            "league_id": 1,
+            "season_id": 12,
+            "round": 5,
+            "round_label": "5",
+            "game_date": datetime(2026, 7, 26, 15, 0),
+            "home_team": {
+                "id": 10,
+                "name": "Legia",
+                "shortcut": "LEG"
+            },
+            "away_team": {
+                "id": 20,
+                "name": "Lech",
+                "shortcut": "LPO"
+            },
+            "home_goals": 2,
+            "away_goals": 0,
+            "result": "1",
+            "is_played": True,
+            "score_resolution": None,
+            "league_name": "Ekstraklasa",
+            "sport_id": 1,
+            "sport_name": "Piłka nożna"
+        }]
+        response = self.client.get("/matches/daily?match_date=2026-07-26")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["match_date"], "2026-07-26")
+        self.assertEqual(payload["total_count"], 1)
+        match = payload["matches"][0]
+        self.assertEqual(match["id"], 100)
+        self.assertEqual(match["league_name"], "Ekstraklasa")
+        self.assertEqual(match["sport_id"], 1)
+        self.assertEqual(match["sport_name"], "Piłka nożna")
+        self.assertEqual(match["home_team"]["name"], "Legia")
+        self.assertTrue(match["is_played"])
+        mock_get_daily.assert_called_once_with(date(2026, 7, 26))
+
+    @patch(
+        "api.routers.matches.match_service.get_daily_matches",
+        side_effect=RuntimeError("db down"))
+    def test_daily_returns_500_without_sql_details(
+        self,
+        _mock_get_daily: unittest.mock.MagicMock) -> None:
+        response = self.client.get("/matches/daily?match_date=2026-07-26")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.json()["detail"],
+            "Failed to fetch daily matches")
 
 
 class TestMatchSearchRouter(unittest.TestCase):
