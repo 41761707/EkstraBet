@@ -5,9 +5,13 @@ from __future__ import annotations
 import logging
 from datetime import date
 from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Query
+
 from api.routers.utils import parse_id_list
-from api.schemas.bet import BetRecommendationsResponse
+from api.schemas.bet import (
+    BetRecommendationsResponse,
+    MarketOpportunitiesResponse)
 from backend.config import get_settings
 from backend.services import bet_service
 
@@ -31,6 +35,7 @@ async def bets_info() -> dict[str, object]:
         "description": "Read-only endpoints for bet recommendations and EV",
         "endpoints": [
             "GET /bets/recommendations - Filtered bet recommendations",
+            "GET /bets/opportunities - Global market opportunities ranking",
         ],
     }
 
@@ -53,6 +58,10 @@ async def get_bet_recommendations(
     bookmaker_ids: str | None = Query(
         None,
         description="Comma-separated bookmaker IDs"),
+    match_id: int | None = Query(
+        None,
+        ge=1,
+        description="Filter recommendations to a single match"),
     match_date: date | None = Query(
         None,
         description="Exact match date (YYYY-MM-DD)"),
@@ -109,6 +118,7 @@ async def get_bet_recommendations(
             event_ids=parse_id_list(event_ids),
             model_ids=parse_id_list(model_ids),
             bookmaker_ids=parse_id_list(bookmaker_ids),
+            match_id=match_id,
             match_date=match_date,
             date_from=date_from,
             date_to=date_to,
@@ -129,3 +139,68 @@ async def get_bet_recommendations(
         raise HTTPException(
             status_code=500,
             detail="Failed to fetch bet recommendations") from exc
+
+
+@router.get("/opportunities", response_model=MarketOpportunitiesResponse)
+async def get_market_opportunities(
+    sport_id: int = Query(..., ge=1, description="Sport ID (required)"),
+    match_date: date | None = Query(
+        None,
+        description="Exact calendar day (YYYY-MM-DD)"),
+    date_from: date | None = Query(
+        None,
+        description="Inclusive start date"),
+    date_to: date | None = Query(
+        None,
+        description="Inclusive end date"),
+    from_now: bool = Query(
+        True,
+        description="Exclude matches that already started"),
+    apply_tax: bool = Query(
+        True,
+        description="Rank/filter using EV after 12% tax"),
+    positive_ev_only: bool = Query(
+        True,
+        description="Keep only positive EV when odds exist"),
+    include_prediction_fallback: bool = Query(
+        True,
+        description="Fill remaining slots from final predictions"),
+    one_per_match: bool = Query(
+        True,
+        description="Keep at most one opportunity per match"),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=20,
+        description="Max opportunities to return (1-20)")) -> MarketOpportunitiesResponse:
+    """Return a global ranking of market opportunities for one sport."""
+    if match_date is not None and (
+            date_from is not None or date_to is not None):
+        raise HTTPException(
+            status_code=422,
+            detail="match_date cannot be combined with date_from/date_to")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(
+            status_code=422,
+            detail="date_from cannot be later than date_to")
+
+    try:
+        payload = bet_service.get_market_opportunities(
+            sport_id=sport_id,
+            match_date=match_date,
+            date_from=date_from,
+            date_to=date_to,
+            from_now=from_now,
+            apply_tax=apply_tax,
+            positive_ev_only=positive_ev_only,
+            include_prediction_fallback=include_prediction_fallback,
+            one_per_match=one_per_match,
+            limit=limit)
+        return MarketOpportunitiesResponse(**payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to fetch market opportunities: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch market opportunities") from exc

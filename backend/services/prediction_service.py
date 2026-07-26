@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from backend.repositories import match_repository, prediction_repository
+from backend.services.probability_service import to_unit_probability
 
 # mapowanie event_id z konfiguracji football_*_v* (wynik / BTTS / gole)
 _RESULT_HOME_EVENT_ID = 1
@@ -44,18 +45,6 @@ def _optional_float(value: object) -> float | None:
     return float(value)
 
 
-def _to_unit_probability(value: float) -> float:
-    """Convert DB percentage (0-100) to unit probability [0, 1].
-
-    Pipeline writes percentages via ``_db_percentage``, including sub-1%
-    exact scores (e.g. 0.98 means 0.98%, not probability 0.98).
-    """
-    probability = float(value)
-    if probability < 0.0:
-        return 0.0
-    return min(probability / 100.0, 1.0)
-
-
 def _map_event_family(row: pd.Series) -> dict[str, Any] | None:
     """Map event family columns when present on a dataframe row."""
     family_id = _optional_int(row.get("event_family_id"))
@@ -73,7 +62,7 @@ def _map_prediction_value(value: object) -> float | None:
     raw_value = _optional_float(value)
     if raw_value is None:
         return None
-    return _to_unit_probability(raw_value)
+    return to_unit_probability(raw_value)
 
 
 def _map_prediction_row(row: pd.Series) -> dict[str, Any]:
@@ -88,7 +77,7 @@ def _map_prediction_row(row: pd.Series) -> dict[str, Any]:
         "model_name": (
             str(row["model_name"])
             if pd.notna(row.get("model_name")) else None),
-        "value": _to_unit_probability(float(row["value"]))
+        "value": to_unit_probability(float(row["value"]))
     }
 
 
@@ -222,7 +211,7 @@ def _dedupe_latest_by_event(
         by_event[event_id] = {
             "event_id": event_id,
             "event_name": str(row["event_name"]),
-            "value": _to_unit_probability(float(row["value"]))
+            "value": to_unit_probability(float(row["value"]))
         }
     return by_event
 
