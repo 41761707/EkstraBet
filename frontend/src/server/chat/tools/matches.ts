@@ -1,13 +1,33 @@
 import type {
   ChatTableSpec,
   MatchDetails,
+  MatchPredictionItem,
   MatchSearchResponse,
   MatchSummary,
+  OddsItem,
+  PredictionPreviewResponse,
 } from "@/types/api";
 
 import { booleanArg, numberArg, stringArg } from "./args";
 import { fetchReadOnly, getEndpoint } from "./http";
 import type { ToolResult } from "./types";
+
+// Limit poniżej 25 z planu: dataPreview ma 4k znaków; top-N musi się zmieścić w LLM.
+const MATCH_DETAILS_PREDICTIONS_LIMIT = 12;
+const MATCH_DETAILS_ODDS_LIMIT = 12;
+
+interface SummarizedMatchPrediction {
+  event_name: string;
+  model_name: string | null;
+  value: number | null;
+  event_family: string | null;
+}
+
+interface SummarizedMatchOdds {
+  event_name: string;
+  bookmaker_name: string;
+  odds: number;
+}
 
 function formatMatchScore(details: MatchDetails): string {
   if (details.home_goals != null && details.away_goals != null) {
@@ -16,7 +36,91 @@ function formatMatchScore(details: MatchDetails): string {
   return details.result || "brak wyniku";
 }
 
-function buildMatchDetailsTable(details: MatchDetails): ChatTableSpec {
+function formatProbabilityPct(value: number | null): string {
+  if (value == null) {
+    return "—";
+  }
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function pickTopPrediction(
+  predictions: MatchPredictionItem[],
+): MatchPredictionItem | null {
+  if (predictions.length === 0) {
+    return null;
+  }
+  return [...predictions].sort(
+    (left, right) => (right.value ?? -Infinity) - (left.value ?? -Infinity),
+  )[0]!;
+}
+
+function formatTopPredictionLabel(
+  prediction: MatchPredictionItem | null,
+): string {
+  if (!prediction) {
+    return "-";
+  }
+  const model = prediction.model_name ?? `model ${prediction.model_id}`;
+  return `${prediction.event_name} (${formatProbabilityPct(prediction.value)}, ${model})`;
+}
+
+function summarizePredictions(
+  predictions: MatchPredictionItem[],
+): {
+  items: SummarizedMatchPrediction[];
+  truncated: boolean;
+  total: number;
+} {
+  const total = predictions.length;
+  // Najwyższe prawdopodobieństwa pierwsze — przy obcięciu model widzi top-N.
+  const items = [...predictions]
+    .sort(
+      (left, right) => (right.value ?? -Infinity) - (left.value ?? -Infinity),
+    )
+    .slice(0, MATCH_DETAILS_PREDICTIONS_LIMIT)
+    .map((prediction) => ({
+      event_name: prediction.event_name,
+      model_name: prediction.model_name,
+      value: prediction.value,
+      event_family: prediction.event_family?.name ?? null,
+    }));
+  return {
+    items,
+    truncated: total > MATCH_DETAILS_PREDICTIONS_LIMIT,
+    total,
+  };
+}
+
+function summarizeOdds(odds: OddsItem[]): {
+  items: SummarizedMatchOdds[];
+  truncated: boolean;
+  total: number;
+} {
+  const total = odds.length;
+  // Grupuj po evencie, w grupie najwyższy kurs; potem top-N po kursie.
+  const sorted = [...odds].sort((left, right) => {
+    const byEvent = left.event_name.localeCompare(right.event_name, "pl");
+    if (byEvent !== 0) {
+      return byEvent;
+    }
+    return right.odds - left.odds;
+  });
+  const items = sorted.slice(0, MATCH_DETAILS_ODDS_LIMIT).map((row) => ({
+    event_name: row.event_name,
+    bookmaker_name: row.bookmaker_name,
+    odds: row.odds,
+  }));
+  return {
+    items,
+    truncated: total > MATCH_DETAILS_ODDS_LIMIT,
+    total,
+  };
+}
+
+function buildMatchDetailsTable(
+  details: MatchDetails,
+  topPrediction: MatchPredictionItem | null,
+): ChatTableSpec {
   const score = formatMatchScore(details);
   const date = String(details.game_date).slice(0, 10);
   return {
@@ -29,25 +133,25 @@ function buildMatchDetailsTable(details: MatchDetails): ChatTableSpec {
       ["Runda", details.round_label ?? details.round ?? "-"],
       ["Liga (id)", details.league_id],
       ["Sezon (id)", details.season_id],
+      ["Top predykcja", formatTopPredictionLabel(topPrediction)],
       ["Predykcje", details.final_predictions?.length ?? 0],
       ["Kursy", details.odds?.length ?? 0],
       ["Oceny modeli", details.model_assessments?.length ?? 0],
-      [
-        "H2H (rozegrane)",
-        details.head_to_head?.played ?? 0,
-      ],
-      [
-        "Historia gospodarzy",
-        details.home_team_history?.length ?? 0,
-      ],
+      ["H2H (rozegrane)", details.head_to_head?.played ?? 0],
+      ["Historia gospodarzy", details.home_team_history?.length ?? 0],
       ["Historia gości", details.away_team_history?.length ?? 0],
     ],
   };
 }
 
-/** Skraca odpowiedź API — bez pełnych tablic kursów/predykcji/historii. */
+/** Skraca odpowiedź API — zachowuje skrót rynków, bez pełnej historii. */
 function summarizeMatchDetails(details: MatchDetails) {
   const h2h = details.head_to_head;
+  const predictions = summarizePredictions(details.final_predictions ?? []);
+  const odds = summarizeOdds(details.odds ?? []);
+  const predictionAnalysis: PredictionPreviewResponse | null =
+    details.prediction_analysis ?? null;
+
   return {
     id: details.id,
     league_id: details.league_id,
@@ -66,6 +170,14 @@ function summarizeMatchDetails(details: MatchDetails) {
     stats: details.stats,
     hockey_stats: details.hockey_stats,
     has_player_stats: details.has_player_stats,
+    prediction_analysis: predictionAnalysis,
+    final_predictions: predictions.items,
+    odds: odds.items,
+    predictions_count: predictions.total,
+    odds_count: odds.total,
+    predictions_truncated: predictions.truncated,
+    odds_truncated: odds.truncated,
+    model_assessments_count: details.model_assessments?.length ?? 0,
     head_to_head: h2h
       ? {
           played: h2h.played,
@@ -79,9 +191,6 @@ function summarizeMatchDetails(details: MatchDetails) {
           meetings_count: h2h.meetings?.length ?? 0,
         }
       : null,
-    odds_count: details.odds?.length ?? 0,
-    predictions_count: details.final_predictions?.length ?? 0,
-    model_assessments_count: details.model_assessments?.length ?? 0,
     home_history_count: details.home_team_history?.length ?? 0,
     away_history_count: details.away_team_history?.length ?? 0,
     has_boxscore: Boolean(details.boxscore?.length),
@@ -98,12 +207,21 @@ export async function getMatchDetails(
   );
   const score = formatMatchScore(details);
   const date = String(details.game_date).slice(0, 10);
+  const summarized = summarizeMatchDetails(details);
+  const topPrediction = pickTopPrediction(details.final_predictions ?? []);
+  const topLabel = formatTopPredictionLabel(topPrediction);
+  const summaryBase = `${details.home_team.name} vs ${details.away_team.name}: ${score} (${date}).`;
+  const summary =
+    topPrediction != null
+      ? `${summaryBase} Top predykcja: ${topLabel}.`
+      : summaryBase;
 
   return {
     name: "get_match_details",
-    summary: `${details.home_team.name} vs ${details.away_team.name}: ${score} (${date}).`,
-    data: summarizeMatchDetails(details),
-    table: buildMatchDetailsTable(details),
+    summary,
+    data: summarized,
+    // Jeden slot table: szczegóły z Top predykcją; pełniejsza lista w data.
+    table: buildMatchDetailsTable(details, topPrediction),
     dataSources: [
       {
         label: "Szczegóły meczu",

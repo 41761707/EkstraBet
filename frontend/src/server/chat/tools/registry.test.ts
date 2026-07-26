@@ -132,18 +132,75 @@ describe("runPlannedTools allowlist and limits", () => {
       result: "1",
       is_played: true,
       score_resolution: null,
-      final_predictions: [{ id: 1 }],
-      prediction_analysis: null,
-      odds: [{ id: 1 }, { id: 2 }],
+      final_predictions: [
+        {
+          prediction_id: 10,
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          event_family: { id: 1, name: "GOALS" },
+          model_id: 3,
+          model_name: "Model A",
+          value: 0.62,
+          outcome: null,
+        },
+        {
+          prediction_id: 11,
+          event_id: 12,
+          event_name: "Poniżej 2.5 gola",
+          event_family: { id: 1, name: "GOALS" },
+          model_id: 3,
+          model_name: "Model A",
+          value: 0.38,
+          outcome: null,
+        },
+      ],
+      prediction_analysis: {
+        result: { p_home: 0.45, p_draw: 0.28, p_away: 0.27 },
+        btts: { p_yes: 0.55, p_no: 0.45 },
+        goals: {
+          lambda_home: 1.4,
+          lambda_away: 1.1,
+          total_buckets: {},
+          over_25: 0.62,
+          under_25: 0.38,
+          top_exact_scores: [],
+        },
+      },
+      odds: [
+        {
+          id: 1,
+          match_id: 42,
+          bookmaker_id: 4,
+          bookmaker_name: "STS",
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          event_family: { id: 1, name: "GOALS" },
+          odds: 1.95,
+        },
+        {
+          id: 2,
+          match_id: 42,
+          bookmaker_id: 5,
+          bookmaker_name: "Fortuna",
+          event_id: 8,
+          event_name: "Powyżej 2.5 gola",
+          event_family: { id: 1, name: "GOALS" },
+          odds: 1.9,
+        },
+      ],
       stats: null,
       hockey_stats: null,
       has_player_stats: false,
       head_to_head: {
-        meetings: 0,
-        home_wins: 0,
+        played: 0,
+        wins: 0,
         draws: 0,
-        away_wins: 0,
-        recent_matches: [],
+        losses: 0,
+        goals_for: 0,
+        goals_conceded: 0,
+        btts_percentage: 0,
+        avg_goals_per_match: 0,
+        meetings: [],
       },
       home_team_history: [{ match_id: 1 }],
       away_team_history: [{ match_id: 2 }],
@@ -160,6 +217,124 @@ describe("runPlannedTools allowlist and limits", () => {
     expect(mockedFetch).toHaveBeenCalledWith("/matches/42/details");
     expect(result.summary).toMatch(/Legia/);
     expect(result.dataSources[0]?.endpoint).toContain("/matches/42/details");
+
+    const data = result.data as {
+      final_predictions: Array<{
+        event_name: string;
+        value: number | null;
+        event_family: string | null;
+      }>;
+      odds: unknown[];
+      prediction_analysis: unknown;
+      predictions_count: number;
+      odds_count: number;
+      predictions_truncated: boolean;
+      odds_truncated: boolean;
+    };
+    expect(data.final_predictions.length).toBeGreaterThan(0);
+    expect(data.final_predictions).toHaveLength(2);
+    expect(data.final_predictions[0]?.event_name).toBe("Powyżej 2.5 gola");
+    expect(data.final_predictions[0]?.event_family).toBe("GOALS");
+    expect(data.odds).toHaveLength(2);
+    expect(data.prediction_analysis).not.toBeNull();
+    expect(data.predictions_count).toBe(2);
+    expect(data.odds_count).toBe(2);
+    expect(data.predictions_truncated).toBe(false);
+    expect(data.odds_truncated).toBe(false);
+    expect(result.summary).toMatch(/Top predykcja: Powyżej 2\.5 gola/);
+    expect(result.table?.title).toMatch(/Legia vs Lech/);
+    expect(result.table?.rows).toContainEqual([
+      "Top predykcja",
+      "Powyżej 2.5 gola (62.0%, Model A)",
+    ]);
+  });
+
+  it("truncates get_match_details predictions and odds to top 12 rows", async () => {
+    const finalPredictions = Array.from({ length: 30 }, (_, index) => ({
+      prediction_id: index + 1,
+      event_id: index + 1,
+      event_name: `Event ${index + 1}`,
+      event_family: { id: 1, name: "GOALS" },
+      model_id: 3,
+      model_name: "Model A",
+      value: index / 100,
+      outcome: null,
+    }));
+    const odds = Array.from({ length: 28 }, (_, index) => ({
+      id: index + 1,
+      match_id: 42,
+      bookmaker_id: 4,
+      bookmaker_name: "STS",
+      event_id: index + 1,
+      event_name: `Event ${String(index + 1).padStart(2, "0")}`,
+      event_family: { id: 1, name: "GOALS" },
+      odds: 2 + index * 0.01,
+    }));
+
+    mockedFetch.mockResolvedValue({
+      id: 42,
+      league_id: 1,
+      season_id: 10,
+      sport_id: 1,
+      round: 3,
+      round_label: "Kolejka 3",
+      game_date: "2024-05-01",
+      home_team: { id: 1, name: "Legia", shortcut: "LEG" },
+      away_team: { id: 2, name: "Lech", shortcut: "LPO" },
+      home_goals: null,
+      away_goals: null,
+      result: "0",
+      is_played: false,
+      score_resolution: null,
+      final_predictions: finalPredictions,
+      prediction_analysis: null,
+      odds,
+      stats: null,
+      hockey_stats: null,
+      has_player_stats: false,
+      head_to_head: {
+        played: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goals_for: 0,
+        goals_conceded: 0,
+        btts_percentage: 0,
+        avg_goals_per_match: 0,
+        meetings: [],
+      },
+      home_team_history: [],
+      away_team_history: [],
+      boxscore: null,
+      hockey_boxscore: null,
+      model_assessments: [],
+    });
+
+    const [result] = await runPlannedTools(
+      [{ tool: "get_match_details", args: { match_id: 42 } }],
+      { sport_id: 1, label: "Piłka nożna" },
+    );
+
+    const data = result.data as {
+      final_predictions: Array<{ event_name: string; value: number | null }>;
+      odds: unknown[];
+      predictions_count: number;
+      odds_count: number;
+      predictions_truncated: boolean;
+      odds_truncated: boolean;
+    };
+    expect(data.final_predictions).toHaveLength(12);
+    expect(data.odds).toHaveLength(12);
+    expect(data.predictions_count).toBe(30);
+    expect(data.odds_count).toBe(28);
+    expect(data.predictions_truncated).toBe(true);
+    expect(data.odds_truncated).toBe(true);
+    expect(data.final_predictions[0]?.event_name).toBe("Event 30");
+    expect(data.final_predictions[0]?.value).toBe(0.29);
+    expect(result.table?.rows).toContainEqual([
+      "Top predykcja",
+      "Event 30 (29.0%, Model A)",
+    ]);
   });
 });
 
