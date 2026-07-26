@@ -73,9 +73,8 @@ export function PredictionOutcomeExample({
           Przykładowa predykcja przedmeczowa
         </h2>
         <p className="max-w-3xl text-sm leading-relaxed text-slate-400">
-          Stabilny przykład edukacyjny: jak wyglądają wyjścia modeli 1X2, BTTS
-          i goli (Poisson) dla jednego meczu. To ilustracja kształtu predykcji,
-          nie interaktywne rozliczenie Hit/Miss.
+          Ilustracja kształtu predykcji: jak wyglądają wyjścia modeli 1X2, BTTS
+          i goli (Poisson) dla jednego meczu.
         </p>
       </div>
 

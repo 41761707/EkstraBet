@@ -10,7 +10,8 @@ import pandas as pd
 
 from backend.services.match_service import (
     get_league_matches,
-    get_match_details)
+    get_match_details,
+    search_matches)
 
 
 class TestMatchService(unittest.TestCase):
@@ -370,6 +371,221 @@ class TestMatchService(unittest.TestCase):
         assert details is not None
         self.assertEqual(details["model_assessments"], [])
         self.assertIsNotNone(details["stats"])
+
+
+class TestMatchSearchService(unittest.TestCase):
+    """Tests for match search by team name queries."""
+
+    def _upcoming_match_frame(self) -> pd.DataFrame:
+        return pd.DataFrame([{
+            "id": 119435,
+            "league_id": 1,
+            "season_id": 12,
+            "sport_id": 1,
+            "round": 8,
+            "game_date": datetime(2026, 7, 28, 18, 0),
+            "result": "0",
+            "home_team_goals": None,
+            "away_team_goals": None,
+            "home_id": 10,
+            "home_name": "Górnik Zabrze",
+            "home_shortcut": "GOR",
+            "away_id": 20,
+            "away_name": "Śląsk Wrocław",
+            "away_shortcut": "SLA"
+        }])
+
+    def test_search_matches_requires_at_least_one_query(self) -> None:
+        with self.assertRaises(ValueError):
+            search_matches(team_a_query="  ", team_b_query=None)
+
+    @patch(
+        "backend.services.match_service.team_repository.search_teams_by_name",
+        return_value=pd.DataFrame())
+    def test_search_matches_returns_empty_when_team_missing(
+        self,
+        mock_search_teams: unittest.mock.MagicMock) -> None:
+        payload = search_matches(
+            team_a_query="Nieistniejaca",
+            from_now=True)
+        self.assertEqual(payload["matches"], [])
+        self.assertEqual(payload["total_count"], 0)
+        self.assertIsNone(payload["filters_applied"]["team_a_id"])
+        self.assertTrue(payload["filters_applied"]["warnings"])
+        mock_search_teams.assert_called_once()
+
+    @patch(
+        "backend.services.match_service.match_repository.search_matches")
+    @patch(
+        "backend.services.match_service.team_repository.search_teams_by_name")
+    def test_search_matches_pair_returns_empty_when_one_team_missing(
+        self,
+        mock_search_teams: unittest.mock.MagicMock,
+        mock_search_matches: unittest.mock.MagicMock) -> None:
+        mock_search_teams.side_effect = [
+            pd.DataFrame([{
+                "id": 10,
+                "name": "Górnik Zabrze",
+                "shortcut": "GOR",
+                "country_id": 1,
+                "country_name": "Polska",
+                "country_emoji": None,
+                "sport_id": 1,
+                "sport_name": "Piłka nożna"
+            }]),
+            pd.DataFrame()
+        ]
+        payload = search_matches(
+            team_a_query="Górnik",
+            team_b_query="Nieistniejaca",
+            from_now=True)
+        self.assertEqual(payload["matches"], [])
+        self.assertEqual(payload["total_count"], 0)
+        self.assertEqual(payload["filters_applied"]["team_a_id"], 10)
+        self.assertIsNone(payload["filters_applied"]["team_b_id"])
+        self.assertTrue(payload["filters_applied"]["warnings"])
+        mock_search_matches.assert_not_called()
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository.search_matches")
+    @patch(
+        "backend.services.match_service.team_repository.search_teams_by_name")
+    def test_search_matches_both_teams_maps_summary(
+        self,
+        mock_search_teams: unittest.mock.MagicMock,
+        mock_search_matches: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        mock_search_teams.side_effect = [
+            pd.DataFrame([{
+                "id": 10,
+                "name": "Górnik Zabrze",
+                "shortcut": "GOR",
+                "country_id": 1,
+                "country_name": "Polska",
+                "country_emoji": None,
+                "sport_id": 1,
+                "sport_name": "Piłka nożna"
+            }]),
+            pd.DataFrame([{
+                "id": 20,
+                "name": "Śląsk Wrocław",
+                "shortcut": "SLA",
+                "country_id": 1,
+                "country_name": "Polska",
+                "country_emoji": None,
+                "sport_id": 1,
+                "sport_name": "Piłka nożna"
+            }])
+        ]
+        mock_search_matches.return_value = self._upcoming_match_frame()
+
+        payload = search_matches(
+            team_a_query="Górnik",
+            team_b_query="Śląsk",
+            sport_id=1,
+            from_now=True,
+            played=False,
+            page_size=10)
+
+        self.assertEqual(payload["total_count"], 1)
+        self.assertEqual(payload["matches"][0]["id"], 119435)
+        self.assertEqual(
+            payload["matches"][0]["home_team"]["name"],
+            "Górnik Zabrze")
+        self.assertFalse(payload["matches"][0]["is_played"])
+        self.assertEqual(payload["filters_applied"]["team_a_id"], 10)
+        self.assertEqual(payload["filters_applied"]["team_b_id"], 20)
+        mock_search_matches.assert_called_once_with(
+            team_a_id=10,
+            team_b_id=20,
+            sport_id=1,
+            date_from=None,
+            date_to=None,
+            from_now=True,
+            played=False,
+            limit=10)
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository.search_matches",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.team_repository.search_teams_by_name")
+    def test_search_matches_single_team_from_now(
+        self,
+        mock_search_teams: unittest.mock.MagicMock,
+        mock_search_matches: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        mock_search_teams.return_value = pd.DataFrame([{
+            "id": 10,
+            "name": "Górnik Zabrze",
+            "shortcut": "GOR",
+            "country_id": 1,
+            "country_name": "Polska",
+            "country_emoji": None,
+            "sport_id": 1,
+            "sport_name": "Piłka nożna"
+        }])
+
+        payload = search_matches(
+            team_a_query="Górnik",
+            from_now=True,
+            page_size=5)
+
+        self.assertEqual(payload["matches"], [])
+        self.assertEqual(payload["total_count"], 0)
+        mock_search_matches.assert_called_once_with(
+            team_a_id=10,
+            team_b_id=None,
+            sport_id=None,
+            date_from=None,
+            date_to=None,
+            from_now=True,
+            played=None,
+            limit=5)
+
+    @patch(
+        "backend.services.match_service.team_repository.search_teams_by_name")
+    def test_search_matches_warns_on_ambiguous_team(
+        self,
+        mock_search_teams: unittest.mock.MagicMock) -> None:
+        mock_search_teams.return_value = pd.DataFrame([
+            {
+                "id": 10,
+                "name": "Górnik Zabrze",
+                "shortcut": "GOR",
+                "country_id": 1,
+                "country_name": "Polska",
+                "country_emoji": None,
+                "sport_id": 1,
+                "sport_name": "Piłka nożna"
+            },
+            {
+                "id": 11,
+                "name": "Górnik Łęczna",
+                "shortcut": "LEC",
+                "country_id": 1,
+                "country_name": "Polska",
+                "country_emoji": None,
+                "sport_id": 1,
+                "sport_name": "Piłka nożna"
+            }
+        ])
+        with patch(
+            "backend.services.match_service.match_repository.search_matches",
+            return_value=pd.DataFrame()):
+            payload = search_matches(team_a_query="Górnik")
+        warnings = payload["filters_applied"]["warnings"]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Multiple teams matched", warnings[0])
+        self.assertEqual(payload["filters_applied"]["team_a_id"], 10)
 
 
 if __name__ == "__main__":

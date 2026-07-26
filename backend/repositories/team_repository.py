@@ -24,6 +24,32 @@ def team_exists(team_id: int) -> bool:
     return not frame.empty
 
 
+def search_teams_by_name(
+    name_query: str,
+    sport_id: int | None = None,
+    limit: int = 10) -> pd.DataFrame:
+    """Return teams whose name partially matches the query."""
+    conditions = ["t.name LIKE %s"]
+    params: list[object] = [f"%{name_query}%"]
+    if sport_id is not None:
+        conditions.append("t.sport_id = %s")
+        params.append(sport_id)
+    where_clause = " AND ".join(conditions)
+    query = f"""
+        SELECT
+            {_TEAM_SELECT_COLUMNS}
+        FROM teams t
+        LEFT JOIN countries c ON t.country = c.id
+        LEFT JOIN sports s ON t.sport_id = s.id
+        WHERE {where_clause}
+        ORDER BY t.id
+        LIMIT %s
+    """
+    params.append(limit)
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=tuple(params))
+
+
 def fetch_team_by_id(team_id: int) -> pd.DataFrame:
     """Return a single team row with country and sport metadata."""
     query = f"""

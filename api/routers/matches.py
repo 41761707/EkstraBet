@@ -2,11 +2,15 @@ from fastapi import APIRouter, HTTPException, Path, Query
 import pandas as pd
 from pydantic import BaseModel, Field
 import logging
+from datetime import date
 from typing import Optional, List
 
-from api.schemas.match import MatchDetails
+from api.schemas.match import MatchDetails, MatchSearchResponse
 from api.utils import execute_query
 from api.routers.utils import parse_id_list
+from backend.repositories.match_repository import (
+    DEFAULT_MATCH_SEARCH_LIMIT,
+    MAX_MATCH_SEARCH_LIMIT)
 from backend.services import match_service
 
 # Konfiguracja logowania
@@ -76,11 +80,73 @@ async def matches_info():
         "endpoints": [
             "GET /matches/seasons/{league_id} - Seasons for a league",
             "GET /matches/rounds/{league_id}/{season_id} - Rounds for a season",
+            "GET /matches/search - Search matches by team names",
             "GET /matches/{match_id}/details - Full match details",
             "GET /matches/{league_id}/{season_id} - Matches with teams for a season",
             "GET /matches/teams-in-season/{league_id}/{season_id} - Teams in regular season",
         ],
     }
+
+@router.get("/search", response_model=MatchSearchResponse)
+async def search_matches(
+    team_a_query: str | None = Query(
+        None,
+        description="Home/first team name (partial match)"),
+    team_b_query: str | None = Query(
+        None,
+        description="Away/second team name (partial match)"),
+    sport_id: int | None = Query(
+        None,
+        ge=1,
+        description="Sport ID filter"),
+    date_from: date | None = Query(
+        None,
+        description="Inclusive start date (YYYY-MM-DD)"),
+    date_to: date | None = Query(
+        None,
+        description="Inclusive end date (YYYY-MM-DD)"),
+    from_now: bool = Query(
+        True,
+        description="Only matches starting from the current moment"),
+    played: bool | None = Query(
+        None,
+        description="Filter by played status; omit for both"),
+    page_size: int = Query(
+        DEFAULT_MATCH_SEARCH_LIMIT,
+        ge=1,
+        le=MAX_MATCH_SEARCH_LIMIT,
+        description="Maximum number of matches to return")
+) -> MatchSearchResponse:
+    """Search fixtures by one or two team name queries."""
+    has_team_a = bool(team_a_query and team_a_query.strip())
+    has_team_b = bool(team_b_query and team_b_query.strip())
+    if not has_team_a and not has_team_b:
+        raise HTTPException(
+            status_code=422,
+            detail="At least one of team_a_query or team_b_query is required")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(
+            status_code=422,
+            detail="date_from cannot be later than date_to")
+
+    try:
+        payload = match_service.search_matches(
+            team_a_query=team_a_query,
+            team_b_query=team_b_query,
+            sport_id=sport_id,
+            date_from=date_from,
+            date_to=date_to,
+            from_now=from_now,
+            played=played,
+            page_size=page_size)
+        return MatchSearchResponse(**payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Failed to search matches: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to search matches") from exc
 
 @router.get("/seasons/{league_id}", response_model=SeasonsListResponse)
 async def get_seasons_for_league(
