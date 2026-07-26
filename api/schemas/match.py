@@ -82,6 +82,24 @@ class LeagueMatchesListResponse(BaseModel):
     season_id: int = Field(..., description="Season ID")
 
 
+class DailyMatchSummary(MatchSummary):
+    """Match summary enriched with league and sport context for daily views."""
+
+    league_name: str = Field(..., description="League display name")
+    sport_id: int = Field(..., description="Sport ID")
+    sport_name: str = Field(..., description="Sport display name")
+
+
+class DailyMatchesResponse(BaseModel):
+    """Response model for GET /matches/daily."""
+
+    match_date: date = Field(..., description="Requested match date")
+    matches: list[DailyMatchSummary] = Field(
+        ...,
+        description="Daily matches from active leagues")
+    total_count: int = Field(..., description="Number of returned matches")
+
+
 class MatchSearchFiltersApplied(BaseModel):
     """Filters echoed back by GET /matches/search."""
 

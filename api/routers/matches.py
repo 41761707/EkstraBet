@@ -5,7 +5,11 @@ import logging
 from datetime import date
 from typing import Optional, List
 
-from api.schemas.match import MatchDetails, MatchSearchResponse
+from api.schemas.match import (
+    DailyMatchSummary,
+    DailyMatchesResponse,
+    MatchDetails,
+    MatchSearchResponse)
 from api.utils import execute_query
 from api.routers.utils import parse_id_list
 from backend.repositories.match_repository import (
@@ -81,11 +85,35 @@ async def matches_info():
             "GET /matches/seasons/{league_id} - Seasons for a league",
             "GET /matches/rounds/{league_id}/{season_id} - Rounds for a season",
             "GET /matches/search - Search matches by team names",
+            "GET /matches/daily - Daily matches from active leagues",
             "GET /matches/{match_id}/details - Full match details",
             "GET /matches/{league_id}/{season_id} - Matches with teams for a season",
             "GET /matches/teams-in-season/{league_id}/{season_id} - Teams in regular season",
         ],
     }
+
+@router.get("/daily", response_model=DailyMatchesResponse)
+async def get_daily_matches(
+    match_date: date = Query(
+        ...,
+        description="Match date (YYYY-MM-DD)")
+) -> DailyMatchesResponse:
+    """Return all matches from active leagues for the given date."""
+    try:
+        matches = match_service.get_daily_matches(match_date)
+        mapped = [DailyMatchSummary(**match) for match in matches]
+        return DailyMatchesResponse(
+            match_date=match_date,
+            matches=mapped,
+            total_count=len(mapped))
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch daily matches for %s: %s",
+            match_date,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch daily matches") from exc
 
 @router.get("/search", response_model=MatchSearchResponse)
 async def search_matches(
