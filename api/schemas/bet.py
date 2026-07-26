@@ -1,15 +1,20 @@
 """Pydantic schemas for bet recommendation endpoints."""
 
 from __future__ import annotations
+
 from datetime import date, datetime
 from typing import Literal
+
 from pydantic import BaseModel, Field
+
 from api.schemas.match import TeamInMatch
 from api.schemas.prediction import EventFamilyRef
 
 SettlementStatus = Literal["pending", "won", "lost"]
 BetSortBy = Literal["ev", "probability", "game_date"]
 BetSortOrder = Literal["asc", "desc"]
+OpportunitySource = Literal["bet", "prediction"]
+RankingBasis = Literal["ev_after_tax", "ev", "probability"]
 
 
 class BetRecommendation(BaseModel):
@@ -39,7 +44,9 @@ class BetRecommendation(BaseModel):
         description="Model probability as percentage",
         ge=0.0,
         le=100.0)
-    ev: float = Field(..., description="Expected value from database")
+    ev: float = Field(
+        ...,
+        description="Recalculated EV: probability * odds - 1")
     ev_after_tax: float | None = Field(
         None,
         description="EV after 12% betting tax when apply_tax is enabled")
@@ -65,3 +72,68 @@ class BetRecommendationsResponse(BaseModel):
     filters_applied: dict[str, object] = Field(
         ...,
         description="Applied query filters")
+
+
+class MarketOpportunity(BaseModel):
+    """Single ranked market opportunity across bets or predictions."""
+
+    match_id: int = Field(..., description="Match ID")
+    sport_id: int = Field(..., description="Sport ID")
+    league_id: int = Field(..., description="League ID")
+    league_name: str = Field(..., description="League name")
+    game_date: datetime | date = Field(..., description="Match kick-off")
+    home_team: str = Field(..., description="Home team name")
+    away_team: str = Field(..., description="Away team name")
+    event_id: int = Field(..., description="Event ID")
+    event_name: str = Field(..., description="Event name")
+    model_id: int | None = Field(None, description="Model ID")
+    model_name: str | None = Field(None, description="Model name")
+    probability: float | None = Field(
+        None,
+        description="Model probability in 0-1 range",
+        ge=0.0,
+        le=1.0)
+    probability_pct: float | None = Field(
+        None,
+        description="Model probability as percentage",
+        ge=0.0,
+        le=100.0)
+    odds: float | None = Field(
+        None,
+        description="Best available decimal odds",
+        ge=1.0)
+    bookmaker_id: int | None = Field(None, description="Bookmaker ID")
+    bookmaker_name: str | None = Field(None, description="Bookmaker name")
+    implied_probability: float | None = Field(
+        None,
+        description="Implied probability from odds (1/odds)")
+    ev: float | None = Field(
+        None,
+        description="Expected value when odds are available")
+    ev_after_tax: float | None = Field(
+        None,
+        description="EV after 12% tax when apply_tax and odds exist")
+    source: OpportunitySource = Field(
+        ...,
+        description="Primary evidence source for this row")
+    ranking_basis: RankingBasis = Field(
+        ...,
+        description="Metric used to rank this row within its tier")
+
+
+class MarketOpportunitiesResponse(BaseModel):
+    """Response for GET /bets/opportunities."""
+
+    opportunities: list[MarketOpportunity] = Field(
+        ...,
+        description="Ranked market opportunities")
+    total_count: int = Field(..., description="Number of returned rows")
+    filters_applied: dict[str, object] = Field(
+        ...,
+        description="Applied query filters")
+    source_counts: dict[str, int] = Field(
+        ...,
+        description="Counts by source tier (bet / prediction)")
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Non-fatal notes about ranking composition")
