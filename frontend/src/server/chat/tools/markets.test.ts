@@ -1,12 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type {
+  BetRecommendation,
+  MatchDetails,
+  MatchPredictionItem,
+  MatchSummary,
+  OddsItem,
+  TeamProfile,
+  TeamSeasonMatchPoint,
+  TeamSummary,
+} from "@/types/api";
+
+vi.mock("@/server/chat/tools/http", () => ({
+  fetchReadOnly: vi.fn(),
+  getEndpoint: (path: string) => `GET ${path}`,
+  buildUrl: (path: string) => `http://localhost:8000${path}`,
+}));
+
+import { fetchReadOnly } from "@/server/chat/tools/http";
 import {
+  analyzeMatchBet,
   computeEv,
   computeEvAfterTax,
   matchEventByQuery,
   parseMarketQuery,
   pickBestOdds,
 } from "@/server/chat/tools/markets";
+
+const mockedFetch = vi.mocked(fetchReadOnly);
+
+afterEach(() => {
+  mockedFetch.mockReset();
+});
 
 describe("computeEv / computeEvAfterTax", () => {
   it("computes known EV values", () => {
@@ -192,5 +217,731 @@ describe("pickBestOdds", () => {
       bookmaker_name: "B",
       odds: 2.15,
     });
+  });
+});
+
+function makeTeam(id: number, name: string): TeamSummary {
+  return {
+    id,
+    name,
+    shortcut: name.slice(0, 3).toUpperCase(),
+    country_id: null,
+    country_name: null,
+    country_emoji: null,
+    sport_id: 1,
+    sport_name: "Piłka nożna",
+  };
+}
+
+function makeMatchDetails(
+  overrides?: Partial<MatchDetails>,
+): MatchDetails {
+  return {
+    id: 119435,
+    league_id: 1,
+    season_id: 10,
+    sport_id: 1,
+    round: 1,
+    round_label: "1",
+    game_date: "2026-07-28T18:00:00",
+    home_team: { id: 1, name: "Górnik Zabrze", shortcut: "GOR" },
+    away_team: { id: 2, name: "Śląsk Wrocław", shortcut: "SLA" },
+    home_goals: null,
+    away_goals: null,
+    result: "0",
+    is_played: false,
+    score_resolution: null,
+    final_predictions: [],
+    prediction_analysis: null,
+    odds: [],
+    stats: null,
+    hockey_stats: null,
+    has_player_stats: false,
+    head_to_head: {
+      team_id: 1,
+      opponent_id: 2,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals_for: 0,
+      goals_conceded: 0,
+      btts_count: 0,
+      btts_percentage: 0,
+      avg_goals_per_match: 0,
+      meetings: [],
+    },
+    home_team_history: [],
+    away_team_history: [],
+    boxscore: null,
+    hockey_boxscore: null,
+    model_assessments: [],
+    ...overrides,
+  };
+}
+
+function makeSotMatch(
+  teamValue: number,
+  opponentValue: number,
+  isHome = true,
+): TeamSeasonMatchPoint {
+  return {
+    match_id: 1,
+    match_date: "2026-01-01",
+    opponent_shortcut: "OPP",
+    opponent_name: "Opponent",
+    total_goals: 2,
+    btts: false,
+    result: "W",
+    home_team_name: "Home",
+    away_team_name: "Away",
+    home_goals: 1,
+    away_goals: 1,
+    is_home: isHome,
+    team_cards: 0,
+    opponent_cards: 0,
+    total_cards: 0,
+    team_offsides: 0,
+    opponent_offsides: 0,
+    total_offsides: 0,
+    team_corners: 0,
+    opponent_corners: 0,
+    total_corners: 0,
+    team_shots: 10,
+    opponent_shots: 8,
+    total_shots: 18,
+    team_shots_on_target: teamValue,
+    opponent_shots_on_target: opponentValue,
+    total_shots_on_target: teamValue + opponentValue,
+    team_fouls: 0,
+    opponent_fouls: 0,
+    total_fouls: 0,
+  };
+}
+
+function makeProfile(
+  team: TeamSummary,
+  matches: TeamSeasonMatchPoint[],
+): TeamProfile {
+  return {
+    team,
+    season_id: 10,
+    league_id: 1,
+    form: [],
+    recent_matches: [],
+    overall_stats: {
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals_for: 0,
+      goals_conceded: 0,
+      goal_difference: 0,
+      points: 0,
+    },
+    home_stats: {
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals_for: 0,
+      goals_conceded: 0,
+      goal_difference: 0,
+      points: 0,
+    },
+    away_stats: {
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals_for: 0,
+      goals_conceded: 0,
+      goal_difference: 0,
+      points: 0,
+    },
+    season_matches: matches,
+    head_to_head: null,
+  };
+}
+
+function makeBet(overrides?: Partial<BetRecommendation>): BetRecommendation {
+  return {
+    bet_id: 1,
+    match_id: 119435,
+    league_id: 1,
+    league_name: "Ekstraklasa",
+    season_id: 10,
+    game_date: "2026-07-28T18:00:00",
+    home_team: { id: 1, name: "Górnik Zabrze", shortcut: "GOR" },
+    away_team: { id: 2, name: "Śląsk Wrocław", shortcut: "SLA" },
+    event_id: 8,
+    event_name: "Powyżej 2.5 gola",
+    event_family: null,
+    odds: 2.1,
+    probability: 0.58,
+    probability_pct: 58,
+    ev: 0.218,
+    ev_after_tax: 0.07184,
+    bookmaker_id: 1,
+    bookmaker_name: "STS",
+    model_id: 3,
+    model_name: "OU Model",
+    settlement_status: "pending",
+    custom_bet: false,
+    ...overrides,
+  };
+}
+
+function makePrediction(
+  overrides?: Partial<MatchPredictionItem>,
+): MatchPredictionItem {
+  return {
+    prediction_id: 1,
+    event_id: 8,
+    event_name: "Powyżej 2.5 gola",
+    event_family: null,
+    model_id: 3,
+    model_name: "OU Model",
+    value: 0.58,
+    outcome: null,
+    ...overrides,
+  };
+}
+
+function makeOdds(overrides?: Partial<OddsItem>): OddsItem {
+  return {
+    id: 1,
+    match_id: 119435,
+    bookmaker_id: 1,
+    bookmaker_name: "STS",
+    event_id: 8,
+    event_name: "Powyżej 2.5 gola",
+    event_family: null,
+    odds: 2.1,
+    ...overrides,
+  };
+}
+
+function strongSotMatches(value: number): TeamSeasonMatchPoint[] {
+  return Array.from({ length: 10 }, () => makeSotMatch(value, 2));
+}
+
+function makeGoalsMatch(
+  teamValue: number,
+  opponentValue: number,
+  isHome = true,
+): TeamSeasonMatchPoint {
+  return {
+    ...makeSotMatch(0, 0, isHome),
+    home_goals: isHome ? teamValue : opponentValue,
+    away_goals: isHome ? opponentValue : teamValue,
+    total_goals: teamValue + opponentValue,
+  };
+}
+
+function weakGoalsMatches(): TeamSeasonMatchPoint[] {
+  // niska liczba goli — słabe wsparcie dla over 2.5
+  return Array.from({ length: 10 }, () => makeGoalsMatch(0, 1));
+}
+
+function strongGoalsMatches(): TeamSeasonMatchPoint[] {
+  // sumy > 2.5 — wsparcie historyczne dla over 2.5
+  return Array.from({ length: 10 }, () => makeGoalsMatch(2, 2));
+}
+
+function makeMatchSummary(
+  overrides?: Partial<MatchSummary> & {
+    id?: number;
+    game_date?: string;
+    home_name?: string;
+    away_name?: string;
+  },
+): MatchSummary {
+  return {
+    id: overrides?.id ?? 119435,
+    league_id: overrides?.league_id ?? 1,
+    season_id: overrides?.season_id ?? 10,
+    round: overrides?.round ?? 1,
+    round_label: overrides?.round_label ?? "1",
+    game_date: overrides?.game_date ?? "2099-07-28T18:00:00",
+    home_team: overrides?.home_team ?? {
+      id: 1,
+      name: overrides?.home_name ?? "Górnik Zabrze",
+      shortcut: "GOR",
+    },
+    away_team: overrides?.away_team ?? {
+      id: 2,
+      name: overrides?.away_name ?? "Śląsk Wrocław",
+      shortcut: "SLA",
+    },
+    home_goals: overrides?.home_goals ?? null,
+    away_goals: overrides?.away_goals ?? null,
+    result: overrides?.result ?? "0",
+    is_played: overrides?.is_played ?? false,
+    score_resolution: overrides?.score_resolution ?? null,
+  };
+}
+
+/**
+ * Route mock responses by path for analyze_match_bet parallel fetches.
+ */
+function mockAnalyzeSources(params: {
+  details?: MatchDetails;
+  bets?: BetRecommendation[];
+  predictions?: MatchPredictionItem[];
+  odds?: OddsItem[];
+  profileHome?: TeamProfile;
+  profileAway?: TeamProfile;
+  searchMatches?: MatchSummary[];
+  searchFallbackMatches?: MatchSummary[];
+}) {
+  const details = params.details ?? makeMatchDetails();
+  const home = makeTeam(1, "Górnik Zabrze");
+  const away = makeTeam(2, "Śląsk Wrocław");
+  let searchCalls = 0;
+
+  mockedFetch.mockImplementation(async (path: string, requestParams?) => {
+    if (path === "/matches/search") {
+      searchCalls += 1;
+      const played = requestParams?.played;
+      if (searchCalls === 1 && played === false) {
+        return {
+          matches: params.searchMatches ?? [],
+          total_count: (params.searchMatches ?? []).length,
+          filters_applied: {},
+        };
+      }
+      return {
+        matches: params.searchFallbackMatches ?? params.searchMatches ?? [],
+        total_count: (
+          params.searchFallbackMatches ??
+          params.searchMatches ??
+          []
+        ).length,
+        filters_applied: {},
+      };
+    }
+    if (path.includes("/matches/") && path.endsWith("/details")) {
+      return details;
+    }
+    if (path === "/bets/recommendations") {
+      return {
+        recommendations: params.bets ?? [],
+        total_count: (params.bets ?? []).length,
+        filters_applied: {},
+      };
+    }
+    if (path.startsWith("/predictions/match/")) {
+      return {
+        match_predictions: params.predictions ?? [],
+        total_count: (params.predictions ?? []).length,
+        match_id: details.id,
+      };
+    }
+    if (path.startsWith("/odds/match/")) {
+      return {
+        odds: params.odds ?? [],
+        total_count: (params.odds ?? []).length,
+        match_id: details.id,
+      };
+    }
+    if (path.startsWith("/teams/") && path.endsWith("/profile")) {
+      const teamId = Number(path.split("/")[2]);
+      if (teamId === details.home_team.id || teamId === 1) {
+        return (
+          params.profileHome ??
+          makeProfile(home, strongGoalsMatches())
+        );
+      }
+      return (
+        params.profileAway ??
+        makeProfile(away, strongGoalsMatches())
+      );
+    }
+    throw new Error(`Unexpected fetch path: ${path}`);
+  });
+}
+
+describe("analyze_match_bet", () => {
+  it("happy path with bets, prediction, odds and matching stats", async () => {
+    mockAnalyzeSources({
+      bets: [makeBet()],
+      predictions: [makePrediction()],
+      odds: [makeOdds()],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        strongGoalsMatches(),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        strongGoalsMatches(),
+      ),
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Powyżej 2.5 gola",
+      subject: "total",
+      stat: "goals",
+      direction: "over",
+      line: 2.5,
+      apply_tax: true,
+      sport_id: 1,
+    });
+
+    expect(result.name).toBe("analyze_match_bet");
+    expect(result.data).toMatchObject({
+      verdict_basis: "value",
+      primary_evidence_source: "bet",
+      odds_available: true,
+      probability: 0.58,
+      best_odds: 2.1,
+    });
+    const data = result.data as {
+      supporting_evidence: Array<{ source: string; label: string }>;
+      contradicting_evidence: Array<{ source: string }>;
+      available_evidence_sources: string[];
+      verdict: string;
+      ev: number;
+      ev_after_tax: number;
+      statistical: { combined_hit_rate: number } | null;
+    };
+    expect(data.available_evidence_sources).toEqual(
+      expect.arrayContaining(["bet", "prediction", "statistics"]),
+    );
+    expect(data.ev).toBeCloseTo(0.58 * 2.1 - 1, 5);
+    expect(data.ev_after_tax).toBeCloseTo(0.58 * 2.1 * 0.88 - 1, 5);
+    expect(data.verdict).toBe("lean_positive");
+    expect(data.statistical?.combined_hit_rate).toBeGreaterThan(0.55);
+    expect(
+      data.supporting_evidence.some((item) => item.source === "bet"),
+    ).toBe(true);
+    expect(
+      data.contradicting_evidence.some((item) => item.source === "statistics"),
+    ).toBe(false);
+  });
+
+  it("puts negative-EV bet record into contradicting_evidence", async () => {
+    mockAnalyzeSources({
+      bets: [
+        makeBet({
+          probability: 0.4,
+          odds: 1.8,
+          ev: 0.4 * 1.8 - 1,
+          ev_after_tax: 0.4 * 1.8 * 0.88 - 1,
+        }),
+      ],
+      predictions: [makePrediction({ value: 0.4 })],
+      odds: [makeOdds({ odds: 1.8 })],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        strongGoalsMatches(),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        strongGoalsMatches(),
+      ),
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Powyżej 2.5 gola",
+      subject: "total",
+      stat: "goals",
+      direction: "over",
+      line: 2.5,
+      apply_tax: true,
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      supporting_evidence: Array<{ source: string; label: string }>;
+      contradicting_evidence: Array<{ source: string; label: string }>;
+    };
+    expect(
+      data.supporting_evidence.some((item) => item.source === "bet"),
+    ).toBe(false);
+    expect(
+      data.contradicting_evidence.some(
+        (item) =>
+          item.source === "bet" &&
+          item.label.includes("ujemny/zerowy EV"),
+      ),
+    ).toBe(true);
+  });
+
+  it("resolves a single match via team name search", async () => {
+    const match = makeMatchSummary();
+    mockAnalyzeSources({
+      searchMatches: [match],
+      bets: [makeBet()],
+      predictions: [makePrediction()],
+      odds: [makeOdds()],
+    });
+
+    const result = await analyzeMatchBet({
+      team_a_query: "Górnik Zabrze",
+      team_b_query: "Śląsk Wrocław",
+      event_query: "Powyżej 2.5 gola",
+      sport_id: 1,
+    });
+
+    expect(result.data).toMatchObject({
+      match_id: 119435,
+      primary_evidence_source: "bet",
+    });
+    expect(
+      mockedFetch.mock.calls.some(
+        (call) =>
+          call[0] === "/matches/search" &&
+          call[1]?.played === false,
+      ),
+    ).toBe(true);
+    expect(
+      result.warnings.some((warning) => /Znaleziono \d+ meczów/i.test(warning)),
+    ).toBe(false);
+  });
+
+  it("warns when multiple matches are found and picks the nearest", async () => {
+    mockAnalyzeSources({
+      searchMatches: [
+        makeMatchSummary({
+          id: 100,
+          game_date: "2099-08-10T18:00:00",
+        }),
+        makeMatchSummary({
+          id: 200,
+          game_date: "2099-07-28T18:00:00",
+        }),
+      ],
+      bets: [makeBet({ match_id: 200 })],
+      predictions: [makePrediction()],
+      odds: [makeOdds({ match_id: 200 })],
+    });
+
+    const result = await analyzeMatchBet({
+      team_a_query: "Górnik",
+      team_b_query: "Śląsk",
+      event_query: "Powyżej 2.5 gola",
+      sport_id: 1,
+    });
+
+    expect(result.data).toMatchObject({ match_id: 200 });
+    expect(
+      result.warnings.some((warning) =>
+        /Znaleziono 2 meczów — użyłem najbliższego/i.test(warning),
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back when played=false search is empty", async () => {
+    mockAnalyzeSources({
+      searchMatches: [],
+      searchFallbackMatches: [
+        makeMatchSummary({
+          id: 300,
+          game_date: "2026-01-15T18:00:00",
+          is_played: true,
+          result: "1",
+        }),
+      ],
+      bets: [makeBet({ match_id: 300 })],
+      predictions: [makePrediction()],
+      odds: [makeOdds({ match_id: 300 })],
+    });
+
+    const result = await analyzeMatchBet({
+      team_a_query: "Górnik Zabrze",
+      team_b_query: "Śląsk Wrocław",
+      event_query: "Powyżej 2.5 gola",
+      sport_id: 1,
+    });
+
+    expect(result.data).toMatchObject({ match_id: 300 });
+    expect(
+      result.warnings.some((warning) =>
+        /Brak nadchodzącego meczu nierozegnanego/i.test(warning),
+      ),
+    ).toBe(true);
+    const searchCalls = mockedFetch.mock.calls.filter(
+      (call) => call[0] === "/matches/search",
+    );
+    expect(searchCalls.length).toBeGreaterThanOrEqual(2);
+    expect(searchCalls[0]?.[1]).toMatchObject({ played: false });
+    expect(searchCalls[1]?.[1]).toMatchObject({ from_now: false });
+  });
+
+  it("softens verdict when positive EV conflicts with weak statistics", async () => {
+    mockAnalyzeSources({
+      bets: [makeBet({ probability: 0.6, odds: 2.2, ev: 0.32 })],
+      predictions: [makePrediction({ value: 0.6 })],
+      odds: [makeOdds({ odds: 2.2 })],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        weakGoalsMatches(),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        weakGoalsMatches(),
+      ),
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Powyżej 2.5 gola",
+      subject: "total",
+      stat: "goals",
+      direction: "over",
+      line: 2.5,
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      verdict: string;
+      contradicting_evidence: unknown[];
+      verdict_basis: string;
+    };
+    expect(data.verdict_basis).toBe("value");
+    expect(["neutral", "lean_positive", "lean_negative"]).toContain(
+      data.verdict,
+    );
+    expect(data.contradicting_evidence.length).toBeGreaterThan(0);
+  });
+
+  it("uses prediction + odds when bets are empty", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [makePrediction({ value: 0.62 })],
+      odds: [makeOdds({ odds: 1.95 })],
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Powyżej 2.5 gola",
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      primary_evidence_source: string;
+      verdict_basis: string;
+      odds_available: boolean;
+      probability: number;
+      ev: number | null;
+    };
+    expect(data.primary_evidence_source).toBe("prediction");
+    expect(data.verdict_basis).toBe("value");
+    expect(data.odds_available).toBe(true);
+    expect(data.probability).toBe(0.62);
+    expect(data.ev).not.toBeNull();
+  });
+
+  it("returns probability verdict without odds and keeps ev null", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [makePrediction({ value: 0.7 })],
+      odds: [],
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Powyżej 2.5 gola",
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      verdict_basis: string;
+      verdict: string;
+      odds_available: boolean;
+      ev: number | null;
+      ev_after_tax: number | null;
+      probability: number;
+    };
+    expect(data.verdict_basis).toBe("probability");
+    expect(data.odds_available).toBe(false);
+    expect(data.ev).toBeNull();
+    expect(data.ev_after_tax).toBeNull();
+    expect(data.probability).toBe(0.7);
+    expect(data.verdict).toBe("positive");
+    expect(result.warnings.some((w) => /value bet|Brak kursu/i.test(w))).toBe(
+      true,
+    );
+  });
+
+  it("falls back to statistical verdict for SOT without model/odds", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [],
+      odds: [],
+      profileHome: makeProfile(
+        makeTeam(1, "Górnik Zabrze"),
+        strongSotMatches(5),
+      ),
+      profileAway: makeProfile(
+        makeTeam(2, "Śląsk Wrocław"),
+        // rywal często oddaje dużo SOT — wspiera over gospodarza
+        Array.from({ length: 10 }, () => makeSotMatch(2, 5)),
+      ),
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Górnik powyżej 3.5 strzału celnego",
+      subject: "home",
+      stat: "shots_on_target",
+      direction: "over",
+      line: 3.5,
+      sport_id: 1,
+    });
+
+    const data = result.data as {
+      verdict_basis: string;
+      verdict: string;
+      odds_available: boolean;
+      primary_evidence_source: string;
+      statistical: { combined_hit_rate: number } | null;
+    };
+    expect(data.verdict_basis).toBe("statistical_support");
+    expect(data.primary_evidence_source).toBe("statistics");
+    expect(data.odds_available).toBe(false);
+    expect(data.verdict).not.toBe("insufficient_data");
+    expect(data.statistical?.combined_hit_rate).toBeGreaterThan(0.5);
+  });
+
+  it("returns insufficient_data when all sources and sample are missing", async () => {
+    mockAnalyzeSources({
+      bets: [],
+      predictions: [],
+      odds: [],
+      profileHome: makeProfile(makeTeam(1, "Górnik Zabrze"), [
+        makeSotMatch(4, 2),
+      ]),
+      profileAway: makeProfile(makeTeam(2, "Śląsk Wrocław"), [
+        makeSotMatch(2, 4),
+      ]),
+    });
+
+    const result = await analyzeMatchBet({
+      match_id: 119435,
+      event_query: "Górnik powyżej 3.5 strzału celnego",
+      subject: "home",
+      stat: "shots_on_target",
+      direction: "over",
+      line: 3.5,
+      sport_id: 1,
+    });
+
+    const data = result.data as { verdict: string };
+    expect(data.verdict).toBe("insufficient_data");
+  });
+
+  it("returns controlled empty result when match cannot be resolved", async () => {
+    const result = await analyzeMatchBet({
+      event_query: "Powyżej 2.5 gola",
+      sport_id: 1,
+    });
+
+    expect(result.data).toBeNull();
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(mockedFetch).not.toHaveBeenCalled();
   });
 });

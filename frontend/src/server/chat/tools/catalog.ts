@@ -333,6 +333,77 @@ export const CHAT_TOOL_CATALOG = {
       },
     },
   },
+  analyze_match_bet: {
+    description:
+      "Critiques a specific bet/market for one match using bets, model probability, odds and historical statistics. Use for 'czy warto zagrać' / 'oceń zdarzenie' / critique questions. Returns verdict with supporting and contradicting evidence; works without odds.",
+    args: {
+      event_query: {
+        type: "string",
+        description:
+          "Market description, e.g. Powyżej 2.5 gola or Górnik powyżej 3.5 strzału celnego",
+        required: true,
+      },
+      team_a_query: {
+        type: "string",
+        description: "First team search phrase; required when match_id is missing",
+      },
+      team_b_query: {
+        type: "string",
+        description: "Second team search phrase; required when match_id is missing",
+      },
+      match_id: {
+        type: "number",
+        description: "Known match id; skips team search when provided",
+        minimum: 1,
+      },
+      stat: {
+        type: "string",
+        description: "Structured market statistic",
+        enum: [
+          "goals",
+          "assists",
+          "shots",
+          "shots_on_target",
+          "corners",
+          "cards",
+          "fouls",
+          "offsides",
+          "fouls_conceded",
+          "yellow_cards",
+        ],
+      },
+      subject: {
+        type: "string",
+        description: "Market subject",
+        enum: ["home", "away", "total", "player"],
+      },
+      player_query: {
+        type: "string",
+        description: "Player name for player props",
+      },
+      direction: {
+        type: "string",
+        description: "Over or under",
+        enum: ["over", "under"],
+      },
+      line: {
+        type: "number",
+        description: "Numeric line, e.g. 2.5",
+      },
+      apply_tax: {
+        type: "boolean",
+        description: "Apply 12% PL betting tax to EV (default true)",
+      },
+      from_now: {
+        type: "boolean",
+        description: "Prefer upcoming fixtures when searching (default true)",
+      },
+      sport_id: {
+        type: "number",
+        description: "Sport id from GUI context",
+      },
+    },
+  },
   get_league_standings: {
     description: "Gets league standings for one season by league_id and season_id.",
     args: {
@@ -387,6 +458,7 @@ export const CHAT_TOOL_NAMES = [
   "get_player_stat_summary",
   "get_matchup_projection",
   "get_match_details",
+  "analyze_match_bet",
   "get_league_table",
   "get_league_standings",
 ] as const satisfies readonly ChatToolName[];

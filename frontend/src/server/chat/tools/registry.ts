@@ -6,6 +6,7 @@ import {
 } from "@/server/chat/audit";
 
 import { getLeagueStandings, getLeagueTable, listLeagues } from "./leagues";
+import { analyzeMatchBet } from "./markets";
 import { getMatchDetails } from "./matches";
 import {
   getPlayerStatSummary,
@@ -36,6 +37,7 @@ const TOOL_RUNNERS: Record<
   get_player_stat_summary: getPlayerStatSummary,
   get_matchup_projection: getMatchupProjection,
   get_match_details: getMatchDetails,
+  analyze_match_bet: analyzeMatchBet,
   get_league_table: getLeagueTable,
   get_league_standings: getLeagueStandings,
 };

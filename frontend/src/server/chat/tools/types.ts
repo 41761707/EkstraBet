@@ -25,6 +25,7 @@ export type ChatToolName =
   | "get_player_stat_summary"
   | "get_matchup_projection"
   | "get_match_details"
+  | "analyze_match_bet"
   | "get_league_table"
   | "get_league_standings";
 

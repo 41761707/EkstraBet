@@ -24,6 +24,33 @@ export function numberArg(
   return parsed;
 }
 
+/** Non-integer numbers (e.g. betting lines like 2.5). */
+export function floatArg(
+  args: Record<string, unknown>,
+  key: string,
+  options?: { required?: boolean; min?: number; max?: number },
+): number | undefined {
+  const value = args[key];
+  if (value === undefined || value === null || value === "") {
+    if (options?.required) {
+      throw new Error(`Missing required argument: ${key}`);
+    }
+    return undefined;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Argument ${key} must be a number`);
+  }
+  if (options?.min !== undefined && parsed < options.min) {
+    throw new Error(`Argument ${key} must be at least ${options.min}`);
+  }
+  if (options?.max !== undefined && parsed > options.max) {
+    throw new Error(`Argument ${key} must be at most ${options.max}`);
+  }
+  return parsed;
+}
+
 export function stringArg(
   args: Record<string, unknown>,
   key: string,
