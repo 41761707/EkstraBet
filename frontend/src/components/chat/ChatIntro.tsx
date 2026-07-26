@@ -49,9 +49,8 @@ export function ChatIntro({
           Krzychu - Asystent analityczny EkstraBet
         </h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-300">
-          Zadawaj pytania po polsku o ligi, drużyny, zawodników, mecze i
-          statystyki. Asystent na podstawie zbioru danych odpowiada na pytania
-          dotyczące lig, statystyk i predykcji dostępnych w aplikacji.
+          Zadawaj pytania po polsku o ligi, drużyny, zawodników, mecze,
+          statystyki, kursy i prawdopodobieństwa modeli.
         </p>
       </div>
 

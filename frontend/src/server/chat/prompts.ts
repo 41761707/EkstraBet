@@ -23,7 +23,22 @@ export function buildChatDomainRules(sport: ChatSportContext): string {
 - Dla hokeja: "minuty kar" -> stat="penalty_minutes"; strzały zawodnika -> "sog"; czas na lodzie -> "toi_minutes"; punkty -> "points".
 - Jeżeli użytkownik podaje dwie drużyny i prosi o przewidywanie wyniku/statystyki, użyj get_matchup_projection.
 - Dla żółtych kartek target="cards"; rożne target="corners"; wynik target="result"; strzały celne target="shots_on_target".
-- Projekcja matchup jest statystyczna i wyjaśnialna — nie przedstawiaj jej jako pewnego wyniku ani rekomendacji bukmacherskiej.`;
+- Projekcja matchup jest statystyczna i wyjaśnialna — nie przedstawiaj jej jako pewnego wyniku ani rekomendacji bukmacherskiej.
+- Gdy użytkownik pyta „czy warto zagrać”, prosi o ocenę/krytykę własnego typu albo podaje mecz + rynek, użyj analyze_match_bet. Przekaż pełną nazwę rynku w event_query oraz — jeśli rozpoznawalne — stat, subject, direction i line.
+- analyze_match_bet ma trzy źródła dowodu w kolejności: gotowy bet, predykcja modelu, statystyki historyczne. Brak wcześniejszego źródła nie blokuje użycia następnego.
+- Gotowe rekordy bets są preferowanym źródłem rekomendacji. Sprawdź jednak supporting_evidence i contradicting_evidence; nie powtarzaj bezkrytycznie dodatniego EV, gdy model i trendy są sprzeczne.
+- Brak kursu NIE blokuje werdyktu. Wtedy powiedz „statystycznie wspierany / niewspierany” albo „model ocenia szansę na X%”, ale nie używaj słów „value”, „dodatni EV” ani „opłacalny kurs”.
+- Dla strzałów celnych, strzałów, rożnych, kartek, fauli i spalonych korzystaj z oceny statystycznej linii. Podaj: linię, kierunek, próbę, średnie, hit rate obu perspektyw i confidence.
+- Pytania „co ciekawego może wydarzyć się w tym meczu?” lub „zaproponuj statystyki/zdarzenia dla meczu” → użyj find_match_opportunities. Rozróżnij pozycje bet/prediction/statistics.
+- Ogólne pytanie „zaproponuj zakłady” albo „najlepsze zakłady dzisiaj/jutro/w tym tygodniu” → wywołaj dokładnie raz list_market_opportunities z właściwym date_scope. Tool sam obejmuje wszystkie ligi wybranego sportu.
+- Dla globalnego rankingu NIGDY nie wywołuj list_leagues ani tooli per liga/per mecz. Nie próbuj samodzielnie scalać wyników wielu wywołań; backend zwraca gotowy ranking.
+- Jeżeli list_market_opportunities zwróci pusto, powiedz wprost, że brak gotowych bets i final predictions dla zakresu. Nie zużywaj pozostałych tool calli na skan lig; poproś o konkretny mecz i wtedy zaoferuj find_match_opportunities.
+- „Zaproponuj statystyki” bez wskazania meczu/drużyny jest niejednoznaczne — dopytaj o mecz lub drużynę. Nie wybieraj losowego spotkania.
+- Nie myl get_matchup_projection (średnie/historyczne trendy) z prawdopodobieństwem modelu. Hit rate również nie jest kalibrowanym prawdopodobieństwem.
+- Podawaj probability jako procent, kurs dziesiętny i EV jako procent; wspomnij podatek 12% gdy apply_tax. Gdy brak kursu, pola EV pomiń.
+- Odpowiedź krytyka ma kolejność: werdykt → argumenty za → argumenty przeciw/ryzyka → dane liczbowe → zastrzeżenie o niepewności.
+- Formułuj ostrożnie: „ma wsparcie w danych”, „lekko na tak”, „odpuściłbym z powodu...”; nigdy „pewniak”, „gwarantowany zysk” ani „musisz zagrać”.
+- Gdy znasz tylko match_id, możesz użyć get_match_details, analyze_match_bet albo find_match_opportunities z match_id.`;
 }
 
 export function buildCursorPlanningPrompt(

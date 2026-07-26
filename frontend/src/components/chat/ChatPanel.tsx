@@ -61,6 +61,10 @@ const EXAMPLE_PROMPTS = [
   "Przedstaw w formie wykresu ostatnie 5 meczów Argentyny pod kątem strzałów celnych.",
   "Pokaż tabelę ligi Ekstraklasa za sezon 2024/2025.",
   "Znajdź drużynę Legia Warszawa i pokaż jej profil dla najnowszego sezonu.",
+  "Czy warto zagrać Powyżej 2.5 gola w meczu Górnik Zabrze - Śląsk Wrocław?",
+  "Zaproponuj zakłady z dodatnim EV na najbliższe mecze.",
+  "Skrytykuj mój typ: Górnik Zabrze powyżej 3.5 strzału celnego ze Śląskiem.",
+  "Jakie ciekawe zdarzenia statystyczne mogą wystąpić w meczu Legia - Lech?",
 ];
 
 function createId(): string {
