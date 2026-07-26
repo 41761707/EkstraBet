@@ -7,6 +7,7 @@ import type {
   BetRecommendationsResponse,
   BetSortBy,
   BetSortOrder,
+  DailyMatchesResponse,
   EventFamilyEventsResponse,
   EventFamilyListResponse,
   HeadToHeadSummary,
@@ -368,6 +369,15 @@ export async function getMatchDetails(
     model_ids: modelIdsParam,
   });
   return normalizeMatchDetails(payload);
+}
+
+/** Daily matches from all active leagues for a calendar date (YYYY-MM-DD). */
+export async function getDailyMatches(
+  matchDate: string,
+): Promise<DailyMatchesResponse> {
+  return fetchApi<DailyMatchesResponse>("/matches/daily", {
+    match_date: matchDate,
+  });
 }
 
 function emptyHeadToHead(

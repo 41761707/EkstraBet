@@ -65,6 +65,20 @@ export interface MatchSummary {
   score_resolution: MatchScoreResolution | null;
 }
 
+/** Match summary enriched with league and sport context for daily views. */
+export interface DailyMatchSummary extends MatchSummary {
+  league_name: string;
+  sport_id: number;
+  sport_name: string;
+}
+
+/** Response model for GET /matches/daily. */
+export interface DailyMatchesResponse {
+  match_date: string;
+  matches: DailyMatchSummary[];
+  total_count: number;
+}
+
 export interface LeagueMatchesListResponse {
   matches: MatchSummary[];
   total_count: number;

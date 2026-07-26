@@ -18,6 +18,7 @@ import type {
   TeamProfile,
 } from "@/types/api";
 
+import { addIsoCalendarDays, getWarsawDateIso } from "@/lib/date";
 import { booleanArg, enumArg, floatArg, numberArg, stringArg } from "./args";
 import { fetchReadOnly, getEndpoint } from "./http";
 import {
@@ -28,6 +29,9 @@ import {
 import { normalizeSearchText } from "./text";
 import type { ToolResult } from "./types";
 import { FOOTBALL_SPORT_ID, STAT_LABELS } from "./types";
+
+// kanoniczna data warszawska — re-export dla istniejących importów z markets
+export { addIsoCalendarDays, getWarsawDateIso };
 
 interface MatchPredictionListResponse {
   match_predictions: MatchPredictionItem[];
@@ -2043,26 +2047,6 @@ export interface MatchOpportunityItem {
   odds_available: boolean;
   statistical: StatisticalMarketAssessment | null;
   note: string | null;
-}
-
-/**
- * Calendar date YYYY-MM-DD in Europe/Warsaw (chat must not guess "today").
- */
-export function getWarsawDateIso(date: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Warsaw",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
-/** Add calendar days to an ISO date string without timezone drift. */
-export function addIsoCalendarDays(isoDate: string, days: number): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const utc = new Date(Date.UTC(year!, month! - 1, day!));
-  utc.setUTCDate(utc.getUTCDate() + days);
-  return utc.toISOString().slice(0, 10);
 }
 
 /**
