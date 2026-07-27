@@ -135,16 +135,19 @@ class TestFetchBetGenerationCandidates(unittest.TestCase):
             "model_id": 2,
             "bookmaker_id": 4,
             "odds": 2.1,
-            "ev": 0.05}]
+            "probability": 50.0}]
         scope = BetGenerationScope(league_id=1, match_id=100)
         rows = fetch_bet_generation_candidates(scope)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].bookmaker_id, 4)
+        self.assertEqual(rows[0].probability, 50.0)
+        self.assertEqual(rows[0].ev, 0.0)
         query, params = mock_fetch.call_args.args
         self.assertIn("ORDER BY o.odds DESC, o.id ASC", query)
         self.assertIn("ml.active = 1", query)
         self.assertIn("o.odds > 0", query)
-        self.assertIn("ROUND((p.value / 100.0) * bo.odds - 1, 4)", query)
+        self.assertIn("p.value AS probability", query)
+        self.assertNotIn("ROUND((p.value / 100.0)", query)
         self.assertIn(1, params)
         self.assertIn(100, params)
         self.assertIn("m.league = %s", query)
@@ -185,6 +188,7 @@ class TestWriteGeneratedBets(unittest.TestCase):
                 model_id=2,
                 bookmaker_id=3,
                 odds=2.5,
+                probability=50.0,
                 ev=0.125)]
         written = write_generated_bets(rows, conn)
         self.assertEqual(written, 1)
@@ -209,6 +213,7 @@ class TestWriteGeneratedBets(unittest.TestCase):
                 model_id=2,
                 bookmaker_id=3,
                 odds=2.0,
+                probability=50.0,
                 ev=0.0)], conn)
         conn.commit.assert_not_called()
         conn.rollback.assert_not_called()

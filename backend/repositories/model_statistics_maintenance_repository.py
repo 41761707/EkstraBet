@@ -86,14 +86,20 @@ class BetGenerationScope:
 
 @dataclass(frozen=True)
 class GeneratedBet:
-    """One automatic model bet ready to upsert into ``bets``."""
+    """One automatic model bet candidate or write-ready upsert row.
+
+    ``probability`` is ``predictions.value`` on the 0–100 scale.
+    ``ev`` is filled by the service via ``compute_bet_ev`` before write;
+    repository mapping leaves it at ``0.0`` as a placeholder.
+    """
 
     match_id: int
     event_id: int
     model_id: int
     bookmaker_id: int
     odds: float
-    ev: float
+    probability: float
+    ev: float = 0.0
 
 
 def fetch_pending_final_predictions(
@@ -181,10 +187,11 @@ def fetch_pending_bets(
 def fetch_bet_generation_candidates(
         scope: BetGenerationScope
 ) -> list[GeneratedBet]:
-    """Return automatic bets for active finals with a positive best price.
+    """Return automatic bet candidates for active finals with best odds.
 
     Best bookmaker odds are chosen deterministically: highest odds, then
-    lowest ``odds.id`` as a tie-breaker.
+    lowest ``odds.id`` as a tie-breaker. EV is left at ``0.0``; the service
+    computes it via ``compute_bet_ev`` before write.
     """
     event_placeholders = ", ".join(
         ["%s"] * len(_BET_MARKET_EVENT_ID_LIST))
@@ -219,7 +226,7 @@ def fetch_bet_generation_candidates(
             p.model_id,
             bo.bookmaker_id,
             bo.odds,
-            ROUND((p.value / 100.0) * bo.odds - 1, 4) AS ev
+            p.value AS probability
         FROM final_predictions fp
         JOIN predictions p ON p.id = fp.predictions_id
         JOIN matches m ON m.id = p.match_id
@@ -360,14 +367,14 @@ def _to_settlement_candidate(
 
 
 def _to_generated_bet(row: dict[str, Any]) -> GeneratedBet:
-    """Map a SQL dictionary row to a generated bet payload."""
+    """Map a SQL dictionary row to a bet-generation candidate."""
     return GeneratedBet(
         match_id=int(row["match_id"]),
         event_id=int(row["event_id"]),
         model_id=int(row["model_id"]),
         bookmaker_id=int(row["bookmaker_id"]),
         odds=float(row["odds"]),
-        ev=float(row["ev"]))
+        probability=float(row["probability"]))
 
 
 def _optional_int(value: Any) -> int | None:
