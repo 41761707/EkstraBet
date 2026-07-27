@@ -36,6 +36,70 @@ python models/scripts/model_runner.py assess-match --config models/configs/predi
 python models/scripts/model_runner.py assess-batch --config models/configs/prediction/football_played_better_v1.json --season-id 12 --write-db
 ```
 
+## Odświeżanie statystyk (`refresh-statistics`)
+
+Idempotentny cykl batchowy: generuje/aktualizuje automatyczne `bets` dla
+rynków z kursami, potem rozlicza `final_predictions.outcome` (wszystkie
+rodziny) oraz `bets.outcome` (tylko rynki kursowe).
+
+### Co robi cykl
+
+| Etap | Zakres | Efekt |
+|------|--------|--------|
+| Generowanie zakładów | Finalne predykcje + najlepszy kurs z `odds` | Upsert `bets` (kurs, EV); bez resetu istniejącego `outcome` |
+| Settlement FP | Wszystkie obsługiwane rodziny (1X2, BTTS, O/U, GOALS, EXACT) | Ustawia `final_predictions.outcome` gdy `NULL` |
+| Settlement bets | Tylko event_id **1, 2, 3, 6, 8, 12, 172** | Ustawia `bets.outcome` gdy `NULL` |
+
+GOALS / EXACT: tylko `final_predictions.outcome`. Brak kursu = brak wiersza
+w `bets` (oczekiwane, bez ostrzeżenia).
+
+### Semantyka i EV
+
+- `outcome`: `NULL` oczekujący, `0` nietrafiony, `1` trafiony.
+- `predictions.value` w skali **0–100**.
+- EV: `round((value / 100) * odds - 1, 4)` — ten sam wzór co backend.
+- Najlepszy kurs: `odds DESC`, potem `odds.id ASC`.
+- Idempotencja: zapis tylko przy `outcome IS NULL`, upsert zakładów, indeks
+  `unique_model_bet(match_id, event_id, model_id)`.
+
+### Dry-run vs zapis
+
+Domyślnie **dry-run** (żadnych zapisów). Zapis wymaga `--write-db`.
+
+Flagi zakresu (`--league-id`, `--season-id`, `--match-id`, `--date-from`,
+`--date-to`) filtrują **tylko generowanie zakładów**. Settlement zawsze
+opróżnia wszystkie oczekujące FP i zakłady rynków kursowych.
+
+```bash
+# Dry-run (bezpieczny podgląd raportu JSON na stdout)
+python models/scripts/model_runner.py refresh-statistics
+
+# Dry-run z filtrem generowania zakładów
+python models/scripts/model_runner.py refresh-statistics --match-id 120084
+python models/scripts/model_runner.py refresh-statistics --league-id 1 --date-from 2026-07-27 --date-to 2026-07-28
+
+# Zapis (po migracji indeksu — patrz niżej)
+python models/scripts/model_runner.py refresh-statistics --write-db
+```
+
+Sukces: exit code `0` + raport JSON. Błąd bazy/transakcji: log na stderr,
+exit code `1`, rollback partii.
+
+### Windows Task Scheduler
+
+Wrapper przekazuje argumenty i kod wyjścia:
+
+```bat
+models\scripts\run_model_statistics.bat --write-db
+```
+
+### Smoke test (idempotencja)
+
+1. Dry-run dla zakończonego meczu (`result` w `1/X/2`) i przyszłego — sprawdź raport.
+2. `--write-db`.
+3. Ponowne uruchomienie: `generated` / `settled` / `updated` dla już
+   rozliczonych rekordów powinny spaść do zera (brak dodatkowych zmian).
+
 ## Uwagi implementacyjne (PLAYED_BETTER)
 
 Dwa komplementarne modele:
