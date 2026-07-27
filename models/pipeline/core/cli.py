@@ -15,6 +15,12 @@ from typing import Any, Sequence
 import numpy as np
 import pandas as pd
 
+from backend.repositories.model_statistics_maintenance_repository import (
+    BetGenerationScope)
+from backend.services.model_statistics_maintenance_service import (
+    DEFAULT_BATCH_SIZE,
+    StatisticsRefreshReport,
+    refresh_model_statistics)
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import MatchupInput
 from models.pipeline.core.config import load_model_config
@@ -172,6 +178,64 @@ def build_parser() -> argparse.ArgumentParser:
         type=date.fromisoformat,
         default=None,
         help="Exclusive upcoming batch end date")
+
+    refresh_parser = subparsers.add_parser(
+        "refresh-statistics",
+        help=(
+            "Generate model bets (optional scope filters) then settle "
+            "all pending final_predictions / priced-market bets"),
+        description=(
+            "Two-phase maintenance cycle. Scope flags "
+            "(--league-id, --season-id, --match-id, --date-from, "
+            "--date-to) filter bet generation only. Settlement always "
+            "drains every pending final_prediction and priced-market "
+            "bet, regardless of those filters."))
+    # Wspólny tekst: filtry nie ograniczają settlementu
+    bet_gen_scope_help = (
+        "Bet-generation filter only; settlement ignores this and "
+        "drains all pending rows")
+    refresh_parser.add_argument(
+        "--league-id",
+        type=int,
+        default=None,
+        help=bet_gen_scope_help)
+    refresh_parser.add_argument(
+        "--season-id",
+        type=int,
+        default=None,
+        help=bet_gen_scope_help)
+    refresh_parser.add_argument(
+        "--match-id",
+        type=int,
+        default=None,
+        help=bet_gen_scope_help)
+    refresh_parser.add_argument(
+        "--date-from",
+        type=date.fromisoformat,
+        default=None,
+        help=(
+            "Inclusive match date lower bound for bet generation "
+            "(YYYY-MM-DD); settlement ignores date filters"))
+    refresh_parser.add_argument(
+        "--date-to",
+        type=date.fromisoformat,
+        default=None,
+        help=(
+            "Inclusive match date upper bound for bet generation "
+            "(YYYY-MM-DD); settlement ignores date filters"))
+    refresh_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help="Settlement keyset page size (default: 500)")
+    refresh_parser.add_argument(
+        "--write-db",
+        action="store_true",
+        help="Persist changes; omit for dry-run")
+    refresh_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
     return parser
 
 
@@ -404,6 +468,37 @@ def _optional_int(value: Any) -> int | None:
     return int(value)
 
 
+def run_refresh_statistics(
+        args: argparse.Namespace
+) -> StatisticsRefreshReport:
+    """Generate scoped bets, then settle all pending outcomes."""
+    scope = BetGenerationScope(
+        league_id=args.league_id,
+        season_id=args.season_id,
+        match_id=args.match_id,
+        date_from=args.date_from,
+        date_to=args.date_to)
+    dry_run = not bool(args.write_db)
+    # Scope dotyczy tylko generate_bets; settle_outcomes idzie po całości
+    logger.info(
+        "refresh-statistics dry_run=%s batch_size=%s; "
+        "bet-generation scope league_id=%s season_id=%s match_id=%s "
+        "date_from=%s date_to=%s; "
+        "settlement drains all pending final_predictions and "
+        "priced-market bets (scope filters do not apply)",
+        dry_run,
+        args.batch_size,
+        scope.league_id,
+        scope.season_id,
+        scope.match_id,
+        scope.date_from,
+        scope.date_to)
+    return refresh_model_statistics(
+        scope,
+        batch_size=args.batch_size,
+        dry_run=dry_run)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI main used by models/scripts/model_runner.py."""
     parser = build_parser()
@@ -428,6 +523,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_predict_pair(args)
         elif args.command == "predict-batch":
             payload = run_predict_batch(args)
+        elif args.command == "refresh-statistics":
+            payload = run_refresh_statistics(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:
