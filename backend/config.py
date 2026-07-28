@@ -2,15 +2,65 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# JWT i sekrety produkcyjne: minimum 32 bajty/znaki
+MIN_SECRET_KEY_LENGTH = 32
+MIN_DB_PASSWORD_LENGTH = 8
+
+# exact z .env.example i typowych placeholderów — bez substringów typu "password"
+_EXAMPLE_SECRET_EXACT = frozenset({
+    "changeme",
+    "change-me",
+    "replace_me",
+    "replace-me",
+    "secret",
+    "secret_key",
+    "secret-key",
+    "your-secret",
+    "your_secret",
+    "generate_a_strong_random_key_at_least_32_chars",
+    "test-secret-key-for-unit-tests-only",
+    "changeme_to_a_random_secret_at_least_32_chars"
+})
+_EXAMPLE_SECRET_PREFIXES = (
+    "changeme",
+    "change-me",
+    "replace_me",
+    "replace-me",
+    "replace_with",
+    "generate_a_strong",
+    "your-secret",
+    "your_secret",
+    "test-secret")
+
+_EXAMPLE_PASSWORD_EXACT = frozenset({
+    "changeme",
+    "change-me",
+    "replace_me",
+    "replace-me",
+    "password",
+    "your_database_password",
+    "your-database-password",
+    "changeme_to_strong_db_password"
+})
+_EXAMPLE_PASSWORD_PREFIXES = (
+    "changeme",
+    "change-me",
+    "replace_me",
+    "replace-me",
+    "replace_with",
+    "your_database_password",
+    "your-database-password")
 
 
 class Settings(BaseSettings):
@@ -24,8 +74,12 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore")
+    environment: str = Field(
+        default="development",
+        description="Runtime environment (development/production/test)")
     db_host: str = Field(default="localhost", description="Database host")
-    db_user: str = Field(default="root", description="Database user")
+    # brak fallbacku root — w produkcji użytkownik musi być jawny i nie-root
+    db_user: str = Field(default="", description="Database user")
     db_password: SecretStr = Field(
         ...,
         description="Database password (required environment variable)")
@@ -41,6 +95,12 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0", description="Server host")
     port: int = Field(default=8000, description="Server port")
     debug: bool = Field(default=False, description="Debug mode")
+    openapi_enabled: bool = Field(
+        default=False,
+        description="Whether OpenAPI docs endpoints are exposed")
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default=["*"],
+        description="Allowed Host header values")
     default_page_size: int = Field(
         default=50,
         description="Default pagination page size")
@@ -85,7 +145,11 @@ class Settings(BaseSettings):
         default=False,
         description="Whether synchronous ML prediction preview is enabled")
 
-    @field_validator("cors_origins", "cors_methods", mode="before")
+    @field_validator(
+        "cors_origins",
+        "cors_methods",
+        "trusted_hosts",
+        mode="before")
     @classmethod
     def parse_list_field(cls, value: Any) -> list[str]:
         """Parse comma-separated or JSON list values from .env."""
@@ -103,6 +167,103 @@ class Settings(BaseSettings):
             return ["*"]
         return [item.strip() for item in stripped.split(",") if item.strip()]
 
+    @model_validator(mode="after")
+    def validate_production_safety(self) -> Self:
+        """Reject unsafe configuration when ENVIRONMENT=production."""
+        if self.environment.strip().lower() != "production":
+            return self
+        errors = _collect_production_errors(self)
+        if errors:
+            joined = "; ".join(errors)
+            raise ValueError(
+                f"Unsafe production configuration: {joined}")
+        return self
+
+
+def _looks_like_example_secret(
+    value: str,
+    exact_values: frozenset[str],
+    prefixes: tuple[str, ...]
+) -> bool:
+    """Return True for known placeholders (exact or prefix), not substrings."""
+    lowered = value.strip().lower()
+    if not lowered:
+        return True
+    if lowered in exact_values:
+        return True
+    return any(lowered.startswith(prefix) for prefix in prefixes)
+
+
+def _is_public_db_host(host: str) -> bool:
+    """Return True when host is a publicly routable IP address."""
+    normalized = host.strip().lower()
+    if normalized in {"localhost", "127.0.0.1", "::1"}:
+        return False
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        # nazwa usługi (np. mysql) nie jest publicznym IP
+        return False
+    return bool(address.is_global)
+
+
+def _collect_production_errors(settings: Settings) -> list[str]:
+    """Build a list of production safety violations."""
+    errors: list[str] = []
+    secret = settings.secret_key.get_secret_value()
+    db_password = settings.db_password.get_secret_value()
+    db_user = settings.db_user.strip()
+
+    if not secret:
+        errors.append("SECRET_KEY is required")
+    elif len(secret) < MIN_SECRET_KEY_LENGTH:
+        errors.append(
+            f"SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters")
+    elif _looks_like_example_secret(
+        secret,
+        _EXAMPLE_SECRET_EXACT,
+        _EXAMPLE_SECRET_PREFIXES):
+        errors.append("SECRET_KEY looks like an example or placeholder value")
+
+    if not db_password:
+        errors.append("DB_PASSWORD is required")
+    elif len(db_password) < MIN_DB_PASSWORD_LENGTH:
+        errors.append(
+            f"DB_PASSWORD must be at least {MIN_DB_PASSWORD_LENGTH} characters")
+    elif _looks_like_example_secret(
+        db_password,
+        _EXAMPLE_PASSWORD_EXACT,
+        _EXAMPLE_PASSWORD_PREFIXES):
+        errors.append("DB_PASSWORD looks like an example or placeholder value")
+
+    if not settings.auth_enabled:
+        errors.append("AUTH_ENABLED must be true in production")
+
+    if "*" in settings.cors_origins:
+        errors.append("CORS_ORIGINS must not contain '*' in production")
+
+    if settings.debug:
+        errors.append("DEBUG must be false in production")
+
+    if settings.openapi_enabled:
+        errors.append("OPENAPI_ENABLED must be false in production")
+
+    if not db_user:
+        errors.append("DB_USER must be set explicitly in production")
+    elif db_user.lower() == "root":
+        errors.append("DB_USER must not be 'root' in production")
+
+    if _is_public_db_host(settings.db_host):
+        errors.append(
+            "DB_HOST must not be a public IP address in production")
+
+    if not settings.trusted_hosts:
+        errors.append("TRUSTED_HOSTS must be set in production")
+    elif "*" in settings.trusted_hosts:
+        errors.append("TRUSTED_HOSTS must not contain '*' in production")
+
+    return errors
+
 
 class _LazySettings:
     """Defer settings validation until the first attribute access."""
@@ -116,7 +277,7 @@ class _LazySettings:
 
 @lru_cache
 def get_settings() -> Settings:
-    """Zwraca buforowane ustawienia aplikacji."""
+    """Return cached application settings."""
     return Settings()
 
 
@@ -143,5 +304,5 @@ def get_database_config() -> dict[str, Any]:
         "database": current.db_name,
         "port": current.db_port,
         "charset": "utf8mb4",
-        "collation": "utf8mb4_unicode_ci",
+        "collation": "utf8mb4_unicode_ci"
     }

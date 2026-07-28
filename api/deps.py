@@ -12,21 +12,22 @@ from backend.services import auth_service
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
-# ścieżki dostępne bez JWT (gdy auth włączony)
 _PUBLIC_PATHS = frozenset({
-    "/",
     "/health",
-    "/auth/login",
-    "/auth/status"
+    "/ready",
+    "/auth/login"
 })
-_PUBLIC_PREFIXES = ("/docs", "/redoc", "/openapi.json")
+_OPENAPI_PREFIXES = ("/docs", "/redoc", "/openapi.json")
 
 
 def _is_public_path(path: str) -> bool:
     """Sprawdza, czy ścieżka jest publiczna."""
     if path in _PUBLIC_PATHS:
         return True
-    return any(path.startswith(prefix) for prefix in _PUBLIC_PREFIXES)
+    settings = get_settings()
+    if not settings.openapi_enabled:
+        return False
+    return any(path.startswith(prefix) for prefix in _OPENAPI_PREFIXES)
 
 
 def _extract_bearer_token(

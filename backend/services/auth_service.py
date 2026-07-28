@@ -83,11 +83,10 @@ def decode_access_token(token: str) -> str:
 
 def authenticate_user(username: str, password: str) -> dict[str, Any]:
     """Validate credentials and return the active user row."""
+    # jeden komunikat — bez ujawniania, czy konto istnieje / jest nieaktywne
     user = user_repository.fetch_user_by_username(username)
-    if user is None:
+    if user is None or not user.get("is_active"):
         raise AuthError("Invalid username or password")
-    if not user.get("is_active"):
-        raise AuthError("User account is inactive")
     password_hash = user.get("password_hash") or ""
     if not verify_password(password, str(password_hash)):
         raise AuthError("Invalid username or password")
