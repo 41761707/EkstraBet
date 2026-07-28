@@ -15,6 +15,13 @@ from typing import Any, Sequence
 import numpy as np
 import pandas as pd
 
+from backend.repositories.model_statistics_maintenance_repository import (
+    BetGenerationScope)
+from backend.services.model_statistics_maintenance_service import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_PREVIEW_LIMIT,
+    StatisticsRefreshReport,
+    refresh_model_statistics)
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import MatchupInput
 from models.pipeline.core.config import load_model_config
@@ -172,6 +179,83 @@ def build_parser() -> argparse.ArgumentParser:
         type=date.fromisoformat,
         default=None,
         help="Exclusive upcoming batch end date")
+
+    refresh_parser = subparsers.add_parser(
+        "refresh-statistics",
+        help=(
+            "Generate model bets (optional scope filters) then settle "
+            "all pending final_predictions / priced-market bets"),
+        description=(
+            "Two-phase maintenance cycle. Scope flags "
+            "(--league-id, --season-id, --match-id, --date-from, "
+            "--date-to) filter bet generation only. Settlement always "
+            "drains every pending final_prediction and priced-market "
+            "bet, regardless of those filters."))
+    # Wspólny tekst: filtry nie ograniczają settlementu
+    bet_gen_scope_help = (
+        "Bet-generation filter only; settlement ignores this and "
+        "drains all pending rows")
+    refresh_parser.add_argument(
+        "--league-id",
+        type=int,
+        default=None,
+        help=bet_gen_scope_help)
+    refresh_parser.add_argument(
+        "--season-id",
+        type=int,
+        default=None,
+        help=bet_gen_scope_help)
+    refresh_parser.add_argument(
+        "--match-id",
+        type=int,
+        default=None,
+        help=bet_gen_scope_help)
+    refresh_parser.add_argument(
+        "--date-from",
+        type=date.fromisoformat,
+        default=None,
+        help=(
+            "Inclusive match date lower bound for bet generation "
+            "(YYYY-MM-DD); settlement ignores date filters"))
+    refresh_parser.add_argument(
+        "--date-to",
+        type=date.fromisoformat,
+        default=None,
+        help=(
+            "Inclusive match date upper bound for bet generation "
+            "(YYYY-MM-DD); settlement ignores date filters"))
+    refresh_parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help=(
+            "Include finished matches in bet generation; requires a scope "
+            "filter (--league-id, --season-id, --match-id, or date range)"))
+    refresh_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help="Settlement keyset page size (default: 500)")
+    refresh_parser.add_argument(
+        "--write-db",
+        action="store_true",
+        help="Persist changes; omit for dry-run")
+    refresh_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help=(
+            "Dry-run with sample planned writes in the JSON report; "
+            "scope filters also apply to settlement"))
+    refresh_parser.add_argument(
+        "--preview-limit",
+        type=int,
+        default=DEFAULT_PREVIEW_LIMIT,
+        help=(
+            "Max planned-write samples when --preview is set "
+            f"(default: {DEFAULT_PREVIEW_LIMIT})"))
+    refresh_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
     return parser
 
 
@@ -404,6 +488,55 @@ def _optional_int(value: Any) -> int | None:
     return int(value)
 
 
+def run_refresh_statistics(
+        args: argparse.Namespace
+) -> StatisticsRefreshReport:
+    """Generate scoped bets, then settle all pending outcomes."""
+    if args.preview and args.write_db:
+        raise ValueError("--preview cannot be combined with --write-db")
+    if args.preview_limit <= 0:
+        raise ValueError("preview_limit must be a positive integer")
+    scope = BetGenerationScope(
+        league_id=args.league_id,
+        season_id=args.season_id,
+        match_id=args.match_id,
+        date_from=args.date_from,
+        date_to=args.date_to,
+        backfill=bool(args.backfill))
+    dry_run = not bool(args.write_db)
+    preview = bool(args.preview)
+    # Bez --preview scope dotyczy tylko generate_bets; z --preview
+    # settlement też respektuje filtry zakresu
+    if preview:
+        settlement_note = (
+            "settlement uses the same scope filters as bet generation")
+    else:
+        settlement_note = (
+            "settlement drains all pending final_predictions and "
+            "priced-market bets (scope filters do not apply)")
+    logger.info(
+        "refresh-statistics dry_run=%s preview=%s preview_limit=%s "
+        "backfill=%s batch_size=%s; bet-generation scope league_id=%s "
+        "season_id=%s match_id=%s date_from=%s date_to=%s; %s",
+        dry_run,
+        preview,
+        args.preview_limit,
+        scope.backfill,
+        args.batch_size,
+        scope.league_id,
+        scope.season_id,
+        scope.match_id,
+        scope.date_from,
+        scope.date_to,
+        settlement_note)
+    return refresh_model_statistics(
+        scope,
+        batch_size=args.batch_size,
+        dry_run=dry_run,
+        preview=preview,
+        preview_limit=args.preview_limit)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI main used by models/scripts/model_runner.py."""
     parser = build_parser()
@@ -428,6 +561,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_predict_pair(args)
         elif args.command == "predict-batch":
             payload = run_predict_batch(args)
+        elif args.command == "refresh-statistics":
+            payload = run_refresh_statistics(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

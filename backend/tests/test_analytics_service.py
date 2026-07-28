@@ -20,30 +20,30 @@ class TestAnalyticsService(unittest.TestCase):
         self.assertEqual(_safe_pct(1, 3), 33.33)
 
     def test_generate_ou_category_statistics(self) -> None:
-        frame = pd.DataFrame([
+        pred_frame = pd.DataFrame([
+            {"event_id": 12, "pred_outcome": 1},
+            {"event_id": 8, "pred_outcome": 0},
+            {"event_id": 12, "pred_outcome": 1},
+        ])
+        bet_frame = pd.DataFrame([
             {
-                "event_id": 12,
-                "pred_outcome": 1,
                 "bet_event_id": 12,
                 "bet_outcome": 1,
                 "odds": 2.0,
             },
             {
-                "event_id": 8,
-                "pred_outcome": 0,
                 "bet_event_id": 8,
                 "bet_outcome": 0,
                 "odds": 1.8,
             },
             {
-                "event_id": 12,
-                "pred_outcome": 1,
                 "bet_event_id": 12,
                 "bet_outcome": 0,
                 "odds": 1.9,
             },
         ])
-        stats = _generate_category_statistics(frame, "ou", False, 0.12)
+        stats = _generate_category_statistics(
+            pred_frame, bet_frame, "ou", False, 0.12)
         self.assertEqual(stats["predictions"]["total"], 3)
         self.assertEqual(stats["predictions"]["correct"], 2)
         self.assertEqual(stats["bets"]["total"], 3)
@@ -53,16 +53,35 @@ class TestAnalyticsService(unittest.TestCase):
             stats["predictions"]["charts"]["distribution"]["labels"],
             ["Under 2.5", "Over 2.5"])
 
+    def test_predictions_do_not_require_matching_bets(self) -> None:
+        pred_frame = pd.DataFrame([
+            {"event_id": 12, "pred_outcome": 1},
+            {"event_id": 8, "pred_outcome": 0},
+        ])
+        stats = _generate_category_statistics(
+            pred_frame, pd.DataFrame(), "ou", False, 0.12)
+        self.assertEqual(stats["predictions"]["total"], 2)
+        self.assertEqual(stats["predictions"]["correct"], 1)
+        self.assertEqual(stats["bets"]["total"], 0)
+
     @patch(
         "backend.services.analytics_service.analytics_repository."
-        "fetch_prediction_bet_rows")
+        "fetch_bet_rows")
+    @patch(
+        "backend.services.analytics_service.analytics_repository."
+        "fetch_prediction_rows")
     def test_get_model_statistics_returns_requested_categories(
         self,
-        mock_fetch: unittest.mock.MagicMock) -> None:
-        mock_fetch.return_value = pd.DataFrame([
+        mock_pred_fetch: unittest.mock.MagicMock,
+        mock_bet_fetch: unittest.mock.MagicMock) -> None:
+        mock_pred_fetch.return_value = pd.DataFrame([
             {
                 "event_id": 1,
                 "pred_outcome": 1,
+            },
+        ])
+        mock_bet_fetch.return_value = pd.DataFrame([
+            {
                 "bet_event_id": 1,
                 "bet_outcome": 1,
                 "odds": 2.5,
@@ -75,11 +94,15 @@ class TestAnalyticsService(unittest.TestCase):
             league_ids=[1])
         self.assertIn("result", payload["categories"])
         self.assertEqual(payload["filters_applied"]["season_id"], 11)
-        mock_fetch.assert_called_once()
+        mock_pred_fetch.assert_called_once()
+        mock_bet_fetch.assert_called_once()
 
     @patch(
         "backend.services.analytics_service.analytics_repository."
-        "fetch_prediction_bet_rows")
+        "fetch_bet_rows")
+    @patch(
+        "backend.services.analytics_service.analytics_repository."
+        "fetch_prediction_rows")
     @patch(
         "backend.services.analytics_service.analytics_repository."
         "fetch_league_prediction_aggregation")
@@ -90,8 +113,10 @@ class TestAnalyticsService(unittest.TestCase):
         self,
         mock_average: unittest.mock.MagicMock,
         mock_league_agg: unittest.mock.MagicMock,
-        mock_fetch: unittest.mock.MagicMock) -> None:
-        mock_fetch.return_value = pd.DataFrame()
+        mock_pred_fetch: unittest.mock.MagicMock,
+        mock_bet_fetch: unittest.mock.MagicMock) -> None:
+        mock_pred_fetch.return_value = pd.DataFrame()
+        mock_bet_fetch.return_value = pd.DataFrame()
         mock_league_agg.return_value = pd.DataFrame([{
             "entity_id": 1,
             "entity_name": "Ekstraklasa",

@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 18.07.2026
+###### Ostatnia data modyfikacji: 27.07.2026
 
 ## Opis struktury bazy
 
@@ -244,11 +244,11 @@ Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.
 | *MATCH_ID*  | INT    | INT                                                                      | Klucz obcy, powiązanie z tabelą *matches*                                                                                                                        | NULL                     |
 | *EVENT_ID*  | INT    | INT                                                                      | Klucz obcy, powiązanie z tabelą *events*                                                                                                                         | NULL                     |
 | ODDS        | FLOAT  | >= 1.0                                                                   | Kurs danego zdarzenia                                                                                                                                            | NULL                     |
-| EV          | FLOAT  | Teoretycznie (-inf, +inf), ale z reguły sensownie wartości są do [-1, 1] | Sposób obliczania: ustalone prawdopodobieństwo zdarzenia * maksymalny kurs od bukmacherów - 1. Wartości > 0 uznawane są jako "Interesujące" z perspektywy gracza | NULL                     |
+| EV          | FLOAT  | Teoretycznie (-inf, +inf), ale z reguły sensownie wartości są do [-1, 1] | Expected value: `round((predictions.value / 100) * odds - 1, 4)`. `predictions.value` jest w skali 0–100. Wartości EV > 0 uznawane są za „interesujące”          | NULL                     |
 | *BOOKMAKER* | INT    | INT                                                                      | Klucz obcy, powiązanie z tabelą *bookmakers*                                                                                                                     | NULL                     |
-| OUTCOME     | INT    | {0, 1}                                                                   | 1 jeśli zakład wygrany, 0 jeśli przegrany                                                                                                                        | NULL (to istotne)        |
+| OUTCOME     | INT    | {0, 1, NULL}                                                             | `NULL` = oczekujący, `0` = nietrafiony, `1` = trafiony. Proces utrzymania utrzymuje outcome tylko dla rynków kursowych (event_id: 1, 2, 3, 6, 8, 12, 172)       | NULL (to istotne)        |
 | CUSTOM_BET  | INT    | {0, 1}                                                                   | 0 jeśli zakład wygenerowany przez model, 1 jeśli zakład dodany ręcznie przez użytkownika                                                                         | 0                        |
-| *MODEL_ID*  | INT    | INT                                                                      | Klucz obcy, powiązanie z tabelą *models*                                                                                                                         | NULL                     |
+| *MODEL_ID*  | INT    | INT                                                                      | Klucz obcy, powiązanie z tabelą *models*. `NULL` oznacza zakład użytkownika (nie modelowy)                                                                       | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
@@ -258,11 +258,23 @@ Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.
 - Klucz obcy: `EVENT_ID` → `events(ID)`
 - Klucz obcy: `BOOKMAKER` → `bookmakers(ID)`
 - Klucz obcy: `MODEL_ID` → `models(ID)`
-- **Unikalny indeks**: `MATCH_ID`, `EVENT_ID`, `BOOKMAKER`, `ODDS` (zapobiega duplikatom zakładów dla tego samego meczu, zdarzenia i bukmachera)
+- **Unikalny indeks** `unique_model_bet`: `(MATCH_ID, EVENT_ID, MODEL_ID)` — jeden automatyczny zakład modelu na mecz, event i model. W MySQL wiele wierszy z `MODEL_ID IS NULL` (zakłady użytkownika) nadal jest dozwolone.
 
-**Sposób generowania danych do tabeli**:
+**Źródła danych i utrzymanie:**
 
-Dane do tabeli naliczane są w funkcji **bet_all.py**
+- Automatyczne zakłady modelu generuje i rozlicza proces `refresh-statistics`
+  (`backend/services/model_statistics_maintenance_service.py`), uruchamiany przez
+  `models/scripts/model_runner.py refresh-statistics` lub
+  `models/scripts/run_model_statistics.bat`.
+- Generowanie i rozliczanie `bets` dotyczy wyłącznie eventów z kursami w `odds`:
+  **1, 2, 3** (1X2), **6 / 172** (BTTS), **8 / 12** (O/U 2.5).
+- Rodziny GOALS / EXACT **nie** tworzą ani nie rozliczają rekordów w `bets`
+  (brak kursów); ich wynik trafia tylko do `final_predictions.outcome`.
+- Upsert aktualizuje kurs i EV, ale **nigdy nie zeruje** istniejącego `OUTCOME`.
+- Przed pierwszym produkcyjnym `--write-db` administrator uruchamia ręcznie
+  skrypt `sql/model_statistics_maintenance.sql` (kontrola duplikatów + indeks).
+  Implementacja aplikacji **nie** wykonuje DDL.
+
 
 ---
 
@@ -505,12 +517,12 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 (Wskaźniki predykcji ostatecznych)
 
 
-| POLE             | DOMENA    | ZAKRES    | UWAGI                                                               | WARTOŚĆ DOMYŚLNA         |
-| ---------------- | --------- | --------- | ------------------------------------------------------------------- | ------------------------ |
-| **ID**           | INT       | INT>0     | Klucz główny, automatycznie generowany                              | AUTOMATYCZNIE GENEROWANY |
-| *PREDICTIONS_ID* | INT       | INT>0     | Klucz obcy, powiązanie z tabelą *predictions*                       | NULL                     |
-| CREATED_AT       | TIMESTAMP | TIMESTAMP | Data utworzenia wpisu (timestamp generowany automatycznie)          | CURRENT_TIMESTAMP        |
-| OUTCOME          | INT       | {0, 1}    | Wynik predykcji (0 - predykcja niepoprawna, 1 - predykcja poprawna) | NULL                     |
+| POLE             | DOMENA    | ZAKRES       | UWAGI                                                                                         | WARTOŚĆ DOMYŚLNA         |
+| ---------------- | --------- | ------------ | --------------------------------------------------------------------------------------------- | ------------------------ |
+| **ID**           | INT       | INT>0        | Klucz główny, automatycznie generowany                                                        | AUTOMATYCZNIE GENEROWANY |
+| *PREDICTIONS_ID* | INT       | INT>0        | Klucz obcy, powiązanie z tabelą *predictions*                                                 | NULL                     |
+| CREATED_AT       | TIMESTAMP | TIMESTAMP    | Data utworzenia wpisu (timestamp generowany automatycznie)                                    | CURRENT_TIMESTAMP        |
+| OUTCOME          | INT       | {0, 1, NULL} | `NULL` = oczekujący, `0` = nietrafiony, `1` = trafiony. Uzupełniane po zakończeniu meczu     | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
@@ -519,9 +531,19 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 - Klucz obcy: `PREDICTIONS_ID` → `predictions(ID)`
 - **Unikalny indeks:** `PREDICTIONS_ID` (zapobiega duplikatom predykcji)
 
-**Sposób generowania danych do tabeli**:
+**Źródła danych i utrzymanie:**
 
-Dane do tabeli generowane są w ramach działania modułu **prediction_module.py**
+- Wiersze finałowe zapisuje pipeline
+  (`models/pipeline/persistence/prediction_writer.py`) przy predykcji batch /
+  pair — osobno dla rodzin RESULT (REZULTAT), BTTS, GOALS, O/U i EXACT.
+- Rozliczanie `OUTCOME` wykonuje proces `refresh-statistics` dla **wszystkich**
+  obsługiwanych rodzin (w tym GOALS i EXACT), niezależnie od obecności kursu
+  w `odds`. Kandydaci: `OUTCOME IS NULL` oraz mecz z `result IN ('1','X','2')`.
+- Nieznany event lub niespójny wynik meczu jest pomijany (bez oznaczania jako
+  przegrana) i trafia do ostrzeżeń raportu cyklu.
+- Statystyki modeli w API (`analytics_service`) liczone są przy odczycie z
+  zapisanych `fp.outcome` / `b.outcome`; nie ma osobnej tabeli statystyk do
+  przebudowy.
 
 ---
 

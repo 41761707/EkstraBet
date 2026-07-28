@@ -166,21 +166,22 @@ def _build_chart_data(
 
 
 def _generate_category_statistics(
-    frame: pd.DataFrame,
+    pred_frame: pd.DataFrame,
+    bet_frame: pd.DataFrame,
     stat_type: str,
     apply_tax: bool,
     tax_rate: float) -> dict[str, Any]:
     """Compute prediction and bet statistics for one event family."""
     config = _STAT_CONFIG[stat_type]
-    if frame.empty:
+    if pred_frame.empty and bet_frame.empty:
         empty_breakdown = _build_type_breakdown(
-            frame,
+            pred_frame,
             "event_id",
             config["pred_event_map"],
             config["labels"],
             outcome_column="pred_outcome")
         empty_bet_breakdown = _build_type_breakdown(
-            frame,
+            bet_frame,
             "bet_event_id",
             config["bet_event_map"],
             config["labels"],
@@ -212,19 +213,25 @@ def _generate_category_statistics(
             },
         }
 
-    pred_frame = frame[frame["event_id"].isin(config["pred_event_map"])]
-    bet_frame = frame[
-        frame["bet_event_id"].isin(config["bet_event_map"])
-        & frame["bet_outcome"].notna()]
-
+    if pred_frame.empty:
+        filtered_pred_frame = pred_frame
+    else:
+        filtered_pred_frame = pred_frame[
+            pred_frame["event_id"].isin(config["pred_event_map"])]
     pred_breakdown = _build_type_breakdown(
-        pred_frame,
+        filtered_pred_frame,
         "event_id",
         config["pred_event_map"],
         config["labels"],
         outcome_column="pred_outcome")
+    if bet_frame.empty:
+        settled_bet_frame = bet_frame
+    else:
+        settled_bet_frame = bet_frame[
+            bet_frame["bet_event_id"].isin(config["bet_event_map"])
+            & bet_frame["bet_outcome"].notna()]
     bet_breakdown = _build_type_breakdown(
-        bet_frame,
+        settled_bet_frame,
         "bet_event_id",
         config["bet_event_map"],
         config["labels"],
@@ -334,7 +341,21 @@ def get_model_statistics(
         model_ids = model_map[family]
         if not model_ids:
             continue
-        frame = analytics_repository.fetch_prediction_bet_rows(
+        pred_frame = analytics_repository.fetch_prediction_rows(
+            stat_type=family,
+            model_ids=model_ids,
+            league_ids=league_ids,
+            season_id=season_id,
+            date_from=date_from,
+            date_to=date_to,
+            round_from=round_from,
+            round_to=round_to,
+            team_id=team_id,
+            settled_only=settled_only,
+            positive_ev_only=positive_ev_only,
+            apply_tax=apply_tax,
+            tax_rate=tax_rate)
+        bet_frame = analytics_repository.fetch_bet_rows(
             stat_type=family,
             model_ids=model_ids,
             league_ids=league_ids,
@@ -349,7 +370,8 @@ def get_model_statistics(
             apply_tax=apply_tax,
             tax_rate=tax_rate)
         categories[family] = _generate_category_statistics(
-            frame,
+            pred_frame,
+            bet_frame,
             family,
             apply_tax,
             tax_rate)
