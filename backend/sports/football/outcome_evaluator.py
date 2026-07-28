@@ -60,6 +60,7 @@ class SettlementCandidate:
     result: str
     home_goals: int | None
     away_goals: int | None
+    match_id: int | None = None
 
 
 def evaluate_football_outcome(candidate: SettlementCandidate) -> int:

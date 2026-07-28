@@ -35,6 +35,15 @@ class TestBetGenerationScope(unittest.TestCase):
             date_to=date(2026, 7, 27))
         self.assertEqual(scope.date_from, date(2026, 7, 27))
 
+    def test_rejects_backfill_without_scope(self) -> None:
+        with self.assertRaises(ValueError):
+            BetGenerationScope(backfill=True)
+
+    def test_accepts_backfill_with_season_scope(self) -> None:
+        scope = BetGenerationScope(season_id=12, backfill=True)
+        self.assertTrue(scope.backfill)
+        self.assertTrue(scope.has_scope_filter())
+
 
 class TestFetchPendingFinalPredictions(unittest.TestCase):
     """Keyset reads for unsettled final predictions."""
@@ -47,6 +56,7 @@ class TestFetchPendingFinalPredictions(unittest.TestCase):
             mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [{
             "record_id": 10,
+            "match_id": 120084,
             "event_id": 1,
             "event_name": "home",
             "family": "REZULTAT",
@@ -56,10 +66,12 @@ class TestFetchPendingFinalPredictions(unittest.TestCase):
         candidates = fetch_pending_final_predictions(after_id=5, limit=50)
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0].record_id, 10)
+        self.assertEqual(candidates[0].match_id, 120084)
         self.assertEqual(candidates[0].target, "final_prediction")
         query, params = mock_fetch.call_args.args
         self.assertIn("fp.outcome IS NULL", query)
         self.assertIn("fp.ID > %s", query)
+        self.assertIn("m.id AS match_id", query)
         self.assertEqual(params[0], 5)
         self.assertEqual(params[-1], 50)
         self.assertIn("REZULTAT", params)
@@ -77,6 +89,20 @@ class TestFetchPendingFinalPredictions(unittest.TestCase):
             [])
         mock_fetch.assert_not_called()
 
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_scope_match_id_appended_to_query(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = []
+        scope = BetGenerationScope(match_id=120084)
+        fetch_pending_final_predictions(
+            after_id=0, limit=10, scope=scope)
+        query, params = mock_fetch.call_args.args
+        self.assertIn("m.id = %s", query)
+        self.assertIn(120084, params)
+
 
 class TestFetchPendingBets(unittest.TestCase):
     """Keyset reads for priced bet markets only."""
@@ -89,6 +115,7 @@ class TestFetchPendingBets(unittest.TestCase):
             mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = [{
             "record_id": 3,
+            "match_id": 55,
             "event_id": 8,
             "event_name": "over",
             "family": "OU",
@@ -97,9 +124,11 @@ class TestFetchPendingBets(unittest.TestCase):
             "away_goals": 1}]
         candidates = fetch_pending_bets(after_id=1, limit=20)
         self.assertEqual(candidates[0].target, "bet")
+        self.assertEqual(candidates[0].match_id, 55)
         query, params = mock_fetch.call_args.args
         self.assertIn("b.outcome IS NULL", query)
         self.assertIn("b.event_id IN (", query)
+        self.assertIn("m.id AS match_id", query)
         for event_id in sorted(BET_MARKET_EVENT_IDS):
             self.assertIn(event_id, params)
         self.assertNotIn(174, params)
@@ -152,6 +181,33 @@ class TestFetchBetGenerationCandidates(unittest.TestCase):
         self.assertIn(100, params)
         self.assertIn("m.league = %s", query)
         self.assertIn("m.id = %s", query)
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_default_scope_excludes_finished_matches(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = []
+        fetch_bet_generation_candidates(BetGenerationScope())
+        query, _params = mock_fetch.call_args.args
+        self.assertIn("m.result NOT IN", query)
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_backfill_includes_finished_matches_in_scope(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = []
+        scope = BetGenerationScope(
+            date_from=date(2026, 7, 1),
+            date_to=date(2026, 7, 27),
+            backfill=True)
+        fetch_bet_generation_candidates(scope)
+        query, _params = mock_fetch.call_args.args
+        self.assertNotIn("m.result NOT IN", query)
+        self.assertIn("CAST(m.game_date AS DATE) >= %s", query)
 
     @patch(
         "backend.repositories.model_statistics_maintenance_repository"

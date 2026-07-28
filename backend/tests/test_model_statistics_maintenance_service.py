@@ -11,6 +11,8 @@ from backend.repositories.model_statistics_maintenance_repository import (
     BetGenerationScope,
     GeneratedBet)
 from backend.services.model_statistics_maintenance_service import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_PREVIEW_LIMIT,
     StatisticsRefreshReport,
     compute_bet_ev,
     generate_bets,
@@ -27,7 +29,8 @@ def _fp_candidate(
         event_name: str = "home",
         result: str = "1",
         home_goals: int | None = 2,
-        away_goals: int | None = 1
+        away_goals: int | None = 1,
+        match_id: int | None = 100
 ) -> SettlementCandidate:
     return SettlementCandidate(
         record_id=record_id,
@@ -37,7 +40,8 @@ def _fp_candidate(
         family=family,
         result=result,
         home_goals=home_goals,
-        away_goals=away_goals)
+        away_goals=away_goals,
+        match_id=match_id)
 
 
 def _bet_candidate(
@@ -47,7 +51,8 @@ def _bet_candidate(
         event_name: str = "home",
         result: str = "1",
         home_goals: int | None = 2,
-        away_goals: int | None = 1
+        away_goals: int | None = 1,
+        match_id: int | None = 100
 ) -> SettlementCandidate:
     return SettlementCandidate(
         record_id=record_id,
@@ -57,7 +62,8 @@ def _bet_candidate(
         family=family,
         result=result,
         home_goals=home_goals,
-        away_goals=away_goals)
+        away_goals=away_goals,
+        match_id=match_id)
 
 
 class TestComputeBetEv(unittest.TestCase):
@@ -287,10 +293,10 @@ class TestSettleOutcomes(unittest.TestCase):
         self.assertEqual(mock_fp.call_count, 3)
         self.assertEqual(
             mock_fp.call_args_list[0].kwargs,
-            {"after_id": 0, "limit": 1})
+            {"after_id": 0, "limit": 1, "scope": None})
         self.assertEqual(
             mock_fp.call_args_list[1].kwargs,
-            {"after_id": 10, "limit": 1})
+            {"after_id": 10, "limit": 1, "scope": None})
         self.assertEqual(mock_write_fp.call_count, 2)
         self.assertEqual(conn.commit.call_count, 2)
 
@@ -496,7 +502,12 @@ class TestRefreshModelStatistics(unittest.TestCase):
                 dry_run=True)
         mock_db.assert_not_called()
         mock_generate.assert_called_once()
-        mock_settle.assert_called_once_with(100, dry_run=True)
+        mock_settle.assert_called_once_with(
+            100,
+            dry_run=True,
+            preview=False,
+            preview_limit=DEFAULT_PREVIEW_LIMIT,
+            scope=None)
         self.assertEqual(report.read, 8)
         self.assertEqual(report.generated, 3)
         self.assertEqual(report.settled, 4)
@@ -529,21 +540,165 @@ class TestRefreshModelStatistics(unittest.TestCase):
         with self.assertRaises(ValueError):
             settle_outcomes(batch_size=0, dry_run=True)
 
+    @patch(
+        "backend.services.model_statistics_maintenance_service.settle_outcomes")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.generate_bets")
+    def test_preview_passes_scope_to_settlement(
+            self,
+            mock_generate: MagicMock,
+            mock_settle: MagicMock) -> None:
+        scope = BetGenerationScope(match_id=120084)
+        mock_generate.return_value = StatisticsRefreshReport(
+            dry_run=True, preview=[])
+        mock_settle.return_value = StatisticsRefreshReport(
+            dry_run=True, preview=[])
+        refresh_model_statistics(
+            scope, dry_run=True, preview=True, preview_limit=10)
+        mock_generate.assert_called_once_with(
+            scope,
+            dry_run=True,
+            preview=True,
+            preview_limit=10)
+        mock_settle.assert_called_once_with(
+            DEFAULT_BATCH_SIZE,
+            dry_run=True,
+            preview=True,
+            preview_limit=10,
+            scope=scope)
+
+
+class TestPreviewPlannedWrites(unittest.TestCase):
+    """Dry-run preview samples planned upserts and settlements."""
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_bet_generation_candidates")
+    def test_generate_preview_includes_ev_upsert(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            GeneratedBet(
+                match_id=10,
+                event_id=1,
+                model_id=2,
+                bookmaker_id=3,
+                odds=2.0,
+                probability=60.0)]
+        report = generate_bets(
+            BetGenerationScope(match_id=10),
+            dry_run=True,
+            preview=True)
+        self.assertEqual(report.generated, 1)
+        self.assertEqual(len(report.preview), 1)
+        entry = report.preview[0]
+        self.assertEqual(entry["action"], "upsert_bet")
+        self.assertEqual(entry["table"], "bets")
+        self.assertEqual(entry["match_id"], 10)
+        self.assertEqual(entry["after"]["EV"], 0.2)
+        self.assertEqual(entry["after"]["odds"], 2.0)
+        self.assertIsNone(entry["before"])
+        self.assertFalse(report.preview_truncated)
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_bets",
+        return_value=[])
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_final_predictions")
+    def test_settle_preview_includes_outcome_update(
+            self,
+            mock_fp: MagicMock,
+            mock_bets: MagicMock) -> None:
+        mock_fp.side_effect = [
+            [_fp_candidate(7, match_id=55)],
+            []]
+        report = settle_outcomes(
+            batch_size=10, dry_run=True, preview=True)
+        self.assertEqual(report.settled, 1)
+        self.assertEqual(len(report.preview), 1)
+        entry = report.preview[0]
+        self.assertEqual(entry["action"], "settle_outcome")
+        self.assertEqual(entry["table"], "final_predictions")
+        self.assertEqual(entry["id"], 7)
+        self.assertEqual(entry["match_id"], 55)
+        self.assertEqual(entry["before"], {"outcome": None})
+        self.assertEqual(entry["after"], {"outcome": 1})
+        mock_fp.assert_called_with(
+            after_id=7, limit=10, scope=None)
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_bets",
+        return_value=[])
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_final_predictions")
+    def test_preview_limit_truncates_samples(
+            self,
+            mock_fp: MagicMock,
+            mock_bets: MagicMock) -> None:
+        mock_fp.side_effect = [
+            [_fp_candidate(1), _fp_candidate(2), _fp_candidate(3)],
+            []]
+        report = settle_outcomes(
+            batch_size=10,
+            dry_run=True,
+            preview=True,
+            preview_limit=2)
+        self.assertEqual(report.settled, 3)
+        self.assertEqual(len(report.preview), 2)
+        self.assertTrue(report.preview_truncated)
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_bets",
+        return_value=[])
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_final_predictions")
+    def test_preview_passes_scope_to_fetch(
+            self,
+            mock_fp: MagicMock,
+            mock_bets: MagicMock) -> None:
+        scope = BetGenerationScope(match_id=120084)
+        mock_fp.side_effect = [[], []]
+        settle_outcomes(
+            batch_size=5,
+            dry_run=True,
+            preview=True,
+            scope=scope)
+        mock_fp.assert_called_once_with(
+            after_id=0, limit=5, scope=scope)
+
+    def test_preview_rejected_with_writes(self) -> None:
+        with self.assertRaises(ValueError):
+            generate_bets(
+                BetGenerationScope(),
+                dry_run=False,
+                preview=True)
+
 
 class TestReportMerge(unittest.TestCase):
     """Report aggregation helpers."""
 
     def test_merge_sums_counters(self) -> None:
         left = StatisticsRefreshReport(
-            read=1, generated=1, warnings=["a"], dry_run=True)
+            read=1, generated=1, warnings=["a"], dry_run=True,
+            preview=[{"action": "upsert_bet"}])
         right = StatisticsRefreshReport(
-            read=2, settled=2, skipped=1, warnings=["b"], dry_run=True)
+            read=2, settled=2, skipped=1, warnings=["b"], dry_run=True,
+            preview=[{"action": "settle_outcome"}],
+            preview_truncated=True)
         merged = left.merge(right)
         self.assertEqual(merged.read, 3)
         self.assertEqual(merged.generated, 1)
         self.assertEqual(merged.settled, 2)
         self.assertEqual(merged.skipped, 1)
         self.assertEqual(merged.warnings, ["a", "b"])
+        self.assertEqual(len(merged.preview), 2)
+        self.assertTrue(merged.preview_truncated)
 
 
 if __name__ == "__main__":

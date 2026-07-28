@@ -46,7 +46,8 @@ rodziny) oraz `bets.outcome` (tylko rynki kursowe).
 
 | Etap | Zakres | Efekt |
 |------|--------|--------|
-| Generowanie zakładów | Finalne predykcje + najlepszy kurs z `odds` | Upsert `bets` (kurs, EV); bez resetu istniejącego `outcome` |
+| Generowanie zakładów | Nieskończone mecze + FP + najlepszy kurs z `odds` | Upsert `bets` (kurs, EV); bez resetu `outcome` |
+| Backfill zakładów (`--backfill` + scope) | Zakończone mecze w zakresie ligi/sezonu/dat | Upsert historycznych `bets` dla statystyk |
 | Settlement FP | Wszystkie obsługiwane rodziny (1X2, BTTS, O/U, GOALS, EXACT) | Ustawia `final_predictions.outcome` gdy `NULL` |
 | Settlement bets | Tylko event_id **1, 2, 3, 6, 8, 12, 172** | Ustawia `bets.outcome` gdy `NULL` |
 
@@ -68,7 +69,8 @@ Domyślnie **dry-run** (żadnych zapisów). Zapis wymaga `--write-db`.
 
 Flagi zakresu (`--league-id`, `--season-id`, `--match-id`, `--date-from`,
 `--date-to`) filtrują **tylko generowanie zakładów**. Settlement zawsze
-opróżnia wszystkie oczekujące FP i zakłady rynków kursowych.
+opróżnia wszystkie oczekujące FP i zakłady rynków kursowych — **chyba że**
+użyjesz `--preview` (wtedy te same filtry obejmują też settlement).
 
 ```bash
 # Dry-run (bezpieczny podgląd raportu JSON na stdout)
@@ -78,9 +80,26 @@ python models/scripts/model_runner.py refresh-statistics
 python models/scripts/model_runner.py refresh-statistics --match-id 120084
 python models/scripts/model_runner.py refresh-statistics --league-id 1 --date-from 2026-07-27 --date-to 2026-07-28
 
-# Zapis (po migracji indeksu — patrz niżej)
+# Preview: próbka planowanych zapisów (before/after); scope obejmuje settlement
+python models/scripts/model_runner.py refresh-statistics --match-id 120084 --preview
+python models/scripts/model_runner.py refresh-statistics --match-id 120084 --preview --preview-limit 20
+
+# Zapis (bieżące, nieskończone mecze)
 python models/scripts/model_runner.py refresh-statistics --write-db
+
+# Backfill historycznych bets w zakresie dat (wymaga scope + --backfill)
+python models/scripts/model_runner.py refresh-statistics --write-db --backfill --date-from 2026-07-01 --date-to 2026-07-27
+python models/scripts/model_runner.py refresh-statistics --write-db --backfill --season-id 12 --league-id 1
 ```
+
+Domyślnie generowanie zakładów **pomija mecze zakończone** (`result` w
+`1/X/2`). Flaga `--backfill` zdejmuje ten filtr, ale wymaga co najmniej
+jednego filtra zakresu (`--league-id`, `--season-id`, `--match-id`,
+`--date-from`, `--date-to`).
+
+`--preview` jest wyłącznie trybem podglądu (koliduje z `--write-db`). W JSON
+pojawia się `preview` (lista planowanych upsertów/`SET outcome`) oraz
+`preview_truncated` gdy próbek było więcej niż limit.
 
 Sukces: exit code `0` + raport JSON. Błąd bazy/transakcji: log na stderr,
 exit code `1`, rollback partii.
@@ -95,7 +114,8 @@ models\scripts\run_model_statistics.bat --write-db
 
 ### Smoke test (idempotencja)
 
-1. Dry-run dla zakończonego meczu (`result` w `1/X/2`) i przyszłego — sprawdź raport.
+1. `--preview` dla zakończonego meczu (`result` w `1/X/2`) i przyszłego —
+   sprawdź `preview` (planowane `outcome` / upserty EV).
 2. `--write-db`.
 3. Ponowne uruchomienie: `generated` / `settled` / `updated` dla już
    rozliczonych rekordów powinny spaść do zera (brak dodatkowych zmian).

@@ -16,7 +16,7 @@ _STAT_EVENT_IDS = {
     "result": RESULT_EVENT_IDS,
 }
 
-_PREDICTION_BET_SELECT = """
+_PREDICTION_SELECT = """
     SELECT
         m.id AS match_id,
         m.league AS league_id,
@@ -27,19 +27,30 @@ _PREDICTION_BET_SELECT = """
         m.home_team_goals,
         m.away_team_goals,
         p.event_id,
-        fp.outcome AS pred_outcome,
+        fp.outcome AS pred_outcome
+    FROM matches m
+    JOIN predictions p ON p.match_id = m.id
+    JOIN final_predictions fp ON fp.predictions_id = p.id
+    WHERE p.model_id IN ({model_placeholders})
+"""
+
+_BET_SELECT = """
+    SELECT
+        m.id AS match_id,
+        m.league AS league_id,
+        m.season AS season_id,
+        m.home_team AS home_team_id,
+        m.away_team AS away_team_id,
+        m.result,
+        m.home_team_goals,
+        m.away_team_goals,
         b.event_id AS bet_event_id,
         b.odds,
         b.EV AS ev,
         b.outcome AS bet_outcome
     FROM matches m
-    JOIN predictions p ON p.match_id = m.id
-    JOIN final_predictions fp ON fp.predictions_id = p.id
-    JOIN bets b ON (
-        b.match_id = m.id
-        AND b.event_id = p.event_id
-        AND b.model_id = p.model_id)
-    WHERE p.model_id IN ({model_placeholders})
+    JOIN bets b ON b.match_id = m.id
+    WHERE b.model_id IN ({model_placeholders})
 """
 
 
@@ -103,12 +114,134 @@ def _build_match_filters(
 
     if positive_ev_only:
         if apply_tax:
-            conditions.append("(p.value * b.odds * (1 - %s) - 1) > 0")
+            conditions.append("((b.EV + 1) * (1 - %s) - 1) > 0")
             params.append(tax_rate)
         else:
             conditions.append("b.EV > 0")
 
     return conditions, params
+
+
+def _build_stat_query(
+        base_select: str,
+        model_ids: list[int],
+        stat_type: str,
+        event_column: str,
+        league_ids: list[int] | None,
+        season_id: int | None,
+        date_from: date | None,
+        date_to: date | None,
+        round_from: int | None,
+        round_to: int | None,
+        team_id: int | None,
+        settled_only: bool,
+        positive_ev_only: bool,
+        apply_tax: bool,
+        tax_rate: float) -> tuple[str, tuple[object, ...]]:
+    """Build a parameterized analytics query for one stat family."""
+    event_ids = _STAT_EVENT_IDS[stat_type]
+    event_placeholders = ",".join(["%s"] * len(event_ids))
+    model_placeholders = ",".join(["%s"] * len(model_ids))
+
+    conditions, params = _build_match_filters(
+        league_ids=league_ids,
+        season_id=season_id,
+        date_from=date_from,
+        date_to=date_to,
+        round_from=round_from,
+        round_to=round_to,
+        team_id=team_id,
+        settled_only=settled_only,
+        positive_ev_only=positive_ev_only,
+        apply_tax=apply_tax,
+        tax_rate=tax_rate)
+
+    conditions.append(f"{event_column} IN ({event_placeholders})")
+    params.extend(event_ids)
+
+    where_clause = " AND ".join(conditions)
+    query = base_select.format(model_placeholders=model_placeholders)
+    query = f"{query} AND {where_clause}"
+    query_params = tuple(model_ids) + tuple(params)
+    return query, query_params
+
+
+def fetch_prediction_rows(
+    stat_type: str,
+    model_ids: list[int],
+    league_ids: list[int] | None = None,
+    season_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    round_from: int | None = None,
+    round_to: int | None = None,
+    team_id: int | None = None,
+    settled_only: bool = True,
+    positive_ev_only: bool = False,
+    apply_tax: bool = False,
+    tax_rate: float = 0.12) -> pd.DataFrame:
+    """Return final prediction rows for one stat family."""
+    if not model_ids:
+        return pd.DataFrame()
+
+    query, query_params = _build_stat_query(
+        _PREDICTION_SELECT,
+        model_ids,
+        stat_type,
+        "p.event_id",
+        league_ids,
+        season_id,
+        date_from,
+        date_to,
+        round_from,
+        round_to,
+        team_id,
+        settled_only,
+        positive_ev_only=False,
+        apply_tax=False,
+        tax_rate=tax_rate)
+
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=query_params)
+
+
+def fetch_bet_rows(
+    stat_type: str,
+    model_ids: list[int],
+    league_ids: list[int] | None = None,
+    season_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    round_from: int | None = None,
+    round_to: int | None = None,
+    team_id: int | None = None,
+    settled_only: bool = True,
+    positive_ev_only: bool = False,
+    apply_tax: bool = False,
+    tax_rate: float = 0.12) -> pd.DataFrame:
+    """Return bet rows for one stat family."""
+    if not model_ids:
+        return pd.DataFrame()
+
+    query, query_params = _build_stat_query(
+        _BET_SELECT,
+        model_ids,
+        stat_type,
+        "b.event_id",
+        league_ids,
+        season_id,
+        date_from,
+        date_to,
+        round_from,
+        round_to,
+        team_id,
+        settled_only,
+        positive_ev_only,
+        apply_tax,
+        tax_rate)
+
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=query_params)
 
 
 def fetch_prediction_bet_rows(
@@ -125,7 +258,10 @@ def fetch_prediction_bet_rows(
     positive_ev_only: bool = False,
     apply_tax: bool = False,
     tax_rate: float = 0.12) -> pd.DataFrame:
-    """Return joined prediction and bet rows for one stat family."""
+    """Return joined prediction and bet rows for one stat family.
+
+    Deprecated: prefer ``fetch_prediction_rows`` and ``fetch_bet_rows``.
+    """
     if not model_ids:
         return pd.DataFrame()
 
@@ -150,9 +286,32 @@ def fetch_prediction_bet_rows(
     params.extend(event_ids)
 
     where_clause = " AND ".join(conditions)
-    query = _PREDICTION_BET_SELECT.format(
-        model_placeholders=model_placeholders)
-    query = f"{query} AND {where_clause}"
+    query = f"""
+        SELECT
+            m.id AS match_id,
+            m.league AS league_id,
+            m.season AS season_id,
+            m.home_team AS home_team_id,
+            m.away_team AS away_team_id,
+            m.result,
+            m.home_team_goals,
+            m.away_team_goals,
+            p.event_id,
+            fp.outcome AS pred_outcome,
+            b.event_id AS bet_event_id,
+            b.odds,
+            b.EV AS ev,
+            b.outcome AS bet_outcome
+        FROM matches m
+        JOIN predictions p ON p.match_id = m.id
+        JOIN final_predictions fp ON fp.predictions_id = p.id
+        JOIN bets b ON (
+            b.match_id = m.id
+            AND b.event_id = p.event_id
+            AND b.model_id = p.model_id)
+        WHERE p.model_id IN ({model_placeholders})
+          AND {where_clause}
+    """
     query_params = tuple(model_ids) + tuple(params)
 
     with get_db_connection() as conn:

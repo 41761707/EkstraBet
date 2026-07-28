@@ -68,6 +68,8 @@ class BetGenerationScope:
     """Optional filters for automatic bet generation candidates.
 
     Validates that date bounds are ordered and not internally inconsistent.
+    By default only unfinished matches are eligible; set ``backfill=True``
+    (with at least one scope filter) to include finished matches.
     """
 
     league_id: int | None = None
@@ -75,6 +77,7 @@ class BetGenerationScope:
     match_id: int | None = None
     date_from: date | None = None
     date_to: date | None = None
+    backfill: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -82,6 +85,21 @@ class BetGenerationScope:
                 and self.date_to is not None
                 and self.date_to < self.date_from):
             raise ValueError("date_to must be >= date_from")
+        if self.backfill and not self.has_scope_filter():
+            raise ValueError(
+                "backfill requires at least one bet-generation scope filter "
+                "(--league-id, --season-id, --match-id, --date-from, "
+                "--date-to)")
+
+    def has_scope_filter(self) -> bool:
+        """Return whether any bet-generation scope filter is set."""
+        return any([
+            self.league_id is not None,
+            self.season_id is not None,
+            self.match_id is not None,
+            self.date_from is not None,
+            self.date_to is not None,
+        ])
 
 
 @dataclass(frozen=True)
@@ -104,16 +122,29 @@ class GeneratedBet:
 
 def fetch_pending_final_predictions(
         after_id: int,
-        limit: int
+        limit: int,
+        scope: BetGenerationScope | None = None
 ) -> list[SettlementCandidate]:
     """Fetch pending final predictions for finished matches (keyset)."""
     if limit <= 0:
         return []
     family_placeholders = ", ".join(["%s"] * len(SUPPORTED_FINAL_FAMILIES))
     result_placeholders = ", ".join(["%s"] * len(_FINISHED_RESULTS))
+    conditions = [
+        "fp.outcome IS NULL",
+        "fp.ID > %s",
+        f"m.result IN ({result_placeholders})",
+        f"ef.name IN ({family_placeholders})"]
+    params: list[object] = [
+        after_id,
+        *_FINISHED_RESULTS,
+        *SUPPORTED_FINAL_FAMILIES]
+    if scope is not None:
+        _append_scope_filters(scope, conditions, params)
     query = f"""
         SELECT
             fp.ID AS record_id,
+            m.id AS match_id,
             p.event_id,
             e.name AS event_name,
             ef.name AS family,
@@ -125,18 +156,11 @@ def fetch_pending_final_predictions(
         JOIN matches m ON m.id = p.match_id
         JOIN events e ON e.id = p.event_id
         {_EVENT_FAMILY_JOIN}
-        WHERE fp.outcome IS NULL
-          AND fp.ID > %s
-          AND m.result IN ({result_placeholders})
-          AND ef.name IN ({family_placeholders})
+        WHERE {" AND ".join(conditions)}
         ORDER BY fp.ID ASC
         LIMIT %s
     """
-    params: list[object] = [
-        after_id,
-        *_FINISHED_RESULTS,
-        *SUPPORTED_FINAL_FAMILIES,
-        limit]
+    params.append(limit)
     rows = _fetch_dicts(query, tuple(params))
     return [
         _to_settlement_candidate(row, "final_prediction")
@@ -145,7 +169,8 @@ def fetch_pending_final_predictions(
 
 def fetch_pending_bets(
         after_id: int,
-        limit: int
+        limit: int,
+        scope: BetGenerationScope | None = None
 ) -> list[SettlementCandidate]:
     """Fetch pending bets only for priced settlement markets (keyset)."""
     if limit <= 0:
@@ -153,9 +178,21 @@ def fetch_pending_bets(
     event_placeholders = ", ".join(
         ["%s"] * len(_BET_MARKET_EVENT_ID_LIST))
     result_placeholders = ", ".join(["%s"] * len(_FINISHED_RESULTS))
+    conditions = [
+        "b.outcome IS NULL",
+        "b.id > %s",
+        f"b.event_id IN ({event_placeholders})",
+        f"m.result IN ({result_placeholders})"]
+    params: list[object] = [
+        after_id,
+        *_BET_MARKET_EVENT_ID_LIST,
+        *_FINISHED_RESULTS]
+    if scope is not None:
+        _append_scope_filters(scope, conditions, params)
     query = f"""
         SELECT
             b.id AS record_id,
+            m.id AS match_id,
             b.event_id,
             e.name AS event_name,
             ef.name AS family,
@@ -166,18 +203,11 @@ def fetch_pending_bets(
         JOIN matches m ON m.id = b.match_id
         JOIN events e ON e.id = b.event_id
         {_EVENT_FAMILY_JOIN}
-        WHERE b.outcome IS NULL
-          AND b.id > %s
-          AND b.event_id IN ({event_placeholders})
-          AND m.result IN ({result_placeholders})
+        WHERE {" AND ".join(conditions)}
         ORDER BY b.id ASC
         LIMIT %s
     """
-    params: list[object] = [
-        after_id,
-        *_BET_MARKET_EVENT_ID_LIST,
-        *_FINISHED_RESULTS,
-        limit]
+    params.append(limit)
     rows = _fetch_dicts(query, tuple(params))
     return [
         _to_settlement_candidate(row, "bet")
@@ -198,11 +228,12 @@ def fetch_bet_generation_candidates(
     result_placeholders = ", ".join(["%s"] * len(_FINISHED_RESULTS))
     conditions = [
         "ml.active = 1",
-        f"p.event_id IN ({event_placeholders})",
-        f"(m.result IS NULL OR m.result NOT IN ({result_placeholders}))"]
-    params: list[object] = [
-        *_BET_MARKET_EVENT_ID_LIST,
-        *_FINISHED_RESULTS]
+        f"p.event_id IN ({event_placeholders})"]
+    params: list[object] = list(_BET_MARKET_EVENT_ID_LIST)
+    if not scope.backfill:
+        conditions.append(
+            f"(m.result IS NULL OR m.result NOT IN ({result_placeholders}))")
+        params.extend(_FINISHED_RESULTS)
     _append_scope_filters(scope, conditions, params)
 
     query = f"""
@@ -363,7 +394,8 @@ def _to_settlement_candidate(
         family=cast(EventFamily, family_name),
         result=str(row["result"]),
         home_goals=_optional_int(row.get("home_goals")),
-        away_goals=_optional_int(row.get("away_goals")))
+        away_goals=_optional_int(row.get("away_goals")),
+        match_id=_optional_int(row.get("match_id")))
 
 
 def _to_generated_bet(row: dict[str, Any]) -> GeneratedBet:
