@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { AppNav } from "@/components/AppNav";
-import { getAuthCookieName, isAuthEnabled } from "@/lib/auth";
+import { getAuthCookieName, isAuthEnabled } from "@/lib/authCookie";
 
 export async function AppHeader() {
   const jar = await cookies();

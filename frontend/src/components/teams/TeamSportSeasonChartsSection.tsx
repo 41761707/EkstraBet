@@ -16,7 +16,7 @@ import {
   SPORT_LOOKBACK_MAX,
   SPORT_LOOKBACK_MIN,
 } from "@/components/teams/sportTeamChartConfig";
-import { ApiError, getSportTeamHistory } from "@/lib/api";
+import { ApiError, getSportTeamHistory } from "@/lib/apiClient";
 import {
   BASKETBALL_SPORT_ID,
   HOCKEY_SPORT_ID,

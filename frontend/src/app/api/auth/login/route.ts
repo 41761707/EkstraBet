@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { getApiBaseUrl, getAuthCookieName } from "@/lib/auth";
+import { getAuthCookieName } from "@/lib/authCookie";
+import { getApiBaseUrl, isSecureAuthCookie } from "@/lib/runtimeConfig";
 
 interface LoginBody {
   username?: string;
   password?: string;
 }
+
+/** Default cookie TTL when upstream omits expires_in (30 minutes). */
+const DEFAULT_SESSION_MAX_AGE_SECONDS = 30 * 60;
 
 export async function POST(request: Request) {
   let body: LoginBody;
@@ -52,15 +56,16 @@ export async function POST(request: Request) {
   const maxAge =
     typeof payload.expires_in === "number" && payload.expires_in > 0
       ? payload.expires_in
-      : 60 * 60 * 24;
+      : DEFAULT_SESSION_MAX_AGE_SECONDS;
 
+  // HttpOnly + SameSite=Lax + path=/; bez Domain (tylko host aplikacji)
   response.cookies.set({
     name: getAuthCookieName(),
     value: payload.access_token,
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecureAuthCookie(),
     maxAge,
   });
 

@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { ApiError, previewPrediction } from "@/lib/api";
+import { ApiError, previewPrediction } from "@/lib/apiClient";
 import type { PredictionPreviewResponse } from "@/types/api";
 
 interface UsePredictionSimulationResult {

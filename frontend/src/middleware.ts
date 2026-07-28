@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { getAuthCookieName, isAuthEnabled } from "@/lib/auth";
+import { getAuthCookieName, isAuthEnabled } from "@/lib/authCookie";
 
 export function middleware(request: NextRequest) {
   if (!isAuthEnabled()) {
@@ -32,6 +32,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|api/auth).*)",
+    // api/health: liveness bez sesji; api/auth: login/logout bez cookie
+    "/((?!_next/static|_next/image|favicon.ico|login|api/auth|api/health).*)",
   ],
 };

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { ChatRateLimitError } from "@/server/chat/errors";
-import { getAuthCookieName } from "@/lib/auth";
+import { getAuthCookieName } from "@/lib/authCookie";
 
 interface RateLimitBucket {
   count: number;

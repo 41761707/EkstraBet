@@ -1,6 +1,21 @@
+import "server-only";
+
+/**
+ * Server-only FastAPI client for RSC / route handlers.
+ * Browser code must use `@/lib/apiClient` (BFF paths only).
+ */
+
 import { decodeRouteParam } from "@/lib/leaguePaths";
+import {
+  ApiError,
+  applySearchParams,
+  normalizeMatchDetails,
+  parseErrorMessage,
+  type SearchParams,
+} from "@/lib/apiShared";
+import { getServerAuthHeaders } from "@/lib/auth";
+import { getApiBaseUrl } from "@/lib/runtimeConfig";
 import type {
-  ApiErrorBody,
   AnalyticsAggregationMetric,
   AnalyticsGroupBy,
   AnalyticsStatType,
@@ -10,7 +25,6 @@ import type {
   DailyMatchesResponse,
   EventFamilyEventsResponse,
   EventFamilyListResponse,
-  HeadToHeadSummary,
   LeagueDetails,
   LeagueCharacteristics,
   LeagueMatchesListResponse,
@@ -42,96 +56,28 @@ import type {
   TeamsListResponse,
 } from "@/types/api";
 
-import { getServerAuthHeaders } from "@/lib/auth";
+export { ApiError, normalizeMatchDetails } from "@/lib/apiShared";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
-
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
-
-function getApiBaseUrl(): string {
-  return (
-    process.env.API_BASE_URL ??
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-    DEFAULT_API_BASE_URL
-  );
-}
-
-function applySearchParams(
-  url: URL,
-  params?: Record<string, string | number | boolean | undefined | null>,
-): void {
-  if (!params) {
-    return;
-  }
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null) {
-      url.searchParams.set(key, String(value));
-    }
-  }
-}
-
-function buildUrl(
-  path: string,
-  params?: Record<string, string | number | boolean | undefined | null>,
-): string {
+function buildUrl(path: string, params?: SearchParams): string {
   const url = new URL(path, getApiBaseUrl());
   applySearchParams(url, params);
   return url.toString();
 }
 
-/** Browser calls go through Next proxy so HttpOnly cookie can attach Bearer. */
-function buildClientProxyUrl(
-  path: string,
-  params?: Record<string, string | number | boolean | undefined | null>,
-): string {
-  const normalized = path.startsWith("/") ? path.slice(1) : path;
-  const url = new URL(`/api/backend/${normalized}`, window.location.origin);
-  applySearchParams(url, params);
-  return url.toString();
-}
-
-async function parseErrorMessage(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as ApiErrorBody;
-    if (typeof body.detail === "string") {
-      return body.detail;
-    }
-    if (Array.isArray(body.detail) && body.detail.length > 0) {
-      return body.detail.map((item) => item.msg).join(", ");
-    }
-  } catch {
-    // odpowiedź bez JSON — zostaw domyślny komunikat
-  }
-  return `Request failed with status ${response.status}`;
-}
-
 async function fetchApi<T>(
   path: string,
-  params?: Record<string, string | number | boolean | undefined | null>,
+  params?: SearchParams,
   init?: RequestInit,
 ): Promise<T> {
-  const isBrowser = typeof window !== "undefined";
-  const url = isBrowser
-    ? buildClientProxyUrl(path, params)
-    : buildUrl(path, params);
-  const authHeaders = isBrowser ? {} : await getServerAuthHeaders();
-
-  const response = await fetch(url, {
+  const authHeaders = await getServerAuthHeaders();
+  const response = await fetch(buildUrl(path, params), {
     ...init,
     headers: {
       Accept: "application/json",
       ...authHeaders,
       ...init?.headers,
     },
-    ...(isBrowser ? { cache: "no-store" as const } : { next: { revalidate: 60 } }),
+    next: { revalidate: 60 },
   });
 
   if (!response.ok) {
@@ -378,46 +324,6 @@ export async function getDailyMatches(
   return fetchApi<DailyMatchesResponse>("/matches/daily", {
     match_date: matchDate,
   });
-}
-
-function emptyHeadToHead(
-  homeTeamId: number,
-  awayTeamId: number,
-): HeadToHeadSummary {
-  return {
-    team_id: homeTeamId,
-    opponent_id: awayTeamId,
-    played: 0,
-    wins: 0,
-    draws: 0,
-    losses: 0,
-    goals_for: 0,
-    goals_conceded: 0,
-    btts_count: 0,
-    btts_percentage: 0,
-    avg_goals_per_match: 0,
-    meetings: [],
-  };
-}
-
-/** Uzupełnia brakujące pola z starszych odpowiedzi API / cache Next.js. */
-export function normalizeMatchDetails(payload: MatchDetails): MatchDetails {
-  const homeTeamId = payload.home_team?.id ?? 0;
-  const awayTeamId = payload.away_team?.id ?? 0;
-
-  return {
-    ...payload,
-    final_predictions: payload.final_predictions ?? [],
-    prediction_analysis: payload.prediction_analysis ?? null,
-    odds: payload.odds ?? [],
-    has_player_stats: payload.has_player_stats ?? false,
-    head_to_head:
-      payload.head_to_head ?? emptyHeadToHead(homeTeamId, awayTeamId),
-    home_team_history: payload.home_team_history ?? [],
-    away_team_history: payload.away_team_history ?? [],
-    boxscore: payload.boxscore ?? null,
-    model_assessments: payload.model_assessments ?? [],
-  };
 }
 
 export async function getBetRecommendations(options?: {

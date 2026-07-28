@@ -11,7 +11,7 @@ import {
 import { PlayerSummaryTiles } from "@/components/players/PlayerSummaryTiles";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatusMessage } from "@/components/StatusMessage";
-import { getPlayerMatchStats } from "@/lib/api";
+import { getPlayerMatchStats } from "@/lib/apiClient";
 import type {
   HockeyPlayerMatchStatsResponse,
   PlayerMatchStatsResponse,
