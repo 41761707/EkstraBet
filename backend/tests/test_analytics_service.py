@@ -51,7 +51,7 @@ class TestAnalyticsService(unittest.TestCase):
         self.assertEqual(stats["bets"]["profit_total"], -1.0)
         self.assertEqual(
             stats["predictions"]["charts"]["distribution"]["labels"],
-            ["Under 2.5", "Over 2.5"])
+            ["Poniżej 2.5", "Powyżej 2.5"])
 
     def test_predictions_do_not_require_matching_bets(self) -> None:
         pred_frame = pd.DataFrame([
@@ -133,6 +133,52 @@ class TestAnalyticsService(unittest.TestCase):
         self.assertEqual(by_league["metric"], "accuracy")
         self.assertEqual(len(by_league["ou"]), 2)
         self.assertEqual(by_league["ou"][-1]["entity_name"], "AVERAGE")
+
+    def test_build_league_outcome_comparison_requires_two_leagues(
+        self) -> None:
+        from backend.services.analytics_service import (
+            _build_league_outcome_comparison)
+        frame = pd.DataFrame([{
+            "league_id": 1,
+            "league_name": "Ekstraklasa",
+            "played_matches": 10,
+            "over_2_5_count": 4,
+            "btts_yes_count": 5,
+            "home_win_count": 4,
+            "away_win_count": 3,
+        }])
+        self.assertIsNone(_build_league_outcome_comparison(frame))
+
+    def test_build_league_outcome_comparison_weights_by_matches(
+        self) -> None:
+        from backend.services.analytics_service import (
+            _build_league_outcome_comparison)
+        frame = pd.DataFrame([
+            {
+                "league_id": 1,
+                "league_name": "Ekstraklasa",
+                "played_matches": 10,
+                "over_2_5_count": 5,
+                "btts_yes_count": 6,
+                "home_win_count": 4,
+                "away_win_count": 3,
+            },
+            {
+                "league_id": 2,
+                "league_name": "Premier League",
+                "played_matches": 20,
+                "over_2_5_count": 10,
+                "btts_yes_count": 8,
+                "home_win_count": 8,
+                "away_win_count": 6,
+            },
+        ])
+        payload = _build_league_outcome_comparison(frame)
+        self.assertIsNotNone(payload)
+        assert payload is not None
+        self.assertEqual(len(payload["leagues"]), 2)
+        self.assertEqual(payload["averages"]["btts_yes_pct"], 46.67)
+        self.assertEqual(payload["averages"]["over_2_5_pct"], 50.0)
 
 
 if __name__ == "__main__":

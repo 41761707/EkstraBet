@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AnalyticsCategoryPanel } from "@/components/stats/AnalyticsCategoryPanel";
 import { AggregationsSection } from "@/components/stats/EntityAggregationTable";
-import { LeagueCharacteristicsPanel } from "@/components/stats/LeagueCharacteristicsPanel";
+import { LeagueComparisonsPanel } from "@/components/stats/LeagueComparisonsPanel";
 import {
   StatsFilters,
   type StatsFilterValues,
@@ -24,6 +24,8 @@ import type {
   AnalyticsGroupBy,
   AnalyticsStatType,
 } from "@/types/api";
+
+const FOOTBALL_SPORT_ID = 1;
 
 const categoryTitles: Record<string, string> = {
   ou: "Over/Under",
@@ -58,9 +60,6 @@ function parseFilters(
     aggregationMetric:
       (params.aggregation_metric as AnalyticsAggregationMetric | undefined) ??
       "accuracy",
-    includeLeagueCharacteristics: parseBoolean(
-      params.include_league_characteristics,
-    ),
   };
 }
 
@@ -89,9 +88,9 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
 
   try {
     const [leaguesResponse, seasonOptions, groupedModels] = await Promise.all([
-      getLeagues({ active: true }),
-      getSeasonOptions(),
-      getModelsGroupedByFamily(),
+      getLeagues({ active: true, sportId: FOOTBALL_SPORT_ID }),
+      getSeasonOptions(FOOTBALL_SPORT_ID),
+      getModelsGroupedByFamily(FOOTBALL_SPORT_ID),
     ]);
 
     leagues = leaguesResponse.leagues.map((league) => ({
@@ -115,8 +114,18 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     );
   }
 
+  const footballLeagueIds = new Set(leagues.map((league) => league.id));
+  const selectedFootballLeagueIds = filters.leagueIds.filter((id) =>
+    footballLeagueIds.has(id),
+  );
+
   const effectiveFilters: StatsFilterValues = {
     ...filters,
+    // domyślnie wszystkie ligi piłkarskie — NBA/NHL poza kącikiem
+    leagueIds:
+      selectedFootballLeagueIds.length > 0
+        ? selectedFootballLeagueIds
+        : leagues.map((league) => league.id),
     modelResultIds:
       filters.modelResultIds.length > 0
         ? filters.modelResultIds
@@ -160,8 +169,6 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
       applyTax: effectiveFilters.applyTax,
       groupBy: effectiveFilters.groupBy,
       aggregationMetric: effectiveFilters.aggregationMetric,
-      includeLeagueCharacteristics:
-        effectiveFilters.includeLeagueCharacteristics,
     });
 
     const categories = Object.entries(analytics.categories);
@@ -177,8 +184,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
           </Link>
           <h1 className="text-3xl font-bold text-white">Kącik statystyczny</h1>
           <p className="text-slate-300">
-            Skuteczność modeli predykcji i zakładów — analityka z API gotowa do
-            wykresów.
+            Skuteczność modeli predykcji i zakładów dla lig piłkarskich.
           </p>
         </section>
 
@@ -217,10 +223,9 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
           byLeague={analytics.aggregations.by_league}
         />
 
-        {analytics.league_characteristics ? (
-          <LeagueCharacteristicsPanel
-            characteristics={analytics.league_characteristics}
-            labels="pl"
+        {analytics.league_comparisons ? (
+          <LeagueComparisonsPanel
+            comparisons={analytics.league_comparisons}
           />
         ) : null}
       </div>

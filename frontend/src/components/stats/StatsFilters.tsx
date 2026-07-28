@@ -26,7 +26,6 @@ export interface StatsFilterValues {
   applyTax: boolean;
   groupBy: AnalyticsGroupBy;
   aggregationMetric: AnalyticsAggregationMetric;
-  includeLeagueCharacteristics: boolean;
 }
 
 interface StatsFiltersProps {
@@ -98,9 +97,6 @@ export function StatsFilters({
     }
     if (nextState.aggregationMetric !== "accuracy") {
       params.set("aggregation_metric", nextState.aggregationMetric);
-    }
-    if (nextState.includeLeagueCharacteristics) {
-      params.set("include_league_characteristics", "true");
     }
 
     const query = params.toString();
@@ -340,20 +336,6 @@ export function StatsFilters({
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
           Uwzględnij podatek 12%
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={state.includeLeagueCharacteristics}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                includeLeagueCharacteristics: event.target.checked,
-              }))
-            }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
-          />
-          Charakterystyka ligi
         </label>
       </div>
 

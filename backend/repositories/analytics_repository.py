@@ -607,3 +607,60 @@ def fetch_league_characteristics(
             },
         },
     }
+
+
+def fetch_leagues_outcome_comparison(
+    league_ids: list[int],
+    season_id: int | None = None) -> pd.DataFrame:
+    """Return per-league outcome rates for multi-league comparison charts.
+
+    When season_id is omitted, each league uses its latest finished season.
+    """
+    if not league_ids:
+        return pd.DataFrame()
+
+    placeholders = ",".join(["%s"] * len(league_ids))
+    if season_id is None:
+        # najnowszy sezon z wynikami per liga — porównywalne „aktualne” formy
+        season_join = f"""
+            INNER JOIN (
+                SELECT league, MAX(season) AS season
+                FROM matches
+                WHERE league IN ({placeholders})
+                    AND result != '0'
+                    AND round < 900
+                GROUP BY league
+            ) latest
+                ON latest.league = m.league
+                AND latest.season = m.season
+        """
+        params: list[object] = list(league_ids) + list(league_ids)
+    else:
+        season_join = ""
+        params = list(league_ids) + [season_id]
+
+    season_filter = "" if season_id is None else "AND m.season = %s"
+    query = f"""
+        SELECT
+            m.league AS league_id,
+            l.name AS league_name,
+            COUNT(*) AS played_matches,
+            SUM(CASE WHEN m.home_team_goals + m.away_team_goals > 2.5
+                THEN 1 ELSE 0 END) AS over_2_5_count,
+            SUM(CASE WHEN m.home_team_goals > 0 AND m.away_team_goals > 0
+                THEN 1 ELSE 0 END) AS btts_yes_count,
+            SUM(CASE WHEN m.result = '1' THEN 1 ELSE 0 END) AS home_win_count,
+            SUM(CASE WHEN m.result = '2' THEN 1 ELSE 0 END) AS away_win_count
+        FROM matches m
+        INNER JOIN leagues l ON l.id = m.league
+        {season_join}
+        WHERE m.league IN ({placeholders})
+            AND m.result != '0'
+            AND m.round < 900
+            {season_filter}
+        GROUP BY m.league, l.name
+        HAVING COUNT(*) > 0
+        ORDER BY l.name
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=params)

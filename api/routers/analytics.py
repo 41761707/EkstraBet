@@ -88,11 +88,7 @@ async def get_model_statistics(
     aggregation_metric: AggregationMetricFilter = Query(
         "accuracy",
         description="Metric used for league/team aggregations"),
-    include_league_characteristics: bool = Query(
-        False,
-        description=(
-            "Include actual OU/BTTS/1X2 league distribution "
-            "when one league is selected"))) -> ModelAnalyticsResponse:
+) -> ModelAnalyticsResponse:
     """Zwraca statystyki efektywności modeli dla wykresów i tabel."""
     if date_from is not None and date_to is not None and date_from > date_to:
         raise HTTPException(
@@ -134,8 +130,7 @@ async def get_model_statistics(
             positive_ev_only=positive_ev_only,
             apply_tax=apply_tax,
             group_by=group_by,
-            aggregation_metric=aggregation_metric,
-            include_league_characteristics=include_league_characteristics)
+            aggregation_metric=aggregation_metric)
         return ModelAnalyticsResponse(**payload)
     except HTTPException:
         raise

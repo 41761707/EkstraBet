@@ -2,6 +2,8 @@ import {
   ComparisonChart,
   DistributionChart,
 } from "@/components/stats/AnalyticsCharts";
+import { formatAnalyticsTypeLabel } from "@/lib/analyticsLabels";
+import { getSemanticBarColor } from "@/lib/chartColors";
 import { formatPercent, formatProfit } from "@/lib/format";
 import type { CategoryStatistics } from "@/types/api";
 
@@ -26,42 +28,66 @@ function BreakdownTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Typ</th>
-            <th className="px-4 py-3 text-right font-medium">Łącznie</th>
-            <th className="px-4 py-3 text-right font-medium">Trafione</th>
-            <th className="px-4 py-3 text-right font-medium">Skuteczność</th>
-            <th className="px-4 py-3 text-right font-medium">Udział</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">
+              Typ
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Łącznie
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Trafione
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Skuteczność
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Udział
+            </th>
             {showProfit ? (
-              <th className="px-4 py-3 text-right font-medium">Zysk</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+                Zysk
+              </th>
             ) : null}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.key}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
-            >
-              <td className="px-4 py-3 text-white">{row.key}</td>
-              <td className="px-4 py-3 text-right text-slate-200">
-                {row.total}
-              </td>
-              <td className="px-4 py-3 text-right text-slate-200">
-                {row.correct}
-              </td>
-              <td className="px-4 py-3 text-right text-slate-200">
-                {formatPercent(row.accuracy_pct)}
-              </td>
-              <td className="px-4 py-3 text-right text-slate-200">
-                {formatPercent(row.share_pct)}
-              </td>
-              {showProfit ? (
-                <td className="px-4 py-3 text-right text-slate-200">
-                  {formatProfit(row.profit)}
+          {rows.map((row) => {
+            const label = formatAnalyticsTypeLabel(row.key);
+            return (
+              <tr
+                key={row.key}
+                className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              >
+                <td className="px-4 py-3">
+                  <span className="inline-flex items-center gap-2.5 font-medium text-white">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: getSemanticBarColor(label) }}
+                      aria-hidden
+                    />
+                    {label}
+                  </span>
                 </td>
-              ) : null}
-            </tr>
-          ))}
+                <td className="px-4 py-3 text-right tabular-nums text-slate-200">
+                  {row.total}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums text-slate-200">
+                  {row.correct}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium text-sky-200">
+                  {formatPercent(row.accuracy_pct)}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums text-slate-300">
+                  {formatPercent(row.share_pct)}
+                </td>
+                {showProfit ? (
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-amber-200">
+                    {formatProfit(row.profit)}
+                  </td>
+                ) : null}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -84,32 +110,34 @@ function SummaryCards({
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
           {label} łącznie
         </p>
-        <p className="mt-1 text-2xl font-semibold text-white">{total}</p>
+        <p className="mt-1.5 text-2xl font-semibold tabular-nums text-white">
+          {total}
+        </p>
       </div>
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
           {label} trafione
         </p>
-        <p className="mt-1 text-2xl font-semibold text-emerald-300">
+        <p className="mt-1.5 text-2xl font-semibold tabular-nums text-emerald-300">
           {correct}
         </p>
       </div>
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
           {label} skuteczność
         </p>
-        <p className="mt-1 text-2xl font-semibold text-sky-300">
+        <p className="mt-1.5 text-2xl font-semibold tabular-nums text-sky-300">
           {formatPercent(accuracyPct)}
         </p>
       </div>
       <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
           {label} zysk
         </p>
-        <p className="mt-1 text-2xl font-semibold text-amber-300">
+        <p className="mt-1.5 text-2xl font-semibold tabular-nums text-amber-300">
           {formatProfit(profitTotal)}
         </p>
       </div>
@@ -123,10 +151,12 @@ export function AnalyticsCategoryPanel({
 }: AnalyticsCategoryPanelProps) {
   return (
     <section className="space-y-6">
-      <h3 className="text-xl font-semibold text-white">{title}</h3>
+      <h3 className="text-xl font-semibold tracking-tight text-white">
+        {title}
+      </h3>
 
       <div className="space-y-4">
-        <h4 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+        <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
           Predykcje
         </h4>
         <SummaryCards
@@ -153,7 +183,7 @@ export function AnalyticsCategoryPanel({
       </div>
 
       <div className="space-y-4">
-        <h4 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+        <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
           Zakłady
         </h4>
         <SummaryCards

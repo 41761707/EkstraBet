@@ -190,13 +190,13 @@ def _generate_category_statistics(
             apply_tax=apply_tax,
             tax_rate=tax_rate)
         display_labels = {
-            "under_2_5": "Under 2.5",
-            "over_2_5": "Over 2.5",
-            "no": "NO BTTS",
-            "yes": "BTTS",
-            "home": "Home",
-            "draw": "Draw",
-            "away": "Away",
+            "under_2_5": "Poniżej 2.5",
+            "over_2_5": "Powyżej 2.5",
+            "no": "BTTS nie",
+            "yes": "BTTS tak",
+            "home": "Gospodarz",
+            "draw": "Remis",
+            "away": "Gość",
         }
         return {
             "predictions": {
@@ -241,13 +241,13 @@ def _generate_category_statistics(
         tax_rate=tax_rate)
 
     display_labels = {
-        "under_2_5": "Under 2.5",
-        "over_2_5": "Over 2.5",
-        "no": "NO BTTS",
-        "yes": "BTTS",
-        "home": "Home",
-        "draw": "Draw",
-        "away": "Away",
+        "under_2_5": "Poniżej 2.5",
+        "over_2_5": "Powyżej 2.5",
+        "no": "BTTS nie",
+        "yes": "BTTS tak",
+        "home": "Gospodarz",
+        "draw": "Remis",
+        "away": "Gość",
     }
 
     return {
@@ -310,6 +310,56 @@ def _build_profit_aggregation(
     return rows
 
 
+def _build_league_outcome_comparison(
+    frame: pd.DataFrame) -> dict[str, Any] | None:
+    """Build match-weighted league outcome comparison payload."""
+    if frame.empty:
+        return None
+
+    leagues: list[dict[str, Any]] = []
+    total_matches = 0
+    total_over = 0
+    total_btts = 0
+    total_home = 0
+    total_away = 0
+
+    for _, row in frame.iterrows():
+        played = int(row["played_matches"])
+        if played <= 0:
+            continue
+        over_count = int(row["over_2_5_count"])
+        btts_count = int(row["btts_yes_count"])
+        home_count = int(row["home_win_count"])
+        away_count = int(row["away_win_count"])
+        leagues.append({
+            "league_id": int(row["league_id"]),
+            "league_name": str(row["league_name"]),
+            "played_matches": played,
+            "btts_yes_pct": _safe_pct(btts_count, played) or 0.0,
+            "over_2_5_pct": _safe_pct(over_count, played) or 0.0,
+            "home_win_pct": _safe_pct(home_count, played) or 0.0,
+            "away_win_pct": _safe_pct(away_count, played) or 0.0,
+        })
+        total_matches += played
+        total_over += over_count
+        total_btts += btts_count
+        total_home += home_count
+        total_away += away_count
+
+    if len(leagues) < 2 or total_matches == 0:
+        return None
+
+    return {
+        "leagues": leagues,
+        "averages": {
+            "btts_yes_pct": _safe_pct(total_btts, total_matches) or 0.0,
+            "over_2_5_pct": _safe_pct(total_over, total_matches) or 0.0,
+            "home_win_pct": _safe_pct(total_home, total_matches) or 0.0,
+            "away_win_pct": _safe_pct(total_away, total_matches) or 0.0,
+        },
+    }
+
+
 def get_model_statistics(
     stat_type: StatType = "all",
     model_result_ids: list[int] | None = None,
@@ -326,8 +376,7 @@ def get_model_statistics(
     positive_ev_only: bool = False,
     apply_tax: bool = False,
     group_by: GroupBy = "none",
-    aggregation_metric: AggregationMetric = "accuracy",
-    include_league_characteristics: bool = False) -> dict[str, Any]:
+    aggregation_metric: AggregationMetric = "accuracy") -> dict[str, Any]:
     """Return model effectiveness statistics ready for API responses."""
     tax_rate = BETTING_TAX_RATE if apply_tax else 0.0
     model_map = {
@@ -440,22 +489,19 @@ def get_model_statistics(
             **by_team,
         }
 
-    league_characteristics = None
-    if (
-        include_league_characteristics
-        and season_id is not None
-        and league_ids
-        and len(league_ids) == 1
-    ):
-        league_characteristics = (
-            analytics_repository.fetch_league_characteristics(
-                league_id=league_ids[0],
+    league_comparisons = None
+    if league_ids and len(league_ids) >= 2:
+        comparison_frame = (
+            analytics_repository.fetch_leagues_outcome_comparison(
+                league_ids=league_ids,
                 season_id=season_id))
+        league_comparisons = _build_league_outcome_comparison(
+            comparison_frame)
 
     return {
         "categories": categories,
         "aggregations": aggregations,
-        "league_characteristics": league_characteristics,
+        "league_comparisons": league_comparisons,
         "filters_applied": {
             "stat_type": stat_type,
             "model_result_ids": model_result_ids,
@@ -474,6 +520,5 @@ def get_model_statistics(
             "tax_rate": BETTING_TAX_RATE if apply_tax else None,
             "group_by": group_by,
             "aggregation_metric": aggregation_metric,
-            "include_league_characteristics": include_league_characteristics,
         },
     }

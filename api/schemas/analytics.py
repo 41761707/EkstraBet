@@ -140,6 +140,34 @@ class AnalyticsAggregations(BaseModel):
     by_league: AccuracyAggregation | ProfitAggregation | None = None
 
 
+class LeagueComparisonRow(BaseModel):
+    """Outcome rates for one league in a multi-league comparison."""
+
+    league_id: int
+    league_name: str
+    played_matches: int
+    btts_yes_pct: float
+    over_2_5_pct: float
+    home_win_pct: float
+    away_win_pct: float
+
+
+class LeagueComparisonAverages(BaseModel):
+    """Match-weighted averages across compared leagues."""
+
+    btts_yes_pct: float
+    over_2_5_pct: float
+    home_win_pct: float
+    away_win_pct: float
+
+
+class LeagueComparisons(BaseModel):
+    """Per-league outcome comparison for selected leagues."""
+
+    leagues: list[LeagueComparisonRow]
+    averages: LeagueComparisonAverages
+
+
 class ModelAnalyticsResponse(BaseModel):
     """Response for GET /analytics/models."""
 
@@ -149,9 +177,11 @@ class ModelAnalyticsResponse(BaseModel):
     aggregations: AnalyticsAggregations = Field(
         default_factory=AnalyticsAggregations,
         description="Optional team or league aggregations")
-    league_characteristics: LeagueCharacteristics | None = Field(
+    league_comparisons: LeagueComparisons | None = Field(
         None,
-        description="Actual league outcome distribution")
+        description=(
+            "Per-league outcome rates when at least two leagues "
+            "are selected"))
     filters_applied: dict[str, object] = Field(
         ...,
         description="Applied query filters")

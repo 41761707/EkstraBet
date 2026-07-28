@@ -489,7 +489,6 @@ export async function getModelAnalytics(options?: {
   applyTax?: boolean;
   groupBy?: AnalyticsGroupBy;
   aggregationMetric?: AnalyticsAggregationMetric;
-  includeLeagueCharacteristics?: boolean;
 }): Promise<ModelAnalyticsResponse> {
   return fetchApi<ModelAnalyticsResponse>("/analytics/models", {
     stat_type: options?.statType,
@@ -520,7 +519,6 @@ export async function getModelAnalytics(options?: {
     apply_tax: options?.applyTax,
     group_by: options?.groupBy,
     aggregation_metric: options?.aggregationMetric,
-    include_league_characteristics: options?.includeLeagueCharacteristics,
   });
 }
 
@@ -592,8 +590,13 @@ export async function getModelsGroupedByFamily(
   return grouped;
 }
 
-export async function getSeasonOptions(): Promise<FilterOption[]> {
-  const { leagues } = await getLeagues({ active: true });
+export async function getSeasonOptions(
+  sportId?: number,
+): Promise<FilterOption[]> {
+  const { leagues } = await getLeagues({
+    active: true,
+    sportId,
+  });
   const seasons = new Map<number, string>();
 
   await Promise.all(

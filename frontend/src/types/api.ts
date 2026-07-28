@@ -755,6 +755,28 @@ export interface LeagueCharacteristics {
   result: Record<string, DistributionBucket>;
 }
 
+export interface LeagueComparisonRow {
+  league_id: number;
+  league_name: string;
+  played_matches: number;
+  btts_yes_pct: number;
+  over_2_5_pct: number;
+  home_win_pct: number;
+  away_win_pct: number;
+}
+
+export interface LeagueComparisonAverages {
+  btts_yes_pct: number;
+  over_2_5_pct: number;
+  home_win_pct: number;
+  away_win_pct: number;
+}
+
+export interface LeagueComparisons {
+  leagues: LeagueComparisonRow[];
+  averages: LeagueComparisonAverages;
+}
+
 export interface EntityAggregationRow {
   entity_id: number | null;
   entity_name: string;
@@ -786,7 +808,7 @@ export interface AnalyticsAggregations {
 export interface ModelAnalyticsResponse {
   categories: Record<string, CategoryStatistics>;
   aggregations: AnalyticsAggregations;
-  league_characteristics: LeagueCharacteristics | null;
+  league_comparisons: LeagueComparisons | null;
   filters_applied: Record<string, unknown>;
 }
 

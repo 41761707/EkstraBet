@@ -16,6 +16,8 @@ interface TeamLeagueComparisonChartProps {
   teams: TeamComparisonPoint[];
   leagueAverage: number;
   averageLabel?: string;
+  /** Szerokość kolumny etykiet — dłuższe nazwy lig potrzebują więcej miejsca. */
+  labelWidthClassName?: string;
 }
 
 export function TeamLeagueComparisonChart({
@@ -23,6 +25,7 @@ export function TeamLeagueComparisonChart({
   teams,
   leagueAverage,
   averageLabel = "Średnia ligi",
+  labelWidthClassName = "7.5rem",
 }: TeamLeagueComparisonChartProps) {
   if (teams.length === 0) {
     return null;
@@ -35,6 +38,7 @@ export function TeamLeagueComparisonChart({
     1,
   );
   const averagePosition = (leagueAverage / maxValue) * 100;
+  const labelColumn = `minmax(0,${labelWidthClassName})`;
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
@@ -70,7 +74,10 @@ export function TeamLeagueComparisonChart({
       </div>
 
       <div className="relative max-h-96 overflow-y-auto pr-1">
-        <div className="pointer-events-none absolute bottom-0 left-[7.75rem] right-0 top-0">
+        <div
+          className="pointer-events-none absolute bottom-0 right-0 top-0"
+          style={{ left: `calc(${labelWidthClassName} + 0.75rem)` }}
+        >
           <div
             className="absolute bottom-0 top-0 border-l border-dashed"
             style={{
@@ -87,7 +94,8 @@ export function TeamLeagueComparisonChart({
             return (
               <div
                 key={team.teamName}
-                className="grid grid-cols-[7.5rem_1fr] items-center gap-3"
+                className="grid items-center gap-3"
+                style={{ gridTemplateColumns: `${labelColumn} 1fr` }}
               >
                 <span
                   className="truncate text-xs text-slate-300"

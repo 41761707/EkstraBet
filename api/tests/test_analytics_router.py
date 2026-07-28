@@ -65,12 +65,12 @@ class TestAnalyticsRouter(unittest.TestCase):
                         }],
                         "charts": {
                             "distribution": {
-                                "labels": ["Under 2.5"],
+                                "labels": ["Poniżej 2.5"],
                                 "values": [2],
                                 "percentages": [50.0],
                             },
                             "comparison": {
-                                "labels": ["Under 2.5"],
+                                "labels": ["Poniżej 2.5"],
                                 "correct": [2],
                                 "incorrect": [0],
                             },
@@ -91,12 +91,12 @@ class TestAnalyticsRouter(unittest.TestCase):
                         }],
                         "charts": {
                             "distribution": {
-                                "labels": ["Under 2.5"],
+                                "labels": ["Poniżej 2.5"],
                                 "values": [2],
                                 "percentages": [100.0],
                             },
                             "comparison": {
-                                "labels": ["Under 2.5"],
+                                "labels": ["Poniżej 2.5"],
                                 "correct": [1],
                                 "incorrect": [1],
                             },
@@ -105,7 +105,7 @@ class TestAnalyticsRouter(unittest.TestCase):
                 },
             },
             "aggregations": {},
-            "league_characteristics": None,
+            "league_comparisons": None,
             "filters_applied": {
                 "stat_type": "ou",
                 "model_ou_ids": [2],
