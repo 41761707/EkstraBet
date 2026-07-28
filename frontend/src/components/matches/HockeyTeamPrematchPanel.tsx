@@ -41,17 +41,22 @@ export function HockeyTeamPrematchPanel({
 }: HockeyTeamPrematchPanelProps) {
   const [statLines, setStatLines] = useState(buildHockeyDefaultStatLines);
 
-  const splitStats = useMemo(
-    () => computeSplitStatsFromHistory(history),
-    [history],
-  );
-
-  const chartMatches = useMemo(() => {
+  const analyzedMatches = useMemo(() => {
     if (history.length === 0) {
       return [];
     }
-    return [...history].slice(0, lookback).reverse();
+    return history.slice(0, lookback);
   }, [history, lookback]);
+
+  const splitStats = useMemo(
+    () => computeSplitStatsFromHistory(analyzedMatches),
+    [analyzedMatches],
+  );
+
+  const chartMatches = useMemo(
+    () => [...analyzedMatches].reverse(),
+    [analyzedMatches],
+  );
 
   const form = useMemo(
     () => chartMatches.map((match) => match.result),
@@ -91,8 +96,8 @@ export function HockeyTeamPrematchPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <ExpandableSection title="Statystyki sezonowe" defaultOpen>
+    <div className="min-w-0 space-y-4">
+      <ExpandableSection title="Statystyki" defaultOpen>
         <TeamSplitStatsTable
           overall={splitStats.overall}
           home={splitStats.home}
@@ -156,7 +161,7 @@ export function HockeyTeamPrematchPanel({
       </ExpandableSection>
 
       <ExpandableSection title="Bramki w meczach" defaultOpen>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
           <VerticalStatChart
             title="Bramki w meczach"
             playerName={teamName}

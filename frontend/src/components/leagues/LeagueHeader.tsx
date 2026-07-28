@@ -22,7 +22,7 @@ export function LeagueHeader({
   return (
     <section className="space-y-2">
       <Link
-        href="/#ligy"
+        href="/#ligi"
         className="text-sm text-sky-300 transition hover:text-sky-200"
       >
         ← Strona główna

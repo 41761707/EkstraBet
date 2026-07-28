@@ -343,8 +343,30 @@ def fetch_team_matches_before_date(
     team_id: int,
     before_game_date: object,
     exclude_match_id: int,
-    limit: int = MAX_MATCH_HISTORY) -> pd.DataFrame:
+    season_id: int | None = None,
+    limit: int | None = MAX_MATCH_HISTORY) -> pd.DataFrame:
     """Return played team matches strictly before a reference kick-off."""
+    conditions = [
+        "(m.home_team = %s OR m.away_team = %s)",
+        "m.result != '0'",
+        "m.game_date < %s",
+        "m.id != %s"]
+    params: list[object] = [
+        team_id,
+        team_id,
+        before_game_date,
+        exclude_match_id]
+
+    if season_id is not None:
+        conditions.append("m.season = %s")
+        params.append(season_id)
+
+    where_clause = " AND ".join(conditions)
+    limit_clause = ""
+    if limit is not None:
+        limit_clause = "LIMIT %s"
+        params.append(limit)
+
     query = f"""
         SELECT
             {_MATCH_SELECT_COLUMNS}
@@ -353,23 +375,12 @@ def fetch_team_matches_before_date(
         JOIN teams t2 ON m.away_team = t2.id
         {_MATCH_SCORE_RESOLUTION_JOIN}
         {_HOCKEY_MATCHES_ADD_JOIN}
-        WHERE (m.home_team = %s OR m.away_team = %s)
-            AND m.result != '0'
-            AND m.game_date < %s
-            AND m.id != %s
+        WHERE {where_clause}
         ORDER BY m.game_date DESC
-        LIMIT %s
+        {limit_clause}
     """
     with get_db_connection() as conn:
-        return pd.read_sql(
-            query,
-            conn,
-            params=(
-                team_id,
-                team_id,
-                before_game_date,
-                exclude_match_id,
-                limit))
+        return pd.read_sql(query, conn, params=tuple(params))
 
 
 def fetch_hockey_match_boxscore(match_id: int) -> tuple[pd.DataFrame, pd.DataFrame]:

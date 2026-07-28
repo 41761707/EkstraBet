@@ -93,9 +93,11 @@ export function VerticalStatChart({
   const chartTitle = `${title}: ${playerName}`;
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-      <div>
-        <h4 className="text-sm font-semibold text-white">{chartTitle}</h4>
+    <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+      <div className="min-w-0">
+        <h4 className="break-words text-sm font-semibold text-white">
+          {chartTitle}
+        </h4>
         <p className="mt-1 text-xs text-slate-400">
           Średnia: {average.toFixed(1)} · Skuteczność O{" "}
           {thresholdLine.toFixed(1)}:{" "}

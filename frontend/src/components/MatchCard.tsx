@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MatchScoreDisplay } from "@/components/MatchScoreDisplay";
-import { formatMatchDate } from "@/lib/format";
+import { formatMatchDate, formatRoundLabel } from "@/lib/format";
 import type { MatchSummary } from "@/types/api";
 
 interface MatchCardProps {
@@ -32,6 +32,8 @@ export function MatchCard({
   seasonId,
   leagueId,
 }: MatchCardProps) {
+  const roundLabel = formatRoundLabel(match.round_label);
+
   return (
     <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4 transition hover:border-sky-500/40 hover:bg-slate-900/80">
       <div className="mb-3 flex items-center justify-between gap-2 text-xs text-slate-400">
@@ -41,7 +43,7 @@ export function MatchCard({
         >
           {formatMatchDate(match.game_date)}
         </Link>
-        {match.round_label !== null ? <span>{match.round_label}</span> : null}
+        {roundLabel !== null ? <span>{roundLabel}</span> : null}
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <Link

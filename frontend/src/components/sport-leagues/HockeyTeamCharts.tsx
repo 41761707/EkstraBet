@@ -167,5 +167,5 @@ export function HockeyTeamCharts({
     return null;
   }
 
-  return <div className="grid gap-4 lg:grid-cols-2">{charts}</div>;
+  return <div className="grid min-w-0 gap-4 lg:grid-cols-2">{charts}</div>;
 }

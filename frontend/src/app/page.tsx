@@ -62,7 +62,7 @@ export default async function HomePage() {
 
       <div className="space-y-4">
 
-        <HomeSection title="Lista obsługiwanych lig" id="ligy" defaultOpen>
+        <HomeSection title="Lista obsługiwanych lig" id="ligi" defaultOpen>
           <HomeLeaguesList leagues={leagues} errorMessage={leaguesError} />
         </HomeSection>
 

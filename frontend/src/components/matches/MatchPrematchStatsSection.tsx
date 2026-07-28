@@ -102,7 +102,7 @@ export function MatchPrematchStatsSection({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <ExpandableSection title="Konfiguracja analizy" defaultOpen>
         <div className="grid gap-4 md:grid-cols-3">
           <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
@@ -163,7 +163,8 @@ export function MatchPrematchStatsSection({
               disabled={lookbackBounds.max <= 0}
             />
             <p className="text-xs text-slate-500">
-              Wykresy budowane ze wszystkich meczów przed datą tego spotkania.
+              Statystyki i wykresy z N ostatnich meczów przed datą tego
+              spotkania.
             </p>
           </label>
         </div>

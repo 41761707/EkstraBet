@@ -8,7 +8,7 @@ import {
   getMatchDetails,
 } from "@/lib/api";
 import { MatchScoreDisplay } from "@/components/MatchScoreDisplay";
-import { formatMatchDateTime } from "@/lib/format";
+import { formatMatchDateTime, formatRoundLabel } from "@/lib/format";
 import { leaguePath } from "@/lib/leaguePaths";
 
 interface MatchPageProps {
@@ -54,6 +54,7 @@ export default async function MatchPage({
     const league = await getLeagueDetails(match.league_id);
     const leagueHref = leaguePath(league.slug, { season_id: match.season_id });
     const teamQuery = `season_id=${match.season_id}&league_id=${match.league_id}`;
+    const roundLabel = formatRoundLabel(match.round_label);
 
     return (
       <div className="space-y-8">
@@ -69,7 +70,7 @@ export default async function MatchPage({
           </div>
           <p className="text-sm text-slate-400">
             {formatMatchDateTime(match.game_date)}
-            {match.round_label !== null ? ` · ${match.round_label}` : ""}
+            {roundLabel !== null ? ` · ${roundLabel}` : ""}
           </p>
         </section>
 

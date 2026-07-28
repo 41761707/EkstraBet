@@ -229,7 +229,7 @@ export function TeamSeasonChartsSection({
       </ExpandableSection>
 
       <ExpandableSection title="Bramki i BTTS w meczach" defaultOpen>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
           <VerticalStatChart
             title="Bramki w meczach"
             playerName={teamName}

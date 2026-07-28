@@ -15,9 +15,19 @@ const offerCards = [
     href: "/bets",
   },
   {
+    title: " 🏃🏻 Statystyki zawodników",
+    description: "Prezentacja statystyk zawodników z poszczególnych dyscyplin objętych badaniem",
+    href: "/players",
+  },
+  {
     title: "⚽ Baza lig",
     description: "Dostęp do szczegółowych danych oraz analiz z wielu lig.",
-    href: "#ligy",
+    href: "#ligi",
+  },
+  {
+    title: "🤖 Chatbot",
+    description: "Chatbot umożliwiający użytkownikowi interakcję z systemem poprzez chat",
+    href: "/chat",
   },
   {
     title: "🏆 Wiele dyscyplin",
@@ -28,9 +38,11 @@ const offerCards = [
 
 const roadmapItems = [
   "Rozszerzenie o inne dyscypliny sportowe (np. koszykówka) oraz o esport (CS2, LOL)",
-  "Dodanie analizy w czasie rzeczywistym w oparciu o dane użytkownika",
-  "Utworzenie API do łatwiejszej integracji z systemem dla developerów",
-  "Utworzenie profili użytkownika do personalizacji filtrów",
+  "Dodanie analizy meczów w oparciu o dodatkowe dane: informacje o zawodnikach i kursach bukmacherskich",
+  "Rozwinięcie profili użytkowników o personalizację filtrów",
+  "Wprowadzenie generatora kuponów w oparciu o charakterstyki wybrane przez użytkownika",
+  "Wizualizacja siły drużyny w oparciu o dane historyczne",
+  "Informacje o osiągnięciach druzyn w każdej z połów meczu osobno (teraz pobieramy tylko dane z końca meczu)"
 ];
 
 const faqItems: { question: string; answer: ReactNode }[] = [
@@ -38,10 +50,12 @@ const faqItems: { question: string; answer: ReactNode }[] = [
     question: "Jak działają modele predykcyjne w Ekstrabet?",
     answer: (
       <>
-        Nasze modele wykorzystują uczenie maszynowe do analizy historycznych
+        Modele wykorzystują uczenie maszynowe do analizy historycznych
         danych meczowych, statystyk drużyn i zawodników. Algorytmy analizują
         wzorce w danych i na tej podstawie przewidują prawdopodobieństwa
-        różnych wyników meczów. Szczegółowy opis aktualnych modeli, cech,
+        różnych zdarzeń meczowych. Aktualnie modele przewidują występowanie takich zdarzeń jak
+        liczba bramek w spotkaniu, czy obie drużyny strzelą gola oraz jakim rezultatem zakończy się spotkanie.
+        Szczegółowy opis aktualnych modeli, cech,
         ograniczeń, kluczowych pojęć oraz przykład predykcji znajdziesz na
         stronie{" "}
         <Link
@@ -57,22 +71,17 @@ const faqItems: { question: string; answer: ReactNode }[] = [
   {
     question: "Ile lig i dyscyplin sportowych obsługuje system?",
     answer:
-      "Obecnie Ekstrabet obsługuje ponad 30 lig piłkarskich z całego świata oraz hokej na lodzie (NHL). Pełna lista obsługiwanych lig znajduje się w sekcji „Lista obsługiwanych lig” na stronie głównej. W planach mamy dodanie koszykówki oraz esportu.",
+      "Obecnie Ekstrabet obsługuje ponad 30 lig piłkarskich z całego świata oraz największą hokejową ligę świata (NHL). Pełna lista obsługiwanych lig znajduje się w sekcji „Lista obsługiwanych lig” na stronie głównej. W planach mamy dodanie koszykówki oraz esportu.",
   },
   {
     question: "Czy mogę używać prognoz do realnych zakładów bukmacherskich?",
     answer:
-      "Ekstrabet ma charakter edukacyjny i badawczy. Wszystkie symulacje zakładów są hipotetyczne i służą wyłącznie do testowania modeli. Nie zachęcamy do uczestnictwa w grach hazardowych.",
-  },
-  {
-    question: "Skąd pochodzą dane używane w analizach?",
-    answer:
-      "Wszystkie dane pochodzą z publicznych źródeł: statystyki piłkarskie z flashscore.pl i opta.com, dane hokejowe z oficjalnego NHL API.",
+      "Ekstrabet ma charakter edukacyjny i badawczy. Wszystkie symulacje zakładów są hipotetyczne i służą wyłącznie do testowania modeli. Strona w żaden sposób nie zachęca do uczestnictwa w grach hazardowych, kursy bukmacherskie stosują środek weryfikacji dokładności predykcji modeli.",
   },
   {
     question: "Jaka jest dokładność prognoz systemu?",
     answer:
-      "Dokładność modeli różni się w zależności od ligi i typu prognozy. Szczegółowe statystyki wydajności każdego modelu znajdziesz w „Kąciku statystycznym”. Pamiętaj, że żaden model nie jest w 100% dokładny.",
+      "Dokładność modeli różni się w zależności od ligi i typu prognozy. Szczegółowe statystyki wydajności każdego modelu znajdziesz w „Kąciku statystycznym”. Pamiętaj, że żaden model nie jest w 100% dokładny i wszystkie prognozy są hipotetyczne.",
   },
 ];
 
@@ -112,32 +121,6 @@ export function HomeStaticSections() {
         </div>
       </HomeSection>
 
-      <HomeSection title="Statystyki zawodników">
-        <p className="mb-4 text-sm leading-relaxed text-slate-300">
-          Sprawdź szczegółowe statystyki i analizy zawodników z różnych
-          dyscyplin sportowych:
-        </p>
-        <ul className="space-y-2 text-sm text-slate-400">
-          <li>
-            <Link
-              href="/players"
-              className="text-sky-300 transition hover:text-sky-200"
-            >
-              ⚽ Piłka nożna — Zawodnicy
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/players?sport_id=2"
-              className="text-sky-300 transition hover:text-sky-200"
-            >
-              🏒 NHL — Zawodnicy
-            </Link>
-          </li>
-          <li>🏀 NBA — Zawodnicy (wkrótce w nowej wersji)</li>
-        </ul>
-      </HomeSection>
-
       <HomeSection title="O projekcie">
         <div className="space-y-4">
           <h3 className="border-b border-sky-500/40 pb-2 text-lg font-semibold text-sky-300">
@@ -146,8 +129,8 @@ export function HomeStaticSections() {
           <p className="text-sm leading-relaxed">
             Ekstrabet to zaawansowane narzędzie analityczne stworzone dla
             miłośników sportu. Wykorzystując uczenie maszynowe i statystykę,
-            pomaga w podejmowaniu świadomych decyzji przy obstawianiu meczów
-            sportowych.
+            próbuje przewidywać występowanie wybranych zdarzeń na piłkarskich boiskach, 
+            hokejowych lodowiskach czy też koszykarskich halach.
           </p>
           <div className="rounded-lg border-l-4 border-sky-400 bg-slate-800/60 p-4">
             <p className="font-medium text-white">Główne założenia projektu:</p>

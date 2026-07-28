@@ -47,7 +47,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   const awayTeamLabel = teamChartLabel(match.away_team);
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap gap-2 border-b border-slate-700/80 pb-1">
         {visibleTabs.map((tab) => {
           const isActive = tab.id === activeTab;

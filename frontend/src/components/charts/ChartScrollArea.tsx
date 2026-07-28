@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type PointerEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -22,6 +23,8 @@ interface ChartScrollAreaProps {
   compactScrollAlign?: CompactScrollAlign;
   scrollKey?: number | string;
 }
+
+const CLICK_MOVE_THRESHOLD_PX = 8;
 
 function useCompactScrollAlign(
   containerRef: RefObject<HTMLDivElement | null>,
@@ -60,8 +63,12 @@ export function ChartScrollArea({
   scrollKey,
 }: ChartScrollAreaProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pointerOriginRef = useRef<{ x: number; y: number } | null>(null);
   const [expanded, setExpanded] = useState(false);
   const close = useCallback(() => setExpanded(false), []);
+  const expandLabel = chartTitle
+    ? `Powiększ wykres: ${chartTitle}`
+    : "Powiększ wykres";
 
   useCompactScrollAlign(
     scrollContainerRef,
@@ -90,26 +97,53 @@ export function ChartScrollArea({
     };
   }, [expanded, close]);
 
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    pointerOriginRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const origin = pointerOriginRef.current;
+    pointerOriginRef.current = null;
+    if (origin === null) {
+      return;
+    }
+
+    const movedX = Math.abs(event.clientX - origin.x);
+    const movedY = Math.abs(event.clientY - origin.y);
+    if (movedX <= CLICK_MOVE_THRESHOLD_PX && movedY <= CLICK_MOVE_THRESHOLD_PX) {
+      setExpanded(true);
+    }
+  };
+
+  const onPointerCancel = () => {
+    pointerOriginRef.current = null;
+  };
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="group w-full text-left"
-        aria-label={
-          chartTitle ? `Powiększ wykres: ${chartTitle}` : "Powiększ wykres"
-        }
-      >
+      <div className="group min-w-0 max-w-full">
         <div
           ref={scrollContainerRef}
-          className="overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className="min-w-0 max-w-full cursor-zoom-in overflow-x-auto overscroll-x-contain touch-pan-x pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+          role="button"
+          tabIndex={0}
+          aria-label={expandLabel}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setExpanded(true);
+            }
+          }}
         >
           {children}
         </div>
-        <p className="text-center text-[10px] text-slate-500 opacity-0 transition group-hover:opacity-100">
-          Kliknij, aby powiększyć
+        <p className="text-center text-[10px] text-slate-500 opacity-70 transition group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+          Przesuń poziomo lub kliknij, aby powiększyć
         </p>
-      </button>
+      </div>
 
       {expanded ? (
         <div
@@ -140,7 +174,7 @@ export function ChartScrollArea({
                 Zamknij ✕
               </button>
             </div>
-            <div className="w-full overflow-hidden pb-2">
+            <div className="w-full min-w-0 overflow-x-auto pb-2">
               {expandedChildren ?? children}
             </div>
           </div>

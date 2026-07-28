@@ -17,7 +17,7 @@ export function MatchPredictionsTable({
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80 text-left text-slate-400">
           <tr>
-            <th className="px-4 py-3 font-medium">Wydarzenie</th>
+            <th className="px-4 py-3 font-medium">Zdarzenie</th>
             <th className="px-4 py-3 font-medium">Model</th>
             <th className="px-4 py-3 text-center font-medium">
               Prawdopodobieństwo

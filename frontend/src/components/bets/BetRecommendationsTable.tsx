@@ -40,7 +40,7 @@ export function BetRecommendationsTable({
             <th className="px-4 py-3 font-medium">Data</th>
             <th className="px-4 py-3 font-medium">Liga</th>
             <th className="px-4 py-3 font-medium">Mecz</th>
-            <th className="px-4 py-3 font-medium">Wydarzenie</th>
+            <th className="px-4 py-3 font-medium">Zdarzenie</th>
             <th className="px-4 py-3 font-medium">Model</th>
             <th className="px-4 py-3 font-medium">Bukmacher</th>
             <th className="px-4 py-3 text-right font-medium">Kurs</th>

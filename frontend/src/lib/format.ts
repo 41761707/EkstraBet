@@ -42,6 +42,13 @@ export function formatScore(match: MatchSummary): string {
   return formatMatchScore(match);
 }
 
+export function formatRoundLabel(roundLabel: string | null): string | null {
+  if (roundLabel === null) {
+    return null;
+  }
+  return `Runda: ${roundLabel}`;
+}
+
 export function formatProbability(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
     return "—";

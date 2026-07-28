@@ -23,7 +23,7 @@ export function TeamTripleStatCharts({
   const labels = chartMatches.map((match) => buildLabel(match));
 
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-3">
       <VerticalStatChart
         title={definition.teamChartTitle}
         playerName={teamName}

@@ -29,7 +29,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
       >
         <AppHeader />
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        <main className="mx-auto min-w-0 max-w-6xl overflow-x-hidden px-4 py-8">
+          {children}
+        </main>
       </body>
     </html>
   );

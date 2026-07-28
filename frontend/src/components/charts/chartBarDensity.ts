@@ -16,13 +16,13 @@ export function getChartBarDensityClasses(
 ): ChartBarDensityClasses {
   if (size === "compact") {
     return {
-      containerClass: "flex items-end gap-2",
-      columnClass: "flex min-w-[3.5rem] flex-col items-center gap-2",
+      containerClass: "flex w-max max-w-none items-end gap-2",
+      columnClass: "flex w-[3.5rem] shrink-0 flex-col items-center gap-2",
       barWidthClass: "w-10",
       barHeightClass: "h-40",
       valueClass: "font-semibold text-white text-xs",
       labelClass:
-        "max-w-[4.5rem] text-center leading-tight text-slate-400 text-[10px]",
+        "max-w-[3.5rem] truncate text-center leading-tight text-slate-400 text-[10px]",
       barLabelClass: "font-bold text-white text-[10px]",
     };
   }
