@@ -1,0 +1,139 @@
+# Produkcyjny stack EkstraBet: frontend (localhost) + api + mysql (tylko sieć Compose).
+# Sekrety: pliki env na hoście (domyślnie /etc/ekstrabet/). Nie commituj prawdziwych wartości.
+# Uruchomienie: docker compose -f compose.production.yml up -d --build
+#
+# Wymagane pliki env (operator tworzy z szablonów .env.example / frontend/.env.local.example
+# oraz deploy/mysql.env.example z SZP-69/70) — Compose odmawia startu, gdy któregoś brakuje:
+#   ${EKSTRABET_ENV_DIR}/api.env
+#   ${EKSTRABET_ENV_DIR}/frontend.env
+#   ${EKSTRABET_ENV_DIR}/mysql.env
+# Dodatkowo ustaw APP_ORIGIN (publiczny origin HTTPS) w shellu lub w pliku .env Compose,
+# np. APP_ORIGIN=https://ekstrabet.example
+
+name: ekstrabet
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    env_file:
+      - path: ${EKSTRABET_ENV_DIR:-/etc/ekstrabet}/mysql.env
+        required: true
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ekstrabet}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-name-resolve
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - internal
+    # Brak ports — MySQL tylko w prywatnej sieci Compose
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    logging: *default-logging
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/api.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ${EKSTRABET_ENV_DIR:-/etc/ekstrabet}/api.env
+        required: true
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${MYSQL_DATABASE:-ekstrabet}
+      HOST: 0.0.0.0
+      PORT: "8000"
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      # Host z BFF (http://api:8000) + healthcheck (127.0.0.1) — nadpisuje api.env
+      TRUSTED_HOSTS: '["api","127.0.0.1","localhost"]'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - internal
+    # Brak ports — FastAPI tylko w prywatnej sieci Compose
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging: *default-logging
+
+  frontend:
+    build:
+      # Kontekst = frontend; Dockerfile w deploy/ (ścieżka względna do kontekstu)
+      context: ./frontend
+      dockerfile: ../deploy/docker/frontend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ${EKSTRABET_ENV_DIR:-/etc/ekstrabet}/frontend.env
+        required: true
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      # BFF/RSC woła FastAPI po nazwie usługi Compose — bez publicznego URL
+      API_BASE_URL: http://api:8000
+      # Wymagane przez fail-closed (instrumentation.ts) — ustaw przed up
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN to the public https origin, e.g. https://ekstrabet.example}
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-ekstrabet_token}
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    ports:
+      # Tylko loopback — hostowy nginx proxy'uje 443 -> 127.0.0.1:3000
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging: *default-logging
+
+networks:
+  # Prywatna sieć Compose — API/MySQL bez publikowanych portów
+  internal:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

@@ -1,0 +1,61 @@
+# Kontekst buildu API (repo root) — wyklucz sekrety, cache, ML i zbędne warstwy.
+.git
+.gitignore
+.cursor
+.vscode
+.devcontainer
+.szponti
+.pytest_cache
+.ruff_cache
+.streamlit
+.mypy_cache
+.tox
+.venv
+venv
+env
+ENV
+
+# Sekrety i lokalne env — nigdy do obrazu
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.local.example
+.szponti.env
+
+# Frontend (osobny obraz)
+frontend/
+
+# Legacy / poza stackiem produkcyjnym
+web_code/
+graphics_code/
+mcp_servers/
+model_code/
+models/
+scripts/
+sql/
+docs/
+tasks/
+db_documentation/
+db_funcs/
+
+# Testy i artefakty
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/htmlcov/
+**/.coverage
+**/.coverage.*
+**/node_modules/
+**/.next/
+**/out/
+**/*.md
+!README.md
+
+# Lokalne backupy i media
+backups/
+*.png
+*.jpg
+*.v2

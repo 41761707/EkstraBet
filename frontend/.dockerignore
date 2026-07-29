@@ -1,0 +1,29 @@
+# Kontekst buildu frontendu — wyklucz sekrety, cache i artefakty testowe.
+Dockerfile*
+.dockerignore
+.git
+.gitignore
+.next
+node_modules
+out
+coverage
+.pytest_cache
+.turbo
+.vercel
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sekrety — nigdy do obrazu
+.env
+.env.*
+!.env.local.example
+
+# Testy i dokumentacja (niepotrzebne w runtime)
+**/*.test.ts
+**/*.test.tsx
+**/__tests__/
+vitest.config.ts
+README.md
+test/
