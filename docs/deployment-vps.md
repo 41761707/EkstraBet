@@ -5,7 +5,7 @@ z [compose.production.yml](../compose.production.yml): nginx z TLS na hoście,
 Next.js na `127.0.0.1:3000`, FastAPI i MySQL tylko w prywatnej sieci Compose.
 
 Pełny runbook wydania/rollbacku: etap SZP-72 (ten dokument — host i dostęp).
-Backup i restore: etap SZP-71.
+Backup i restore: sekcja 9 (SZP-71).
 
 ## 1. Założenia
 
@@ -33,6 +33,7 @@ Pliki env (po skopiowaniu z szablonów w repo):
 | `/etc/ekstrabet/mysql.env` | [deploy/mysql.env.example](../deploy/mysql.env.example) | `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE` |
 | `/etc/ekstrabet/api.env` | [.env.example](../.env.example) | API/backend, konto DB API (nie-root) |
 | `/etc/ekstrabet/frontend.env` | [frontend/.env.local.example](../frontend/.env.local.example) | frontend / BFF |
+| `/etc/ekstrabet/backup.env` | sekcja 9 (SZP-71) | konto dump, passphrase, `BACKUP_DIR`, off-site |
 
 ```bash
 # Po uzupełnieniu wartości (same KEY=value, bez komentarzy):
@@ -105,7 +106,7 @@ operator ręcznie** (brak skryptów bootstrap/migracji w tym wydaniu):
 
 - konto API — tylko odczyt (`SELECT`, ewentualnie `SHOW VIEW`); hasło w `api.env` jako `DB_USER` / `DB_PASSWORD`;
 - konto modeli — odczyt + ograniczony zapis na tabelach pipeline; osobne hasło (nie w `api.env` produkcyjnym, jeśli job idzie poza Compose API);
-- konto backup — minimalne prawa pod dump (SZP-71); osobne hasło.
+- konto backup — minimalne prawa pod dump (sekcja 9); osobne hasło w `backup.env`.
 
 `DB_USER=root` w produkcji jest odrzucane przez fail-closed API. Root MySQL
 nie powinien być dostępny zdalnie ani używany przez aplikację.
@@ -158,3 +159,154 @@ Limity `limit_req` obejmują m.in.:
 - [ ] HSTS świadomie wyłączone albo włączone po weryfikacji TLS
 - [ ] Porty `3000` / `8000` / `3306` niedostępne z Internetu
 - [ ] Konta MySQL API/model/backup utworzone ręcznie; API nie używa `root`
+
+## 9. Backup, restore i retencja off-site (SZP-71)
+
+MySQL nie ma mapowanego portu — dump i restore idą przez
+`docker compose exec` do usługi `mysql` w [compose.production.yml](../compose.production.yml).
+Skrypty: [scripts/backup_mysql.sh](../scripts/backup_mysql.sh),
+[scripts/restore_mysql.sh](../scripts/restore_mysql.sh).
+
+### 9.1 Konto backup i sekrety
+
+Na hoście utwórz `/etc/ekstrabet/backup.env` (`root:ekstrabet`, `0640`), same linie
+`KEY=value` (bez komentarzy). Przykładowe klucze:
+
+```bash
+MYSQL_BACKUP_USER=ekstrabet_backup
+MYSQL_BACKUP_PASSWORD=change_me_strong_backup_password
+MYSQL_DATABASE=ekstrabet
+BACKUP_DIR=/var/backups/ekstrabet
+BACKUP_ENCRYPTION_PASSPHRASE=change_me_long_random_passphrase
+EKSTRABET_ENV_DIR=/etc/ekstrabet
+REQUIRE_OFFSITE=1
+# Opcjonalnie do restore (DROP/CREATE pustej bazy testowej):
+# MYSQL_ADMIN_USER=root
+# MYSQL_ADMIN_PASSWORD=...   # tylko na hoście, nigdy w api.env
+# Off-site (wymagane przy REQUIRE_OFFSITE=1 — domyślnie włączone):
+OFFSITE_RSYNC_TARGET=backup-host:/var/backups/ekstrabet/
+# OFFSITE_SYNC_CMD='rclone copy "$1" remote:ekstrabet-backups/'
+RETENTION_DAILY=7
+RETENTION_WEEKLY=4
+RETENTION_MONTHLY=6
+```
+
+Minimalne uprawnienia konta dump (InnoDB, `--single-transaction`):
+
+```sql
+CREATE USER 'ekstrabet_backup'@'%' IDENTIFIED BY '…';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT, LOCK TABLES
+  ON ekstrabet.* TO 'ekstrabet_backup'@'%';
+FLUSH PRIVILEGES;
+```
+
+Hasło szyfrowania (`BACKUP_ENCRYPTION_PASSPHRASE`) trzymaj osobno od haseł DB —
+obrót jednego sekretu nie wymaga zmiany pozostałych. Katalog
+`BACKUP_DIR` powinien należeć do użytkownika uruchamiającego timer (np. `ekstrabet`),
+tryb katalogu `700`.
+
+### 9.2 Codzienny backup
+
+```bash
+cd /path/to/EkstraBet
+sudo -u ekstrabet -E \
+  BACKUP_ENV_FILE=/etc/ekstrabet/backup.env \
+  ./scripts/backup_mysql.sh
+```
+
+Skrypt: strumień `mysqldump | gzip | openssl` (AES-256-CBC, PBKDF2) — **bez**
+plaintext SQL na dysku — do `BACKUP_DIR/daily/ekstrabet_YYYY-MM-DD.sql.gz.enc`
+(+ `.sha256`). `umask 077`, katalogi `700`, pliki `600`. W niedzielę (UTC)
+kopiuje też do `weekly/`, pierwszego dnia miesiąca do `monthly/`, potem przycina
+retencję (domyślnie 7 / 4 / 6). Log w `BACKUP_DIR/logs/` **bez** haseł i passphrase.
+Niezerowy kod wyjścia przy błędzie dump/compress/encrypt/sync.
+
+`REQUIRE_OFFSITE=1` (domyślnie): brak `OFFSITE_SYNC_CMD` / `OFFSITE_RSYNC_TARGET`
+kończy backup kodem ≠ 0. Lokalne próby: `REQUIRE_OFFSITE=0`.
+
+### 9.3 Harmonogram (systemd timer)
+
+Przykład jednostek (dostosuj ścieżki):
+
+`/etc/systemd/system/ekstrabet-backup.service`:
+
+```ini
+[Unit]
+Description=EkstraBet MySQL encrypted backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=ekstrabet
+Group=ekstrabet
+WorkingDirectory=/path/to/EkstraBet
+Environment=BACKUP_ENV_FILE=/etc/ekstrabet/backup.env
+Environment=APP_ORIGIN=https://twoja-domena
+ExecStart=/path/to/EkstraBet/scripts/backup_mysql.sh
+Nice=10
+```
+
+`/etc/systemd/system/ekstrabet-backup.timer`:
+
+```ini
+[Unit]
+Description=Daily EkstraBet MySQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now ekstrabet-backup.timer
+sudo systemctl list-timers ekstrabet-backup.timer
+```
+
+Alternatywa cron (użytkownik `ekstrabet`):  
+`30 2 * * * cd /path/to/EkstraBet && BACKUP_ENV_FILE=/etc/ekstrabet/backup.env ./scripts/backup_mysql.sh`
+
+### 9.4 Test restore (obowiązkowy przed produkcją)
+
+1. Upewnij się, że masz świeży plik `.sql.gz.enc` i `.sha256`.
+2. Odtwórz **najpierw do pustej bazy testowej** (nie do `ekstrabet`).
+   Przy `MYSQL_ADMIN_*` skrypt robi `DROP DATABASE` + `CREATE DATABASE`
+   (bezpieczne przy VIEW-ach, powtarzalne):
+
+```bash
+cd /path/to/EkstraBet
+sudo -u ekstrabet -E \
+  BACKUP_ENV_FILE=/etc/ekstrabet/backup.env \
+  ./scripts/restore_mysql.sh \
+    --file /var/backups/ekstrabet/daily/ekstrabet_YYYY-MM-DD.sql.gz.enc \
+    --target-database ekstrabet_restore_test \
+    --confirm YES_I_UNDERSTAND_DATA_LOSS
+```
+
+3. Sprawdź `table_count` w stdout oraz przykładowe `SELECT COUNT(*)` na kluczowych
+   tabelach względem produkcji / dokumentacji schematu. Powtórz restore do tej
+   samej bazy testowej — drugi przebieg też musi przejść.
+4. Symulacja błędu miejsca docelowego: ustaw `OFFSITE_RSYNC_TARGET` na
+   nieistniejący host — `backup_mysql.sh` musi zakończyć się kodem ≠ 0.
+   Brak jakiegokolwiek targetu off-site przy `REQUIRE_OFFSITE=1` również ≠ 0.
+5. Dopiero po udanym teście rozważ restore produkcyjny (osobne wywołanie z
+   `--target-database ekstrabet` i ponownym `--confirm`). Preferuj restore na
+   czystym wolumenie / po zatrzymaniu API, nie „w locie” na żywej aplikacji.
+
+Skrypt **odmawia** działania bez dokładnej frazy `--confirm YES_I_UNDERSTAND_DATA_LOSS`.
+
+### 9.5 Checklista SZP-71
+
+- [ ] `/etc/ekstrabet/backup.env` istnieje, `0640`, osobne hasło backup + passphrase
+- [ ] Konto MySQL backup ma tylko prawa do dump (bez zbędnego zapisu aplikacji)
+- [ ] `backup_mysql.sh` tworzy `.sql.gz.enc` + `.sha256` (bez plaintextu); pliki `600`
+- [ ] Retencja lokalna: daily/weekly/monthly zgodnie z polityką
+- [ ] Kopia off-site skonfigurowana; `REQUIRE_OFFSITE=1` egzekwowane
+- [ ] Timer/cron codzienny włączony (`systemctl list-timers` lub crontab)
+- [ ] Restore do `ekstrabet_restore_test` OK dwa razy z rzędu (checksum + liczba tabel)
+- [ ] Celowo zły / brakujący off-site target kończy backup niezerowym kodem wyjścia
