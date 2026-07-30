@@ -3,7 +3,7 @@
 # Uruchomienie: docker compose -f compose.production.yml up -d --build
 #
 # Wymagane pliki env (operator tworzy z szablonów .env.example / frontend/.env.local.example
-# oraz deploy/mysql.env.example z SZP-69/70) — Compose odmawia startu, gdy któregoś brakuje:
+# oraz deploy/mysql.env.example z SZP-70) — Compose odmawia startu, gdy któregoś brakuje:
 #   ${EKSTRABET_ENV_DIR}/api.env
 #   ${EKSTRABET_ENV_DIR}/frontend.env
 #   ${EKSTRABET_ENV_DIR}/mysql.env

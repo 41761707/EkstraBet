@@ -84,7 +84,9 @@ class TestPredictionsPreviewRouter(unittest.TestCase):
             json={"home_team_id": 15, "away_team_id": 22})
 
         self.assertEqual(response.status_code, 503)
-        self.assertIn("EKSTRABET_ML_PREVIEW=1", response.json()["detail"])
+        self.assertIn(
+            "niedostępna na środowisku produkcyjnym",
+            response.json()["detail"])
         mock_preview.assert_not_called()
 
     @patch("api.routers.predictions.prediction_preview_service.preview_prediction")

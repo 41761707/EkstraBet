@@ -113,9 +113,13 @@ export function PredictionSimulationForm({
 
       {simulation.error ? (
         <StatusMessage
-          title="Nie udało się obliczyć predykcji"
-          message={simulation.error}
-          variant="error"
+          title={
+            simulation.error.unavailable
+              ? "Symulacja niedostępna"
+              : "Nie udało się obliczyć predykcji"
+          }
+          message={simulation.error.message}
+          variant={simulation.error.unavailable ? "info" : "error"}
         />
       ) : null}
 

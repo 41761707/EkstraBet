@@ -57,8 +57,9 @@ async def preview_prediction(
         raise HTTPException(
             status_code=503,
             detail=(
-                "ML prediction preview is disabled. "
-                "Set EKSTRABET_ML_PREVIEW=1 to enable local inference"))
+                "Symulacja predykcji jest obecnie niedostępna na środowisku "
+                "produkcyjnym. Funkcja działa lokalnie i zostanie "
+                "udostępniona w kolejnym etapie."))
 
     try:
         payload = prediction_preview_service.preview_prediction(
