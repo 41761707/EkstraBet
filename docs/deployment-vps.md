@@ -1,11 +1,12 @@
-# Wdrożenie EkstraBet na VPS (SZP-70 — host, nginx, sekrety)
+# Wdrożenie EkstraBet na VPS
 
 Dokument opisuje przygotowanie hosta Ubuntu/Debian pod produkcyjny stack
 z [compose.production.yml](../compose.production.yml): nginx z TLS na hoście,
 Next.js na `127.0.0.1:3000`, FastAPI i MySQL tylko w prywatnej sieci Compose.
 
-Pełny runbook wydania/rollbacku: etap SZP-72 (ten dokument — host i dostęp).
-Backup i restore: sekcja 9 (SZP-71).
+- Host, nginx, sekrety, firewall: sekcje 1–8 (SZP-70).
+- Backup i restore: sekcja 9 (SZP-71).
+- Runbook wydania, smoke test i rollback: sekcja 10 (SZP-72).
 
 ## 1. Założenia
 
@@ -41,9 +42,25 @@ sudo chown root:ekstrabet /etc/ekstrabet/*.env
 sudo chmod 640 /etc/ekstrabet/*.env
 ```
 
-Dodatkowo przy starcie Compose ustaw `APP_ORIGIN=https://twoja-domena`
-(w shellu lub w pliku `.env` obok `compose.production.yml`) — interpolacja
-Compose wymaga tej zmiennej poza samym `frontend.env`.
+Compose wymaga `APP_ORIGIN` przy każdym `config` / `up` (interpolacja
+`${APP_ORIGIN:?…}` w [compose.production.yml](../compose.production.yml)) —
+**poza** samym `frontend.env`. Trwałe źródło (obowiązkowe na produkcji,
+runbook SZP-72): plik `.env` w katalogu repozytorium obok Compose
+(Compose ładuje go automatycznie; plik jest w `.gitignore`):
+
+```bash
+# /path/to/EkstraBet/.env — same KEY=value, bez komentarzy w pliku docelowym
+APP_ORIGIN=https://twoja-domena
+# EKSTRABET_ENV_DIR=/etc/ekstrabet   # tylko gdy nie używasz domyślnego /etc/ekstrabet
+```
+
+```bash
+sudo chown root:ekstrabet /path/to/EkstraBet/.env
+sudo chmod 640 /path/to/EkstraBet/.env
+```
+
+Nie polegaj wyłącznie na `export` w sesji shell — po restarcie VPS / nowej
+sesji SSH Compose musi nadal widzieć `APP_ORIGIN`.
 
 **Nie** commituj prawdziwych sekretów. **Nie** kopiuj ich do obrazów Docker.
 
@@ -90,12 +107,15 @@ Zainstaluj Docker Engine oraz wtyczkę Compose zgodnie z dokumentacją Docker
 dla Ubuntu/Debian. Użytkownik `ekstrabet` musi móc uruchamiać `docker`
 (grupa `docker` lub rootless — wybór operatora).
 
-Szybki smoke konfiguracji (bez sekretów w logach):
+Szybki smoke konfiguracji (bez sekretów w logach). `APP_ORIGIN` powinien już
+być w trwałym `.env` obok Compose (sekcja 2); poniżej tylko jeśli testujesz
+bez tego pliku:
 
 ```bash
 cd /path/to/EkstraBet
-export EKSTRABET_ENV_DIR=/etc/ekstrabet
-export APP_ORIGIN=https://example.com
+# preferowane: wartości z .env; awaryjnie:
+# export EKSTRABET_ENV_DIR=/etc/ekstrabet
+# export APP_ORIGIN=https://example.com
 docker compose -f compose.production.yml config
 ```
 
@@ -242,7 +262,9 @@ User=ekstrabet
 Group=ekstrabet
 WorkingDirectory=/path/to/EkstraBet
 Environment=BACKUP_ENV_FILE=/etc/ekstrabet/backup.env
-Environment=APP_ORIGIN=https://twoja-domena
+# APP_ORIGIN: Compose czyta trwały .env z WorkingDirectory (sekcja 2);
+# Environment= poniżej tylko jeśli .env jeszcze nie ma APP_ORIGIN
+# Environment=APP_ORIGIN=https://twoja-domena
 ExecStart=/path/to/EkstraBet/scripts/backup_mysql.sh
 Nice=10
 ```
@@ -310,3 +332,224 @@ Skrypt **odmawia** działania bez dokładnej frazy `--confirm YES_I_UNDERSTAND_D
 - [ ] Timer/cron codzienny włączony (`systemctl list-timers` lub crontab)
 - [ ] Restore do `ekstrabet_restore_test` OK dwa razy z rzędu (checksum + liczba tabel)
 - [ ] Celowo zły / brakujący off-site target kończy backup niezerowym kodem wyjścia
+
+## 10. Runbook wydania i rollbacku (SZP-72)
+
+Cel: drugi operator ma wykonać release i rollback **wyłącznie** z tej sekcji
+(oraz powiązanych sekcji 1–9), bez wiedzy autora. Pierwsze wydanie jest
+kontrolowanym wdrożeniem z **oznaczonego tagu Git** — nie z każdego pusha.
+Brak procedury migracji schematu SQL w tym runbooku (schemat poza Git;
+ochrona danych = backup/restore z sekcji 9).
+
+### 10.1 Warunki wstępne
+
+Przed pierwszym lub kolejnym wydaniem muszą być spełnione:
+
+1. Host, Docker, UFW, SSH, nginx/TLS, katalog `/etc/ekstrabet` — sekcje 1–8.
+2. Pliki `mysql.env`, `api.env`, `frontend.env` (i `backup.env`) uzupełnione,
+   `0640`, `root:ekstrabet`.
+3. **Trwały** plik `/path/to/EkstraBet/.env` z `APP_ORIGIN=https://…`
+   (`root:ekstrabet`, `0640`) — sekcja 2. Bez niego `compose config` / `up`
+   kończy się błędem interpolacji; sam `export` w shellu nie wystarcza po
+   restarcie ani w systemd.
+4. Konta MySQL API / model / backup założone ręcznie (sekcja 6 i 9.1).
+5. Backup + off-site + udany test restore do bazy testowej (sekcja 9.4–9.5).
+6. Znany tag wydania (np. `v1.0.0`) oraz poprzedni działający tag (do rollbacku).
+
+Zanotuj przed startem (do rollbacku):
+
+```bash
+cd /path/to/EkstraBet
+git rev-parse --short HEAD
+git describe --tags --exact-match 2>/dev/null || true
+# APP_ORIGIN pochodzi z .env obok Compose (sekcja 2 / punkt 3 powyżej)
+grep -E '^(APP_ORIGIN|EKSTRABET_ENV_DIR)=' .env
+docker compose -f compose.production.yml images
+```
+
+### 10.2 Preflight backupu
+
+Przed każdym `up --build` na produkcji:
+
+```bash
+cd /path/to/EkstraBet
+sudo -u ekstrabet -E \
+  BACKUP_ENV_FILE=/etc/ekstrabet/backup.env \
+  ./scripts/backup_mysql.sh
+```
+
+Sprawdź: świeży plik w `BACKUP_DIR/daily/*.sql.gz.enc` + `.sha256`, kod wyjścia `0`,
+wpis w logu bez sekretów, kopia off-site przyjęta. Przy pierwszym wydaniu na
+pustej bazie (brak danych do ochrony) preflight dump nadal warto uruchomić
+po pierwszym udanym starcie MySQL — przed przełączeniem DNS.
+
+### 10.3 Checkout tagu, build i start
+
+```bash
+cd /path/to/EkstraBet
+sudo -u ekstrabet -H bash   # lub sesja jako ekstrabet
+git fetch --tags origin
+git checkout <TAG>          # np. v1.0.0 — tylko oznaczony tag wydania
+
+# APP_ORIGIN / EKSTRABET_ENV_DIR z trwałego .env (10.1) — bez export w sesji
+docker compose -f compose.production.yml config >/dev/null
+# --wait: blokuj do healthy (unikaj fałszywego faila curl w start_period)
+docker compose -f compose.production.yml up -d --build --wait
+docker compose -f compose.production.yml ps
+```
+
+Oczekiwane: `up --wait` kończy się kodem 0; `ps` pokazuje `mysql`, `api`,
+`frontend` jako healthy. Dopiero wtedy przejdź do smoke (10.4).
+Przy błędzie startu API sprawdź fail-closed (sekrety, `AUTH_ENABLED`, CORS, `DB_USER`)
+w `docker compose -f compose.production.yml logs api --tail 100` — **bez**
+kopiowania sekretów do ticketów.
+
+Pierwsze wydanie: uruchom stack **bez** publicznego DNS (lub z tymczasową
+nazwą / hosts), dokończ smoke (10.4), dopiero potem sekcja 10.6.
+
+### 10.4 Health i smoke test
+
+Dopiero po udanym `up --wait` z 10.3 (wszystkie healthy). Domenę zastąp swoją;
+lokalnie: `127.0.0.1` / `curl --resolve`.
+
+```bash
+# 1) Stan Compose (potwierdzenie po --wait)
+docker compose -f compose.production.yml ps
+
+# 2) Liveness Next.js (host → loopback; api/health jest wyłączone z auth middleware)
+curl -fsS http://127.0.0.1:3000/api/health
+
+# 3) Readiness API (tylko sieć Compose — nie z Internetu)
+docker compose -f compose.production.yml exec -T api \
+  python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5)"
+
+# 4) HTTPS przez nginx (po podłączeniu certyfikatu)
+curl -fsSI https://twoja-domena/ | head -n 20
+curl -fsS https://twoja-domena/api/health
+
+# 5) Bez cookie → 401 (middleware Next łapie /api/* poza api/health i api/auth
+#    zanim BFF oceni allowlistę — bez sesji zawsze 401, nie 403)
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  https://twoja-domena/api/backend/leagues
+# Oczekiwane: 401 (nie 502/504)
+
+# 6) Login (konta zamkniętej grupy) — ręcznie w przeglądarce:
+#    formularz logowania → cookie HttpOnly → strona główna / predykcje
+
+# 7) Porty z zewnątrz zamknięte (z innego hosta / skan):
+#    3000, 8000, 3306 — connection refused / filtered
+```
+
+Weryfikacja 403 BFF (ścieżka poza allowlistą / zła metoda) wymaga **ważnej
+sesji** — pełna macierz to SZP-73; w smoke SZP-72 wystarczy krok 5 (401 bez cookie).
+
+Nie oczekuj publicznego `/docs` ani `/openapi.json` (OpenAPI produkcyjnie wyłączone).
+Nginx nie proxy’uje do FastAPI — smoke API tylko przez BFF lub `compose exec`.
+
+### 10.5 Obserwacja logów
+
+Po udanym smoke obserwuj przez co najmniej kilka minut (po DNS — dłużej):
+
+```bash
+docker compose -f compose.production.yml logs -f --tail=200 frontend api
+```
+
+Szukaj: powtarzających się 5xx, restartów kontenerów, błędów DB/auth.
+Logi kontenerów rotują się (`max-size` / `max-file` w Compose). Aplikacja nie
+powinna logować haseł, JWT ani pełnych zapytań z danymi. `docker compose logs`
+nie zapisuj do repozytorium.
+
+### 10.6 Przełączenie DNS i HSTS
+
+1. Smoke (10.4) OK na stacku z poprawnym TLS.
+2. Ustaw DNS A/AAAA na publiczny IP VPS (TTL świadomie krótki przy pierwszym cutover).
+3. Po propagacji powtórz `curl -fsSI https://twoja-domena/` oraz login w przeglądarce.
+4. Dopiero wtedy włącz HSTS w nginx (sekcja 7), `nginx -t`, `systemctl reload nginx`.
+5. Włącz / potwierdź timer backupu (sekcja 9.3), jeśli jeszcze nie działał na tym hoście.
+
+### 10.7 Rollback aplikacji (kod / obrazy)
+
+Gdy regresja jest w aplikacji (nie w danych), **bez** restore DB:
+
+```bash
+cd /path/to/EkstraBet
+# Zanotuj objawy i bieżący tag (ticket / log operatorski)
+git fetch --tags origin
+git checkout <POPRZEDNI_TAG>    # ostatni znany dobry tag
+# APP_ORIGIN z trwałego .env (10.1)
+
+# Preflight backup przed rollbackiem (stan DB „po” złym wydaniu też warto mieć)
+sudo -u ekstrabet -E \
+  BACKUP_ENV_FILE=/etc/ekstrabet/backup.env \
+  ./scripts/backup_mysql.sh
+
+docker compose -f compose.production.yml up -d --build --wait
+docker compose -f compose.production.yml ps
+# Powtórz smoke z 10.4
+```
+
+Compose zbuduje obrazy z checkoutu poprzedniego tagu. Nie używaj `docker compose down -v`
+przy zwykłym rollbacku aplikacji — flaga `-v` usuwa wolumen MySQL.
+
+Jeśli po rollbacku aplikacji dane są niespójne lub uszkodzone, przejdź do 10.8.
+
+### 10.8 Odtworzenie DB z backupu
+
+**Bez migracji schematu** — odtwarzasz dump z sekcji 9, nie stosujesz skryptów DDL z Git.
+
+1. Wybierz plik `.sql.gz.enc` (preferuj backup **sprzed** awarii; zweryfikuj `.sha256`).
+2. Zatrzymaj ruch aplikacyjny (API/frontend), żeby nie pisać w trakcie restore:
+
+```bash
+cd /path/to/EkstraBet
+# APP_ORIGIN z trwałego .env (10.1)
+docker compose -f compose.production.yml stop api frontend
+```
+
+3. Najpierw (jeśli czas pozwala) odtwórz ten sam plik do `ekstrabet_restore_test`
+   (sekcja 9.4) i sprawdź liczbę tabel / próbki.
+4. Restore produkcyjny — jawny cel i potwierdzenie:
+
+```bash
+sudo -u ekstrabet -E \
+  BACKUP_ENV_FILE=/etc/ekstrabet/backup.env \
+  ./scripts/restore_mysql.sh \
+    --file /var/backups/ekstrabet/daily/ekstrabet_YYYY-MM-DD.sql.gz.enc \
+    --target-database ekstrabet \
+    --confirm YES_I_UNDERSTAND_DATA_LOSS
+```
+
+5. Wznów stack i smoke:
+
+```bash
+docker compose -f compose.production.yml up -d --wait
+# smoke 10.4 + login
+```
+
+### 10.9 Restart VPS
+
+Po rebootcie hosta usługi Compose mają `restart: unless-stopped`, nginx i Docker
+powinny wrócić z systemd. Weryfikacja:
+
+```bash
+sudo systemctl is-active docker nginx
+cd /path/to/EkstraBet
+# Compose / kolejne up czytają APP_ORIGIN z trwałego .env (10.1) — bez export
+docker compose -f compose.production.yml ps
+curl -fsS http://127.0.0.1:3000/api/health
+curl -fsSI https://twoja-domena/api/health | head -n 15
+```
+
+### 10.10 Checklista SZP-72
+
+- [ ] Zanotowany tag wydania i poprzedni dobry tag (oraz `git rev-parse`)
+- [ ] Trwały `/path/to/EkstraBet/.env` z `APP_ORIGIN` (`0640`); nie tylko `export` w sesji
+- [ ] Preflight `backup_mysql.sh` OK (lokalnie + off-site) przed `up --build`
+- [ ] `git checkout <TAG>` → `compose config` → `up -d --build --wait` → wszystkie healthy
+- [ ] Smoke dopiero po healthy: `/api/health`, `/ready`, HTTPS, `401` bez cookie na `/api/backend/leagues`, porty zamknięte
+- [ ] Logi bez sekretów; brak cascade 5xx po starcie
+- [ ] DNS przełączony dopiero po smoke; HSTS dopiero po poprawnym HTTPS
+- [ ] Rollback aplikacji na poprzedni tag sprawdzony (staging lub window utrzymaniowy)
+- [ ] Procedura restore DB znana; test na `ekstrabet_restore_test` przed produkcją
+- [ ] Po restarcie VPS stack wraca zdrowy bez ręcznej interwencji (`restart: unless-stopped` + trwały `.env`)
+- [ ] Drugi operator wykonał release i rollback wyłącznie z tego runbooka
