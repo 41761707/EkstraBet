@@ -106,7 +106,24 @@ export function collectProductionConfigErrors(
     errors.push("AUTH_COOKIE_NAME is required in production");
   }
 
+  if (isEnvFlagEnabled(env.CHAT_ENABLE_CURSOR)) {
+    errors.push("CHAT_ENABLE_CURSOR must be false in production");
+  }
+  if (isEnvFlagEnabled(env.NEXT_PUBLIC_CHAT_ENABLE_CURSOR)) {
+    errors.push(
+      "NEXT_PUBLIC_CHAT_ENABLE_CURSOR must be false in production",
+    );
+  }
+
   return errors;
+}
+
+/** True for common truthy env flag strings (true/1/yes/on). */
+function isEnvFlagEnabled(raw: string | undefined): boolean {
+  const value = (raw ?? "").trim().toLowerCase();
+  return (
+    value === "true" || value === "1" || value === "yes" || value === "on"
+  );
 }
 
 /** Throw when production configuration is unsafe (fail-closed). */

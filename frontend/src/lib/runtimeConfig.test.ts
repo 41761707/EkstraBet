@@ -47,6 +47,21 @@ describe("collectProductionConfigErrors", () => {
       }),
     ).toThrow(/Unsafe production configuration/);
   });
+
+  it("rejects Cursor chat flags in production", () => {
+    expect(
+      collectProductionConfigErrors({
+        ...validProduction,
+        CHAT_ENABLE_CURSOR: "true",
+        NEXT_PUBLIC_CHAT_ENABLE_CURSOR: "1",
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        "CHAT_ENABLE_CURSOR must be false in production",
+        "NEXT_PUBLIC_CHAT_ENABLE_CURSOR must be false in production",
+      ]),
+    );
+  });
 });
 
 describe("getApiBaseUrl", () => {

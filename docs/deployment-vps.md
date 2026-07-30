@@ -7,6 +7,7 @@ Next.js na `127.0.0.1:3000`, FastAPI i MySQL tylko w prywatnej sieci Compose.
 - Host, nginx, sekrety, firewall: sekcje 1–8 (SZP-70).
 - Backup i restore: sekcja 9 (SZP-71).
 - Runbook wydania, smoke test i rollback: sekcja 10 (SZP-72).
+- Checklista odbioru bezpieczeństwa: sekcja 11 (SZP-73).
 
 ## 1. Założenia
 
@@ -59,10 +60,32 @@ sudo chown root:ekstrabet /path/to/EkstraBet/.env
 sudo chmod 640 /path/to/EkstraBet/.env
 ```
 
-Nie polegaj wyłącznie na `export` w sesji shell — po restarcie VPS / nowej
-sesji SSH Compose musi nadal widzieć `APP_ORIGIN`.
+### 2.1 `api.env`: CORS względem `APP_ORIGIN`
+
+W `/etc/ekstrabet/api.env` ustaw `CORS_ORIGINS` **zgodnie z** `APP_ORIGIN`
+(ten sam publiczny origin HTTPS aplikacji):
+
+```bash
+# APP_ORIGIN w /path/to/EkstraBet/.env:
+# APP_ORIGIN=https://twoja-domena
+#
+# api.env — JSON list, bez wildcarda:
+CORS_ORIGINS=["https://twoja-domena"]
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+EKSTRABET_ML_PREVIEW=false
+```
+
+Runtime API używa **`CORS_ORIGINS`**. Pole `FRONTEND_ORIGIN` w szablonie
+[.env.example](../.env.example) **nie jest używane** przez kod aplikacji —
+nie polegaj na nim. API jest dziś za BFF, ale błędna wartość CORS byłaby
+ryzykiem przy przyszłym wystawieniu API.
+
+W `frontend.env`: `CHAT_ENABLE_CURSOR=false` oraz
+`NEXT_PUBLIC_CHAT_ENABLE_CURSOR=false` (produkcja fail-closed odrzuca `true`).
 
 **Nie** commituj prawdziwych sekretów. **Nie** kopiuj ich do obrazów Docker.
+Nie polegaj wyłącznie na `export` w sesji shell — po restarcie VPS / nowej
+sesji SSH Compose musi nadal widzieć `APP_ORIGIN`.
 
 ## 3. SSH (klucz, bez hasła i bez roota)
 
@@ -133,7 +156,15 @@ nie powinien być dostępny zdalnie ani używany przez aplikację.
 
 ## 7. nginx i TLS
 
-Szablon: [deploy/nginx/ekstrabet.conf.example](../deploy/nginx/ekstrabet.conf.example).
+Szablony (rozdzielone — bezpieczny copy-paste):
+
+- [deploy/nginx/ekstrabet-limits.conf.example](../deploy/nginx/ekstrabet-limits.conf.example)
+  → `/etc/nginx/conf.d/` (`limit_req_zone` w kontekście `http {}`)
+- [deploy/nginx/ekstrabet-site.conf.example](../deploy/nginx/ekstrabet-site.conf.example)
+  → `sites-available/` (`upstream` + `server`)
+
+Monolit [deploy/nginx/ekstrabet.conf.example](../deploy/nginx/ekstrabet.conf.example)
+jest **obsolete** — nie kopiuj go do `sites-available`.
 
 ```bash
 sudo apt install -y nginx
@@ -143,10 +174,11 @@ sudo apt install -y nginx
 sudo chmod 640 /etc/ekstrabet/tls/*
 sudo chown root:ekstrabet /etc/ekstrabet/tls/*
 
-# Strefy limit_req_zone muszą być w kontekście http {} — jeśli sites-available
-# nie może ich zawierać, przenieś je do /etc/nginx/conf.d/ekstrabet-limits.conf
-sudo cp deploy/nginx/ekstrabet.conf.example /etc/nginx/sites-available/ekstrabet
-# Edytuj: server_name, ścieżki certyfikatu
+sudo cp deploy/nginx/ekstrabet-limits.conf.example \
+  /etc/nginx/conf.d/ekstrabet-limits.conf
+sudo cp deploy/nginx/ekstrabet-site.conf.example \
+  /etc/nginx/sites-available/ekstrabet
+# Edytuj site: server_name, ścieżki certyfikatu
 sudo ln -sf /etc/nginx/sites-available/ekstrabet /etc/nginx/sites-enabled/ekstrabet
 sudo nginx -t
 sudo systemctl reload nginx
@@ -175,7 +207,7 @@ Limity `limit_req` obejmują m.in.:
 - [ ] UFW: otwarte tylko 22/80/443
 - [ ] `/etc/ekstrabet/*.env`: `root:ekstrabet`, `0640`; brak sekretów w Git/obrazach
 - [ ] `mysql.env` zawiera wyłącznie sekrety MySQL Compose
-- [ ] nginx `-t` OK; ruch HTTPS kończy się w Next.js na `127.0.0.1:3000`
+- [ ] nginx `-t` OK po `cp` limits → `conf.d` i site → `sites-available`; ruch HTTPS kończy się w Next.js na `127.0.0.1:3000`
 - [ ] HSTS świadomie wyłączone albo włączone po weryfikacji TLS
 - [ ] Porty `3000` / `8000` / `3306` niedostępne z Internetu
 - [ ] Konta MySQL API/model/backup utworzone ręcznie; API nie używa `root`
@@ -347,7 +379,9 @@ Przed pierwszym lub kolejnym wydaniem muszą być spełnione:
 
 1. Host, Docker, UFW, SSH, nginx/TLS, katalog `/etc/ekstrabet` — sekcje 1–8.
 2. Pliki `mysql.env`, `api.env`, `frontend.env` (i `backup.env`) uzupełnione,
-   `0640`, `root:ekstrabet`.
+   `0640`, `root:ekstrabet`. W `api.env`: `CORS_ORIGINS=["https://…"]`
+   **zgodne z** `APP_ORIGIN` (sekcja 2.1); `ACCESS_TOKEN_EXPIRE_MINUTES=1440`;
+   `EKSTRABET_ML_PREVIEW=false`. W `frontend.env`: Cursor chat wyłączony.
 3. **Trwały** plik `/path/to/EkstraBet/.env` z `APP_ORIGIN=https://…`
    (`root:ekstrabet`, `0640`) — sekcja 2. Bez niego `compose config` / `up`
    kończy się błędem interpolacji; sam `export` w shellu nie wystarcza po
@@ -441,7 +475,8 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 ```
 
 Weryfikacja 403 BFF (ścieżka poza allowlistą / zła metoda) wymaga **ważnej
-sesji** — pełna macierz to SZP-73; w smoke SZP-72 wystarczy krok 5 (401 bez cookie).
+sesji** — pełna macierz odbioru to sekcja 11 (SZP-73); w smoke SZP-72
+wystarczy krok 5 (401 bez cookie).
 
 Nie oczekuj publicznego `/docs` ani `/openapi.json` (OpenAPI produkcyjnie wyłączone).
 Nginx nie proxy’uje do FastAPI — smoke API tylko przez BFF lub `compose exec`.
@@ -544,6 +579,7 @@ curl -fsSI https://twoja-domena/api/health | head -n 15
 
 - [ ] Zanotowany tag wydania i poprzedni dobry tag (oraz `git rev-parse`)
 - [ ] Trwały `/path/to/EkstraBet/.env` z `APP_ORIGIN` (`0640`); nie tylko `export` w sesji
+- [ ] `api.env`: `CORS_ORIGINS` zgodne z `APP_ORIGIN` (sekcja 2.1); `FRONTEND_ORIGIN` nie jest źródłem prawdy
 - [ ] Preflight `backup_mysql.sh` OK (lokalnie + off-site) przed `up --build`
 - [ ] `git checkout <TAG>` → `compose config` → `up -d --build --wait` → wszystkie healthy
 - [ ] Smoke dopiero po healthy: `/api/health`, `/ready`, HTTPS, `401` bez cookie na `/api/backend/leagues`, porty zamknięte
@@ -553,3 +589,48 @@ curl -fsSI https://twoja-domena/api/health | head -n 15
 - [ ] Procedura restore DB znana; test na `ekstrabet_restore_test` przed produkcją
 - [ ] Po restarcie VPS stack wraca zdrowy bez ręcznej interwencji (`restart: unless-stopped` + trwały `.env`)
 - [ ] Drugi operator wykonał release i rollback wyłącznie z tego runbooka
+- [ ] Pełny odbiór bezpieczeństwa podpisany w sekcji 11 (SZP-73) przed wydaniem
+
+## 11. Checklista odbioru bezpieczeństwa (SZP-73)
+
+Podpisz **przed** przełączeniem ruchu produkcyjnego. Krytyczny brak = blokada
+wydania. Smoke z sekcji 10.4 nie zastępuje tej checklisty.
+
+Operator / data: ________________ / __________
+
+### 11.1 CI i build
+
+- [ ] Python: `pytest` (backend/api) OK
+- [ ] Frontend: `npm test`, `npm run lint`, `npm run build` OK
+- [ ] `docker compose -f compose.production.yml config` OK
+- [ ] Build obrazów API i frontendu OK
+
+### 11.2 Sieć, auth, OpenAPI
+
+- [ ] Skan portów z zewnątrz: `3000`, `8000`, `3306` zamknięte (tylko 22/80/443)
+- [ ] Chroniony endpoint przez BFF bez cookie → `401`
+  (np. `https://domena/api/backend/leagues`)
+- [ ] OpenAPI produkcyjnie wyłączone: `/docs`, `/redoc`, `/openapi.json`
+  niedostępne publicznie
+
+### 11.3 Konfiguracja i uprawnienia
+
+- [ ] Granty DB: konto API SELECT-only (`INSERT`/`UPDATE`/`DELETE` odrzucone)
+- [ ] `EKSTRABET_ML_PREVIEW=false` na VPS; start z `true` kończy się błędem fail-closed
+- [ ] Cursor chat wyłączony (`CHAT_ENABLE_CURSOR` /
+  `NEXT_PUBLIC_CHAT_ENABLE_CURSOR`); start z `true` kończy się błędem fail-closed
+- [ ] `ACCESS_TOKEN_EXPIRE_MINUTES=1440`
+- [ ] `CORS_ORIGINS` w `api.env` = `APP_ORIGIN` (sekcja 2.1)
+
+### 11.4 Operacje
+
+- [ ] Backup + udokumentowany restore do bazy testowej (sekcja 9)
+- [ ] Restart VPS przywraca zdrowy stack
+- [ ] Smoke HTTPS: cert, nagłówki bezpieczeństwa, login, podstawowa nawigacja
+
+### 11.5 Decyzja wydania
+
+- [ ] Wszystkie punkty powyżej odhaczone z dowodem (log / zrzut / ticket)
+- [ ] Brak otwartych krytycznych usterek — wydanie **zatwierdzone**
+
+Podpis odbioru: ________________

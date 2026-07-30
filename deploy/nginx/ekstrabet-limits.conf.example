@@ -1,0 +1,11 @@
+# Strefy limit_req dla EkstraBet (SZP-70).
+#
+# Instalacja (Ubuntu/Debian) — kontekst http {}:
+#   sudo cp deploy/nginx/ekstrabet-limits.conf.example \
+#     /etc/nginx/conf.d/ekstrabet-limits.conf
+#
+# NIE kopiuj tego pliku do sites-available — limit_req_zone musi być w http {}.
+# Site (server/upstream): deploy/nginx/ekstrabet-site.conf.example
+
+limit_req_zone $binary_remote_addr zone=ekstrabet_login:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=ekstrabet_costly:10m rate=20r/m;

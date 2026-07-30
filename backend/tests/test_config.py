@@ -16,6 +16,7 @@ _VALID_PRODUCTION_ENV = {
     "DEBUG": "false",
     "OPENAPI_ENABLED": "false",
     "AUTH_ENABLED": "true",
+    "EKSTRABET_ML_PREVIEW": "false",
     "DB_HOST": "mysql",
     "DB_USER": "ekstrabet_api",
     "DB_PASSWORD": "strong-db-pass-9f3a",
@@ -153,6 +154,20 @@ class TestSettings(unittest.TestCase):
             with self.assertRaises(ValidationError) as ctx:
                 get_settings()
             self.assertIn("OPENAPI_ENABLED", str(ctx.exception))
+
+    def test_production_rejects_ml_preview_enabled(self) -> None:
+        env = {**_VALID_PRODUCTION_ENV, "EKSTRABET_ML_PREVIEW": "true"}
+        with patch.dict(os.environ, env, clear=False):
+            get_settings.cache_clear()
+            with self.assertRaises(ValidationError) as ctx:
+                get_settings()
+            self.assertIn("EKSTRABET_ML_PREVIEW", str(ctx.exception))
+
+    def test_default_access_token_expire_minutes_is_1440(self) -> None:
+        with patch.dict(os.environ, self.required_env, clear=False):
+            get_settings.cache_clear()
+            current = get_settings()
+            self.assertEqual(current.access_token_expire_minutes, 1440)
 
     def test_production_rejects_short_secret_key(self) -> None:
         env = {**_VALID_PRODUCTION_ENV, "SECRET_KEY": "too-short"}

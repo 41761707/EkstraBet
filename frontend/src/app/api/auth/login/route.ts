@@ -8,8 +8,8 @@ interface LoginBody {
   password?: string;
 }
 
-/** Default cookie TTL when upstream omits expires_in (30 minutes). */
-const DEFAULT_SESSION_MAX_AGE_SECONDS = 30 * 60;
+/** Default cookie TTL when upstream omits expires_in (1440 minutes / 24h). */
+const DEFAULT_SESSION_MAX_AGE_SECONDS = 1440 * 60;
 
 export async function POST(request: Request) {
   let body: LoginBody;

@@ -124,8 +124,8 @@ class Settings(BaseSettings):
         ...,
         description="Secret key (required environment variable)")
     access_token_expire_minutes: int = Field(
-        default=30,
-        description="Access token lifetime in minutes")
+        default=1440,
+        description="Access token lifetime in minutes (24h)")
     auth_enabled: bool = Field(
         default=True,
         description="Whether API and UI require authentication")
@@ -247,6 +247,10 @@ def _collect_production_errors(settings: Settings) -> list[str]:
 
     if settings.openapi_enabled:
         errors.append("OPENAPI_ENABLED must be false in production")
+
+    if settings.ekstrabet_ml_preview:
+        errors.append(
+            "EKSTRABET_ML_PREVIEW must be false in production")
 
     if not db_user:
         errors.append("DB_USER must be set explicitly in production")
