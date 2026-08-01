@@ -414,6 +414,38 @@ docker compose -f compose.production.yml exec -T api \
 
 Potem: checklista sekcji 10 → backup (11) → runbook / DNS (12).
 
+### 9.5 Cykliczny sync lokal → produkcja
+
+Po pierwszym imporcie (9.2) scrapery nadal piszą do bazy lokalnej. Skrypt
+[scripts/sync_local_to_prod.py](../scripts/sync_local_to_prod.py) dogania produkcję
+**bez** otwierania MySQL na świat (SSH + `docker compose exec`).
+
+Strategie:
+
+- **słowniki** (`teams`, `players`, `leagues`, …): `id > max(id)` na prod; okresowo `--full-dict`
+- **mecze**: okno `game_date` (domyślnie 3 dni) **oraz** nowe `id`
+- **dzieci meczów** (`odds`, stats, `predictions`, …): to samo okno przez `match_id`
+- **append-only** (`transfers`): tylko `id > max(id)`
+- **wykluczone**: `users`, `gamblers`, `gambler_parlays`, `parlay_events`
+
+Konfiguracja: skopiuj [deploy/sync.env.example](../deploy/sync.env.example)
+do `deploy/sync.env` (w `.gitignore`) i uzupełnij `SYNC_SSH_HOST` /
+`SYNC_REMOTE_REPO`. Lokalne `DB_*` biorą się z `.env`.
+
+```bash
+# z maszyny deweloperskiej (dry-run — tylko zlicza wiersze)
+python scripts/sync_local_to_prod.py
+
+# zapis na produkcję
+python scripts/sync_local_to_prod.py --apply
+
+# pelny reconcile slownikow + węższe/szersze okno
+python scripts/sync_local_to_prod.py --apply --full-dict --window-days 3
+```
+
+Transport `direct` (tunel `ssh -L`) ustawia się przez `SYNC_TRANSPORT=direct`
+i `PROD_DB_*` w `sync.env`.
+
 ## 10. Minimalna weryfikacja hosta (checklista SZP-70)
 
 - [ ] SSH: tylko klucz, `PermitRootLogin no`, hasła wyłączone (po teście drugiej sesji)

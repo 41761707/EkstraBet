@@ -151,6 +151,7 @@ activemq-data/
 .env
 .env.cursor-mcp
 .envrc
+deploy/sync.env
 .venv
 env/
 venv/
