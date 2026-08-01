@@ -1,112 +1,36 @@
-# Site nginx dla EkstraBet na VPS (SZP-70) — upstream + server.
+# EkstraBet — prosty reverse proxy do Next.js na 127.0.0.1:3000 (compose.production.yml).
 #
-# Instalacja (Ubuntu/Debian):
-#   1. Najpierw zainstaluj strefy limitów:
-#        sudo cp deploy/nginx/ekstrabet-limits.conf.example \
-#          /etc/nginx/conf.d/ekstrabet-limits.conf
-#   2. Podstaw ścieżki certyfikatu/klucza oraz server_name poniżej.
-#   3. sudo cp deploy/nginx/ekstrabet-site.conf.example \
-#        /etc/nginx/sites-available/ekstrabet
-#   4. sudo ln -sf /etc/nginx/sites-available/ekstrabet /etc/nginx/sites-enabled/ekstrabet
-#   5. sudo nginx -t && sudo systemctl reload nginx
+# Instalacja:
+#   sudo cp deploy/nginx/ekstrabet-site.conf.example /etc/nginx/sites-available/ekstrabet
+#   sudo ln -sf /etc/nginx/sites-available/ekstrabet /etc/nginx/sites-enabled/ekstrabet
+#   sudo nginx -t && sudo systemctl reload nginx
 #
-# Wymagania:
-#   - Next.js nasłuchuje wyłącznie na 127.0.0.1:3000 (compose.production.yml)
-#   - FastAPI i MySQL NIE mają publicznego location ani ports
-#   - HSTS włącz dopiero po potwierdzeniu poprawnego HTTPS (sekcja poniżej)
-#   - Strefy limit_req_zone: ekstrabet-limits.conf.example → conf.d/
+# Cloudflare: wystarczy tryb Full (strict) + cert na origin. Osobna konfiguracja CF w nginx nie jest wymagana.
 
-upstream ekstrabet_frontend {
-    server 127.0.0.1:3000;
-    keepalive 32;
-}
-
-# HTTP -> HTTPS
+# HTTP → HTTPS
 server {
     listen 80;
     listen [::]:80;
-    server_name example.com www.example.com;
+    server_name radikey.pl www.radikey.pl;
 
-    # Let's Encrypt / ACME (jeśli używasz certbota) — zostaw przed catch-all redirect
-    location ^~ /.well-known/acme-challenge/ {
-        root /var/www/html;
-        allow all;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
+    return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name example.com www.example.com;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name radikey.pl www.radikey.pl;
 
-    # --- TLS: podaj ścieżki wskazane przez operatora ---
-    ssl_certificate     /etc/ekstrabet/tls/fullchain.pem;
-    ssl_certificate_key /etc/ekstrabet/tls/privkey.pem;
-    # ssl_trusted_certificate /etc/ekstrabet/tls/chain.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers off;
-    ssl_session_timeout 1d;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_tickets off;
-
-    # HSTS: odkomentuj DOPIERO po weryfikacji, że HTTPS działa poprawnie
-    # (certyfikat, redirect, brak mixed content). Potem: nginx -t && reload.
-    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-    # Nagłówki bezpieczeństwa
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
-    add_header X-Frame-Options "DENY" always;
-    # CSP dopasowane do Next.js (może wymagać tuningu przy zewnętrznych fontach/CDN)
-    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'" always;
+    ssl_certificate     /etc/ssl/radikey.pl.crt;
+    ssl_certificate_key /etc/ssl/private/radikey.pl.key;
 
     client_max_body_size 1m;
 
-    # Timeouty proxy (Next.js / BFF / chat)
-    proxy_connect_timeout 10s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
-    send_timeout 60s;
-
-    # Wspólne nagłówki proxy do Next.js na loopback
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Connection "";
-
-    # Login — ciasny limit
-    location = /api/auth/login {
-        limit_req zone=ekstrabet_login burst=3 nodelay;
-        limit_req_status 429;
-        proxy_pass http://ekstrabet_frontend;
-    }
-
-    # Chat (OpenRouter / Cursor) — limit kosztownych operacji
-    location ^~ /api/chat {
-        limit_req zone=ekstrabet_costly burst=10 nodelay;
-        limit_req_status 429;
-        proxy_read_timeout 120s;
-        proxy_pass http://ekstrabet_frontend;
-    }
-
-    # Predykcja / preview ML przez BFF
-    location = /api/backend/predictions/preview {
-        limit_req zone=ekstrabet_costly burst=5 nodelay;
-        limit_req_status 429;
-        proxy_read_timeout 120s;
-        proxy_pass http://ekstrabet_frontend;
-    }
-
-    # Cała aplikacja (Next.js). Brak location do FastAPI / MySQL.
     location / {
-        proxy_pass http://ekstrabet_frontend;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }

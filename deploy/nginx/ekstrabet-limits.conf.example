@@ -6,6 +6,7 @@
 #
 # NIE kopiuj tego pliku do sites-available — limit_req_zone musi być w http {}.
 # Site (server/upstream): deploy/nginx/ekstrabet-site.conf.example
+# Opcjonalnie: dodaj location z limit_req w site — patrz historia SZP-70.
 
 limit_req_zone $binary_remote_addr zone=ekstrabet_login:10m rate=5r/m;
 limit_req_zone $binary_remote_addr zone=ekstrabet_costly:10m rate=20r/m;
