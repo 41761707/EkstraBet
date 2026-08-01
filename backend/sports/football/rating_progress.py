@@ -55,6 +55,22 @@ class TeamRatingProgress:
     points: list[RatingPoint]
 
 
+@dataclass(frozen=True)
+class RatingProgressResult:
+    """Full seasonal rating-progress payload for API, PNG and CLI."""
+
+    league_id: int
+    league_name: str
+    season_id: int
+    season_years: str
+    metric: RatingMetric
+    last_played_match_id: int | None
+    last_played_at: datetime | None
+    teams: list[TeamRatingProgress]
+    biggest_rise: TeamRatingProgress | None
+    biggest_fall: TeamRatingProgress | None
+
+
 # Mapowanie miary na kolumny osi czasu — dziś tylko ELO, gotowe na GAP/Czech.
 RATING_SERIES_COLUMNS: dict[RatingMetric, RatingSeriesColumns] = {
     "elo": RatingSeriesColumns(
