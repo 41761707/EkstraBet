@@ -102,23 +102,27 @@ def build_ratings_timeline(
 
 def extract_team_progress(
         timeline: pd.DataFrame,
-        target_league_id: int,
+        target_league_id: int | None,
         target_season_id: int,
         participants: pd.DataFrame,
         metric: RatingMetric = "elo") -> list[TeamRatingProgress]:
     """Build per-team progress from a ratings timeline DataFrame.
 
-    Start rating is the first pre-match value in the target league/season.
-    Points are successive post-match values for that league/season only.
-    Timeline row order is preserved — callers must not re-sort ratings.
+    Start rating is the first pre-match value in the filtered window.
+    Points are successive post-match values. When ``target_league_id``
+    is ``None``, all leagues in ``target_season_id`` are included
+    (country-wide chart). Timeline row order is preserved.
     """
     columns = series_columns_for(metric)
     if timeline.empty or participants.empty:
         return []
 
-    season_matches = timeline[
-        (timeline["league"] == target_league_id)
-        & (timeline["season"] == target_season_id)]
+    season_mask = timeline["season"] == target_season_id
+    if target_league_id is None:
+        season_matches = timeline[season_mask]
+    else:
+        season_matches = timeline[
+            season_mask & (timeline["league"] == target_league_id)]
     if season_matches.empty:
         return []
 
@@ -139,7 +143,7 @@ def extract_team_progress(
 
 def compute_team_rating_progress(
         matches: pd.DataFrame,
-        target_league_id: int,
+        target_league_id: int | None,
         target_season_id: int,
         participants: pd.DataFrame,
         metric: RatingMetric = "elo",

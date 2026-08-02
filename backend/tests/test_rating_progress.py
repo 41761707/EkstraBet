@@ -288,6 +288,45 @@ class TestExtractTeamProgress(unittest.TestCase):
             [point.match_id for point in by_id[1].points],
             [1])
 
+    def test_none_league_includes_all_leagues_in_season(self) -> None:
+        day = datetime(2025, 8, 1)
+        matches = pd.DataFrame([
+            _match(
+                match_id=1,
+                league=10,
+                season=100,
+                home_team=1,
+                away_team=2,
+                game_date=day,
+                home_goals=1,
+                away_goals=0,
+                tier=1),
+            _match(
+                match_id=2,
+                league=11,
+                season=100,
+                home_team=1,
+                away_team=3,
+                game_date=day + timedelta(days=1),
+                home_goals=2,
+                away_goals=0,
+                tier=2)
+        ])
+        timeline = compute_ratings_timeline(matches)
+        participants = _participants(
+            (1, "Alpha", "ALP"),
+            (2, "Beta", "BET"),
+            (3, "Gamma", "GAM"))
+
+        teams = progress.extract_team_progress(
+            timeline, None, 100, participants)
+
+        by_id = {team.team_id: team for team in teams}
+        self.assertEqual(
+            [point.match_id for point in by_id[1].points],
+            [1, 2])
+        self.assertEqual(len(by_id[3].points), 1)
+
     def test_ranks_by_current_rating_descending(self) -> None:
         day = datetime(2025, 8, 1)
         matches = pd.DataFrame([

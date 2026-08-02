@@ -13,6 +13,8 @@ from backend.repositories.rating_progress_repository import FOOTBALL_SPORT_ID
 from backend.repositories.rating_progress_repository import (
     RatingProgressContext)
 from backend.repositories.rating_progress_repository import (
+    fetch_country_rating_progress_context)
+from backend.repositories.rating_progress_repository import (
     fetch_rating_progress_context)
 from backend.sports.football.rating_progress import RatingMetric
 from backend.sports.football.rating_progress import RatingProgressResult
@@ -20,7 +22,7 @@ from backend.sports.football.rating_progress import TeamRatingProgress
 from backend.sports.football.rating_progress import (
     compute_team_rating_progress)
 
-MAX_SELECTED_TEAMS = 24
+MAX_SELECTED_TEAMS = 40
 SUPPORTED_METRICS: frozenset[str] = frozenset({"elo"})
 
 
@@ -55,25 +57,33 @@ def get_rating_progress(
     _ensure_football_league(context)
     if context.last_played_match_id is None:
         return None
+    return _build_result(
+        context,
+        resolved_metric,
+        target_league_id=context.league_id)
 
-    teams = compute_team_rating_progress(
-        matches=context.matches,
-        target_league_id=context.league_id,
-        target_season_id=context.season_id,
-        participants=context.participants,
-        metric=resolved_metric)
-    biggest_rise, biggest_fall = _pick_leaders(teams)
-    return RatingProgressResult(
-        league_id=context.league_id,
-        league_name=context.league_name,
-        season_id=context.season_id,
-        season_years=context.season_years,
-        metric=resolved_metric,
-        last_played_match_id=context.last_played_match_id,
-        last_played_at=context.last_played_at,
-        teams=teams,
-        biggest_rise=biggest_rise,
-        biggest_fall=biggest_fall)
+
+def get_country_rating_progress(
+        country_id: int,
+        season_id: int,
+        metric: str = "elo") -> RatingProgressResult | None:
+    """Return country-wide football progress across all leagues in a season.
+
+    Series include every finished match in the country for ``season_id``
+    (e.g. tier 1 + tier 2). Returns ``None`` when the country/season is
+    missing or has no finished football matches.
+    """
+    resolved_metric = _resolve_metric(metric)
+    context = fetch_country_rating_progress_context(country_id, season_id)
+    if context is None:
+        return None
+    if context.last_played_match_id is None:
+        return None
+    # None = wszystkie ligi kraju w sezonie.
+    return _build_result(
+        context,
+        resolved_metric,
+        target_league_id=None)
 
 
 def select_teams(
@@ -95,11 +105,41 @@ def select_teams(
     elif top is not None:
         filtered = _filter_by_top(result.teams, top)
     else:
+        if len(result.teams) > MAX_SELECTED_TEAMS:
+            raise RatingProgressFilterError(
+                f"Too many teams ({len(result.teams)}); "
+                f"pass top or team_ids (max {MAX_SELECTED_TEAMS})")
         return result
     biggest_rise, biggest_fall = _pick_leaders(filtered)
     return replace(
         result,
         teams=filtered,
+        biggest_rise=biggest_rise,
+        biggest_fall=biggest_fall)
+
+
+def _build_result(
+        context: RatingProgressContext,
+        metric: RatingMetric,
+        *,
+        target_league_id: int | None) -> RatingProgressResult:
+    """Run timeline extraction and assemble the domain DTO."""
+    teams = compute_team_rating_progress(
+        matches=context.matches,
+        target_league_id=target_league_id,
+        target_season_id=context.season_id,
+        participants=context.participants,
+        metric=metric)
+    biggest_rise, biggest_fall = _pick_leaders(teams)
+    return RatingProgressResult(
+        league_id=context.league_id,
+        league_name=context.league_name,
+        season_id=context.season_id,
+        season_years=context.season_years,
+        metric=metric,
+        last_played_match_id=context.last_played_match_id,
+        last_played_at=context.last_played_at,
+        teams=teams,
         biggest_rise=biggest_rise,
         biggest_fall=biggest_fall)
 

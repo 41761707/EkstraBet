@@ -209,6 +209,59 @@ class TestGetRatingProgress(unittest.TestCase):
         self.assertEqual(result.biggest_fall.team_id, 3)
 
 
+class TestGetCountryRatingProgress(unittest.TestCase):
+    """Country-wide progress across all football leagues."""
+
+    @patch(
+        "backend.services.rating_progress_service"
+        ".fetch_country_rating_progress_context",
+        return_value=None)
+    def test_returns_none_when_country_or_season_missing(
+            self,
+            _mock_fetch: unittest.mock.MagicMock) -> None:
+        self.assertIsNone(service.get_country_rating_progress(999, 1))
+
+    @patch(
+        "backend.services.rating_progress_service"
+        ".compute_team_rating_progress")
+    @patch(
+        "backend.services.rating_progress_service"
+        ".fetch_country_rating_progress_context")
+    def test_extracts_with_league_id_none(
+            self,
+            mock_fetch: unittest.mock.MagicMock,
+            mock_compute: unittest.mock.MagicMock) -> None:
+        mock_fetch.return_value = RatingProgressContext(
+            league_id=1,
+            league_name="Polska — wszystkie ligi",
+            country_id=1,
+            country_name="Polska",
+            sport_id=1,
+            tier=None,
+            season_id=100,
+            season_years="2025/2026",
+            participants=pd.DataFrame([
+                {
+                    "team_id": 1,
+                    "team_name": "Alpha",
+                    "team_shortcut": "ALP"
+                }
+            ]),
+            matches=pd.DataFrame(),
+            last_played_match_id=50,
+            last_played_at=datetime(2025, 8, 10))
+        mock_compute.return_value = [
+            _team(1, name="Alpha", start=1500, current=1550, rank=1)]
+
+        result = service.get_country_rating_progress(1, 100)
+
+        assert result is not None
+        self.assertEqual(result.league_name, "Polska — wszystkie ligi")
+        mock_compute.assert_called_once()
+        self.assertIsNone(
+            mock_compute.call_args.kwargs["target_league_id"])
+
+
 class TestSelectTeams(unittest.TestCase):
     """Tests for shared team_ids / top filtering."""
 
@@ -223,6 +276,13 @@ class TestSelectTeams(unittest.TestCase):
     def test_no_filter_returns_same_result(self) -> None:
         filtered = service.select_teams(self.full)
         self.assertIs(filtered, self.full)
+
+    def test_rejects_unfiltered_over_max_teams(self) -> None:
+        many = [
+            _team(index, rank=index)
+            for index in range(1, service.MAX_SELECTED_TEAMS + 2)]
+        with self.assertRaises(service.RatingProgressFilterError):
+            service.select_teams(_result(many))
 
     def test_top_keeps_current_rank_order(self) -> None:
         filtered = service.select_teams(self.full, top=2)

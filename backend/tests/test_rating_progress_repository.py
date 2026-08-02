@@ -210,6 +210,81 @@ class TestFetchRatingProgressContext(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestFetchCountryRatingProgressContext(unittest.TestCase):
+    """Country-wide context assembly."""
+
+    def _mock_connection(self, mock_get_conn: MagicMock) -> None:
+        mock_conn = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value = mock_conn
+        mock_cm.__exit__.return_value = False
+        mock_get_conn.return_value = mock_cm
+
+    @patch("backend.repositories.rating_progress_repository.pd.read_sql")
+    @patch(
+        "backend.repositories.rating_progress_repository.get_db_connection")
+    def test_returns_none_when_country_missing(
+            self,
+            mock_get_conn: MagicMock,
+            mock_read_sql: MagicMock) -> None:
+        self._mock_connection(mock_get_conn)
+        mock_read_sql.return_value = pd.DataFrame()
+        self.assertIsNone(
+            repo.fetch_country_rating_progress_context(999, 12))
+
+    @patch("backend.repositories.rating_progress_repository.pd.read_sql")
+    @patch(
+        "backend.repositories.rating_progress_repository.get_db_connection")
+    def test_builds_country_label_and_cutoff_matches(
+            self,
+            mock_get_conn: MagicMock,
+            mock_read_sql: MagicMock) -> None:
+        self._mock_connection(mock_get_conn)
+        cutoff = datetime(2025, 8, 10, 18, 0, 0)
+        participants = pd.DataFrame([{
+            "team_id": 1,
+            "team_name": "Alpha",
+            "team_shortcut": "ALP"
+        }])
+        matches = pd.DataFrame([{
+            "id": 10,
+            "league": 1,
+            "season": 12,
+            "round": 1,
+            "game_date": cutoff,
+            "home_team": 1,
+            "away_team": 2,
+            "home_team_goals": 1,
+            "away_team_goals": 0,
+            "result": "1",
+            "sport_id": 1,
+            "tier": 1
+        }])
+        mock_read_sql.side_effect = [
+            pd.DataFrame([{
+                "country_id": 1,
+                "country_name": "Polska"
+            }]),
+            pd.DataFrame([{"years": "2025/26"}]),
+            participants,
+            pd.DataFrame([{
+                "id": 50,
+                "game_date": cutoff
+            }]),
+            matches
+        ]
+
+        result = repo.fetch_country_rating_progress_context(1, 12)
+
+        assert result is not None
+        self.assertEqual(result.league_id, 1)
+        self.assertEqual(result.league_name, "Polska — wszystkie ligi")
+        self.assertEqual(result.country_id, 1)
+        self.assertEqual(result.last_played_match_id, 50)
+        self.assertEqual(len(result.matches), 1)
+        self.assertEqual(len(result.participants), 1)
+
+
 class TestFetchHelpers(unittest.TestCase):
     """Cover helper edge cases for NULL and empty frames."""
 

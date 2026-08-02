@@ -89,6 +89,55 @@ def fetch_rating_progress_context(
         last_played_at=last_played_at)
 
 
+def fetch_country_rating_progress_context(
+        country_id: int,
+        season_id: int) -> RatingProgressContext | None:
+    """Return country-wide football context for all leagues in a season.
+
+    ``league_id`` / ``league_name`` on the context carry the country identity
+    used by PNG titles (``league_name`` is ``"{country} — wszystkie ligi"``).
+    Participants include every team that appears in any football league of
+    the country for ``season_id``.
+    """
+    country = _fetch_country_row(country_id)
+    if country is None:
+        return None
+    season_years = _fetch_season_years(season_id)
+    if season_years is None:
+        return None
+
+    participants = _fetch_country_season_participants(
+        country_id,
+        season_id)
+    last_match = _fetch_country_last_finished_match(country_id, season_id)
+    if last_match is None:
+        matches = _empty_matches_frame()
+        last_played_match_id = None
+        last_played_at = None
+    else:
+        last_played_match_id, last_played_at = last_match
+        matches = _fetch_country_finished_matches(
+            country_id=country_id,
+            sport_id=FOOTBALL_SPORT_ID,
+            cutoff_at=last_played_at,
+            cutoff_match_id=last_played_match_id)
+
+    country_label = country["country_name"] or f"Country {country_id}"
+    return RatingProgressContext(
+        league_id=country_id,
+        league_name=f"{country_label} — wszystkie ligi",
+        country_id=country_id,
+        country_name=country["country_name"],
+        sport_id=FOOTBALL_SPORT_ID,
+        tier=None,
+        season_id=season_id,
+        season_years=season_years,
+        participants=participants,
+        matches=matches,
+        last_played_match_id=last_played_match_id,
+        last_played_at=last_played_at)
+
+
 def _fetch_league_row(league_id: int) -> dict[str, object] | None:
     """Return league metadata or ``None`` when the id is unknown."""
     query = """
@@ -124,6 +173,37 @@ def _fetch_league_row(league_id: int) -> dict[str, object] | None:
             None if pd.isna(country_name) else str(country_name)),
         "sport_id": int(sport_id),
         "tier": None if pd.isna(tier_value) else int(tier_value)
+    }
+
+
+def _fetch_country_row(country_id: int) -> dict[str, object] | None:
+    """Return country metadata when it has at least one football league."""
+    query = """
+        SELECT
+            c.id AS country_id,
+            c.name AS country_name
+        FROM countries c
+        WHERE c.id = %s
+            AND EXISTS (
+                SELECT 1
+                FROM leagues l
+                WHERE l.country = c.id
+                    AND l.sport_id = %s
+            )
+    """
+    with get_db_connection() as conn:
+        frame = pd.read_sql(
+            query,
+            conn,
+            params=(country_id, FOOTBALL_SPORT_ID))
+    if frame.empty:
+        return None
+    row = frame.iloc[0]
+    country_name = row["country_name"]
+    return {
+        "country_id": int(row["country_id"]),
+        "country_name": (
+            None if pd.isna(country_name) else str(country_name))
     }
 
 
@@ -176,6 +256,54 @@ def _fetch_season_participants(
             params=(league_id, season_id, league_id, season_id))
 
 
+def _fetch_country_season_participants(
+        country_id: int,
+        season_id: int) -> pd.DataFrame:
+    """Return distinct teams from all football leagues in the country season."""
+    query = """
+        SELECT team_id, team_name, team_shortcut
+        FROM (
+            SELECT DISTINCT
+                m.home_team AS team_id,
+                t.name AS team_name,
+                t.shortcut AS team_shortcut
+            FROM matches m
+            JOIN leagues l ON m.league = l.id
+            JOIN teams t ON m.home_team = t.id
+            WHERE l.country = %s
+                AND l.sport_id = %s
+                AND m.sport_id = %s
+                AND m.season = %s
+                AND m.home_team IS NOT NULL
+            UNION
+            SELECT DISTINCT
+                m.away_team AS team_id,
+                t.name AS team_name,
+                t.shortcut AS team_shortcut
+            FROM matches m
+            JOIN leagues l ON m.league = l.id
+            JOIN teams t ON m.away_team = t.id
+            WHERE l.country = %s
+                AND l.sport_id = %s
+                AND m.sport_id = %s
+                AND m.season = %s
+                AND m.away_team IS NOT NULL
+        ) AS season_teams
+        ORDER BY team_name
+    """
+    params = (
+        country_id,
+        FOOTBALL_SPORT_ID,
+        FOOTBALL_SPORT_ID,
+        season_id,
+        country_id,
+        FOOTBALL_SPORT_ID,
+        FOOTBALL_SPORT_ID,
+        season_id)
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=params)
+
+
 def _fetch_last_finished_match(
         league_id: int,
         season_id: int) -> tuple[int, datetime] | None:
@@ -199,6 +327,46 @@ def _fetch_last_finished_match(
     """
     params: tuple[object, ...] = (
         league_id,
+        season_id,
+        *_FINISHED_RESULTS)
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn, params=params)
+    if frame.empty:
+        return None
+    game_date = frame.iloc[0]["game_date"]
+    if pd.isna(game_date):
+        return None
+    return int(frame.iloc[0]["id"]), pd.Timestamp(game_date).to_pydatetime()
+
+
+def _fetch_country_last_finished_match(
+        country_id: int,
+        season_id: int) -> tuple[int, datetime] | None:
+    """Return latest finished match across football leagues in the country."""
+    result_placeholders = ", ".join(["%s"] * len(_FINISHED_RESULTS))
+    query = f"""
+        SELECT
+            m.id,
+            m.game_date
+        FROM matches m
+        JOIN leagues l ON m.league = l.id
+        WHERE l.country = %s
+            AND l.sport_id = %s
+            AND m.sport_id = %s
+            AND m.season = %s
+            AND m.result IN ({result_placeholders})
+            AND m.home_team IS NOT NULL
+            AND m.away_team IS NOT NULL
+            AND m.home_team_goals IS NOT NULL
+            AND m.away_team_goals IS NOT NULL
+            AND m.game_date IS NOT NULL
+        ORDER BY m.game_date DESC, m.id DESC
+        LIMIT 1
+    """
+    params: tuple[object, ...] = (
+        country_id,
+        FOOTBALL_SPORT_ID,
+        FOOTBALL_SPORT_ID,
         season_id,
         *_FINISHED_RESULTS)
     with get_db_connection() as conn:
