@@ -7,6 +7,7 @@ leaders and shared team filtering. Does not import FastAPI or Matplotlib.
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Literal
 from typing import cast
 
 from backend.repositories.rating_progress_repository import FOOTBALL_SPORT_ID
@@ -84,6 +85,21 @@ def get_country_rating_progress(
         context,
         resolved_metric,
         target_league_id=None)
+
+
+def classify_missing_progress(
+        league_id: int,
+        season_id: int) -> Literal["not_found", "empty_season"]:
+    """Classify why ``get_rating_progress`` returned ``None``.
+
+    Call only after a ``None`` result. ``not_found`` means the league or
+    season row is missing; ``empty_season`` means both exist but there is
+    no finished football match yet.
+    """
+    context = fetch_rating_progress_context(league_id, season_id)
+    if context is None:
+        return "not_found"
+    return "empty_season"
 
 
 def select_teams(

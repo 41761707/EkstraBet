@@ -24,7 +24,7 @@ def _point(
     return RatingPoint(
         match_id=match_id,
         round_number=round_number,
-        played_at=datetime(2025, 8, match_id),
+        played_at=datetime(2025, 8, 1),
         rating=rating)
 
 
@@ -207,6 +207,27 @@ class TestGetRatingProgress(unittest.TestCase):
         assert result.biggest_fall is not None
         self.assertEqual(result.biggest_rise.team_id, 3)
         self.assertEqual(result.biggest_fall.team_id, 3)
+
+
+    def test_classify_missing_progress_not_found(self) -> None:
+        with patch(
+                "backend.services.rating_progress_service"
+                ".fetch_rating_progress_context",
+                return_value=None):
+            self.assertEqual(
+                service.classify_missing_progress(999, 1),
+                "not_found")
+
+    def test_classify_missing_progress_empty_season(self) -> None:
+        with patch(
+                "backend.services.rating_progress_service"
+                ".fetch_rating_progress_context",
+                return_value=_context(
+                    last_played_match_id=None,
+                    last_played_at=None)):
+            self.assertEqual(
+                service.classify_missing_progress(10, 100),
+                "empty_season")
 
 
 class TestGetCountryRatingProgress(unittest.TestCase):

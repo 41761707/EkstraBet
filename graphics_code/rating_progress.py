@@ -56,12 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--top",
         type=int,
         default=None,
-        help="Keep top N teams by current rating (1-24)")
+        help="Keep top N teams by current rating (1-40)")
     parser.add_argument(
         "--teams",
         type=str,
         default=None,
-        help="Comma-separated participant team ids (max 24)")
+        help="Comma-separated participant team ids (max 40)")
     parser.add_argument(
         "--output",
         "-o",
