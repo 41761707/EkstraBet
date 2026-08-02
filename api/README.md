@@ -4,19 +4,19 @@ Modularny system API do zarządzania danymi systemu EkstraBet, zbudowany z wykor
 
 ## Architektura
 
-API składa się z modułów:
-- **Teams** (`api_teams.py`) - Zarządzanie drużynami
-- **Helper** (`api_helper.py`) - Dane pomocnicze (kraje, sporty, sezony)
-- **Matches** (`api_matches.py`) - Zarządzanie meczami
-- **Odds** (`api_odds.py`) - Kursy bukmacherskie
-- **Predictions** (`api_predictions.py`) - Predykcje modeli
-- **Główny** (`start_api.py`) - Inicjalizacja i orkiestracja wszystkich modułów
+Aktualny punkt wejścia to `api/main.py` (FastAPI) z routerami w
+`api/routers/` oraz schematami Pydantic w `api/schemas/`. Logika domenowa
+żyje w `backend/` — routery nie powinny zawierać SQL ani obliczeń ratingów.
 
-W przyszłości planowane są moduły:
-- **Leagues** - Zarządzanie ligami
-- **Predictions** - System predykcji  
-- **Predictions** - System predykcji
-itd.
+Główne moduły HTTP:
+- **Leagues** (`routers/leagues.py`) — lista lig, szczegóły, tabela, progres ratingów
+- **Teams**, **Matches**, **Odds**, **Predictions**, **Players**, **Bets**, **Auth**
+- **Helper** — kraje, sporty, sezony
+
+Starsze skrypty typu `api_teams.py` / `start_api.py` mogą nadal występować
+w repo jako legacy; dokumentacja endpointów poniżej bywa częściowo
+historyczna — dla nowych kontraktów preferuj Swagger (`/docs`) oraz sekcję
+progresu ratingów poniżej.
 
 ## Instalacja i uruchomienie
 
@@ -785,6 +785,97 @@ Informacje o module predictions.
     "/predictions/match/{match_id} - Końcowe predykcje dla pojedynczego meczu"
   ]
 }
+```
+
+## Moduł Leagues — Progres ratingów (EB-14 / SZP-78–80)
+
+Sezonowa historia siły drużyn (pierwsza miara: ELO) dla strony ligi.
+Obliczenia pochodzą z produkcyjnego `compute_ratings_timeline` (pipeline ML),
+z rozgrzewką wcześniejszymi meczami piłkarskimi z lig tego samego kraju.
+**Nie ma endpointu PNG** — bitmapę generuje wyłącznie lokalny CLI.
+
+### GET `/leagues/{league_id}/rating-progress`
+
+**Parametry:**
+- `league_id` (path, int ≥ 1) — ID ligi piłkarskiej
+- `season_id` (query, wymagany, int ≥ 1) — ID sezonu
+- `metric` (query, domyślnie `elo`) — obecnie wyłącznie `elo`
+
+**Kody odpowiedzi:**
+- `200` — pełny JSON wszystkich uczestników z ≥1 rozegranym meczem
+- `400` — liga niepiłkarska
+- `404` — brak ligi/sezonu albo sezon bez rozegranych meczów (`result` ∈ 1/X/2)
+- `422` — nieznana metryka (kalkulator nie startuje)
+
+**Przykład zapytania:**
+```bash
+curl "http://localhost:8000/leagues/1/rating-progress?season_id=12&metric=elo"
+```
+
+**Szkic odpowiedzi:**
+```json
+{
+  "league_id": 1,
+  "league_name": "Ekstraklasa",
+  "season_id": 12,
+  "season_years": "2025/26",
+  "metric": "elo",
+  "last_played_match_id": 123456,
+  "last_played_at": "2026-03-15T17:00:00",
+  "teams": [
+    {
+      "team_id": 10,
+      "team_name": "Example FC",
+      "team_shortcut": "EXA",
+      "start_rating": 1512.4,
+      "current_rating": 1540.1,
+      "change": 27.7,
+      "current_rank": 1,
+      "points": [
+        {
+          "match_id": 1001,
+          "round_number": 1,
+          "played_at": "2025-07-20T17:00:00",
+          "rating": 1518.6
+        }
+      ]
+    }
+  ],
+  "biggest_rise": { "...": "TeamRatingProgress" },
+  "biggest_fall": { "...": "TeamRatingProgress" }
+}
+```
+
+`points` to wyłącznie ratingi **post-match** w wybranej lidze/sezonie.
+`start_rating` to pierwszy pre-match sezonu (po rozgrzewce krajowej).
+Frontend dokleja syntetyczny punkt startu na wykresie SVG — API go nie zwraca.
+
+### CLI PNG (operatorski, poza HTTP)
+
+```bash
+# Top 6 według bieżącego ELO
+python graphics_code/rating_progress.py --league 1 --season 12 --top 6 -o elo_top6.png
+
+# Wybrane drużyny (max 40; wzajemnie wykluczające z --top)
+python graphics_code/rating_progress.py --league 1 --season 12 --teams 10,15,22 -o elo_picked.png
+
+# Wszystkie ligi piłkarskie kraju (tylko CLI, bez endpointu HTTP)
+python graphics_code/rating_progress.py --country 1 --season 12 --top 10 -o country_elo.png
+```
+
+Wymaga skonfigurowanego `.env` z dostępem do MySQL. CLI nie otwiera
+okna Matplotlib (`Agg`) i nie czyta plików `ratings_elo_*.csv`.
+
+### Testy regresyjne tego kontraktu
+
+```bash
+python -m unittest backend.tests.test_rating_progress_repository \
+  backend.tests.test_rating_progress \
+  backend.tests.test_rating_progress_service \
+  backend.tests.test_rating_progress_renderer \
+  api.tests.test_rating_progress_router
+
+cd frontend && npm test -- ratingProgressChartModel.test.ts
 ```
 
 ## Kontakt

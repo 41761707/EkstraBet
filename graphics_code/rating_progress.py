@@ -2,6 +2,20 @@
 
 Thin wrapper over the rating-progress service and PNG renderer.
 Does not read CSV Elo snapshots and never opens an interactive plot window.
+PNG export is operators-only — the product WWW path uses JSON + SVG.
+
+Examples (from repository root, with DB env configured)::
+
+    python graphics_code/rating_progress.py \\
+        --league 1 --season 12 --top 6 -o elo_top6.png
+
+    python graphics_code/rating_progress.py \\
+        --league 1 --season 12 --teams 10,15,22 -o elo_picked.png
+
+    python graphics_code/rating_progress.py \\
+        --country 1 --season 12 --top 10 -o country_elo.png
+
+``--top`` and ``--teams`` are mutually exclusive (max 40 teams).
 """
 
 from __future__ import annotations
