@@ -53,6 +53,8 @@ import type {
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
   PredictionPreviewResponse,
+  RatingMetric,
+  RatingProgressResponse,
   TeamsListResponse,
 } from "@/types/api";
 
@@ -149,6 +151,17 @@ export async function getLeagueCharacteristics(
   return fetchApi<LeagueCharacteristics>(
     `/leagues/${leagueId}/characteristics`,
     { season_id: seasonId },
+  );
+}
+
+export async function getLeagueRatingProgress(
+  leagueId: number,
+  seasonId: number,
+  metric: RatingMetric = "elo",
+): Promise<RatingProgressResponse> {
+  return fetchApi<RatingProgressResponse>(
+    `/leagues/${leagueId}/rating-progress`,
+    { season_id: seasonId, metric },
   );
 }
 
