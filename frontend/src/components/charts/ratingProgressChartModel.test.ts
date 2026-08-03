@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildMatchAxisSlots,
   buildRatingProgressChartModel,
   buildSeriesSourcePoints,
   colorForTeam,
@@ -121,8 +122,168 @@ describe("series geometry", () => {
       rating: 1510,
       playedAt: "2025-08-01T17:00:00",
       matchId: null,
+      axisIndex: 0,
     });
     expect(points[2]?.rating).toBe(1550);
+  });
+
+  it("aligns each team's N-th match on the same X slot", () => {
+    const teams = [
+      makeTeam({
+        team_id: 1,
+        points: [
+          {
+            match_id: 1,
+            round_number: 1,
+            played_at: "2025-08-01T17:00:00",
+            rating: 1510,
+          },
+          {
+            match_id: 3,
+            round_number: 2,
+            played_at: "2025-08-08T17:00:00",
+            rating: 1520,
+          },
+        ],
+      }),
+      makeTeam({
+        team_id: 2,
+        points: [
+          {
+            match_id: 2,
+            round_number: 1,
+            played_at: "2025-08-04T17:00:00",
+            rating: 1490,
+          },
+          {
+            match_id: 4,
+            round_number: 2,
+            played_at: "2025-08-11T17:00:00",
+            rating: 1480,
+          },
+        ],
+      }),
+    ];
+    const slots = buildMatchAxisSlots(teams);
+    expect(slots.map((slot) => slot.label)).toEqual(["0", "1", "2"]);
+
+    const model = buildRatingProgressChartModel(teams);
+    const secondMatchXs = model.series.map(
+      (series) => series.points.find((point) => point.axisIndex === 2)?.x,
+    );
+    expect(secondMatchXs[0]).toBe(secondMatchXs[1]);
+    expect(model.xTicks.map((tick) => tick.label)).toEqual(
+      expect.arrayContaining(["1", "2"]),
+    );
+  });
+
+  it("orders postponed matches by play date, not round_number", () => {
+    const team = makeTeam({
+      team_id: 1,
+      points: [
+        {
+          match_id: 10,
+          round_number: 16,
+          played_at: "2026-04-01T17:00:00",
+          rating: 1510,
+        },
+        {
+          match_id: 11,
+          round_number: 3,
+          played_at: "2026-04-04T17:00:00",
+          rating: 1520,
+        },
+        {
+          match_id: 12,
+          round_number: 17,
+          played_at: "2026-04-08T17:00:00",
+          rating: 1530,
+        },
+      ],
+    });
+    const points = buildSeriesSourcePoints(team, null).filter(
+      (point) => !point.isBaseline,
+    );
+    expect(points.map((point) => point.roundNumber)).toEqual([16, 3, 17]);
+    expect(points.map((point) => point.axisIndex)).toEqual([1, 2, 3]);
+  });
+
+  it("keeps equal X spacing across a long calendar break", () => {
+    const teams = [
+      makeTeam({
+        team_id: 1,
+        points: [
+          {
+            match_id: 1,
+            round_number: 17,
+            played_at: "2025-12-15T17:00:00",
+            rating: 1510,
+          },
+          {
+            match_id: 2,
+            round_number: 18,
+            played_at: "2026-02-01T17:00:00",
+            rating: 1520,
+          },
+          {
+            match_id: 3,
+            round_number: 19,
+            played_at: "2026-02-08T17:00:00",
+            rating: 1530,
+          },
+        ],
+      }),
+    ];
+    const model = buildRatingProgressChartModel(teams);
+    const xs = model.series[0]?.points
+      .filter((point) => !point.isBaseline)
+      .map((point) => point.x);
+    expect(xs).toHaveLength(3);
+    const gapWinter = (xs?.[1] ?? 0) - (xs?.[0] ?? 0);
+    const gapWeek = (xs?.[2] ?? 0) - (xs?.[1] ?? 0);
+    expect(gapWinter).toBeCloseTo(gapWeek, 5);
+  });
+
+  it("does not leave empty X gaps when another team played more matches", () => {
+    const teams = [
+      makeTeam({
+        team_id: 1,
+        points: [
+          {
+            match_id: 1,
+            round_number: 1,
+            played_at: "2025-08-01T17:00:00",
+            rating: 1510,
+          },
+          {
+            match_id: 2,
+            round_number: 10,
+            played_at: "2025-10-01T17:00:00",
+            rating: 1520,
+          },
+        ],
+      }),
+      makeTeam({
+        team_id: 2,
+        points: Array.from({ length: 10 }, (_, index) => ({
+          match_id: 100 + index,
+          round_number: index + 1,
+          played_at: `2025-08-${String(index + 1).padStart(2, "0")}T17:00:00`,
+          rating: 1500 - index,
+        })),
+      }),
+    ];
+    const model = buildRatingProgressChartModel(teams);
+    const team1 = model.series.find((series) => series.teamId === 1);
+    const team1Xs = team1?.points
+      .filter((point) => !point.isBaseline)
+      .map((point) => point.x);
+    expect(team1Xs).toHaveLength(2);
+    // 1st and 2nd match of team 1 sit on slots 1 and 2 — adjacent, not stretched
+    // across the other team's 10 round slots.
+    const gap = (team1Xs?.[1] ?? 0) - (team1Xs?.[0] ?? 0);
+    const fullSpan = model.plotRight - model.plotLeft;
+    expect(gap).toBeLessThan(fullSpan / 3);
   });
 
   it("returns empty series when team has no points", () => {

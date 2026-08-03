@@ -303,7 +303,7 @@ export function LeagueRatingProgressSection({
             teams={visibleTeams}
             lastPlayedAt={data.last_played_at}
             title={`Progres ELO — ${data.league_name} ${data.season_years}`}
-            description="Interaktywny wykres zmiany ratingu ELO w sezonie. Oś X to daty meczów, tooltip zawiera numer kolejki. Najedź na linię lub legendę, aby wyróżnić drużynę."
+            description="Interaktywny wykres zmiany ratingu ELO w sezonie. Oś X to kolejny mecz drużyny (1., 2., 3.… po dacie rozegrania), tooltip zawiera też numer kolejki. Najedź na linię lub legendę, aby wyróżnić drużynę."
             highlightedTeamId={highlightedTeamId}
             onHighlightedTeamIdChange={setHighlightedTeamId}
           />

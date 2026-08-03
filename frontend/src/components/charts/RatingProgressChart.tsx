@@ -30,9 +30,10 @@ function pointTitle(point: ChartPlotPoint, label: string): string {
   if (point.isBaseline) {
     return `${label}: start ${rating}`;
   }
+  const matchSlot = `mecz ${point.axisIndex}`;
   const round =
-    point.roundNumber !== null ? `kolejka ${point.roundNumber}, ` : "";
-  return `${label}: ${round}${rating}`;
+    point.roundNumber !== null ? `, kolejka ${point.roundNumber}` : "";
+  return `${label}: ${matchSlot}${round}, ${rating}`;
 }
 
 function ChartAxes({ model }: { model: RatingProgressChartModel }) {

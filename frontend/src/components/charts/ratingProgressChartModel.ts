@@ -52,8 +52,19 @@ export interface ChartPlotPoint {
   playedAt: string;
   rating: number;
   isBaseline: boolean;
+  /** Position on the match-index X axis (0 = season baseline). */
+  axisIndex: number;
   x: number;
   y: number;
+}
+
+/**
+ * One column on the X axis. Index 0 is the synthetic season start;
+ * index N is each team's N-th played match (sorted by date, not round_number).
+ */
+export interface MatchAxisSlot {
+  index: number;
+  label: string;
 }
 
 export interface ChartEndLabel {
@@ -163,6 +174,37 @@ export function seasonBaselineIso(
   return earliest ?? lastPlayedAt;
 }
 
+function sortPointsByPlayedAt<T extends { played_at: string; match_id: number }>(
+  points: readonly T[],
+): T[] {
+  return [...points].sort((left, right) => {
+    const leftMs = Date.parse(left.played_at);
+    const rightMs = Date.parse(right.played_at);
+    if (leftMs !== rightMs) {
+      return leftMs - rightMs;
+    }
+    return left.match_id - right.match_id;
+  });
+}
+
+/**
+ * Shared X domain: 0 = baseline, then 1..maxMatches where N is each team's
+ * N-th played match in chronological order (postponements included by date).
+ */
+export function buildMatchAxisSlots(
+  teams: readonly TeamRatingProgress[],
+): MatchAxisSlot[] {
+  let maxMatches = 0;
+  for (const team of teams) {
+    maxMatches = Math.max(maxMatches, team.points.length);
+  }
+  const slots: MatchAxisSlot[] = [{ index: 0, label: "0" }];
+  for (let index = 1; index <= maxMatches; index += 1) {
+    slots.push({ index, label: String(index) });
+  }
+  return slots;
+}
+
 export function buildSeriesSourcePoints(
   team: TeamRatingProgress,
   baselineIso: string | null,
@@ -181,17 +223,20 @@ export function buildSeriesSourcePoints(
       playedAt: startAt,
       rating: team.start_rating,
       isBaseline: true,
+      axisIndex: 0,
     },
   ];
-  for (const point of team.points) {
+  const ordered = sortPointsByPlayedAt(team.points);
+  ordered.forEach((point, offset) => {
     points.push({
       matchId: point.match_id,
       roundNumber: point.round_number,
       playedAt: point.played_at,
       rating: point.rating,
       isBaseline: false,
+      axisIndex: offset + 1,
     });
-  }
+  });
   return points;
 }
 
@@ -243,17 +288,6 @@ export function resolveEndLabelYs(
   return positions;
 }
 
-function formatAxisDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-  return date.toLocaleDateString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
-
 function formatRatingTick(value: number): string {
   return String(Math.round(value));
 }
@@ -288,21 +322,29 @@ function buildYTicks(
 }
 
 function buildXTicks(
-  minMs: number,
-  maxMs: number,
-  xAt: (ms: number) => number,
+  slots: readonly MatchAxisSlot[],
+  xAtIndex: (index: number) => number,
 ): ChartTick[] {
-  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
+  // Skip synthetic baseline (0); tick labels are match/round indices.
+  const matchSlots = slots.filter((slot) => slot.index > 0);
+  if (matchSlots.length === 0) {
     return [];
   }
-  const steps = minMs === maxMs ? 1 : 3;
+  if (matchSlots.length === 1) {
+    const only = matchSlots[0]!;
+    return [{ position: xAtIndex(only.index), label: only.label }];
+  }
+  const steps = Math.min(3, matchSlots.length - 1);
   const ticks: ChartTick[] = [];
-  for (let index = 0; index <= steps; index += 1) {
-    const ms = minMs + ((maxMs - minMs) * index) / steps;
-    ticks.push({
-      position: xAt(ms),
-      label: formatAxisDate(new Date(ms).toISOString()),
-    });
+  const seen = new Set<number>();
+  for (let step = 0; step <= steps; step += 1) {
+    const pick = Math.round((step * (matchSlots.length - 1)) / steps);
+    const slot = matchSlots[pick];
+    if (!slot || seen.has(slot.index)) {
+      continue;
+    }
+    seen.add(slot.index);
+    ticks.push({ position: xAtIndex(slot.index), label: slot.label });
   }
   return ticks;
 }
@@ -367,6 +409,7 @@ export function buildRatingProgressChartModel(
   const plotTop = CHART_PAD_TOP;
   const plotBottom = height - CHART_PAD_BOTTOM;
   const baselineIso = seasonBaselineIso(teams, options?.lastPlayedAt ?? null);
+  const axisSlots = buildMatchAxisSlots(teams);
   const extent = computeRatingExtent(teams, baselineIso);
   const yAtRating = buildLinearScale(
     extent.min,
@@ -374,32 +417,16 @@ export function buildRatingProgressChartModel(
     plotBottom,
     plotTop,
   );
+  const maxAxisIndex = Math.max(0, ...axisSlots.map((slot) => slot.index));
+  const xAtIndex = buildLinearScale(0, Math.max(maxAxisIndex, 1), plotLeft, plotRight);
 
-  const rawSeries = teams.map((team) => {
+  const plotted: ChartSeriesView[] = teams.map((team) => {
     const source = buildSeriesSourcePoints(team, baselineIso);
-    return {
-      team,
-      source,
-      times: source.map((point) => Date.parse(point.playedAt)),
-    };
-  });
-
-  const allTimes = rawSeries.flatMap((entry) =>
-    entry.times.filter((time) => Number.isFinite(time)),
-  );
-  const minMs = allTimes.length > 0 ? Math.min(...allTimes) : 0;
-  const maxMs = allTimes.length > 0 ? Math.max(...allTimes) : 1;
-  const xAtMs = buildLinearScale(minMs, maxMs, plotLeft, plotRight);
-
-  const plotted: ChartSeriesView[] = rawSeries.map(({ team, source }) => {
-    const points: ChartPlotPoint[] = source.map((point) => {
-      const ms = Date.parse(point.playedAt);
-      return {
-        ...point,
-        x: xAtMs(Number.isFinite(ms) ? ms : minMs),
-        y: yAtRating(point.rating),
-      };
-    });
+    const points: ChartPlotPoint[] = source.map((point) => ({
+      ...point,
+      x: xAtIndex(point.axisIndex),
+      y: yAtRating(point.rating),
+    }));
     return {
       teamId: team.team_id,
       label: teamDisplayLabel(team),
@@ -419,7 +446,7 @@ export function buildRatingProgressChartModel(
     height,
     series: attachEndLabels(plotted, extent, yAtRating),
     yTicks: buildYTicks(extent.min, extent.max, yAtRating),
-    xTicks: buildXTicks(minMs, maxMs, xAtMs),
+    xTicks: buildXTicks(axisSlots, xAtIndex),
     plotLeft,
     plotRight,
     plotTop,
