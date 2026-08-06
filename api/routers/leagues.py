@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 import logging
+from dataclasses import asdict
 from datetime import date
 from typing import Literal
+from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from api.schemas.analytics import LeagueCharacteristics
@@ -18,6 +20,8 @@ from api.schemas.league import (
 from api.schemas.match import (
     LeagueMatchesListResponse,
     MatchSummary)
+from api.schemas.rating_progress import RatingMetric
+from api.schemas.rating_progress import RatingProgressResponse
 from api.schemas.standing import (
     LeagueStandingsResponse,
     OuBttsStandingRow,
@@ -40,6 +44,10 @@ from backend.repositories.sport_league_repository import (
     BASKETBALL_SPORT_ID,
     HOCKEY_SPORT_ID)
 from backend.services import league_service, match_service, sport_league_service, standings_service
+from backend.services.rating_progress_service import NonFootballLeagueError
+from backend.services.rating_progress_service import classify_missing_progress
+from backend.services.rating_progress_service import get_rating_progress
+from backend.sports.football.rating_progress import RatingProgressResult
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +69,7 @@ async def leagues_info() -> dict[str, object]:
             "GET /leagues/{league_id}/matches - League schedule and results",
             "GET /leagues/{league_id}/standings - League standings",
             "GET /leagues/{league_id}/characteristics - League OU/BTTS stats",
+            "GET /leagues/{league_id}/rating-progress - Team rating progress JSON",
         ],
     }
 
@@ -555,6 +564,74 @@ async def get_sport_league_stats(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch sport league stats for league {league_id}") from exc
+
+
+@router.get(
+    "/{league_id}/rating-progress",
+    response_model=RatingProgressResponse)
+async def get_league_rating_progress(
+    league_id: int = Path(..., ge=1, description="League ID"),
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    metric: RatingMetric = Query(
+        "elo",
+        description="Rating metric (currently only elo)")
+) -> RatingProgressResponse:
+    """Return seasonal team rating-progress series for a football league."""
+    result = _load_rating_progress(league_id, season_id, metric)
+    return _to_rating_progress_response(result)
+
+
+def _load_rating_progress(
+        league_id: int,
+        season_id: int,
+        metric: str) -> RatingProgressResult:
+    """Load progress DTO or raise the mapped HTTP error."""
+    try:
+        result = get_rating_progress(
+            league_id,
+            season_id,
+            metric=metric)
+    except NonFootballLeagueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch rating progress for league %s season %s: %s",
+            league_id,
+            season_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch rating progress for league "
+                f"{league_id}, season {season_id}")) from exc
+    if result is None:
+        _raise_missing_rating_progress(league_id, season_id)
+    return result
+
+
+def _raise_missing_rating_progress(
+        league_id: int,
+        season_id: int) -> NoReturn:
+    """Raise 404 distinguishing missing league/season from empty season."""
+    reason = classify_missing_progress(league_id, season_id)
+    if reason == "not_found":
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"League {league_id} or season {season_id} not found"))
+    raise HTTPException(
+        status_code=404,
+        detail=(
+            f"No played matches for league {league_id}, "
+            f"season {season_id}"))
+
+
+def _to_rating_progress_response(
+        result: RatingProgressResult) -> RatingProgressResponse:
+    """Map domain DTO to the public Pydantic response model."""
+    return RatingProgressResponse.model_validate(asdict(result))
 
 
 @router.get("/{league_id}", response_model=LeagueDetails)

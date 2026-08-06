@@ -22,6 +22,8 @@ frontend/
 │   │   ├── bets/page.tsx
 │   │   └── stats/page.tsx
 │   ├── components/
+│   │   ├── charts/                     # m.in. RatingProgressChart (SVG ELO)
+│   │   └── leagues/                    # m.in. LeagueRatingProgressSection
 │   ├── lib/api.ts                      # Klient HTTP do FastAPI
 │   └── types/api.ts
 ├── public/

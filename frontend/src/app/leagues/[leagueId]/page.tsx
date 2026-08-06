@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { LeagueCharacteristicsSection } from "@/components/leagues/LeagueCharacteristicsSection";
 import { LeagueHeader } from "@/components/leagues/LeagueHeader";
+import { LeagueRatingProgressSection } from "@/components/leagues/LeagueRatingProgressSection";
 import { LeagueRoundSelector } from "@/components/leagues/LeagueRoundSelector";
 import { LeagueStandingsSection } from "@/components/leagues/LeagueStandingsSection";
 import { LeagueTeamComparisonsSection } from "@/components/leagues/LeagueTeamComparisonsSection";
@@ -14,6 +15,7 @@ import {
   getLeagueCharacteristics,
   getLeagueDetails,
   getLeagueMatches,
+  getLeagueRatingProgress,
   getLeagueRounds,
   getLeagueStandings,
   resolveLeagueId,
@@ -171,6 +173,7 @@ export default async function LeaguePage({
       awayStandings,
       ouBttsStandings,
       characteristicsResult,
+      ratingProgressResult,
     ] = await Promise.all([
       selectedRound !== null
         ? getLeagueMatches(league.id, selectedSeasonId, selectedRound)
@@ -185,6 +188,7 @@ export default async function LeaguePage({
       getLeagueStandings(league.id, selectedSeasonId, "away"),
       getLeagueStandings(league.id, selectedSeasonId, "ou_btts"),
       getLeagueCharacteristics(league.id, selectedSeasonId).catch(() => null),
+      getLeagueRatingProgress(league.id, selectedSeasonId).catch(() => null),
     ]);
 
     const overall = overallStandings.standings as TraditionalStandingRow[];
@@ -308,6 +312,21 @@ export default async function LeaguePage({
                 variant="empty"
                 title="Brak statystyk ligowych"
                 message="Statystyki pojawią się po rozegraniu pierwszych meczów sezonu."
+              />
+            </ExpandableSection>
+          )}
+
+          {ratingProgressResult ? (
+            <LeagueRatingProgressSection
+              key={ratingProgressResult.season_id}
+              data={ratingProgressResult}
+            />
+          ) : (
+            <ExpandableSection title="Progres siły drużyn (ELO)">
+              <StatusMessage
+                variant="empty"
+                title="Brak progresu ratingów"
+                message="Progres pojawi się po rozegraniu pierwszych meczów sezonu."
               />
             </ExpandableSection>
           )}

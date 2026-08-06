@@ -1108,3 +1108,36 @@ export interface ChatResponse {
   answer: ChatAnswer;
   provider: ChatProvider;
 }
+
+export type RatingMetric = "elo";
+
+export interface RatingPoint {
+  match_id: number;
+  round_number: number | null;
+  played_at: string;
+  rating: number;
+}
+
+export interface TeamRatingProgress {
+  team_id: number;
+  team_name: string;
+  team_shortcut: string | null;
+  start_rating: number;
+  current_rating: number;
+  change: number;
+  current_rank: number;
+  points: RatingPoint[];
+}
+
+export interface RatingProgressResponse {
+  league_id: number;
+  league_name: string;
+  season_id: number;
+  season_years: string;
+  metric: RatingMetric;
+  last_played_match_id: number | null;
+  last_played_at: string | null;
+  teams: TeamRatingProgress[];
+  biggest_rise: TeamRatingProgress | null;
+  biggest_fall: TeamRatingProgress | null;
+}

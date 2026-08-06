@@ -7,9 +7,13 @@ Wspólna warstwa domenowa, serwisowa i dostępu do danych. Używana przez `api/`
 
 - Konfiguracja aplikacji i połączenia z bazą (`config.py`, `database.py`).
 - Zapytania SQL (`repositories/`).
-- Obliczenia biznesowe: tabele ligowe, forma drużyny, EV zakładów (`services/`).
-- Logika sport-specific (`sports/football`, `sports/hockey`, `sports/basketball`).
+- Obliczenia biznesowe: tabele ligowe, forma drużyny, EV zakładów,
+  progres ratingów ELO (`services/rating_progress_*.py`).
+- Logika sport-specific (`sports/football`, w tym DTO progresu ELO,
+  `sports/hockey`, `sports/basketball`).
 - Polityka widoczności danych publicznych vs prywatnych (`policies/`).
+- Lokalny eksport PNG progresu: `graphics_code/rating_progress.py`
+  (CLI; nie należy do ścieżki HTTP).
 
 ## Struktura (docelowa)
 
