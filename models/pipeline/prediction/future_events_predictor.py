@@ -24,6 +24,9 @@ from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
 from models.pipeline.prediction.score_matrix import top_exact_scores
 
 
+# zgodne z SeasonSimulationConfig.inference_batch_size (bez importu simulation)
+_DEFAULT_GOAL_RATE_BATCH_SIZE = 512
+
 FeatureProvider = Callable[[MatchupInput, FutureEventsRunConfig], SequenceBatch]
 
 
@@ -125,6 +128,30 @@ def _predict_array(
     return np.asarray(values, dtype=float)
 
 
+def _slice_sequence_batch(
+        batch: SequenceBatch,
+        start: int,
+        end: int) -> SequenceBatch:
+    return SequenceBatch(
+        X_home=batch.X_home[start:end],
+        X_away=batch.X_away[start:end],
+        X_static=batch.X_static[start:end])
+
+
+def _reshape_goal_rates(values: np.ndarray, batch_size: int) -> np.ndarray:
+    rates = np.asarray(values, dtype=float)
+    if rates.ndim == 1:
+        rates = rates.reshape(1, -1)
+    if rates.shape != (batch_size, 2):
+        raise ValueError(
+            f"Poisson model must output shape ({batch_size}, 2), "
+            f"got {rates.shape}")
+    if not np.all(np.isfinite(rates)):
+        raise ValueError("Poisson model returned non-finite lambdas")
+    # ujemne lambdy traktujemy jak w ścieżce pair prediction
+    return np.maximum(rates, 0.0)
+
+
 def _normalized_probabilities(
         values: np.ndarray,
         expected_size: int) -> np.ndarray:
@@ -190,6 +217,37 @@ class FutureEventsPredictor:
         """Predict multiple pairs while reusing all loaded artifacts."""
         return [self.predict_pair(matchup) for matchup in matchups]
 
+    def predict_goal_rates(
+            self,
+            batch: SequenceBatch,
+            batch_size: int = _DEFAULT_GOAL_RATE_BATCH_SIZE) -> np.ndarray:
+        """Infer Poisson lambdas for a ready SequenceBatch (no DB access).
+
+        Applies the goals scaler and runs one or chunked ``model.predict``
+        calls. Returns shape ``(B, 2)`` with ``lambda_home``, ``lambda_away``.
+        """
+        if self.goals_config is None or self.models.goals_model is None:
+            raise RuntimeError("Goals model is not configured")
+        if batch_size < 1:
+            raise ValueError("batch_size must be >= 1")
+        scaled = _scaled_batch(batch, self.models.goals_scaler)
+        total = scaled.X_home.shape[0]
+        if total == 0:
+            return np.zeros((0, 2), dtype=float)
+        if total <= batch_size:
+            return _reshape_goal_rates(
+                _predict_array(self.models.goals_model, scaled),
+                total)
+        chunks: list[np.ndarray] = []
+        for start in range(0, total, batch_size):
+            end = min(start + batch_size, total)
+            chunk = _slice_sequence_batch(scaled, start, end)
+            chunk_rates = _reshape_goal_rates(
+                _predict_array(self.models.goals_model, chunk),
+                end - start)
+            chunks.append(chunk_rates)
+        return np.concatenate(chunks, axis=0)
+
     def _predict_result(self, matchup: MatchupInput) -> ResultPrediction:
         if self.result_config is None or self.models.result_model is None:
             raise RuntimeError("Result model is not configured")
@@ -219,12 +277,10 @@ class FutureEventsPredictor:
 
     def _predict_goals(
             self, matchup: MatchupInput) -> GoalsPoissonPrediction:
-        if self.goals_config is None or self.models.goals_model is None:
+        if self.goals_config is None:
             raise RuntimeError("Goals model is not configured")
         batch = self.feature_provider(matchup, self.goals_config)
-        rates = _predict_array(
-            self.models.goals_model,
-            _scaled_batch(batch, self.models.goals_scaler))[0]
+        rates = self.predict_goal_rates(batch)[0]
         return _goals_prediction(rates, self.goals_config)
 
 
