@@ -60,6 +60,61 @@ def fetch_finished_matches(
     return frame
 
 
+def resolve_season_anchor_date(
+        season_id: int,
+        league_id: int | None = None) -> date:
+    """Return season-start cutoff for warm-start history.
+
+    Prefer the earliest kickoff already stored for the target season
+    (optionally scoped to a league). When the season has no matches yet,
+    fall back to 1 July of the start year parsed from ``seasons.years``.
+    """
+    filters = ["m.season = %s"]
+    params: list[object] = [season_id]
+    if league_id is not None:
+        filters.append("m.league = %s")
+        params.append(league_id)
+    query = f"""
+        SELECT MIN(m.game_date) AS anchor
+        FROM matches m
+        WHERE {" AND ".join(filters)}
+    """
+    with get_db_connection() as connection:
+        frame = pd.read_sql(query, connection, params=tuple(params))
+    anchor_value = frame.iloc[0]["anchor"] if not frame.empty else None
+    if pd.notna(anchor_value):
+        return pd.Timestamp(anchor_value).date()
+    years_query = "SELECT years FROM seasons WHERE id = %s"
+    with get_db_connection() as connection:
+        years_frame = pd.read_sql(
+            years_query, connection, params=(season_id,))
+    if years_frame.empty or pd.isna(years_frame.iloc[0]["years"]):
+        raise ValueError(
+            f"Cannot resolve season anchor for season_id={season_id}")
+    return _anchor_from_season_years(str(years_frame.iloc[0]["years"]))
+
+
+def fetch_prior_history_for_season(
+        sport_id: int,
+        season_id: int,
+        league_id: int | None = None) -> pd.DataFrame:
+    """Fetch finished matches before the target season anchor date."""
+    anchor = resolve_season_anchor_date(season_id, league_id)
+    logger.info(
+        "Warm-start history cutoff season_id=%s league_id=%s anchor=%s",
+        season_id,
+        league_id,
+        anchor)
+    return fetch_finished_matches(sport_id, anchor)
+
+
+def _anchor_from_season_years(years: str) -> date:
+    # np. "2026/27" → 1 lipca roku startowego
+    token = years.strip().split("/")[0]
+    start_year = int(token[:4])
+    return date(start_year, 7, 1)
+
+
 def fetch_upcoming_matches(
         sport_id: int,
         date_from: date | datetime,
