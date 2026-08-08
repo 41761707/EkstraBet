@@ -13,6 +13,8 @@ import type {
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
   PredictionPreviewResponse,
+  SeasonProjectionMode,
+  SeasonProjectionResponse,
   SportTeamHistoryResponse,
 } from "@/types/api";
 
@@ -88,6 +90,20 @@ export async function getSportTeamHistory(
       season_id: seasonId,
       phase: options?.phase,
       lookback: options?.lookback,
+    },
+  );
+}
+
+export async function getSeasonProjection(
+  leagueId: number,
+  seasonId: number,
+  mode: SeasonProjectionMode = "from_now",
+): Promise<SeasonProjectionResponse> {
+  return fetchViaBff<SeasonProjectionResponse>(
+    `/leagues/${leagueId}/season-projection`,
+    {
+      season_id: seasonId,
+      mode,
     },
   );
 }

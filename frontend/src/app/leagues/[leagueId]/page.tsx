@@ -7,6 +7,7 @@ import { LeagueRatingProgressSection } from "@/components/leagues/LeagueRatingPr
 import { LeagueRoundSelector } from "@/components/leagues/LeagueRoundSelector";
 import { LeagueStandingsSection } from "@/components/leagues/LeagueStandingsSection";
 import { LeagueTeamComparisonsSection } from "@/components/leagues/LeagueTeamComparisonsSection";
+import { ProjectedSeasonStandingsSection } from "@/components/leagues/ProjectedSeasonStandingsSection";
 import { MatchList } from "@/components/MatchList";
 import { SportLeaguePage } from "@/components/sport-leagues/SportLeaguePage";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -292,6 +293,11 @@ export default async function LeaguePage({
               embedded
             />
           </ExpandableSection>
+
+          <ProjectedSeasonStandingsSection
+            leagueId={league.id}
+            seasonId={selectedSeasonId}
+          />
 
           {characteristicsResult ? (
             <>

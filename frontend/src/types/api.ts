@@ -1141,3 +1141,40 @@ export interface RatingProgressResponse {
   biggest_rise: TeamRatingProgress | null;
   biggest_fall: TeamRatingProgress | null;
 }
+
+export type SeasonProjectionMode = "from_now" | "from_season_start";
+
+export interface SeasonProjectionStandingRow {
+  team_id: number;
+  team_name: string;
+  current_position: number;
+  current_points: number;
+  expected_position: number;
+  most_likely_position: number;
+  position_min: number;
+  position_max: number;
+  expected_points: number;
+  points_variance: number;
+  points_stddev: number;
+  points_p05: number;
+  points_p50: number;
+  points_p95: number;
+  points_min: number;
+  points_max: number;
+  expected_goal_difference: number;
+  position_probabilities: number[];
+}
+
+export interface SeasonProjectionResponse {
+  league_id: number;
+  season_id: number;
+  mode: SeasonProjectionMode;
+  generated_at: string;
+  model_name: string;
+  model_version: string;
+  n_trials: number;
+  fixed_matches: number;
+  simulated_matches: number;
+  is_stale: boolean;
+  standings: SeasonProjectionStandingRow[];
+}
