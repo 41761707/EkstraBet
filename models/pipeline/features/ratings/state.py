@@ -126,6 +126,24 @@ class RatingState:
         }
         return cloned
 
+    def prune_to_teams(self, team_ids: set[int]) -> None:
+        """Drop rating entries for teams outside ``team_ids``."""
+        self._elo = {
+            team_id: value
+            for team_id, value in self._elo.items()
+            if team_id in team_ids
+        }
+        self._gap = {
+            team_id: rating
+            for team_id, rating in self._gap.items()
+            if team_id in team_ids
+        }
+        self._czech = {
+            team_id: rating
+            for team_id, rating in self._czech.items()
+            if team_id in team_ids
+        }
+
     def _ensure_elo(self, team_id: int) -> float:
         return self._elo.setdefault(
             team_id, initial_elo(None, self._elo_params))

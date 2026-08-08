@@ -265,6 +265,47 @@ class ChronologicalFeatureState:
             cloned._leagues[league_id] = aggregate.copy()
         return cloned
 
+    def prune_to_roster(self, team_ids: Sequence[int] | None = None) -> None:
+        """Drop warm-start entries not needed for the season roster.
+
+        Full-sport history seeds ratings for every club ever seen. Trial
+        copies only need the current roster (and this league aggregate),
+        otherwise ``n_trials`` deep copies explode RAM before round 1.
+        """
+        roster = {
+            int(team_id)
+            for team_id in (team_ids if team_ids is not None else self._team_ids)
+        }
+        if not roster:
+            raise ValueError("prune_to_roster requires a non-empty team set")
+        self._team_rows = defaultdict(
+            deque,
+            {
+                team_id: rows
+                for team_id, rows in self._team_rows.items()
+                if team_id in roster
+            })
+        self._last_dates = {
+            team_id: stamp
+            for team_id, stamp in self._last_dates.items()
+            if team_id in roster
+        }
+        self._h2h_rows = defaultdict(
+            lambda: deque(maxlen=5),
+            {
+                pair: rows
+                for pair, rows in self._h2h_rows.items()
+                if pair[0] in roster and pair[1] in roster
+            })
+        target_league = self._league_id
+        if target_league in self._leagues:
+            self._leagues = defaultdict(
+                _LeagueAggregate,
+                {target_league: self._leagues[target_league]})
+        else:
+            self._leagues = defaultdict(_LeagueAggregate)
+        self._ratings.prune_to_teams(roster)
+
     def _commit_date_group(
             self,
             group: pd.DataFrame,
@@ -454,6 +495,8 @@ def build_season_start_state(
     state._team_ids = unique_ids
     state._season_anchor = anchor
     state.seed_history(history)
+    # po seedzie wyrzucamy obce kluby — kopiowanie × trials tylko roster
+    state.prune_to_roster(unique_ids)
     return state
 
 

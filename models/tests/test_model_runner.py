@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 from unittest.mock import patch
+
+import pytest
 
 from models.pipeline.core.cli import main
 from models.pipeline.core.config import (
@@ -98,3 +101,376 @@ def test_cli_assess_batch_requires_selector() -> None:
         PREDICTION_CONFIG
     ])
     assert code == 1
+
+
+GOALS_PREDICTION_CONFIG = str(
+    REPO_ROOT
+    / "models"
+    / "configs"
+    / "prediction"
+    / "football_goals_poisson_v1.json")
+
+
+def test_cli_simulate_season_parser_and_dispatch() -> None:
+    payload = {
+        "run_id": 9,
+        "league_id": 1,
+        "season_id": 13,
+        "mode": "from_now",
+        "n_trials": 100,
+        "seed": 42,
+        "teams": 2
+    }
+    with patch(
+            "models.pipeline.core.cli.run_simulate_season",
+            return_value=payload) as mocked:
+        code = main([
+            "simulate-season",
+            "--goals-config",
+            GOALS_PREDICTION_CONFIG,
+            "--league-id",
+            "1",
+            "--season-id",
+            "13",
+            "--mode",
+            "from_now",
+            "--trials",
+            "100",
+            "--seed",
+            "42"
+        ])
+    assert code == 0
+    mocked.assert_called_once()
+    args = mocked.call_args.args[0]
+    assert args.league_id == 1
+    assert args.season_id == 13
+    assert args.mode == "from_now"
+    assert args.trials == 100
+    assert args.seed == 42
+
+
+def test_cli_simulate_season_rejects_invalid_mode() -> None:
+    with pytest.raises(SystemExit):
+        main([
+            "simulate-season",
+            "--goals-config",
+            GOALS_PREDICTION_CONFIG,
+            "--league-id",
+            "1",
+            "--season-id",
+            "13",
+            "--mode",
+            "invalid"
+        ])
+
+
+def test_cli_simulate_season_marks_failed_on_error() -> None:
+    from models.pipeline.core.config import FutureEventsRunConfig
+    from models.pipeline.simulation.config import SeasonSimulationConfig
+    from models.pipeline.simulation.config import SimulationMode
+
+    goals_config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_GOALS_POISSON_V1",
+        "sport_id": 1,
+        "task_type": "goals_poisson",
+        "model_version": "1.0.0",
+        "artifact_dir": str(
+            REPO_ROOT
+            / "models"
+            / "artifacts"
+            / "release"
+            / "football_goals_poisson_v1"),
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballGoalsPoissonLabeler",
+        "trainer": "PoissonTrainer",
+        "output_columns": ["lambda_home", "lambda_away"],
+        "feature_config": {}
+    })
+    fake_predictor = MagicMock()
+    fake_simulator = MagicMock()
+    fake_simulator.run.side_effect = ValueError("incomplete schedule")
+
+    with patch(
+            "models.pipeline.core.cli.load_model_config",
+            return_value=goals_config), patch(
+            "models.pipeline.core.cli.compute_artifact_hash",
+            return_value="hash"), patch(
+            "models.pipeline.core.cli.start_projection_run",
+            return_value=44) as start_mock, patch(
+            "models.pipeline.core.cli.FutureEventsPredictor",
+            return_value=fake_predictor), patch(
+            "models.pipeline.core.cli.DynamicSeasonSimulator",
+            return_value=fake_simulator), patch(
+            "models.pipeline.core.cli.fail_projection_run") as fail_mock, patch(
+            "models.pipeline.core.cli.write_projection") as write_mock:
+        code = main([
+            "simulate-season",
+            "--goals-config",
+            GOALS_PREDICTION_CONFIG,
+            "--league-id",
+            "1",
+            "--season-id",
+            "13",
+            "--mode",
+            "from_season_start",
+            "--trials",
+            "100"
+        ])
+    assert code == 1
+    start_mock.assert_called_once()
+    fail_mock.assert_called_once()
+    assert fail_mock.call_args.args[0] == 44
+    assert "incomplete schedule" in fail_mock.call_args.args[1]
+    write_mock.assert_not_called()
+    run_config = fake_simulator.run.call_args.args[0]
+    assert isinstance(run_config, SeasonSimulationConfig)
+    assert run_config.mode is SimulationMode.FROM_SEASON_START
+
+
+def test_cli_simulate_season_preserves_original_error_if_fail_write_breaks(
+        capsys: pytest.CaptureFixture[str]
+) -> None:
+    from models.pipeline.core.config import FutureEventsRunConfig
+
+    goals_config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_GOALS_POISSON_V1",
+        "sport_id": 1,
+        "task_type": "goals_poisson",
+        "model_version": "1.0.0",
+        "artifact_dir": str(
+            REPO_ROOT
+            / "models"
+            / "artifacts"
+            / "release"
+            / "football_goals_poisson_v1"),
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballGoalsPoissonLabeler",
+        "trainer": "PoissonTrainer",
+        "output_columns": ["lambda_home", "lambda_away"],
+        "feature_config": {}
+    })
+    fake_simulator = MagicMock()
+    fake_simulator.run.side_effect = ValueError("incomplete schedule")
+
+    with patch(
+            "models.pipeline.core.cli.load_model_config",
+            return_value=goals_config), patch(
+            "models.pipeline.core.cli.compute_artifact_hash",
+            return_value="hash"), patch(
+            "models.pipeline.core.cli.start_projection_run",
+            return_value=44), patch(
+            "models.pipeline.core.cli.FutureEventsPredictor",
+            return_value=MagicMock()), patch(
+            "models.pipeline.core.cli.DynamicSeasonSimulator",
+            return_value=fake_simulator), patch(
+            "models.pipeline.core.cli.fail_projection_run",
+            side_effect=RuntimeError("db down")), patch(
+            "models.pipeline.core.cli.write_projection") as write_mock:
+        code = main([
+            "simulate-season",
+            "--goals-config",
+            GOALS_PREDICTION_CONFIG,
+            "--league-id",
+            "1",
+            "--season-id",
+            "13",
+            "--mode",
+            "from_now",
+            "--trials",
+            "100"
+        ])
+    assert code == 1
+    write_mock.assert_not_called()
+    err = capsys.readouterr().err
+    assert "incomplete schedule" in err
+    assert "db down" not in err
+
+
+def test_cli_simulate_season_success_writes_projection() -> None:
+    from models.pipeline.core.config import FutureEventsRunConfig
+    from models.pipeline.simulation.aggregation import TeamSeasonProjection
+    from models.pipeline.simulation.config import SeasonSimulationConfig
+    from models.pipeline.simulation.config import SimulationMode
+    from models.pipeline.simulation.season_simulator import (
+        SeasonSimulationResult)
+
+    goals_config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_GOALS_POISSON_V1",
+        "sport_id": 1,
+        "task_type": "goals_poisson",
+        "model_version": "1.0.0",
+        "artifact_dir": str(
+            REPO_ROOT
+            / "models"
+            / "artifacts"
+            / "release"
+            / "football_goals_poisson_v1"),
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballGoalsPoissonLabeler",
+        "trainer": "PoissonTrainer",
+        "output_columns": ["lambda_home", "lambda_away"],
+        "feature_config": {}
+    })
+    result = SeasonSimulationResult(
+        config=SeasonSimulationConfig(
+            league_id=1,
+            season_id=13,
+            mode=SimulationMode.FROM_NOW,
+            n_trials=100,
+            seed=42),
+        projections=[TeamSeasonProjection(
+            team_id=1,
+            current_position=1,
+            current_points=3,
+            expected_position=1.0,
+            most_likely_position=1,
+            position_min=1,
+            position_max=1,
+            expected_points=10.0,
+            points_variance=0.0,
+            points_stddev=0.0,
+            points_p05=10.0,
+            points_p50=10.0,
+            points_p95=10.0,
+            points_min=10.0,
+            points_max=10.0,
+            expected_goal_difference=1.0,
+            position_probabilities=[1.0])],
+        input_fingerprint="fp-success",
+        fixed_matches=2,
+        simulated_matches=4,
+        processed_schedule_ids=(1, 2, 3, 4, 5, 6))
+    fake_simulator = MagicMock()
+    fake_simulator.run.return_value = result
+
+    with patch(
+            "models.pipeline.core.cli.load_model_config",
+            return_value=goals_config), patch(
+            "models.pipeline.core.cli.compute_artifact_hash",
+            return_value="hash-ok"), patch(
+            "models.pipeline.core.cli.start_projection_run",
+            return_value=91) as start_mock, patch(
+            "models.pipeline.core.cli.FutureEventsPredictor",
+            return_value=MagicMock()), patch(
+            "models.pipeline.core.cli.DynamicSeasonSimulator",
+            return_value=fake_simulator), patch(
+            "models.pipeline.core.cli.fail_projection_run") as fail_mock, patch(
+            "models.pipeline.core.cli.write_projection",
+            return_value=91) as write_mock:
+        code = main([
+            "simulate-season",
+            "--goals-config",
+            GOALS_PREDICTION_CONFIG,
+            "--league-id",
+            "1",
+            "--season-id",
+            "13",
+            "--mode",
+            "from_now",
+            "--trials",
+            "100",
+            "--seed",
+            "42"
+        ])
+    assert code == 0
+    start_mock.assert_called_once()
+    fail_mock.assert_not_called()
+    write_mock.assert_called_once()
+    write_args = write_mock.call_args
+    assert write_args.args[0] is result
+    assert write_args.args[1] == "fp-success"
+    assert write_args.kwargs["run_id"] == 91
+    assert write_args.kwargs["model_name"] == "FOOTBALL_GOALS_POISSON_V1"
+    assert write_args.kwargs["artifact_hash"] == "hash-ok"
+    run_kwargs = fake_simulator.run.call_args.kwargs
+    assert run_kwargs["round_progress"] is not None
+    run_config = fake_simulator.run.call_args.args[0]
+    assert run_config.mode is SimulationMode.FROM_NOW
+
+
+def test_cli_simulate_season_no_progress_disables_tqdm() -> None:
+    from models.pipeline.core.config import FutureEventsRunConfig
+    from models.pipeline.simulation.aggregation import TeamSeasonProjection
+    from models.pipeline.simulation.config import SeasonSimulationConfig
+    from models.pipeline.simulation.config import SimulationMode
+    from models.pipeline.simulation.season_simulator import (
+        SeasonSimulationResult)
+
+    goals_config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_GOALS_POISSON_V1",
+        "sport_id": 1,
+        "task_type": "goals_poisson",
+        "model_version": "1.0.0",
+        "artifact_dir": str(
+            REPO_ROOT
+            / "models"
+            / "artifacts"
+            / "release"
+            / "football_goals_poisson_v1"),
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballGoalsPoissonLabeler",
+        "trainer": "PoissonTrainer",
+        "output_columns": ["lambda_home", "lambda_away"],
+        "feature_config": {}
+    })
+    result = SeasonSimulationResult(
+        config=SeasonSimulationConfig(
+            league_id=1,
+            season_id=13,
+            mode=SimulationMode.FROM_NOW,
+            n_trials=100,
+            seed=42),
+        projections=[TeamSeasonProjection(
+            team_id=1,
+            current_position=1,
+            current_points=0,
+            expected_position=1.0,
+            most_likely_position=1,
+            position_min=1,
+            position_max=1,
+            expected_points=1.0,
+            points_variance=0.0,
+            points_stddev=0.0,
+            points_p05=1.0,
+            points_p50=1.0,
+            points_p95=1.0,
+            points_min=1.0,
+            points_max=1.0,
+            expected_goal_difference=0.0,
+            position_probabilities=[1.0])],
+        input_fingerprint="fp",
+        fixed_matches=0,
+        simulated_matches=1,
+        processed_schedule_ids=(1,))
+    fake_simulator = MagicMock()
+    fake_simulator.run.return_value = result
+
+    with patch(
+            "models.pipeline.core.cli.load_model_config",
+            return_value=goals_config), patch(
+            "models.pipeline.core.cli.compute_artifact_hash",
+            return_value="hash"), patch(
+            "models.pipeline.core.cli.start_projection_run",
+            return_value=1), patch(
+            "models.pipeline.core.cli.FutureEventsPredictor",
+            return_value=MagicMock()), patch(
+            "models.pipeline.core.cli.DynamicSeasonSimulator",
+            return_value=fake_simulator), patch(
+            "models.pipeline.core.cli.write_projection",
+            return_value=1):
+        code = main([
+            "simulate-season",
+            "--goals-config",
+            GOALS_PREDICTION_CONFIG,
+            "--league-id",
+            "1",
+            "--season-id",
+            "13",
+            "--mode",
+            "from_now",
+            "--trials",
+            "100",
+            "--no-progress"
+        ])
+    assert code == 0
+    assert fake_simulator.run.call_args.kwargs["round_progress"] is None

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from datetime import timedelta
 from typing import Callable
+from typing import Iterable
 from typing import Sequence
 
 import numpy as np
@@ -39,6 +40,8 @@ StateBuilder = Callable[
 InputLoader = Callable[
     [int, int, SimulationMode],
     SeasonSimulationInput]
+# CLI/tqdm owija listę numerów kolejek — rdzeń nie zależy od tqdm
+RoundProgress = Callable[[Sequence[int]], Iterable[int]]
 
 
 @dataclass
@@ -153,12 +156,14 @@ class DynamicSeasonSimulator:
             config: SeasonSimulationConfig,
             *,
             simulation_input: SeasonSimulationInput | None = None,
-            base_state: ChronologicalFeatureState | None = None
+            base_state: ChronologicalFeatureState | None = None,
+            round_progress: RoundProgress | None = None
     ) -> SeasonSimulationResult:
         """Simulate the season and aggregate end-of-season projections.
 
         Pass ``simulation_input`` / ``base_state`` in tests to avoid DB.
         Production leaves them ``None`` and loads schedule + warm-start.
+        ``round_progress`` may wrap round numbers (e.g. tqdm) for CLI ETA.
         """
         from models.pipeline.data.schedule_repository import (
             validate_fixture_completeness)
@@ -176,7 +181,8 @@ class DynamicSeasonSimulator:
             state = self._state_builder(config, loaded)
         else:
             state = self._build_default_state(config, loaded)
-        return self._run_trials(config, loaded, state)
+        return self._run_trials(
+            config, loaded, state, round_progress=round_progress)
 
     def _build_default_state(
             self,
@@ -200,7 +206,9 @@ class DynamicSeasonSimulator:
             self,
             config: SeasonSimulationConfig,
             simulation_input: SeasonSimulationInput,
-            base_state: ChronologicalFeatureState
+            base_state: ChronologicalFeatureState,
+            *,
+            round_progress: RoundProgress | None = None
     ) -> SeasonSimulationResult:
         fixtures = simulation_input.fixtures
         team_ids = tuple(simulation_input.team_ids)
@@ -216,8 +224,13 @@ class DynamicSeasonSimulator:
         processed_ids: list[int] = []
         fixed_count = sum(1 for item in fixtures if item.is_fixed)
         simulated_count = len(fixtures) - fixed_count
+        ordered_rounds = sorted(rounds)
+        progress_rounds = (
+            round_progress(ordered_rounds)
+            if round_progress is not None
+            else ordered_rounds)
 
-        for round_number in sorted(rounds):
+        for round_number in progress_rounds:
             round_fixtures = rounds[round_number]
             synthetic_date = season_anchor + timedelta(
                 days=(round_number - first_round) * config.days_per_round)

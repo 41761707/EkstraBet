@@ -224,6 +224,39 @@ def test_trial_copies_are_independent_after_warm_start() -> None:
     assert feats_base.home_sequence[-1, 0] == 2.0
 
 
+def test_warm_start_prunes_non_roster_clubs() -> None:
+    # historia zawiera obce kluby/ligi — po seedzie zostaje tylko roster
+    history_rows = [
+        {"home": 10, "away": 20, "home_goals": 2, "away_goals": 1},
+        {"home": 10, "away": 20, "home_goals": 1, "away_goals": 0},
+        {
+            "home": 99,
+            "away": 98,
+            "home_goals": 3,
+            "away_goals": 0,
+            "league": 2
+        },
+        {
+            "home": 99,
+            "away": 98,
+            "home_goals": 1,
+            "away_goals": 1,
+            "league": 2
+        }
+    ]
+    state = _warm_state(
+        [10, 20],
+        window=2,
+        history_rows=history_rows,
+        sequence_feature_columns=["goals_for", "won"])
+    assert set(state._team_rows) == {10, 20}
+    assert set(state.ratings._elo) == {10, 20}
+    assert set(state._leagues) == {1}
+    assert (99, 98) not in state._h2h_rows
+    built = state.build_matchup_features(10, 20, date(2026, 7, 1))
+    assert built is not None
+
+
 def test_seed_excludes_matches_on_or_after_anchor_via_caller() -> None:
     # caller podaje wyłącznie mecze sprzed kotwicy — jak fetch_finished_matches
     history = _prior_history([

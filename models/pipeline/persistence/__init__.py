@@ -1,1 +1,1 @@
-"""Persistence helpers for match model assessments."""
+"""Persistence helpers for match and season projection writers."""

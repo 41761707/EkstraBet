@@ -10,7 +10,10 @@ from dataclasses import asdict, is_dataclass
 from datetime import date
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+from typing import Callable
+from typing import Iterable
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
@@ -34,8 +37,22 @@ from models.pipeline.persistence.match_assessment_writer import (
 from models.pipeline.persistence.prediction_writer import (
     map_predictions_to_rows,
     write_predictions)
+from models.pipeline.persistence.season_projection_writer import (
+    ProjectionRunStatus,
+    SeasonProjectionRun,
+    compute_artifact_hash,
+    fail_projection_run,
+    start_projection_run,
+    write_projection)
 from models.pipeline.prediction.future_events_predictor import (
     FutureEventsPredictor)
+from models.pipeline.simulation.config import (
+    DEFAULT_SEED,
+    DEFAULT_TRIALS,
+    SeasonSimulationConfig,
+    SimulationMode)
+from models.pipeline.simulation.season_simulator import (
+    DynamicSeasonSimulator)
 from models.pipeline.prediction.predictor import (
     predict_batch,
     predict_match,
@@ -253,6 +270,52 @@ def build_parser() -> argparse.ArgumentParser:
             "Max planned-write samples when --preview is set "
             f"(default: {DEFAULT_PREVIEW_LIMIT})"))
     refresh_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
+
+    simulate_parser = subparsers.add_parser(
+        "simulate-season",
+        help=(
+            "Run Monte Carlo season-end projection and cache the result "
+            "(requires --goals-config)"))
+    simulate_parser.add_argument(
+        "--goals-config",
+        "--goals_config",
+        dest="goals_config",
+        type=Path,
+        required=True,
+        help="Goals Poisson config used for lambda inference")
+    simulate_parser.add_argument(
+        "--league-id",
+        required=True,
+        type=int,
+        help="Football league id")
+    simulate_parser.add_argument(
+        "--season-id",
+        required=True,
+        type=int,
+        help="Season id")
+    simulate_parser.add_argument(
+        "--mode",
+        required=True,
+        choices=[mode.value for mode in SimulationMode],
+        help="from_now (fixed played matches) or from_season_start")
+    simulate_parser.add_argument(
+        "--trials",
+        type=int,
+        default=DEFAULT_TRIALS,
+        help=f"Number of Monte Carlo trials (default: {DEFAULT_TRIALS})")
+    simulate_parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=f"RNG seed (default: {DEFAULT_SEED})")
+    simulate_parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable tqdm progress bar on stderr")
+    simulate_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging")
@@ -537,6 +600,110 @@ def run_refresh_statistics(
         preview_limit=args.preview_limit)
 
 
+def _season_round_progress(
+        config: SeasonSimulationConfig,
+        *,
+        enabled: bool
+) -> Callable[[Sequence[int]], Iterable[int]] | None:
+    """Return a tqdm wrapper over round numbers, or None when disabled."""
+    if not enabled:
+        return None
+
+    def _wrap(round_numbers: Sequence[int]) -> Iterable[int]:
+        from tqdm import tqdm
+
+        return tqdm(
+            round_numbers,
+            desc=(
+                f"simulate-season L{config.league_id} "
+                f"S{config.season_id}"),
+            unit="round",
+            dynamic_ncols=True,
+            file=sys.stderr,
+            bar_format=(
+                "{l_bar}{bar}| {n_fmt}/{total_fmt} rounds "
+                "[{elapsed}<{remaining}, {rate_fmt}]"),
+            postfix={
+                "mode": config.mode.value,
+                "trials": config.n_trials
+            })
+
+    return _wrap
+
+
+def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
+    """Run season Monte Carlo offline and atomically cache the projection."""
+    goals_config = load_model_config(args.goals_config)
+    if not isinstance(goals_config, FutureEventsRunConfig):
+        raise TypeError("--goals-config must be a future-events config")
+    if goals_config.task_type != "goals_poisson":
+        raise ValueError("--goals-config must use task_type=goals_poisson")
+    mode = SimulationMode(args.mode)
+    config = SeasonSimulationConfig(
+        league_id=args.league_id,
+        season_id=args.season_id,
+        mode=mode,
+        n_trials=args.trials,
+        seed=args.seed)
+    artifact_hash = compute_artifact_hash(goals_config.artifact_dir)
+    started_at = datetime.utcnow()
+    run_id = start_projection_run(SeasonProjectionRun(
+        league_id=config.league_id,
+        season_id=config.season_id,
+        mode=config.mode,
+        status=ProjectionRunStatus.RUNNING,
+        model_name=goals_config.model_name,
+        model_version=goals_config.model_version,
+        artifact_hash=artifact_hash,
+        n_trials=config.n_trials,
+        seed=config.seed,
+        fixed_matches=0,
+        simulated_matches=0,
+        input_fingerprint="",
+        started_at=started_at))
+    round_progress = _season_round_progress(
+        config, enabled=not bool(getattr(args, "no_progress", False)))
+    try:
+        predictor = FutureEventsPredictor(goals_config=goals_config)
+        result = DynamicSeasonSimulator(predictor).run(
+            config, round_progress=round_progress)
+        write_projection(
+            result,
+            result.input_fingerprint,
+            model_name=goals_config.model_name,
+            model_version=goals_config.model_version,
+            artifact_hash=artifact_hash,
+            run_id=run_id,
+            started_at=started_at)
+    except Exception as exc:
+        # fail statusu nie może maskować pierwotnego błędu symulacji
+        try:
+            fail_projection_run(run_id, str(exc))
+        except Exception as fail_exc:
+            logger.error(
+                "Failed to mark projection run_id=%s as FAILED "
+                "after simulation error: %s",
+                run_id,
+                fail_exc,
+                exc_info=True)
+        raise
+    return {
+        "run_id": run_id,
+        "league_id": config.league_id,
+        "season_id": config.season_id,
+        "mode": config.mode.value,
+        "n_trials": config.n_trials,
+        "seed": config.seed,
+        "model_name": goals_config.model_name,
+        "model_version": goals_config.model_version,
+        "artifact_hash": artifact_hash,
+        "input_fingerprint": result.input_fingerprint,
+        "fixed_matches": result.fixed_matches,
+        "simulated_matches": result.simulated_matches,
+        "teams": len(result.projections)
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI main used by models/scripts/model_runner.py."""
     parser = build_parser()
@@ -563,6 +730,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_predict_batch(args)
         elif args.command == "refresh-statistics":
             payload = run_refresh_statistics(args)
+        elif args.command == "simulate-season":
+            payload = run_simulate_season(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

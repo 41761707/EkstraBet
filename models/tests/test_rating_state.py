@@ -81,6 +81,18 @@ def test_trial_copies_are_independent() -> None:
     assert after_b["home_czech_win_pct"] == 1.0
 
 
+def test_prune_to_teams_drops_outsiders() -> None:
+    state = RatingState()
+    state.snapshot(10, 20)
+    state.commit(10, 20, home_goals=2, away_goals=1)
+    state.snapshot(30, 40)
+    state.commit(30, 40, home_goals=1, away_goals=0)
+    state.prune_to_teams({10, 20})
+    assert set(state._elo) == {10, 20}
+    assert set(state._gap) == {10, 20}
+    assert set(state._czech) == {10, 20}
+
+
 def test_rating_state_matches_compute_ratings_timeline() -> None:
     matches = _matches(5)
     # dwa mecze tej samej daty — ten sam wzorzec batchowania

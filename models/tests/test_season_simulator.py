@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from datetime import timedelta
+from typing import Sequence
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -407,3 +408,21 @@ def test_same_round_fixtures_have_no_feature_leakage() -> None:
         second = league_col[trial_index * 2 + 1]
         assert first == pytest.approx(second)
         assert first == pytest.approx(expected_league)
+
+
+def test_round_progress_wraps_each_round_once() -> None:
+    seen: list[int] = []
+
+    def progress(rounds: Sequence[int]):
+        for round_number in rounds:
+            seen.append(round_number)
+            yield round_number
+
+    simulator = DynamicSeasonSimulator(_mock_predictor())
+    simulator.run(
+        _config(SimulationMode.FROM_SEASON_START),
+        simulation_input=_four_team_double_rr_input(
+            SimulationMode.FROM_SEASON_START),
+        base_state=_warm_state([10, 20, 30, 40]),
+        round_progress=progress)
+    assert seen == [1, 2, 3, 4, 5, 6]
