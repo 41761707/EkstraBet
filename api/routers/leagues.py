@@ -27,6 +27,9 @@ from api.schemas.standing import (
     OuBttsStandingRow,
     StandingScope,
     TraditionalStandingRow)
+from api.schemas.season_projection import SeasonProjectionMode
+from api.schemas.season_projection import SeasonProjectionResponse
+from api.schemas.season_projection import SeasonProjectionStandingRow
 from api.schemas.sport_league import (
     BasketballStandingRow,
     BasketballTeamHistoryPoint,
@@ -47,6 +50,12 @@ from backend.services import league_service, match_service, sport_league_service
 from backend.services.rating_progress_service import NonFootballLeagueError
 from backend.services.rating_progress_service import classify_missing_progress
 from backend.services.rating_progress_service import get_rating_progress
+from backend.services.season_projection_service import (
+    NonFootballLeagueError as SeasonProjectionNonFootballError)
+from backend.services.season_projection_service import SeasonProjectionPayload
+from backend.services.season_projection_service import (
+    UnsupportedSeasonProjectionModeError)
+from backend.services.season_projection_service import get_season_projection
 from backend.sports.football.rating_progress import RatingProgressResult
 
 logger = logging.getLogger(__name__)
@@ -68,6 +77,7 @@ async def leagues_info() -> dict[str, object]:
             "GET /leagues/{league_id}/rounds/{season_id} - Rounds for a season",
             "GET /leagues/{league_id}/matches - League schedule and results",
             "GET /leagues/{league_id}/standings - League standings",
+            "GET /leagues/{league_id}/season-projection - Cached season projection",
             "GET /leagues/{league_id}/characteristics - League OU/BTTS stats",
             "GET /leagues/{league_id}/rating-progress - Team rating progress JSON",
         ],
@@ -305,6 +315,92 @@ async def get_league_standings(
             detail=(
                 f"Failed to fetch standings for league {league_id}, "
                 f"season {season_id}")) from exc
+
+
+@router.get(
+    "/{league_id}/season-projection",
+    response_model=SeasonProjectionResponse)
+async def get_league_season_projection(
+    league_id: int = Path(..., ge=1, description="League ID"),
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    mode: SeasonProjectionMode = Query(
+        "from_now",
+        description="Projection mode: from_now or from_season_start")
+) -> SeasonProjectionResponse:
+    """Return the latest cached season projection for league/season/mode.
+
+    Reads only the projection cache. Does not run Monte Carlo or load
+    TensorFlow. When the schedule/results fingerprint changed since the
+    run, the previous result is returned with ``is_stale=true``.
+    """
+    try:
+        payload = get_season_projection(
+            league_id=league_id,
+            season_id=season_id,
+            mode=mode)
+    except SeasonProjectionNonFootballError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except UnsupportedSeasonProjectionModeError as exc:
+        # FastAPI waliduje Query Literal; to mapuje tylko zly mode z serwisu
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch season projection for league %s "
+            "season %s mode %s: %s",
+            league_id,
+            season_id,
+            mode,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch season projection for league "
+                f"{league_id}, season {season_id}")) from exc
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No season projection for league {league_id}, "
+                f"season {season_id}, mode {mode}"))
+    return _to_season_projection_response(payload)
+
+
+def _to_season_projection_response(
+        payload: SeasonProjectionPayload) -> SeasonProjectionResponse:
+    """Map service DTO to the public Pydantic response model."""
+    standings = [
+        SeasonProjectionStandingRow(
+            team_id=row.team_id,
+            team_name=row.team_name,
+            current_position=row.current_position,
+            current_points=row.current_points,
+            expected_position=row.expected_position,
+            most_likely_position=row.most_likely_position,
+            position_min=row.position_min,
+            position_max=row.position_max,
+            expected_points=row.expected_points,
+            points_variance=row.points_variance,
+            points_stddev=row.points_stddev,
+            points_p05=row.points_p05,
+            points_p50=row.points_p50,
+            points_p95=row.points_p95,
+            points_min=row.points_min,
+            points_max=row.points_max,
+            expected_goal_difference=row.expected_goal_difference,
+            position_probabilities=list(row.position_probabilities))
+        for row in payload.standings]
+    return SeasonProjectionResponse(
+        league_id=payload.league_id,
+        season_id=payload.season_id,
+        mode=payload.mode.value,  # type: ignore[arg-type]
+        generated_at=payload.generated_at,
+        model_name=payload.model_name,
+        model_version=payload.model_version,
+        n_trials=payload.n_trials,
+        fixed_matches=payload.fixed_matches,
+        simulated_matches=payload.simulated_matches,
+        is_stale=payload.is_stale,
+        standings=standings)
 
 
 def _league_sport_id(league_id: int) -> int:
