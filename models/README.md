@@ -36,6 +36,80 @@ python models/scripts/model_runner.py assess-match --config models/configs/predi
 python models/scripts/model_runner.py assess-batch --config models/configs/prediction/football_played_better_v1.json --season-id 12 --write-db
 ```
 
+## Projekcja końca sezonu (`simulate-season`)
+
+Monte Carlo nad tabelą `schedule` (nie `matches`). Wynik trafia do cache
+`season_projection_runs` / `season_projection_team_rows`. Endpoint HTTP tylko
+odczytuje cache — bez TensorFlow w request path.
+
+### Tryby
+
+| Mode | Zachowanie |
+|------|------------|
+| `from_now` | Podpięte `match_id` z `result <> '0'` = wynik stały; reszta losowana |
+| `from_season_start` | Ignoruje `match_id`; wszystkie mecze losowane |
+
+Oba tryby startują standings od dnia 0 sezonu; cechy/ratingi mają warm-start
+z historii `game_date < season_anchor`.
+
+### CLI
+
+```bash
+python models/scripts/model_runner.py simulate-season \
+  --goals-config models/configs/prediction/football_goals_poisson_v1.json \
+  --league-id 1 --season-id 13 --mode from_now --trials 2000 --seed 42
+
+# wrapper Windows (wstrzykuje goals-config)
+models\scripts\run_future_events.bat simulate-season --league-id 1 --season-id 13 --mode from_now --trials 2000 --seed 42
+```
+
+Wymagania: kompletny `schedule` (`N*(N-1)` dla double RR, `round < 900`),
+liga piłkarska, artefakt Poissona. Niekompletny terminarz → run `FAILED`,
+API bez gotowej projekcji (404).
+
+Fingerprint wejścia unieważnia cache przy zmianie `schedule` lub korekcie
+wyniku w `matches` (sama `game_date` nie wpływa). API zwraca wtedy ostatni
+`SUCCEEDED` z `is_stale=true`.
+
+### Budżet wydajności (SZP-89)
+
+Referencja: liga 1 / sezon 13 (N=18, 306 fixture’ów), `n_trials=2000`,
+seed 42, model `FOOTBALL_GOALS_POISSON_V1` — zmierzony wall ~**3079 s
+(~51 min)** (`season_projection_runs.id=5`).
+
+| Limit | Wartość | Status |
+|-------|---------|--------|
+| Wall (scheduler) | **≤ 6158 s (2× pomiar)** | zatwierdzony (`APPROVED_WALL_SECONDS_LIMIT`) |
+| Peak RSS | **≤ 4096 MiB** | **niepomierzony** interim ceiling (`PEAK_RSS_LIMIT_IS_MEASURED=false`); run id=5 nie zapisał RSS |
+| Soft budget mock | ≤ 180 s / ≤ 2048 MiB @ 100 triali | pomiar ~77 s / ~144 MiB |
+
+Stałe: `models/pipeline/simulation/perf_budget.py`.
+
+Aby zatwierdzić RSS: uruchom `simulate-season` (CLI zwraca `wall_seconds`
+i `peak_rss_mb`), wpisz pomiar do `REFERENCE_PEAK_RSS_MB`, ustaw
+`PEAK_RSS_LIMIT_IS_MEASURED=true` i limit (np. 2× pomiar).
+
+Opt-in harness (mock predictor, pełna liga + porównanie trybów):
+
+```bash
+# domyślny pytest pomija ten plik
+set EKSTRABET_SEASON_PERF=1
+set EKSTRABET_SEASON_PERF_TRIALS=100
+python -m pytest models/tests/test_season_simulation_performance.py -s
+```
+
+Porównanie trybów w harnessie: N=8 z early rounds `is_fixed=True` —
+`FROM_NOW` ma `fixed_matches > 0` i mniej wierszy inferencji niż
+`FROM_SEASON_START`. Na produkcji sensowny A/B wymaga zlinkowanych
+`schedule.match_id`.
+### Odbiór ręczny (UI)
+
+1. `/leagues/{leagueId}` — ekspander projekcji **pod** „Tabele ligowe”.
+2. Przed otwarciem: brak requestu projekcji (Network).
+3. Pierwsze otwarcie: loading → tabela (`expected_position`, xPts, SD, P05–P95).
+4. Brak runu: stan empty/404; błąd sieci: error; `is_stale`: banner świeżości.
+5. Istniejące standings i preview meczu bez regresji.
+
 ## Odświeżanie statystyk (`refresh-statistics`)
 
 Idempotentny cykl batchowy: generuje/aktualizuje automatyczne `bets` dla

@@ -51,6 +51,8 @@ from models.pipeline.simulation.config import (
     DEFAULT_TRIALS,
     SeasonSimulationConfig,
     SimulationMode)
+from models.pipeline.simulation.perf_budget import WallClock
+from models.pipeline.simulation.perf_budget import peak_rss_mb
 from models.pipeline.simulation.season_simulator import (
     DynamicSeasonSimulator)
 from models.pipeline.prediction.predictor import (
@@ -663,10 +665,13 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
         started_at=started_at))
     round_progress = _season_round_progress(
         config, enabled=not bool(getattr(args, "no_progress", False)))
+    wall_seconds = 0.0
     try:
         predictor = FutureEventsPredictor(goals_config=goals_config)
-        result = DynamicSeasonSimulator(predictor).run(
-            config, round_progress=round_progress)
+        with WallClock() as clock:
+            result = DynamicSeasonSimulator(predictor).run(
+                config, round_progress=round_progress)
+        wall_seconds = clock.elapsed
         write_projection(
             result,
             result.input_fingerprint,
@@ -687,6 +692,7 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
                 fail_exc,
                 exc_info=True)
         raise
+    rss = peak_rss_mb()
     return {
         "run_id": run_id,
         "league_id": config.league_id,
@@ -700,7 +706,10 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
         "input_fingerprint": result.input_fingerprint,
         "fixed_matches": result.fixed_matches,
         "simulated_matches": result.simulated_matches,
-        "teams": len(result.projections)
+        "teams": len(result.projections),
+        "wall_seconds": round(wall_seconds, 2),
+        "peak_rss_mb": (
+            None if rss is None else round(rss, 1))
     }
 
 
