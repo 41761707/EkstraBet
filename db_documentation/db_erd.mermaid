@@ -11,9 +11,11 @@ erDiagram
     SEASONS ||--o{ LEAGUES : "CURRENT_SEASON_ID"
     SEASONS ||--o{ MATCHES : "SEASON"
     SEASONS ||--o{ TRANSFERS : "SEASON_ID"
+    SEASONS ||--o{ SEASON_PROJECTION_RUNS : "SEASON_ID"
 
     %% Tabele związane z meczami
     LEAGUES ||--o{ MATCHES : "LEAGUE"
+    LEAGUES ||--o{ SEASON_PROJECTION_RUNS : "LEAGUE_ID"
 
     TEAMS ||--o{ MATCHES : "HOME_TEAM"
     TEAMS ||--o{ MATCHES : "AWAY_TEAM"
@@ -24,6 +26,7 @@ erDiagram
     TEAMS ||--o{ HOCKEY_ROSTERS : "TEAM_ID"
     TEAMS ||--o{ TRANSFERS : "OLD_TEAM_ID"
     TEAMS ||--o{ TRANSFERS : "NEW_TEAM_ID"
+    TEAMS ||--o{ SEASON_PROJECTION_TEAM_ROWS : "TEAM_ID"
 
     MATCHES ||--o{ BETS : "MATCH_ID"
     MATCHES ||--o{ FINAL_PREDICTIONS : "MATCH_ID"
@@ -34,6 +37,16 @@ erDiagram
     MATCHES ||--o{ HOCKEY_MATCHES_ADD : "MATCH_ID"
     MATCHES ||--o{ ODDS : "MATCH_ID"
     MATCHES ||--o{ PREDICTIONS : "MATCH_ID"
+
+    %% SCHEDULE — powiązania logiczne (brak FK w DDL; EB-15)
+    LEAGUES ||--o{ SCHEDULE : "LEAGUE (logical)"
+    SEASONS ||--o{ SCHEDULE : "SEASON (logical)"
+    TEAMS ||--o{ SCHEDULE : "HOME_TEAM (logical)"
+    TEAMS ||--o{ SCHEDULE : "AWAY_TEAM (logical)"
+    MATCHES |o--o| SCHEDULE : "MATCH_ID (logical, nullable)"
+
+    %% Cache projekcji końca sezonu (FK w DDL)
+    SEASON_PROJECTION_RUNS ||--o{ SEASON_PROJECTION_TEAM_ROWS : "RUN_ID"
 
     %% Tabele związane z zakładami
     EVENTS ||--o{ BETS : "EVENT_ID"

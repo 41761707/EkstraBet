@@ -1,8 +1,13 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 27.07.2026
+###### Ostatnia data modyfikacji: 09.08.2026
 
 ## Opis struktury bazy
+
+Dokumentacja opisuje schemat MySQL oraz (dla EB-15) kontrakt cache’u projekcji
+końca sezonu. Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
+Uruchomienie CLI, budżet wydajności i odbiór UI: [`models/README.md`](../models/README.md)
+(sekcja „Projekcja końca sezonu”).
 
 ## Wszystkie tabele w bazie danych
 
@@ -42,7 +47,10 @@
 - [PLAYER_PROS_LINES] (#player_pros_lines) (linie na zdarzenia dla graczy w poszczególnych sportach)
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
+- [SCHEDULE](#schedule) (Stabilny terminarz sezonu piłkarskiego — źródło listy spotkań projekcji końca sezonu)
 - [SEASONS](#seasons) (Tabela z sezonami)
+- [SEASON_PROJECTION_RUNS](#season_projection_runs) (Cache przebiegów Monte Carlo projekcji końca sezonu)
+- [SEASON_PROJECTION_TEAM_ROWS](#season_projection_team_rows) (Statystyki drużyn w ramach udanego runu projekcji)
 - [SPECIAL_ROUNDS](#special_rounds) (Tabela z nazwami rund specjalnych)
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
@@ -54,6 +62,36 @@
 - Pole **pogrubione** oznacza KLUCZ GŁÓWNY w tabeli
 - Pole *kursywą* oznacza KLUCZ OBCY w tabeli
 - Wartości domyslne **-1** w miejscach, gdzie zbiór wartości to [0, +inf) oznaczają "brak danych"
+- Dla `SCHEDULE` powiązania z `leagues` / `seasons` / `teams` / `matches` są
+  **logiczne** (brak FK w DDL) — patrz opis tabeli
+
+## Mechanizm projekcji końca sezonu (EB-15)
+
+Krótki kontrakt danych; szczegóły CLI, testów i budżetu wydajności:
+[`models/README.md`](../models/README.md).
+
+1. **Źródło terminarza:** wyłącznie `SCHEDULE` (`round < 900`). `MATCHES` nie
+   buduje listy spotkań — w trybie `from_now` dostarcza tylko wynik podpiętego
+   `match_id` gdy `result <> '0'`.
+2. **Tryby:** `from_now` (stałe rozegrane + losowane pozostałe) oraz
+   `from_season_start` (wszystko losowane; `match_id` ignorowane). Standings
+   obu trybów startują od dnia 0 sezonu; cechy/ratingi mają warm-start z
+   historii sprzed kotwicy sezonu.
+3. **Cache:** CLI `simulate-season` zapisuje run do `SEASON_PROJECTION_RUNS`
+   (statusy `RUNNING` → `SUCCEEDED` / `FAILED`) oraz wiersze drużyn do
+   `SEASON_PROJECTION_TEAM_ROWS` dopiero po pełnym, transakcyjnym sukcesie.
+   API HTTP tylko odczytuje ostatni `SUCCEEDED` — bez TensorFlow.
+4. **Fingerprint:** SHA-256 kanonicznej listy `(home, away, round, match_id)`
+   ze `SCHEDULE` oraz — w `from_now` — podpiętych `result` / goli z `MATCHES`.
+   Zmiana terminarza lub korekta wyniku unieważnia świeżość (`is_stale`);
+   sama zmiana `game_date` w `MATCHES` **nie** wpływa na fingerprint.
+5. **Testy (mapa):** `models/tests/test_schedule_repository.py`,
+   `test_season_simulator.py`, `test_season_projection_aggregation.py`,
+   `test_season_projection_writer.py`; backend/API:
+   `backend/tests/test_season_projection_service.py`,
+   `api/tests/test_season_projection_router.py`; wydajność:
+   `models/tests/test_season_simulation_performance.py` (opt-in) oraz
+   `models/pipeline/simulation/perf_budget.py`.
 
 ## Opisy poszczególnych tabel
 
@@ -1219,6 +1257,50 @@ Dane naliczane w ramach modułu **main.py**
 
 ---
 
+### SCHEDULE
+
+(Stabilny terminarz sezonu piłkarskiego — źródło listy spotkań dla projekcji
+końca sezonu EB-15. Izoluje graf „kto z kim w której kolejce” od operacyjnych
+przenosin dat w `MATCHES`. Brak kolumny `game_date`; chronologia w symulacji =
+`round` + stały interwał 7 dni.)
+
+
+| POLE       | DOMENA | ZAKRES | UWAGI                                                                                                                                                                                                 | WARTOŚC DOMYŚLNA         |
+| ---------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **ID**     | INT    | INT    | Klucz główny, automatycznie generowany                                                                                                                                                                | AUTOMATYCZNIE GENEROWANY |
+| MATCH_ID   | INT    | INT    | Opcjonalne, **logiczne** powiązanie z `matches(ID)` — **bez FK** i bez `UNIQUE(match_id)`. `NULL` = spotkanie jeszcze nie zlinkowane. Po podpięciu ID jest niezmienne (wynik aktualizuje się w `MATCHES`). | NULL                     |
+| LEAGUE     | INT    | INT    | Id ligi — powiązanie **logiczne** z `leagues(ID)`, **bez FK** w DDL                                                                                                                                   | NULL                     |
+| SEASON     | INT    | INT    | Id sezonu — powiązanie **logiczne** z `seasons(ID)`, **bez FK** w DDL                                                                                                                                 | NULL                     |
+| HOME_TEAM  | INT    | INT    | Id gospodarza — powiązanie **logiczne** z `teams(ID)`, **bez FK** w DDL                                                                                                                               | NULL                     |
+| AWAY_TEAM  | INT    | INT    | Id gościa — powiązanie **logiczne** z `teams(ID)`, **bez FK** w DDL                                                                                                                                   | NULL                     |
+| ROUND      | INT    | INT    | Numer kolejki. Symulacja i walidacja pomijają `round >= 900` (jak standings). Brak `game_date` w tej tabeli.                                                                                           | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `id_UNIQUE (ID)` (redundantny względem PK — stan DDL)
+- **Unikalny indeks:** `match_schedule_UNQ (LEAGUE, SEASON, HOME_TEAM, AWAY_TEAM, ROUND)` — jeden wiersz na uporządkowaną parę w kolejce
+- **Brak** FK do `leagues` / `seasons` / `teams` / `matches` (świadomie)
+- **Brak** `UNIQUE(MATCH_ID)` — uniknięcie dubli `match_id` to reguła aplikacyjna przy linkowaniu
+
+**Semantyka dla projekcji:**
+
+- Lista fixture’ów = wiersze `SCHEDULE` dla `(league, season)` z `round < 900`,
+  posortowane po `(round, id)`.
+- v1 waliduje double round-robin: `N*(N-1)` wierszy względem rosteru z
+  `MATCHES` (DISTINCT drużyn sezonu, `round < 900`).
+- W trybie `from_now`: LEFT JOIN wyniku z `MATCHES` po `match_id` — stały wynik
+  tylko gdy `result <> '0'`; brak `match_id`, `result = '0'` lub NULL → losowanie.
+- W trybie `from_season_start`: wyniki z `MATCHES` nie są czytane.
+
+**Sposób generowania danych do tabeli:**
+
+DDL i wypełnienie terminarza — **ręcznie** / osobnym procesem operacyjnym
+(SZP-80 poza agentem). v1 bez automatycznego scrapera `schedule`.
+
+---
+
 ### SEASONS
 
 (Tabela z sezonami)
@@ -1237,6 +1319,99 @@ Dane naliczane w ramach modułu **main.py**
 **Sposób generowania danych do tabeli**:
 
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
+
+### SEASON_PROJECTION_RUNS
+
+(Cache metadanych przebiegu Monte Carlo projekcji końca sezonu. Endpoint
+`GET /leagues/{league_id}/season-projection` odczytuje ostatni `SUCCEEDED` dla
+`(league_id, season_id, mode)` i porównuje `input_fingerprint` ze świeżym
+snapshotem — bez uruchamiania TensorFlow.)
+
+
+| POLE               | DOMENA      | ZAKRES                                      | UWAGI                                                                                                                         | WARTOŚC DOMYŚLNA         |
+| ------------------ | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **ID**             | INT         | INT                                         | Klucz główny runu                                                                                                             | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*        | INT         | INT                                         | Klucz obcy → `leagues(ID)`                                                                                                    | NULL                     |
+| *SEASON_ID*        | INT         | INT                                         | Klucz obcy → `seasons(ID)`                                                                                                    | NULL                     |
+| MODE               | VARCHAR(32) | {'from_now', 'from_season_start'}           | Tryb symulacji (osobne runy per mode)                                                                                         | NULL                     |
+| STATUS             | VARCHAR(16) | {'RUNNING', 'SUCCEEDED', 'FAILED'}          | Cykl życia zapisu: wiersze drużyn widoczne dopiero po `SUCCEEDED`                                                             | NULL                     |
+| MODEL_NAME         | VARCHAR(128)| STRING                                      | Nazwa artefaktu modelu (np. `FOOTBALL_GOALS_POISSON_V1`)                                                                      | NULL                     |
+| MODEL_VERSION      | VARCHAR(64) | STRING                                      | Wersja modelu zapisana przy runie                                                                                             | NULL                     |
+| ARTIFACT_HASH      | VARCHAR(64) | STRING                                      | Hash artefaktu użytego w inferencji                                                                                           | NULL                     |
+| N_TRIALS           | INT         | [100, 10000]                                | Liczba triali Monte Carlo (domyślnie 2000 w CLI)                                                                              | NULL                     |
+| SEED               | INT         | INT                                         | Seed RNG — ten sam seed + fingerprint + model + config + mode daje powtarzalny wynik                                          | NULL                     |
+| FIXED_MATCHES      | INT         | >=0                                         | Liczba spotkań ze stałym wynikiem (tryb `from_now`)                                                                           | NULL                     |
+| SIMULATED_MATCHES  | INT         | >=0                                         | Liczba spotkań losowanych z Poissona                                                                                          | NULL                     |
+| INPUT_FINGERPRINT  | VARCHAR(64) | hex SHA-256                                 | Fingerprint wejścia (schedule + opcjonalne wyniki); zmiana unieważnia świeżość cache                                          | NULL                     |
+| STARTED_AT         | TIMESTAMP   | TIMESTAMP                                   | Start runu                                                                                                                    | NULL                     |
+| COMPLETED_AT       | TIMESTAMP   | TIMESTAMP                                   | Koniec runu; `NULL` dopóki status `RUNNING`                                                                                   | NULL                     |
+| ERROR_MESSAGE      | TEXT        | STRING                                      | Komunikat błędu przy `FAILED` (np. niekompletny terminarz); `NULL` przy sukcesie                                              | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `LEAGUE_ID` → `leagues(ID)`
+- Klucz obcy: `SEASON_ID` → `seasons(ID)`
+- Indeks: `idx_season_projection_runs_lookup (LEAGUE_ID, SEASON_ID, MODE, STATUS, COMPLETED_AT)` — lookup „latest succeeded”
+
+**Semantyka zapisu:**
+
+- Writer ustawia `RUNNING`, po sukcesie atomowo zapisuje wiersze drużyn i
+  przełącza na `SUCCEEDED`; przy błędzie → `FAILED` **bez** częściowych wierszy
+  w `SEASON_PROJECTION_TEAM_ROWS`.
+- Niekompletny `SCHEDULE` kończy run jako `FAILED`; API nie prezentuje go jako
+  gotowej projekcji (brak `SUCCEEDED` → 404).
+
+**Sposób generowania danych do tabeli:**
+
+Zapis wyłącznie offline przez CLI `simulate-season`
+(`models/pipeline/persistence/season_projection_writer.py`). DDL wgrane ręcznie
+(SZP-86 poza agentem — bez migracji w repo).
+
+---
+
+### SEASON_PROJECTION_TEAM_ROWS
+
+(Statystyki końcowe per drużyna dla udanego runu projekcji. Wiersze powstają
+dopiero po transakcyjnym `SUCCEEDED` rodzica.)
+
+
+| POLE                         | DOMENA | ZAKRES | UWAGI                                                                                                                                      | WARTOŚC DOMYŚLNA |
+| ---------------------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| ***RUN_ID***                 | INT    | INT    | Część PK; FK → `season_projection_runs(ID)` ON DELETE CASCADE                                                                              | NULL             |
+| ***TEAM_ID***                | INT    | INT    | Część PK; FK → `teams(ID)`                                                                                                                 | NULL             |
+| CURRENT_POSITION             | INT    | >=1    | Pozycja „na teraz”: po commitach stałych w `from_now`; w `from_season_start` start dnia 0                                                  | NULL             |
+| CURRENT_POINTS               | INT    | >=0    | Punkty odpowiadające `CURRENT_POSITION`                                                                                                    | NULL             |
+| EXPECTED_POSITION            | DOUBLE | >=1    | Średnia końcowa pozycja po trialach                                                                                                        | NULL             |
+| MOST_LIKELY_POSITION         | INT    | >=1    | Pozycja o największym prawdopodobieństwie w rozkładzie                                                                                     | NULL             |
+| POSITION_MIN                 | INT    | >=1    | Najlepsza (najniższy numer) pozycja w skończonej próbce triali                                                                             | NULL             |
+| POSITION_MAX                 | INT    | >=1    | Najgorsza pozycja w skończonej próbce triali                                                                                               | NULL             |
+| EXPECTED_POINTS              | DOUBLE | >=0    | Średnia końcowych punktów                                                                                                                  | NULL             |
+| POINTS_VARIANCE              | DOUBLE | >=0    | Wariancja punktów                                                                                                                          | NULL             |
+| POINTS_STDDEV                | DOUBLE | >=0    | Odchylenie standardowe punktów                                                                                                             | NULL             |
+| POINTS_P05                   | DOUBLE | >=0    | Percentyl 5 punktów                                                                                                                        | NULL             |
+| POINTS_P50                   | DOUBLE | >=0    | Mediana punktów                                                                                                                            | NULL             |
+| POINTS_P95                   | DOUBLE | >=0    | Percentyl 95 punktów                                                                                                                       | NULL             |
+| POINTS_MIN                   | DOUBLE | >=0    | Minimum punktów w próbce (ekstremum Monte Carlo — mniej stabilne niż P05–P95)                                                              | NULL             |
+| POINTS_MAX                   | DOUBLE | >=0    | Maksimum punktów w próbce                                                                                                                  | NULL             |
+| EXPECTED_GOAL_DIFFERENCE     | DOUBLE | DOUBLE | Średnia końcowa różnica bramek                                                                                                             | NULL             |
+| POSITION_PROBABILITIES_JSON  | JSON   | JSON   | Rozkład P(pozycja = k) dla `k = 1..N`; suma ≈ 1. Tie-break pozycji w trialu: punkty, GD, stabilne `team_id`                                 | NULL             |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `(RUN_ID, TEAM_ID)`
+- Klucz obcy: `RUN_ID` → `season_projection_runs(ID)` ON DELETE CASCADE
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Indeks: `idx_season_projection_team_rows_team (TEAM_ID)`
+
+**Sposób generowania danych do tabeli:**
+
+Wstawiane atomowo razem z przejściem runu na `SUCCEEDED` przez
+`season_projection_writer`. Brak wierszy dla runów `RUNNING` / `FAILED`.
 
 ---
 
