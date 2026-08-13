@@ -1144,6 +1144,13 @@ export interface RatingProgressResponse {
 
 export type SeasonProjectionMode = "from_now" | "from_season_start";
 
+export interface SeasonProjectionModeFlags {
+  league_id: number;
+  season_id: number;
+  from_now: boolean;
+  from_season_start: boolean;
+}
+
 export interface SeasonProjectionStandingRow {
   team_id: number;
   team_name: string;

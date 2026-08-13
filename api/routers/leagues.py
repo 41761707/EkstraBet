@@ -28,6 +28,7 @@ from api.schemas.standing import (
     StandingScope,
     TraditionalStandingRow)
 from api.schemas.season_projection import SeasonProjectionMode
+from api.schemas.season_projection import SeasonProjectionModeFlagsResponse
 from api.schemas.season_projection import SeasonProjectionResponse
 from api.schemas.season_projection import SeasonProjectionStandingRow
 from api.schemas.sport_league import (
@@ -56,6 +57,8 @@ from backend.services.season_projection_service import SeasonProjectionPayload
 from backend.services.season_projection_service import (
     UnsupportedSeasonProjectionModeError)
 from backend.services.season_projection_service import get_season_projection
+from backend.services.season_projection_service import (
+    list_season_projection_modes)
 from backend.sports.football.rating_progress import RatingProgressResult
 
 logger = logging.getLogger(__name__)
@@ -78,6 +81,7 @@ async def leagues_info() -> dict[str, object]:
             "GET /leagues/{league_id}/matches - League schedule and results",
             "GET /leagues/{league_id}/standings - League standings",
             "GET /leagues/{league_id}/season-projection - Cached season projection",
+            "GET /leagues/{league_id}/season-projection/modes - Available projection modes",
             "GET /leagues/{league_id}/characteristics - League OU/BTTS stats",
             "GET /leagues/{league_id}/rating-progress - Team rating progress JSON",
         ],
@@ -315,6 +319,42 @@ async def get_league_standings(
             detail=(
                 f"Failed to fetch standings for league {league_id}, "
                 f"season {season_id}")) from exc
+
+
+@router.get(
+    "/{league_id}/season-projection/modes",
+    response_model=SeasonProjectionModeFlagsResponse)
+async def get_league_season_projection_modes(
+    league_id: int = Path(..., ge=1, description="League ID"),
+    season_id: int = Query(..., ge=1, description="Season ID")
+) -> SeasonProjectionModeFlagsResponse:
+    """Return flags for cached SUCCEEDED projection modes.
+
+    Reads only ``season_projection_runs``. Does not run Monte Carlo.
+    """
+    try:
+        flags = list_season_projection_modes(
+            league_id=league_id,
+            season_id=season_id)
+    except SeasonProjectionNonFootballError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch season projection modes for league %s "
+            "season %s: %s",
+            league_id,
+            season_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch season projection modes for league "
+                f"{league_id}, season {season_id}")) from exc
+    return SeasonProjectionModeFlagsResponse(
+        league_id=league_id,
+        season_id=season_id,
+        from_now=flags.from_now,
+        from_season_start=flags.from_season_start)
 
 
 @router.get(

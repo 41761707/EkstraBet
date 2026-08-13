@@ -2,10 +2,22 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ProjectedSeasonStandingsContent } from "@/components/leagues/ProjectedSeasonStandingsSection";
-import { ProjectedSeasonStandingsTable } from "@/components/leagues/ProjectedSeasonStandingsTable";
 import {
+  ProjectionColumnLegend,
+  ProjectedSeasonStandingsContent,
+} from "@/components/leagues/ProjectedSeasonStandingsSection";
+import {
+  ProjectedPositionChance,
+  ProjectedPositionChanceList,
+  ProjectedSeasonStandingsTable,
+} from "@/components/leagues/ProjectedSeasonStandingsTable";
+import {
+  availableSeasonProjectionModes,
+  defaultSeasonProjectionMode,
   formatProjectionPoints,
+  hasAnyProjectionMode,
+  probabilityForTablePosition,
+  shouldFetchProjectionModes,
   shouldFetchSeasonProjection,
   sortStandingsByExpectedPosition,
 } from "@/components/leagues/projectedSeasonStandingsModel";
@@ -60,6 +72,7 @@ function sampleResponse(
         expected_position: 2.1,
         most_likely_position: 2,
         expected_points: 40,
+        current_points: 12,
       }),
       standing({
         team_id: 1,
@@ -67,21 +80,69 @@ function sampleResponse(
         expected_position: 1.2,
         most_likely_position: 1,
         expected_points: 48,
+        current_points: 18,
       }),
     ],
     ...overrides,
   };
 }
 
+const bothModes = { from_now: true, from_season_start: true };
+
 describe("projectedSeasonStandingsModel", () => {
-  it("does not fetch before the expander is open", () => {
-    expect(shouldFetchSeasonProjection(false, false)).toBe(false);
-    expect(shouldFetchSeasonProjection(false, true)).toBe(false);
+  it("does not fetch modes before the expander is open", () => {
+    expect(shouldFetchProjectionModes(false, false)).toBe(false);
+    expect(shouldFetchProjectionModes(false, true)).toBe(false);
   });
 
-  it("fetches only on first open without cached data", () => {
-    expect(shouldFetchSeasonProjection(true, false)).toBe(true);
-    expect(shouldFetchSeasonProjection(true, true)).toBe(false);
+  it("fetches modes only on first open", () => {
+    expect(shouldFetchProjectionModes(true, false)).toBe(true);
+    expect(shouldFetchProjectionModes(true, true)).toBe(false);
+  });
+
+  it("fetches projection only for a selected mode without cache", () => {
+    expect(shouldFetchSeasonProjection(true, null, false)).toBe(false);
+    expect(shouldFetchSeasonProjection(true, "from_now", false)).toBe(true);
+    expect(shouldFetchSeasonProjection(true, "from_now", true)).toBe(false);
+  });
+
+  it("picks default mode from available flags", () => {
+    expect(
+      defaultSeasonProjectionMode({
+        from_now: true,
+        from_season_start: true,
+      }),
+    ).toBe("from_now");
+    expect(
+      defaultSeasonProjectionMode({
+        from_now: false,
+        from_season_start: true,
+      }),
+    ).toBe("from_season_start");
+    expect(
+      defaultSeasonProjectionMode({
+        from_now: false,
+        from_season_start: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("lists only available modes", () => {
+    expect(
+      availableSeasonProjectionModes({
+        from_now: false,
+        from_season_start: true,
+      }),
+    ).toEqual(["from_season_start"]);
+    expect(
+      hasAnyProjectionMode({ from_now: false, from_season_start: false }),
+    ).toBe(false);
+  });
+
+  it("reads probability for the displayed table position", () => {
+    expect(probabilityForTablePosition([0.5, 0.3, 0.2], 1)).toBe(0.5);
+    expect(probabilityForTablePosition([0.5, 0.3, 0.2], 2)).toBe(0.3);
+    expect(probabilityForTablePosition([0.5, 0.3, 0.2], 9)).toBeNull();
   });
 
   it("sorts standings by expected_position then team_id", () => {
@@ -111,7 +172,7 @@ describe("projectedSeasonStandingsModel", () => {
 });
 
 describe("ProjectedSeasonStandingsTable", () => {
-  it("renders # as expected_position aligned with sort order", () => {
+  it("renders integer predicted rank instead of mean expected_position", () => {
     const html = renderToStaticMarkup(
       createElement(ProjectedSeasonStandingsTable, {
         standings: [
@@ -121,6 +182,7 @@ describe("ProjectedSeasonStandingsTable", () => {
             expected_position: 2.4,
             most_likely_position: 1,
             expected_points: 40,
+            current_points: 8,
           }),
           standing({
             team_id: 1,
@@ -128,6 +190,7 @@ describe("ProjectedSeasonStandingsTable", () => {
             expected_position: 1.2,
             most_likely_position: 3,
             expected_points: 48,
+            current_points: 14,
           }),
         ],
         seasonId: 13,
@@ -135,11 +198,39 @@ describe("ProjectedSeasonStandingsTable", () => {
       }),
     );
     expect(html.indexOf("Alpha")).toBeLessThan(html.indexOf("Beta"));
-    expect(html.indexOf("1.2")).toBeLessThan(html.indexOf("2.4"));
+    expect(html).not.toContain("1.2");
+    expect(html).not.toContain("2.4");
     expect(html).toContain("xPts");
     expect(html).toContain("P05–P95");
     expect(html).toContain("48.0");
     expect(html).toContain("40.0");
+    expect(html).toContain("14");
+    expect(html).toContain("8");
+  });
+
+  it("formats chance for the displayed table position", () => {
+    const html = renderToStaticMarkup(
+      createElement(ProjectedPositionChance, {
+        tablePosition: 1,
+        probability: 0.5,
+      }),
+    );
+    expect(html).toContain("Szansa na 1. miejsce");
+    expect(html).toContain("50.0%");
+  });
+
+  it("renders chance for every finishing position", () => {
+    const html = renderToStaticMarkup(
+      createElement(ProjectedPositionChanceList, {
+        probabilities: [0.5, 0.3, 0.2],
+      }),
+    );
+    expect(html).toContain("Szansa na 1. miejsce");
+    expect(html).toContain("50.0%");
+    expect(html).toContain("Szansa na 2. miejsce");
+    expect(html).toContain("30.0%");
+    expect(html).toContain("Szansa na 3. miejsce");
+    expect(html).toContain("20.0%");
   });
 });
 
@@ -153,6 +244,9 @@ describe("ProjectedSeasonStandingsContent", () => {
         data: null,
         leagueId: 1,
         seasonId: 13,
+        modeFlags: null,
+        selectedMode: null,
+        onSelectMode: () => undefined,
       }),
     );
     expect(html).toContain("Ładowanie projekcji sezonu");
@@ -167,6 +261,9 @@ describe("ProjectedSeasonStandingsContent", () => {
         data: null,
         leagueId: 1,
         seasonId: 13,
+        modeFlags: null,
+        selectedMode: null,
+        onSelectMode: () => undefined,
       }),
     );
     expect(html).toContain("Brak gotowej projekcji");
@@ -181,13 +278,16 @@ describe("ProjectedSeasonStandingsContent", () => {
         data: null,
         leagueId: 1,
         seasonId: 13,
+        modeFlags: null,
+        selectedMode: null,
+        onSelectMode: () => undefined,
       }),
     );
     expect(html).toContain("Nie udało się pobrać projekcji");
     expect(html).toContain("timeout");
   });
 
-  it("renders stale banner and success content", () => {
+  it("renders legend, mode options and current points from selected run", () => {
     const html = renderToStaticMarkup(
       createElement(ProjectedSeasonStandingsContent, {
         loading: false,
@@ -196,12 +296,37 @@ describe("ProjectedSeasonStandingsContent", () => {
         data: sampleResponse({ is_stale: true }),
         leagueId: 1,
         seasonId: 13,
+        modeFlags: bothModes,
+        selectedMode: "from_now",
+        onSelectMode: () => undefined,
       }),
     );
     expect(html).toContain("Dane mogą być nieaktualne");
-    expect(html).toContain("P05–P95 to stabilniejszy zakres");
+    expect(html).toContain("Od ostatniej kolejki");
+    expect(html).toContain("Od początku sezonu");
+    expect(html).toContain("Oczekiwane punkty na koniec sezonu");
+    expect(html).not.toContain("P05–P95 to stabilniejszy zakres");
+    expect(html).not.toContain("Obliczono:");
     expect(html).toContain("Alpha");
-    expect(html).toContain("2000");
+    expect(html).toContain("18");
+  });
+
+  it("hides a mode option when its flag is false", () => {
+    const html = renderToStaticMarkup(
+      createElement(ProjectedSeasonStandingsContent, {
+        loading: false,
+        error: null,
+        isNotFound: false,
+        data: sampleResponse({ mode: "from_season_start" }),
+        leagueId: 1,
+        seasonId: 13,
+        modeFlags: { from_now: false, from_season_start: true },
+        selectedMode: "from_season_start",
+        onSelectMode: () => undefined,
+      }),
+    );
+    expect(html).toContain("Od początku sezonu");
+    expect(html).not.toContain("Od ostatniej kolejki");
   });
 
   it("renders idle hint before open fetch", () => {
@@ -213,8 +338,18 @@ describe("ProjectedSeasonStandingsContent", () => {
         data: null,
         leagueId: 1,
         seasonId: 13,
+        modeFlags: null,
+        selectedMode: null,
+        onSelectMode: () => undefined,
       }),
     );
     expect(html).toContain("Otwórz sekcję, aby pobrać projekcję");
+  });
+
+  it("renders column legend symbols", () => {
+    const html = renderToStaticMarkup(createElement(ProjectionColumnLegend));
+    expect(html).toContain("xPts");
+    expect(html).toContain("P05–P95");
+    expect(html).toContain("Min–Max");
   });
 });

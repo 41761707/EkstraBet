@@ -206,6 +206,51 @@ class TestSeasonProjectionService(unittest.TestCase):
             service.get_season_projection(1, 13, "from_mid_season")
 
     @patch(
+        "backend.services.season_projection_service.repository"
+        ".fetch_succeeded_mode_flags",
+        return_value=(True, False))
+    @patch(
+        "backend.services.season_projection_service.league_repository"
+        ".fetch_league_by_id")
+    def test_lists_mode_flags_from_succeeded_runs(
+            self,
+            mock_league: MagicMock,
+            mock_flags: MagicMock) -> None:
+        mock_league.return_value = pd.DataFrame([{
+            "id": 1,
+            "name": "Ekstraklasa",
+            "sport_id": 1,
+            "country_id": 1,
+            "country_name": "Poland",
+            "country_emoji": None,
+            "sport_name": "Football",
+            "active": 1,
+            "last_update": None}])
+        flags = service.list_season_projection_modes(1, 13)
+        self.assertTrue(flags.from_now)
+        self.assertFalse(flags.from_season_start)
+        mock_flags.assert_called_once_with(1, 13)
+
+    @patch(
+        "backend.services.season_projection_service.league_repository"
+        ".fetch_league_by_id")
+    def test_list_modes_rejects_non_football_league(
+            self,
+            mock_league: MagicMock) -> None:
+        mock_league.return_value = pd.DataFrame([{
+            "id": 5,
+            "name": "NHL",
+            "sport_id": 2,
+            "country_id": 1,
+            "country_name": "USA",
+            "country_emoji": None,
+            "sport_name": "Hockey",
+            "active": 1,
+            "last_update": None}])
+        with self.assertRaises(service.NonFootballLeagueError):
+            service.list_season_projection_modes(5, 1)
+
+    @patch(
         "backend.services.season_projection_service"
         ".fetch_season_simulation_input",
         side_effect=ValueError("league_id=1 was not found"))

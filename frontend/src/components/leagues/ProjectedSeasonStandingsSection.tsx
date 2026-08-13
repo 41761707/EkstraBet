@@ -1,34 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ProjectedSeasonStandingsTable } from "@/components/leagues/ProjectedSeasonStandingsTable";
-import { shouldFetchSeasonProjection } from "@/components/leagues/projectedSeasonStandingsModel";
+import {
+  availableSeasonProjectionModes,
+  PROJECTION_COLUMN_LEGEND,
+  SEASON_PROJECTION_MODE_LABELS,
+} from "@/components/leagues/projectedSeasonStandingsModel";
+import { useProjectedSeasonStandings } from "@/components/leagues/useProjectedSeasonStandings";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatusMessage } from "@/components/StatusMessage";
-import { ApiError, getSeasonProjection } from "@/lib/apiClient";
-import { formatMatchDateTime } from "@/lib/format";
-import type { SeasonProjectionResponse } from "@/types/api";
+import type {
+  SeasonProjectionMode,
+  SeasonProjectionModeFlags,
+  SeasonProjectionResponse,
+} from "@/types/api";
 
 interface ProjectedSeasonStandingsSectionProps {
   leagueId: number;
   seasonId: number;
 }
 
-function ProjectionMeta({ data }: { data: SeasonProjectionResponse }) {
+interface ProjectedSeasonStandingsContentProps {
+  loading: boolean;
+  error: string | null;
+  isNotFound: boolean;
+  data: SeasonProjectionResponse | null;
+  leagueId: number;
+  seasonId: number;
+  modeFlags: Pick<
+    SeasonProjectionModeFlags,
+    "from_now" | "from_season_start"
+  > | null;
+  selectedMode: SeasonProjectionMode | null;
+  onSelectMode: (mode: SeasonProjectionMode) => void;
+}
+
+const MODE_BUTTON_ACTIVE =
+  "rounded-full bg-sky-600 px-3 py-1.5 text-sm text-white transition hover:bg-sky-500";
+const MODE_BUTTON_IDLE =
+  "rounded-full bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-700";
+
+export function ProjectionModeToggle({
+  flags,
+  selectedMode,
+  onSelectMode,
+}: {
+  flags: Pick<SeasonProjectionModeFlags, "from_now" | "from_season_start">;
+  selectedMode: SeasonProjectionMode | null;
+  onSelectMode: (mode: SeasonProjectionMode) => void;
+}) {
+  const modes = availableSeasonProjectionModes(flags);
+  if (modes.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="space-y-2 text-sm text-slate-400">
-      <p>
-        Obliczono: {formatMatchDateTime(data.generated_at)} · tryb: od teraz ·{" "}
-        {data.n_trials} triali · model {data.model_name} {data.model_version}
-      </p>
-      <p>
-        Stałe mecze: {data.fixed_matches} · losowane: {data.simulated_matches}
-      </p>
-      <p className="text-slate-500">
-        P05–P95 to stabilniejszy zakres punktów niż Min–Max. Min/Max to
-        ekstrema z skończonej liczby symulacji Monte Carlo.
-      </p>
+    <div className="flex flex-wrap gap-2">
+      {modes.map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => onSelectMode(mode)}
+          className={
+            selectedMode === mode ? MODE_BUTTON_ACTIVE : MODE_BUTTON_IDLE
+          }
+          aria-pressed={selectedMode === mode}
+        >
+          {SEASON_PROJECTION_MODE_LABELS[mode]}
+        </button>
+      ))}
     </div>
+  );
+}
+
+export function ProjectionColumnLegend() {
+  return (
+    <dl className="grid gap-x-4 gap-y-1 text-xs text-slate-400 sm:grid-cols-2">
+      {PROJECTION_COLUMN_LEGEND.map((item) => (
+        <div key={item.symbol} className="flex gap-2">
+          <dt className="shrink-0 font-semibold text-slate-300">
+            {item.symbol}
+          </dt>
+          <dd>{item.meaning}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -39,14 +96,42 @@ export function ProjectedSeasonStandingsContent({
   data,
   leagueId,
   seasonId,
-}: {
-  loading: boolean;
-  error: string | null;
-  isNotFound: boolean;
-  data: SeasonProjectionResponse | null;
-  leagueId: number;
-  seasonId: number;
-}) {
+  modeFlags,
+  selectedMode,
+  onSelectMode,
+}: ProjectedSeasonStandingsContentProps) {
+  return (
+    <div className="space-y-4">
+      {modeFlags ? (
+        <ProjectionModeToggle
+          flags={modeFlags}
+          selectedMode={selectedMode}
+          onSelectMode={onSelectMode}
+        />
+      ) : null}
+      <ProjectionBody
+        loading={loading}
+        error={error}
+        isNotFound={isNotFound}
+        data={data}
+        leagueId={leagueId}
+        seasonId={seasonId}
+      />
+    </div>
+  );
+}
+
+function ProjectionBody({
+  loading,
+  error,
+  isNotFound,
+  data,
+  leagueId,
+  seasonId,
+}: Omit<
+  ProjectedSeasonStandingsContentProps,
+  "modeFlags" | "selectedMode" | "onSelectMode"
+>) {
   if (loading) {
     return <LoadingSpinner label="Ładowanie projekcji sezonu..." />;
   }
@@ -80,7 +165,7 @@ export function ProjectedSeasonStandingsContent({
   }
 
   return (
-    <div className="space-y-4">
+    <>
       {data.is_stale ? (
         <StatusMessage
           variant="info"
@@ -88,13 +173,13 @@ export function ProjectedSeasonStandingsContent({
           message="Terminarz lub wyniki zmieniły się od ostatniego obliczenia. Wyświetlamy ostatnią zapisaną projekcję."
         />
       ) : null}
-      <ProjectionMeta data={data} />
+      <ProjectionColumnLegend />
       <ProjectedSeasonStandingsTable
         standings={data.standings}
         seasonId={seasonId}
         leagueId={leagueId}
       />
-    </div>
+    </>
   );
 }
 
@@ -103,59 +188,7 @@ export function ProjectedSeasonStandingsSection({
   seasonId,
 }: ProjectedSeasonStandingsSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [data, setData] = useState<SeasonProjectionResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isNotFound, setIsNotFound] = useState(false);
-
-  useEffect(() => {
-    setData(null);
-    setError(null);
-    setIsNotFound(false);
-  }, [leagueId, seasonId]);
-
-  useEffect(() => {
-    if (!shouldFetchSeasonProjection(isOpen, data !== null)) {
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadProjection() {
-      setLoading(true);
-      setError(null);
-      setIsNotFound(false);
-      try {
-        const response = await getSeasonProjection(leagueId, seasonId);
-        if (!cancelled) {
-          setData(response);
-        }
-      } catch (loadError) {
-        if (cancelled) {
-          return;
-        }
-        if (loadError instanceof ApiError && loadError.status === 404) {
-          setIsNotFound(true);
-          return;
-        }
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Nie udało się pobrać projekcji sezonu.",
-        );
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadProjection();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, data, leagueId, seasonId]);
+  const projection = useProjectedSeasonStandings(leagueId, seasonId, isOpen);
 
   return (
     <details
@@ -163,9 +196,7 @@ export function ProjectedSeasonStandingsSection({
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-sky-300 transition hover:bg-slate-800/40 [&::-webkit-details-marker]:hidden">
-        <span className="min-w-0 break-words">
-          Projekcja końca sezonu
-        </span>
+        <span className="min-w-0 break-words">Projekcja końca sezonu</span>
         <span
           className="shrink-0 text-slate-500 transition group-open:rotate-180"
           aria-hidden="true"
@@ -175,12 +206,15 @@ export function ProjectedSeasonStandingsSection({
       </summary>
       <div className="min-w-0 border-t border-slate-700/80 px-5 py-4 text-slate-300">
         <ProjectedSeasonStandingsContent
-          loading={loading}
-          error={error}
-          isNotFound={isNotFound}
-          data={data}
+          loading={projection.loading && projection.data === null}
+          error={projection.error}
+          isNotFound={projection.isNotFound}
+          data={projection.data}
           leagueId={leagueId}
           seasonId={seasonId}
+          modeFlags={projection.modeFlags}
+          selectedMode={projection.selectedMode}
+          onSelectMode={projection.selectMode}
         />
       </div>
     </details>

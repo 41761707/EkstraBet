@@ -22,6 +22,7 @@ from backend.repositories.season_projection_repository import (
 from backend.repositories.season_projection_repository import (
     SeasonProjectionTeamRowRecord)
 from backend.services.season_projection_service import NonFootballLeagueError
+from backend.services.season_projection_service import SeasonProjectionModeFlags
 from backend.services.season_projection_service import SeasonProjectionPayload
 from models.pipeline.simulation.config import SeasonSimulationInput
 from models.pipeline.simulation.config import SimulationMode
@@ -171,6 +172,36 @@ class TestSeasonProjectionRouter(unittest.TestCase):
             league_id=1,
             season_id=13,
             mode="from_season_start")
+
+    @patch(
+        "api.routers.leagues.list_season_projection_modes")
+    def test_modes_endpoint_returns_flags(
+            self,
+            mock_list: MagicMock) -> None:
+        mock_list.return_value = SeasonProjectionModeFlags(
+            from_now=True,
+            from_season_start=False)
+        response = self.client.get(
+            "/leagues/1/season-projection/modes?season_id=13")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["league_id"], 1)
+        self.assertEqual(body["season_id"], 13)
+        self.assertTrue(body["from_now"])
+        self.assertFalse(body["from_season_start"])
+        mock_list.assert_called_once_with(league_id=1, season_id=13)
+
+    @patch(
+        "api.routers.leagues.list_season_projection_modes",
+        side_effect=NonFootballLeagueError(
+            "League 5 is not a football league"))
+    def test_modes_endpoint_returns_400_for_non_football(
+            self,
+            mock_list: MagicMock) -> None:
+        response = self.client.get(
+            "/leagues/5/season-projection/modes?season_id=1")
+        self.assertEqual(response.status_code, 400)
+        mock_list.assert_called_once()
 
     @patch(
         "api.routers.leagues.get_season_projection",

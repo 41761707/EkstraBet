@@ -27,50 +27,50 @@ function teamHref(
   return `/teams/${teamId}?${params.toString()}`;
 }
 
-function PositionDistribution({
+export function ProjectedPositionChance({
+  tablePosition,
+  probability,
+}: {
+  tablePosition: number;
+  probability: number | null;
+}) {
+  return (
+    <p className="text-sm text-slate-300">
+      Szansa na {tablePosition}. miejsce: {formatProbability(probability)}
+    </p>
+  );
+}
+
+export function ProjectedPositionChanceList({
   probabilities,
 }: {
   probabilities: number[];
 }) {
   if (probabilities.length === 0) {
-    return (
-      <p className="text-sm text-slate-500">Brak rozkładu pozycji.</p>
-    );
+    return <p className="text-sm text-slate-500">Brak rozkładu pozycji.</p>;
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-xs">
-        <thead className="text-left text-slate-500">
-          <tr>
-            <th className="px-2 py-1 font-medium">Poz.</th>
-            <th className="px-2 py-1 font-medium">Prawdopodobieństwo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {probabilities.map((probability, index) => (
-            <tr
-              key={`pos-${index + 1}`}
-              className="border-t border-slate-800/60"
-            >
-              <td className="px-2 py-1 text-slate-400">{index + 1}</td>
-              <td className="px-2 py-1 text-slate-300">
-                {formatProbability(probability)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="flex flex-col gap-1">
+      {probabilities.map((probability, index) => (
+        <ProjectedPositionChance
+          key={index + 1}
+          tablePosition={index + 1}
+          probability={probability}
+        />
+      ))}
     </div>
   );
 }
 
 function ProjectionRow({
   row,
+  tablePosition,
   seasonId,
   leagueId,
 }: {
   row: SeasonProjectionStandingRow;
+  tablePosition: number;
   seasonId: number;
   leagueId: number;
 }) {
@@ -87,7 +87,7 @@ function ProjectionRow({
             aria-expanded={isExpanded}
           >
             <span aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
-            {formatProjectionPoints(row.expected_position)}
+            {tablePosition}
           </button>
         </td>
         <td className="px-3 py-2 font-medium">
@@ -121,9 +121,9 @@ function ProjectionRow({
           <td colSpan={7} className="px-3 py-3">
             <p className="mb-2 text-xs text-slate-500">
               Najbardziej prawdopodobna pozycja: {row.most_likely_position}.
-              Rozkład pozycji końcowej (1…N).
+              Szansa na każde miejsce końcowe (1…{row.position_probabilities.length}).
             </p>
-            <PositionDistribution
+            <ProjectedPositionChanceList
               probabilities={row.position_probabilities}
             />
           </td>
@@ -159,10 +159,11 @@ export function ProjectedSeasonStandingsTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row) => (
+          {sorted.map((row, index) => (
             <ProjectionRow
               key={row.team_id}
               row={row}
+              tablePosition={index + 1}
               seasonId={seasonId}
               leagueId={leagueId}
             />

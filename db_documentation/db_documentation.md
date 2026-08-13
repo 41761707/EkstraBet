@@ -4,10 +4,8 @@
 
 ## Opis struktury bazy
 
-Dokumentacja opisuje schemat MySQL oraz (dla EB-15) kontrakt cache’u projekcji
-końca sezonu. Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
-Uruchomienie CLI, budżet wydajności i odbiór UI: [`models/README.md`](../models/README.md)
-(sekcja „Projekcja końca sezonu”).
+Dokumentacja opisuje schemat MySQL projektu Ekstrabet
+Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 
 ## Wszystkie tabele w bazie danych
 
@@ -62,36 +60,6 @@ Uruchomienie CLI, budżet wydajności i odbiór UI: [`models/README.md`](../mode
 - Pole **pogrubione** oznacza KLUCZ GŁÓWNY w tabeli
 - Pole *kursywą* oznacza KLUCZ OBCY w tabeli
 - Wartości domyslne **-1** w miejscach, gdzie zbiór wartości to [0, +inf) oznaczają "brak danych"
-- Dla `SCHEDULE` powiązania z `leagues` / `seasons` / `teams` / `matches` są
-  **logiczne** (brak FK w DDL) — patrz opis tabeli
-
-## Mechanizm projekcji końca sezonu (EB-15)
-
-Krótki kontrakt danych; szczegóły CLI, testów i budżetu wydajności:
-[`models/README.md`](../models/README.md).
-
-1. **Źródło terminarza:** wyłącznie `SCHEDULE` (`round < 900`). `MATCHES` nie
-   buduje listy spotkań — w trybie `from_now` dostarcza tylko wynik podpiętego
-   `match_id` gdy `result <> '0'`.
-2. **Tryby:** `from_now` (stałe rozegrane + losowane pozostałe) oraz
-   `from_season_start` (wszystko losowane; `match_id` ignorowane). Standings
-   obu trybów startują od dnia 0 sezonu; cechy/ratingi mają warm-start z
-   historii sprzed kotwicy sezonu.
-3. **Cache:** CLI `simulate-season` zapisuje run do `SEASON_PROJECTION_RUNS`
-   (statusy `RUNNING` → `SUCCEEDED` / `FAILED`) oraz wiersze drużyn do
-   `SEASON_PROJECTION_TEAM_ROWS` dopiero po pełnym, transakcyjnym sukcesie.
-   API HTTP tylko odczytuje ostatni `SUCCEEDED` — bez TensorFlow.
-4. **Fingerprint:** SHA-256 kanonicznej listy `(home, away, round, match_id)`
-   ze `SCHEDULE` oraz — w `from_now` — podpiętych `result` / goli z `MATCHES`.
-   Zmiana terminarza lub korekta wyniku unieważnia świeżość (`is_stale`);
-   sama zmiana `game_date` w `MATCHES` **nie** wpływa na fingerprint.
-5. **Testy (mapa):** `models/tests/test_schedule_repository.py`,
-   `test_season_simulator.py`, `test_season_projection_aggregation.py`,
-   `test_season_projection_writer.py`; backend/API:
-   `backend/tests/test_season_projection_service.py`,
-   `api/tests/test_season_projection_router.py`; wydajność:
-   `models/tests/test_season_simulation_performance.py` (opt-in) oraz
-   `models/pipeline/simulation/perf_budget.py`.
 
 ## Opisy poszczególnych tabel
 

@@ -65,6 +65,18 @@ _TEAM_ROWS_SQL = """
     ORDER BY tr.expected_position ASC, tr.team_id ASC
 """
 
+_SUCCEEDED_MODE_FLAGS_SQL = """
+    SELECT
+        MAX(CASE WHEN r.mode = 'from_now' THEN 1 ELSE 0 END)
+            AS from_now,
+        MAX(CASE WHEN r.mode = 'from_season_start' THEN 1 ELSE 0 END)
+            AS from_season_start
+    FROM season_projection_runs r
+    WHERE r.league_id = %s
+      AND r.season_id = %s
+      AND r.status = %s
+"""
+
 
 @dataclass(frozen=True)
 class SeasonProjectionRunRecord:
@@ -143,6 +155,23 @@ def fetch_team_rows_for_run(
     return [_map_team_row(row) for _, row in frame.iterrows()]
 
 
+def fetch_succeeded_mode_flags(
+        league_id: int,
+        season_id: int) -> tuple[bool, bool]:
+    """Return (from_now, from_season_start) flags for SUCCEEDED runs."""
+    with get_db_connection() as connection:
+        frame = pd.read_sql(
+            _SUCCEEDED_MODE_FLAGS_SQL,
+            connection,
+            params=(league_id, season_id, SUCCEEDED_STATUS))
+    if frame.empty:
+        return False, False
+    row = frame.iloc[0]
+    return (
+        _as_bool_flag(row["from_now"]),
+        _as_bool_flag(row["from_season_start"]))
+
+
 def _map_run_row(row: pd.Series) -> SeasonProjectionRunRecord:
     completed_at = _require_datetime(row["completed_at"])
     return SeasonProjectionRunRecord(
@@ -184,6 +213,12 @@ def _map_team_row(row: pd.Series) -> SeasonProjectionTeamRowRecord:
         expected_goal_difference=float(row["expected_goal_difference"]),
         position_probabilities=_parse_probabilities(
             row["position_probabilities_json"]))
+
+
+def _as_bool_flag(raw: Any) -> bool:
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return False
+    return int(raw) == 1
 
 
 def _parse_probabilities(raw: Any) -> list[float]:

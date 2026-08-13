@@ -66,6 +66,19 @@ class SeasonProjectionStandingRow(BaseModel):
         description="Probabilities for finishing positions 1..N")
 
 
+class SeasonProjectionModeFlagsResponse(BaseModel):
+    """Which cached projection modes exist for a league/season."""
+
+    league_id: int = Field(..., description="League ID")
+    season_id: int = Field(..., description="Season ID")
+    from_now: bool = Field(
+        ...,
+        description="True when a SUCCEEDED from_now run exists")
+    from_season_start: bool = Field(
+        ...,
+        description="True when a SUCCEEDED from_season_start run exists")
+
+
 class SeasonProjectionResponse(BaseModel):
     """Response model for GET /leagues/{league_id}/season-projection."""
 

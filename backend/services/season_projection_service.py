@@ -35,6 +35,14 @@ class UnsupportedSeasonProjectionModeError(SeasonProjectionError, ValueError):
 
 
 @dataclass(frozen=True)
+class SeasonProjectionModeFlags:
+    """Which cached projection modes exist for a league/season."""
+
+    from_now: bool
+    from_season_start: bool
+
+
+@dataclass(frozen=True)
 class SeasonProjectionPayload:
     """API-ready season projection assembled from cache."""
 
@@ -49,6 +57,23 @@ class SeasonProjectionPayload:
     simulated_matches: int
     is_stale: bool
     standings: list[SeasonProjectionTeamRowRecord]
+
+
+def list_season_projection_modes(
+        league_id: int,
+        season_id: int) -> SeasonProjectionModeFlags:
+    """Return SUCCEEDED-run flags for both projection modes.
+
+    Raises ``NonFootballLeagueError`` for a known non-football league.
+    Does not load the simulator or TensorFlow.
+    """
+    _ensure_football_league(league_id)
+    from_now, from_season_start = repository.fetch_succeeded_mode_flags(
+        league_id,
+        season_id)
+    return SeasonProjectionModeFlags(
+        from_now=from_now,
+        from_season_start=from_season_start)
 
 
 def get_season_projection(
