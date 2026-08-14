@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 09.08.2026
+###### Ostatnia data modyfikacji: 14.08.2026
 
 ## Opis struktury bazy
 
@@ -1493,6 +1493,7 @@ Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencj
 | PASSWORD_HASH   | VARCHAR(255) | STRING  | Hash bcrypt hasła                                                     | NULL                     |
 | DISPLAY_NAME    | VARCHAR(100) | STRING  | Nazwa wyświetlana w UI                                                | NULL                     |
 | IS_ACTIVE       | TINYINT      | INT     | 1 = konto aktywne, 0 = zablokowane                                    | 1                        |
+| FIRST_LOGIN     | TINYINT      | {0,1}   | 1 = należy ustawić hasło i username po 1. logowaniu, 0 = ukończone    | 0                        |
 | CREATED_AT      | DATETIME     | DATETIME| Data utworzenia konta                                                 | CURRENT_TIMESTAMP        |
 | UPDATED_AT      | DATETIME     | DATETIME| Data ostatniej aktualizacji                                           | CURRENT_TIMESTAMP        |
 
@@ -1507,4 +1508,7 @@ Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencj
 
 Konta dodawane ręcznie (INSERT). Hash hasła: `python scripts/hash_password.py <haslo>`.
 UUID przy INSERT: `UUID()` (MySQL) albo `uuid4` w seedzie.
+Dla kont z hasłem tymczasowym ustaw `first_login = 1` przy INSERT
+(wymusza zmianę hasła i nazwy użytkownika po pierwszym logowaniu).
+Istniejące konta bez wymuszenia zostają przy `DEFAULT 0`.
 Wyrównanie schematu (jeśli baza odbiega): `sql/align_users_auth_contract.sql`.

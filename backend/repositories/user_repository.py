@@ -8,8 +8,7 @@ from backend.database import get_db_connection
 
 _USER_COLUMNS = (
     "id, uuid, username, password_hash, display_name, is_active, "
-    "created_at, updated_at"
-)
+    "first_login, created_at, updated_at")
 
 
 def fetch_user_by_username(username: str) -> dict[str, Any] | None:
@@ -43,6 +42,44 @@ def fetch_user_by_id(user_id: int) -> dict[str, Any] | None:
         LIMIT 1
     """
     return _fetch_one(query, (user_id,))
+
+
+def is_username_taken(username: str, exclude_user_id: int) -> bool:
+    """Return True when another user already uses the username."""
+    query = """
+        SELECT 1
+        FROM users
+        WHERE username = %s AND id <> %s
+        LIMIT 1
+    """
+    return _fetch_one(query, (username, exclude_user_id)) is not None
+
+
+def update_user_credentials_after_first_login(
+        user_id: int,
+        username: str,
+        password_hash: str) -> None:
+    """Set username and password hash, then clear first_login."""
+    query = """
+        UPDATE users
+        SET username = %s,
+            password_hash = %s,
+            first_login = 0,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s AND first_login = 1
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(query, (username, password_hash, user_id))
+            if cursor.rowcount == 0:
+                conn.rollback()
+                raise ValueError(
+                    "First login already completed or user not found")
+            # mysql-connector bez autocommit — close bez commit cofa UPDATE
+            conn.commit()
+        finally:
+            cursor.close()
 
 
 def _fetch_one(query: str, params: tuple[object, ...]) -> dict[str, Any] | None:
