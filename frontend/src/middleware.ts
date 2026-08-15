@@ -2,17 +2,26 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { getAuthCookieName, isAuthEnabled } from "@/lib/authCookie";
+import { PATHNAME_HEADER } from "@/lib/firstLogin";
+
+function nextWithPathname(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(PATHNAME_HEADER, request.nextUrl.pathname);
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}
 
 export function middleware(request: NextRequest) {
   if (!isAuthEnabled()) {
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
 
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(getAuthCookieName())?.value;
 
   if (token) {
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
 
   // wywołania API bez sesji -> 401 JSON (nie HTML redirect)

@@ -101,12 +101,18 @@ class TestCompleteFirstLogin(unittest.TestCase):
             mock_fetch: MagicMock) -> None:
         mock_fetch.return_value = self._completed_user("alice")
         result = complete_first_login(
-            _FIRST_LOGIN_USER, "  alice  ", "newpass1", "newpass1")
+            _FIRST_LOGIN_USER,
+            "  alice  ",
+            "newpass1",
+            "newpass1",
+            "  Alice  ")
         mock_taken.assert_called_once_with("alice", 7)
         mock_update.assert_called_once()
-        user_id, username, password_hash = mock_update.call_args.args
+        user_id, username, password_hash, display_name = (
+            mock_update.call_args.args)
         self.assertEqual(user_id, 7)
         self.assertEqual(username, "alice")
+        self.assertEqual(display_name, "Alice")
         self.assertTrue(verify_password("newpass1", password_hash))
         mock_fetch.assert_called_once_with(7)
         self.assertEqual(result, mock_fetch.return_value)
@@ -118,7 +124,11 @@ class TestCompleteFirstLogin(unittest.TestCase):
             self, mock_update: MagicMock) -> None:
         with self.assertRaises(AuthError) as ctx:
             complete_first_login(
-                _FIRST_LOGIN_USER, "alice", "newpass1", "otherpass")
+                _FIRST_LOGIN_USER,
+                "alice",
+                "newpass1",
+                "otherpass",
+                "Alice")
         self.assertEqual(str(ctx.exception), "Passwords do not match")
         mock_update.assert_not_called()
 
@@ -129,7 +139,7 @@ class TestCompleteFirstLogin(unittest.TestCase):
             self, mock_update: MagicMock) -> None:
         with self.assertRaises(AuthError) as ctx:
             complete_first_login(
-                _FIRST_LOGIN_USER, "alice", "ab", "ab")
+                _FIRST_LOGIN_USER, "alice", "ab", "ab", "Alice")
         self.assertIn("between", str(ctx.exception))
         mock_update.assert_not_called()
 
@@ -145,7 +155,11 @@ class TestCompleteFirstLogin(unittest.TestCase):
             _mock_taken: MagicMock) -> None:
         with self.assertRaises(UsernameTakenError) as ctx:
             complete_first_login(
-                _FIRST_LOGIN_USER, "bob", "newpass1", "newpass1")
+                _FIRST_LOGIN_USER,
+                "bob",
+                "newpass1",
+                "newpass1",
+                "Bob")
         self.assertEqual(str(ctx.exception), "Username already taken")
         mock_update.assert_not_called()
 
@@ -157,7 +171,7 @@ class TestCompleteFirstLogin(unittest.TestCase):
         completed = {**_FIRST_LOGIN_USER, "first_login": 0}
         with self.assertRaises(AuthError) as ctx:
             complete_first_login(
-                completed, "alice", "newpass1", "newpass1")
+                completed, "alice", "newpass1", "newpass1", "Alice")
         self.assertEqual(str(ctx.exception), "First login already completed")
         mock_update.assert_not_called()
 
@@ -181,7 +195,11 @@ class TestCompleteFirstLogin(unittest.TestCase):
             1062)
         with self.assertRaises(UsernameTakenError) as ctx:
             complete_first_login(
-                _FIRST_LOGIN_USER, "bob", "newpass1", "newpass1")
+                _FIRST_LOGIN_USER,
+                "bob",
+                "newpass1",
+                "newpass1",
+                "Bob")
         self.assertEqual(str(ctx.exception), "Username already taken")
         mock_fetch.assert_not_called()
 
@@ -204,7 +222,11 @@ class TestCompleteFirstLogin(unittest.TestCase):
             "First login already completed or user not found")
         with self.assertRaises(AuthError) as ctx:
             complete_first_login(
-                _FIRST_LOGIN_USER, "alice", "newpass1", "newpass1")
+                _FIRST_LOGIN_USER,
+                "alice",
+                "newpass1",
+                "newpass1",
+                "Alice")
         self.assertEqual(str(ctx.exception), "First login already completed")
         mock_fetch.assert_not_called()
 
@@ -219,8 +241,24 @@ class TestCompleteFirstLogin(unittest.TestCase):
             mock_hash: MagicMock) -> None:
         with self.assertRaises(AuthError) as ctx:
             complete_first_login(
-                _FIRST_LOGIN_USER, "   ", "newpass1", "newpass1")
+                _FIRST_LOGIN_USER, "   ", "newpass1", "newpass1", "Alice")
         self.assertIn("Username", str(ctx.exception))
+        mock_update.assert_not_called()
+        mock_hash.assert_not_called()
+
+    @patch(
+        "backend.services.auth_service.hash_password")
+    @patch(
+        "backend.services.auth_service.user_repository"
+        ".update_user_credentials_after_first_login")
+    def test_empty_display_name_does_not_write(
+            self,
+            mock_update: MagicMock,
+            mock_hash: MagicMock) -> None:
+        with self.assertRaises(AuthError) as ctx:
+            complete_first_login(
+                _FIRST_LOGIN_USER, "alice", "newpass1", "newpass1", "   ")
+        self.assertIn("Display name", str(ctx.exception))
         mock_update.assert_not_called()
         mock_hash.assert_not_called()
 

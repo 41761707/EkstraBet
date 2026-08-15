@@ -9,6 +9,7 @@ import {
   parseErrorMessage,
   type SearchParams,
 } from "@/lib/apiShared";
+import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
 import type {
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
@@ -42,6 +43,9 @@ async function fetchViaBff<T>(
 
   if (!response.ok) {
     const message = await parseErrorMessage(response);
+    if (isFirstLoginRequiredError(response.status, message)) {
+      window.location.replace(FIRST_LOGIN_PATH);
+    }
     throw new ApiError(response.status, message);
   }
 

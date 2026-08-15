@@ -19,9 +19,10 @@ const NAV_LINKS = [
 
 type AppNavProps = {
   showLogout: boolean;
+  showLinks?: boolean;
 };
 
-export function AppNav({ showLogout }: AppNavProps) {
+export function AppNav({ showLogout, showLinks = true }: AppNavProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -104,16 +105,18 @@ export function AppNav({ showLogout }: AppNavProps) {
                 className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-slate-300"
                 aria-label="Główna nawigacja"
               >
-                {NAV_LINKS.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={mobileLinkClassName}
-                    onClick={() => setIsOpen(false)}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
+                {showLinks
+                  ? NAV_LINKS.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className={mobileLinkClassName}
+                        onClick={() => setIsOpen(false)}
+                      >
+                        {link.label}
+                      </Link>
+                    ))
+                  : null}
                 {showLogout ? (
                   <div className="mt-2 border-t border-slate-700/80 pt-2">
                     <LogoutButton />
@@ -132,27 +135,35 @@ export function AppNav({ showLogout }: AppNavProps) {
         className="hidden items-center justify-end gap-1 text-sm text-slate-300 lg:flex"
         aria-label="Główna nawigacja"
       >
-        {NAV_LINKS.map((link) => (
-          <Link key={link.href} href={link.href} className={linkClassName}>
-            {link.label}
-          </Link>
-        ))}
+        {showLinks
+          ? NAV_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className={linkClassName}>
+                {link.label}
+              </Link>
+            ))
+          : null}
         {showLogout ? <LogoutButton /> : null}
       </nav>
 
       <div className="lg:hidden">
-        <button
-          ref={toggleRef}
-          type="button"
-          className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
-          aria-expanded={isOpen}
-          aria-controls={menuId}
-          aria-label={isOpen ? "Zamknij menu" : "Otwórz menu"}
-          onClick={() => setIsOpen((open) => !open)}
-        >
-          {isOpen ? <CloseIcon /> : <MenuIcon />}
-        </button>
-        {mobileMenu}
+        {showLinks ? (
+          <>
+            <button
+              ref={toggleRef}
+              type="button"
+              className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              aria-expanded={isOpen}
+              aria-controls={menuId}
+              aria-label={isOpen ? "Zamknij menu" : "Otwórz menu"}
+              onClick={() => setIsOpen((open) => !open)}
+            >
+              {isOpen ? <CloseIcon /> : <MenuIcon />}
+            </button>
+            {mobileMenu}
+          </>
+        ) : showLogout ? (
+          <LogoutButton />
+        ) : null}
       </div>
     </>
   );

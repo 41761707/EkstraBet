@@ -39,6 +39,7 @@ _FIRST_LOGIN_USER = {
 }
 _COMPLETE_BODY = {
     "username": "alice",
+    "display_name": "Alice",
     "new_password": "newpass1",
     "new_password_confirm": "newpass1"
 }
@@ -316,9 +317,11 @@ class TestFirstLoginApi(unittest.TestCase):
         self.assertEqual(payload["user"]["username"], "alice")
         mock_taken.assert_called_once_with("alice", 1)
         mock_update.assert_called_once()
-        _user_id, username, password_hash = mock_update.call_args.args
+        _user_id, username, password_hash, display_name = (
+            mock_update.call_args.args)
         self.assertEqual(_user_id, 1)
         self.assertEqual(username, "alice")
+        self.assertEqual(display_name, "Alice")
         self.assertTrue(
             auth_service.verify_password("newpass1", password_hash))
         self.assertFalse(
@@ -355,6 +358,7 @@ class TestFirstLoginApi(unittest.TestCase):
             "/auth/complete-first-login",
             json={
                 "username": "alice",
+                "display_name": "Alice",
                 "new_password": "newpass1",
                 "new_password_confirm": "otherpass"
             },
@@ -383,6 +387,7 @@ class TestFirstLoginApi(unittest.TestCase):
             "/auth/complete-first-login",
             json={
                 "username": "bob",
+                "display_name": "Bob",
                 "new_password": "newpass1",
                 "new_password_confirm": "newpass1"
             },

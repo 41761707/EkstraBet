@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
 import { AppHeader } from "@/components/AppHeader";
+import { redirectIfFirstLoginIncomplete } from "@/lib/firstLoginGate";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,11 +20,13 @@ export const metadata: Metadata = {
   description: "Asystent analityki sportowej",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await redirectIfFirstLoginIncomplete();
+
   return (
     <html lang="pl">
       <body

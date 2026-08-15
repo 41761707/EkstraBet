@@ -19,6 +19,8 @@ MIN_PASSWORD_LENGTH = 3
 MAX_PASSWORD_LENGTH = 200
 MIN_USERNAME_LENGTH = 1
 MAX_USERNAME_LENGTH = 50
+MIN_DISPLAY_NAME_LENGTH = 1
+MAX_DISPLAY_NAME_LENGTH = 50
 
 
 class AuthError(Exception):
@@ -141,18 +143,23 @@ def complete_first_login(
         user: dict[str, Any],
         username: str,
         new_password: str,
-        new_password_confirm: str) -> dict[str, Any]:
+        new_password_confirm: str,
+        display_name: str) -> dict[str, Any]:
     """Persist new credentials and clear the first-login flag."""
     if not user.get("first_login"):
         raise AuthError("First login already completed")
     normalized_username = _normalize_username(username)
+    normalized_display_name = _normalize_display_name(display_name)
     _validate_new_password(new_password, new_password_confirm)
     user_id = int(user["id"])
     if user_repository.is_username_taken(normalized_username, user_id):
         raise UsernameTakenError("Username already taken")
     password_hash = hash_password(new_password)
     _persist_first_login_credentials(
-        user_id, normalized_username, password_hash)
+        user_id,
+        normalized_username,
+        password_hash,
+        normalized_display_name)
     updated = user_repository.fetch_user_by_id(user_id)
     if updated is None:
         raise AuthError("User not found")
@@ -161,11 +168,33 @@ def complete_first_login(
 
 def _normalize_username(username: str) -> str:
     """Return a trimmed username or raise AuthError."""
-    normalized = username.strip()
-    if not MIN_USERNAME_LENGTH <= len(normalized) <= MAX_USERNAME_LENGTH:
+    return _normalize_required_name(
+        username,
+        MIN_USERNAME_LENGTH,
+        MAX_USERNAME_LENGTH,
+        "Username")
+
+
+def _normalize_display_name(display_name: str) -> str:
+    """Return a trimmed display name or raise AuthError."""
+    return _normalize_required_name(
+        display_name,
+        MIN_DISPLAY_NAME_LENGTH,
+        MAX_DISPLAY_NAME_LENGTH,
+        "Display name")
+
+
+def _normalize_required_name(
+        value: str,
+        min_length: int,
+        max_length: int,
+        field_label: str) -> str:
+    """Return a trimmed required name or raise AuthError."""
+    normalized = value.strip()
+    if not min_length <= len(normalized) <= max_length:
         raise AuthError(
-            "Username must be between "
-            f"{MIN_USERNAME_LENGTH} and {MAX_USERNAME_LENGTH} characters")
+            f"{field_label} must be between "
+            f"{min_length} and {max_length} characters")
     return normalized
 
 
@@ -185,11 +214,12 @@ def _validate_new_password(
 def _persist_first_login_credentials(
         user_id: int,
         username: str,
-        password_hash: str) -> None:
+        password_hash: str,
+        display_name: str) -> None:
     """Write credentials; map DB conflicts to domain errors."""
     try:
         user_repository.update_user_credentials_after_first_login(
-            user_id, username, password_hash)
+            user_id, username, password_hash, display_name)
     except ValueError as exc:
         raise AuthError("First login already completed") from exc
     except IntegrityError as exc:

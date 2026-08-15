@@ -67,7 +67,8 @@ async def complete_first_login(
             user,
             body.username,
             body.new_password,
-            body.new_password_confirm)
+            body.new_password_confirm,
+            body.display_name)
     except auth_service.UsernameTakenError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

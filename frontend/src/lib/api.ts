@@ -5,6 +5,9 @@ import "server-only";
  * Browser code must use `@/lib/apiClient` (BFF paths only).
  */
 
+import { cache } from "react";
+import { redirect } from "next/navigation";
+
 import { decodeRouteParam } from "@/lib/leaguePaths";
 import {
   ApiError,
@@ -14,6 +17,7 @@ import {
   type SearchParams,
 } from "@/lib/apiShared";
 import { getServerAuthHeaders } from "@/lib/auth";
+import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
 import { getApiBaseUrl } from "@/lib/runtimeConfig";
 import type {
   AnalyticsAggregationMetric,
@@ -56,6 +60,7 @@ import type {
   RatingMetric,
   RatingProgressResponse,
   TeamsListResponse,
+  UserPublic,
 } from "@/types/api";
 
 export { ApiError, normalizeMatchDetails } from "@/lib/apiShared";
@@ -84,11 +89,33 @@ async function fetchApi<T>(
 
   if (!response.ok) {
     const message = await parseErrorMessage(response);
+    if (isFirstLoginRequiredError(response.status, message)) {
+      redirect(FIRST_LOGIN_PATH);
+    }
     throw new ApiError(response.status, message);
   }
 
   return response.json() as Promise<T>;
 }
+
+/** Current authenticated user; never cached across requests so first_login stays fresh. */
+export const getCurrentUser = cache(async (): Promise<UserPublic> => {
+  const authHeaders = await getServerAuthHeaders();
+  const response = await fetch(buildUrl("/auth/me"), {
+    headers: {
+      Accept: "application/json",
+      ...authHeaders,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const message = await parseErrorMessage(response);
+    throw new ApiError(response.status, message);
+  }
+
+  return response.json() as Promise<UserPublic>;
+});
 
 export async function getLeagues(options?: {
   active?: boolean;

@@ -6,12 +6,14 @@ import { getApiBaseUrl } from "@/lib/runtimeConfig";
 
 interface CompleteFirstLoginBody {
   username?: string;
+  display_name?: string;
   new_password?: string;
   new_password_confirm?: string;
 }
 
 interface ParsedCompleteFirstLoginBody {
   username: string;
+  displayName: string;
   newPassword: string;
   newPasswordConfirm: string;
 }
@@ -24,12 +26,13 @@ function readCompleteFirstLoginBody(
   body: CompleteFirstLoginBody,
 ): ParsedCompleteFirstLoginBody | null {
   const username = body.username?.trim() ?? "";
+  const displayName = body.display_name?.trim() ?? "";
   const newPassword = body.new_password ?? "";
   const newPasswordConfirm = body.new_password_confirm ?? "";
-  if (!username || !newPassword || !newPasswordConfirm) {
+  if (!username || !displayName || !newPassword || !newPasswordConfirm) {
     return null;
   }
-  return { username, newPassword, newPasswordConfirm };
+  return { username, displayName, newPassword, newPasswordConfirm };
 }
 
 export async function POST(request: Request) {
@@ -48,7 +51,10 @@ export async function POST(request: Request) {
 
   const parsed = readCompleteFirstLoginBody(body);
   if (!parsed) {
-    return jsonError("Nazwa użytkownika i oba hasła są wymagane", 400);
+    return jsonError(
+      "Nazwa użytkownika, wyświetlana nazwa i oba hasła są wymagane",
+      400,
+    );
   }
 
   const headers: Record<string, string> = {
@@ -64,6 +70,7 @@ export async function POST(request: Request) {
     headers,
     body: JSON.stringify({
       username: parsed.username,
+      display_name: parsed.displayName,
       new_password: parsed.newPassword,
       new_password_confirm: parsed.newPasswordConfirm,
     }),

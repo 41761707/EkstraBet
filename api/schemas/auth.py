@@ -55,6 +55,11 @@ class CompleteFirstLoginRequest(BaseModel):
         min_length=3,
         max_length=200,
         description="New password confirmation")
+    display_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Chosen display name (nickname)")
 
 
 class CompleteFirstLoginResponse(BaseModel):

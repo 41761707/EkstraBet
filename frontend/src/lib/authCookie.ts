@@ -22,3 +22,14 @@ export function safeInternalPath(next: string | null | undefined): string {
   }
   return next;
 }
+
+/** After login, unfinished first-login accounts go to the completion form. */
+export function resolvePostLoginPath(
+  firstLogin: boolean,
+  next: string | null | undefined,
+): string {
+  if (firstLogin) {
+    return "/first-login";
+  }
+  return safeInternalPath(next);
+}

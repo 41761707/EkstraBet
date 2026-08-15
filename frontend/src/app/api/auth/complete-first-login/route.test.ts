@@ -2,6 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const cookieStore = { token: undefined as string | undefined };
 
+const COMPLETE_BODY = {
+  username: "alice",
+  display_name: "Alice",
+  new_password: "newpass",
+  new_password_confirm: "newpass",
+};
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => {
@@ -38,11 +45,7 @@ describe("POST /api/auth/complete-first-login", () => {
       new Request("http://localhost:3000/api/auth/complete-first-login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          username: "alice",
-          new_password: "newpass",
-          new_password_confirm: "newpass",
-        }),
+        body: JSON.stringify(COMPLETE_BODY),
       }),
     );
 
@@ -73,11 +76,7 @@ describe("POST /api/auth/complete-first-login", () => {
       new Request("http://localhost:3000/api/auth/complete-first-login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          username: "alice",
-          new_password: "newpass",
-          new_password_confirm: "newpass",
-        }),
+        body: JSON.stringify(COMPLETE_BODY),
       }),
     );
 
@@ -91,6 +90,7 @@ describe("POST /api/auth/complete-first-login", () => {
     );
     expect(JSON.parse(String(init.body))).toEqual({
       username: "alice",
+      display_name: "Alice",
       new_password: "newpass",
       new_password_confirm: "newpass",
     });
@@ -117,6 +117,7 @@ describe("POST /api/auth/complete-first-login", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           username: "taken",
+          display_name: "Taken",
           new_password: "newpass",
           new_password_confirm: "newpass",
         }),

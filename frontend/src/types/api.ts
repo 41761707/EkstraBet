@@ -1,5 +1,13 @@
 /** TypeScript types mirroring FastAPI league and match schemas. */
 
+/** Public user profile from GET /auth/me (no internal numeric id). */
+export interface UserPublic {
+  uuid: string;
+  username: string;
+  display_name: string | null;
+  first_login: boolean;
+}
+
 export interface LeagueSummary {
   id: number;
   name: string;

@@ -58,12 +58,14 @@ def is_username_taken(username: str, exclude_user_id: int) -> bool:
 def update_user_credentials_after_first_login(
         user_id: int,
         username: str,
-        password_hash: str) -> None:
-    """Set username and password hash, then clear first_login."""
+        password_hash: str,
+        display_name: str) -> None:
+    """Set username, display name and password hash, then clear first_login."""
     query = """
         UPDATE users
         SET username = %s,
             password_hash = %s,
+            display_name = %s,
             first_login = 0,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = %s AND first_login = 1
@@ -71,7 +73,8 @@ def update_user_credentials_after_first_login(
     with get_db_connection() as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(query, (username, password_hash, user_id))
+            cursor.execute(
+                query, (username, password_hash, display_name, user_id))
             if cursor.rowcount == 0:
                 conn.rollback()
                 raise ValueError(

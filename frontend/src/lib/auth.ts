@@ -8,6 +8,7 @@ export {
   DEFAULT_AUTH_COOKIE_NAME,
   getAuthCookieName,
   isAuthEnabled,
+  resolvePostLoginPath,
   safeInternalPath,
 } from "@/lib/authCookie";
 

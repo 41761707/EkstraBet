@@ -78,7 +78,7 @@ class TestIsUsernameTaken(unittest.TestCase):
 
 
 class TestUpdateUserCredentialsAfterFirstLogin(unittest.TestCase):
-    """UPDATE must clear first_login and persist username plus hash."""
+    """UPDATE must clear first_login and persist username, hash and nickname."""
 
     @patch("backend.repositories.user_repository.get_db_connection")
     def test_happy_path_updates_and_commits(
@@ -86,14 +86,15 @@ class TestUpdateUserCredentialsAfterFirstLogin(unittest.TestCase):
             mock_get_conn: MagicMock) -> None:
         conn, cursor = _mock_connection(mock_get_conn, rowcount=1)
         user_repository.update_user_credentials_after_first_login(
-            7, "new_name", "hashed")
+            7, "new_name", "hashed", "Nick")
         query, params = cursor.execute.call_args.args
         self.assertIn("UPDATE users", query)
         self.assertIn("username = %s", query)
         self.assertIn("password_hash = %s", query)
+        self.assertIn("display_name = %s", query)
         self.assertIn("first_login = 0", query)
         self.assertIn("WHERE id = %s AND first_login = 1", query)
-        self.assertEqual(params, ("new_name", "hashed", 7))
+        self.assertEqual(params, ("new_name", "hashed", "Nick", 7))
         conn.commit.assert_called_once()
         conn.rollback.assert_not_called()
         cursor.close.assert_called_once()
@@ -105,7 +106,7 @@ class TestUpdateUserCredentialsAfterFirstLogin(unittest.TestCase):
         conn, cursor = _mock_connection(mock_get_conn, rowcount=0)
         with self.assertRaises(ValueError) as ctx:
             user_repository.update_user_credentials_after_first_login(
-                7, "new_name", "hashed")
+                7, "new_name", "hashed", "Nick")
         self.assertIn("already completed", str(ctx.exception))
         conn.commit.assert_not_called()
         conn.rollback.assert_called_once()
@@ -122,7 +123,7 @@ class TestUpdateUserCredentialsAfterFirstLogin(unittest.TestCase):
         cursor.execute.side_effect = error
         with self.assertRaises(IntegrityError) as ctx:
             user_repository.update_user_credentials_after_first_login(
-                7, "alice", "hashed")
+                7, "alice", "hashed", "Nick")
         self.assertIs(ctx.exception, error)
         conn.commit.assert_not_called()
         # IntegrityError przed commit — rollback przy close połączenia

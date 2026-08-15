@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { safeInternalPath } from "@/lib/authCookie";
+import { resolvePostLoginPath } from "@/lib/authCookie";
 
 export function LoginForm() {
   const router = useRouter();
@@ -30,6 +30,7 @@ export function LoginForm() {
       });
       const payload = (await response.json().catch(() => ({}))) as {
         detail?: string;
+        first_login?: boolean;
       };
       if (!response.ok) {
         setError(
@@ -40,7 +41,12 @@ export function LoginForm() {
         return;
       }
 
-      router.replace(safeInternalPath(searchParams.get("next")));
+      router.replace(
+        resolvePostLoginPath(
+          payload.first_login === true,
+          searchParams.get("next"),
+        ),
+      );
       router.refresh();
     } catch {
       setError("Błąd połączenia. Spróbuj ponownie.");
