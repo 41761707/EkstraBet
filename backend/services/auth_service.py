@@ -9,13 +9,24 @@ from typing import Any
 
 import bcrypt
 import jwt
+from mysql.connector.errors import IntegrityError
 
 from backend.config import get_settings
 from backend.repositories import user_repository
 
 
+MIN_PASSWORD_LENGTH = 3
+MAX_PASSWORD_LENGTH = 200
+MIN_USERNAME_LENGTH = 1
+MAX_USERNAME_LENGTH = 50
+
+
 class AuthError(Exception):
     """Raised when login or token validation fails."""
+
+
+class UsernameTakenError(AuthError):
+    """Raised when the chosen username belongs to another user."""
 
 
 def _normalize_password(plain_password: str) -> str:
@@ -121,5 +132,65 @@ def to_public_user(user: dict[str, Any]) -> dict[str, Any]:
     return {
         "uuid": str(user["uuid"]),
         "username": str(user["username"]),
-        "display_name": user.get("display_name")
+        "display_name": user.get("display_name"),
+        "first_login": bool(user.get("first_login"))
     }
+
+
+def complete_first_login(
+        user: dict[str, Any],
+        username: str,
+        new_password: str,
+        new_password_confirm: str) -> dict[str, Any]:
+    """Persist new credentials and clear the first-login flag."""
+    if not user.get("first_login"):
+        raise AuthError("First login already completed")
+    normalized_username = _normalize_username(username)
+    _validate_new_password(new_password, new_password_confirm)
+    user_id = int(user["id"])
+    if user_repository.is_username_taken(normalized_username, user_id):
+        raise UsernameTakenError("Username already taken")
+    password_hash = hash_password(new_password)
+    _persist_first_login_credentials(
+        user_id, normalized_username, password_hash)
+    updated = user_repository.fetch_user_by_id(user_id)
+    if updated is None:
+        raise AuthError("User not found")
+    return updated
+
+
+def _normalize_username(username: str) -> str:
+    """Return a trimmed username or raise AuthError."""
+    normalized = username.strip()
+    if not MIN_USERNAME_LENGTH <= len(normalized) <= MAX_USERNAME_LENGTH:
+        raise AuthError(
+            "Username must be between "
+            f"{MIN_USERNAME_LENGTH} and {MAX_USERNAME_LENGTH} characters")
+    return normalized
+
+
+def _validate_new_password(
+        new_password: str,
+        new_password_confirm: str) -> None:
+    """Raise AuthError when the new password is invalid."""
+    if new_password != new_password_confirm:
+        raise AuthError("Passwords do not match")
+    password_length = len(new_password)
+    if not MIN_PASSWORD_LENGTH <= password_length <= MAX_PASSWORD_LENGTH:
+        raise AuthError(
+            "Password must be between "
+            f"{MIN_PASSWORD_LENGTH} and {MAX_PASSWORD_LENGTH} characters")
+
+
+def _persist_first_login_credentials(
+        user_id: int,
+        username: str,
+        password_hash: str) -> None:
+    """Write credentials; map DB conflicts to domain errors."""
+    try:
+        user_repository.update_user_credentials_after_first_login(
+            user_id, username, password_hash)
+    except ValueError as exc:
+        raise AuthError("First login already completed") from exc
+    except IntegrityError as exc:
+        raise UsernameTakenError("Username already taken") from exc
