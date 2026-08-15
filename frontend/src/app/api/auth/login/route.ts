@@ -41,6 +41,8 @@ export async function POST(request: Request) {
   const payload = (await upstream.json().catch(() => ({}))) as {
     access_token?: string;
     expires_in?: number;
+    first_login?: boolean;
+    username?: string;
     detail?: string;
   };
 
@@ -52,7 +54,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ detail }, { status: upstream.status || 401 });
   }
 
-  const response = NextResponse.json({ ok: true });
+  // flaga i username po sukcesie — UI przekieruje bez dodatkowego /me
+  const response = NextResponse.json({
+    ok: true,
+    first_login: payload.first_login === true,
+    username:
+      typeof payload.username === "string" && payload.username
+        ? payload.username
+        : username,
+  });
   const maxAge =
     typeof payload.expires_in === "number" && payload.expires_in > 0
       ? payload.expires_in
