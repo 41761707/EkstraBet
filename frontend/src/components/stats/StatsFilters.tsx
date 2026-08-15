@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
+import { navigateSearch } from "@/lib/clientNavigation";
 import type {
   AnalyticsAggregationMetric,
   AnalyticsGroupBy,
@@ -100,7 +101,15 @@ export function StatsFilters({
     }
 
     const query = params.toString();
-    router.push(query ? `/stats?${query}` : "/stats");
+    navigateSearch(query ? `/stats?${query}` : "/stats", () =>
+      router.refresh(),
+    );
+  }
+
+  function update(partial: Partial<StatsFilterValues>) {
+    const nextState = { ...state, ...partial };
+    setState(nextState);
+    applyFilters(nextState);
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -109,7 +118,7 @@ export function StatsFilters({
   }
 
   function handleReset() {
-    router.push("/stats");
+    navigateSearch("/stats", () => router.refresh());
   }
 
   return (
@@ -159,12 +168,11 @@ export function StatsFilters({
           <select
             value={state.seasonId ?? ""}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
+              update({
                 seasonId: event.target.value
                   ? Number(event.target.value)
                   : null,
-              }))
+              })
             }
             className={inputClassName}
           >
@@ -182,10 +190,9 @@ export function StatsFilters({
           <select
             value={state.statType}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
+              update({
                 statType: event.target.value as AnalyticsStatType,
-              }))
+              })
             }
             className={inputClassName}
           >
@@ -201,10 +208,9 @@ export function StatsFilters({
           <select
             value={state.groupBy}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
+              update({
                 groupBy: event.target.value as AnalyticsGroupBy,
-              }))
+              })
             }
             className={inputClassName}
           >
@@ -219,11 +225,10 @@ export function StatsFilters({
           <select
             value={state.aggregationMetric}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
+              update({
                 aggregationMetric:
                   event.target.value as AnalyticsAggregationMetric,
-              }))
+              })
             }
             className={inputClassName}
           >
@@ -239,12 +244,7 @@ export function StatsFilters({
           <input
             type="date"
             value={state.dateFrom}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                dateFrom: event.target.value,
-              }))
-            }
+            onChange={(event) => update({ dateFrom: event.target.value })}
             className={inputClassName}
           />
         </label>
@@ -253,12 +253,7 @@ export function StatsFilters({
           <input
             type="date"
             value={state.dateTo}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                dateTo: event.target.value,
-              }))
-            }
+            onChange={(event) => update({ dateTo: event.target.value })}
             className={inputClassName}
           />
         </label>
@@ -300,10 +295,7 @@ export function StatsFilters({
             type="checkbox"
             checked={state.settledOnly}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                settledOnly: event.target.checked,
-              }))
+              update({ settledOnly: event.target.checked })
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
@@ -314,10 +306,7 @@ export function StatsFilters({
             type="checkbox"
             checked={state.positiveEvOnly}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                positiveEvOnly: event.target.checked,
-              }))
+              update({ positiveEvOnly: event.target.checked })
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
@@ -328,10 +317,7 @@ export function StatsFilters({
             type="checkbox"
             checked={state.applyTax}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                applyTax: event.target.checked,
-              }))
+              update({ applyTax: event.target.checked })
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />

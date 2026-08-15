@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { navigateAfterAuth } from "@/lib/clientNavigation";
+
 export function LogoutButton() {
-  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   async function handleLogout() {
@@ -14,8 +14,7 @@ export function LogoutButton() {
     } catch {
       // i tak czyścimy sesję po stronie UI
     } finally {
-      router.replace("/login");
-      router.refresh();
+      navigateAfterAuth("/login");
       setIsLoggingOut(false);
     }
   }

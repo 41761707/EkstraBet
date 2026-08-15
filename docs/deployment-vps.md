@@ -275,6 +275,11 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+W `location /` szablon ma `proxy_http_version 1.1`, `proxy_buffering off`
+i `proxy_read_timeout 60s` — Next.js streamuje RSC; buffering nginx psuje
+nawigację po loginie i zmianie filtrów. Jeśli site na VPS powstał ze
+starszej kopii, dopisz te dyrektywy i `sudo nginx -t && sudo systemctl reload nginx`.
+
 Sprawdzenia (po starcie frontendu w 9.4):
 
 - `curl -I http://example.com` → `301` na HTTPS;

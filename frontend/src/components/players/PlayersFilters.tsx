@@ -6,6 +6,7 @@ import {
   getMatchLimitOptions,
   MATCH_LIMIT_OPTIONS,
 } from "@/components/players/playerStatsConfig";
+import { navigateSearch } from "@/lib/clientNavigation";
 import type { PlayersFilterValues } from "@/lib/playerFilterParams";
 import { FOOTBALL_SPORT_ID } from "@/lib/playerFilterParams";
 import type {
@@ -61,7 +62,9 @@ export function PlayersFilters({
     }
 
     const query = params.toString();
-    router.push(query ? `/players?${query}` : "/players");
+    navigateSearch(query ? `/players?${query}` : "/players", () =>
+      router.refresh(),
+    );
   }
 
   function updateState(partial: Partial<PlayersFilterValues>) {

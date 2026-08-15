@@ -2,13 +2,13 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 import {
   mapCompleteFirstLoginError,
   validateFirstLoginForm,
 } from "@/components/auth/firstLoginFormModel";
 import { PasswordField } from "@/components/auth/PasswordField";
+import { navigateAfterAuth } from "@/lib/clientNavigation";
 
 interface FirstLoginFormProps {
   initialUsername: string;
@@ -30,7 +30,6 @@ export function FirstLoginForm({
   initialUsername,
   initialDisplayName,
 }: FirstLoginFormProps) {
-  const router = useRouter();
   const [username, setUsername] = useState(initialUsername);
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [newPassword, setNewPassword] = useState("");
@@ -65,8 +64,7 @@ export function FirstLoginForm({
         setError(didComplete.error);
         return;
       }
-      router.replace("/");
-      router.refresh();
+      navigateAfterAuth("/");
     } catch {
       setError("Błąd połączenia. Spróbuj ponownie.");
     } finally {

@@ -3,6 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
+import {
+  betsFilterPath,
+  type BetsFilterValues,
+} from "@/lib/betsFilterParams";
+import { navigateSearch } from "@/lib/clientNavigation";
 import type {
   BetSortBy,
   BetSortOrder,
@@ -10,20 +15,7 @@ import type {
   SettlementStatus,
 } from "@/types/api";
 
-export interface BetsFilterValues {
-  leagueIds: number[];
-  eventIds: number[];
-  modelIds: number[];
-  matchDate: string;
-  fromNow: boolean;
-  minOdds: number;
-  positiveEvOnly: boolean;
-  applyTax: boolean;
-  settlementStatus: SettlementStatus | "";
-  sortBy: BetSortBy;
-  sortOrder: BetSortOrder;
-  page: number;
-}
+export type { BetsFilterValues };
 
 interface BetsFiltersProps {
   leagues: FilterOption[];
@@ -45,46 +37,13 @@ export function BetsFilters({
   const [state, setState] = useState(values);
 
   function applyFilters(nextState: BetsFilterValues) {
-    const params = new URLSearchParams();
-    if (nextState.leagueIds.length > 0) {
-      params.set("league_ids", nextState.leagueIds.join(","));
-    }
-    if (nextState.eventIds.length > 0) {
-      params.set("event_ids", nextState.eventIds.join(","));
-    }
-    if (nextState.modelIds.length > 0) {
-      params.set("model_ids", nextState.modelIds.join(","));
-    }
-    if (nextState.matchDate) {
-      params.set("match_date", nextState.matchDate);
-    }
-    if (nextState.fromNow) {
-      params.set("from_now", "true");
-    }
-    if (nextState.minOdds > 1) {
-      params.set("min_odds", String(nextState.minOdds));
-    }
-    if (nextState.positiveEvOnly) {
-      params.set("positive_ev_only", "true");
-    }
-    if (nextState.applyTax) {
-      params.set("apply_tax", "true");
-    }
-    if (nextState.settlementStatus) {
-      params.set("settlement_status", nextState.settlementStatus);
-    }
-    if (nextState.sortBy !== "ev") {
-      params.set("sort_by", nextState.sortBy);
-    }
-    if (nextState.sortOrder !== "desc") {
-      params.set("sort_order", nextState.sortOrder);
-    }
-    if (nextState.page > 1) {
-      params.set("page", String(nextState.page));
-    }
+    navigateSearch(betsFilterPath(nextState), () => router.refresh());
+  }
 
-    const query = params.toString();
-    router.push(query ? `/bets?${query}` : "/bets");
+  function update(partial: Partial<BetsFilterValues>) {
+    const nextState = { ...state, ...partial, page: 1 };
+    setState(nextState);
+    applyFilters(nextState);
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -108,7 +67,7 @@ export function BetsFilters({
       page: 1,
     };
     setState(resetState);
-    router.push("/bets");
+    navigateSearch("/bets", () => router.refresh());
   }
 
   return (
@@ -119,21 +78,27 @@ export function BetsFilters({
           name="leagues"
           options={leagues}
           selectedIds={state.leagueIds}
-          onChange={(leagueIds) => setState((current) => ({ ...current, leagueIds }))}
+          onChange={(leagueIds) =>
+            setState((current) => ({ ...current, leagueIds }))
+          }
         />
         <MultiSelectCheckboxGroup
           label="Wydarzenia"
           name="events"
           options={events}
           selectedIds={state.eventIds}
-          onChange={(eventIds) => setState((current) => ({ ...current, eventIds }))}
+          onChange={(eventIds) =>
+            setState((current) => ({ ...current, eventIds }))
+          }
         />
         <MultiSelectCheckboxGroup
           label="Modele"
           name="models"
           options={models}
           selectedIds={state.modelIds}
-          onChange={(modelIds) => setState((current) => ({ ...current, modelIds }))}
+          onChange={(modelIds) =>
+            setState((current) => ({ ...current, modelIds }))
+          }
         />
       </div>
 
@@ -143,12 +108,7 @@ export function BetsFilters({
           <input
             type="date"
             value={state.matchDate}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                matchDate: event.target.value,
-              }))
-            }
+            onChange={(event) => update({ matchDate: event.target.value })}
             className={inputClassName}
           />
         </label>
@@ -167,6 +127,12 @@ export function BetsFilters({
                 minOdds: Number(event.target.value) || 1,
               }))
             }
+            onBlur={(event) => {
+              const minOdds = Number(event.target.value) || 1;
+              const nextState = { ...state, minOdds, page: 1 };
+              setState(nextState);
+              applyFilters(nextState);
+            }}
             className={inputClassName}
           />
         </label>
@@ -176,10 +142,7 @@ export function BetsFilters({
           <select
             value={state.sortBy}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                sortBy: event.target.value as BetSortBy,
-              }))
+              update({ sortBy: event.target.value as BetSortBy })
             }
             className={inputClassName}
           >
@@ -194,10 +157,7 @@ export function BetsFilters({
           <select
             value={state.sortOrder}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                sortOrder: event.target.value as BetSortOrder,
-              }))
+              update({ sortOrder: event.target.value as BetSortOrder })
             }
             className={inputClassName}
           >
@@ -212,12 +172,7 @@ export function BetsFilters({
           <input
             type="checkbox"
             checked={state.fromNow}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                fromNow: event.target.checked,
-              }))
-            }
+            onChange={(event) => update({ fromNow: event.target.checked })}
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
           Tylko od teraz
@@ -227,10 +182,7 @@ export function BetsFilters({
             type="checkbox"
             checked={state.positiveEvOnly}
             onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                positiveEvOnly: event.target.checked,
-              }))
+              update({ positiveEvOnly: event.target.checked })
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
@@ -240,12 +192,7 @@ export function BetsFilters({
           <input
             type="checkbox"
             checked={state.applyTax}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                applyTax: event.target.checked,
-              }))
-            }
+            onChange={(event) => update({ applyTax: event.target.checked })}
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
           Uwzględnij podatek 12%
@@ -257,10 +204,9 @@ export function BetsFilters({
         <select
           value={state.settlementStatus}
           onChange={(event) =>
-            setState((current) => ({
-              ...current,
+            update({
               settlementStatus: event.target.value as SettlementStatus | "",
-            }))
+            })
           }
           className={inputClassName}
         >

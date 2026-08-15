@@ -2,12 +2,12 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { resolvePostLoginPath } from "@/lib/authCookie";
+import { navigateAfterAuth } from "@/lib/clientNavigation";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -41,13 +41,13 @@ export function LoginForm() {
         return;
       }
 
-      router.replace(
+      // twardy reload: cookie z Set-Cookie musi trafić do middleware
+      navigateAfterAuth(
         resolvePostLoginPath(
           payload.first_login === true,
           searchParams.get("next"),
         ),
       );
-      router.refresh();
     } catch {
       setError("Błąd połączenia. Spróbuj ponownie.");
     } finally {

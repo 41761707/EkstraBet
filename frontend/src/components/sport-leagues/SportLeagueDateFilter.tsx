@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { navigateSearch } from "@/lib/clientNavigation";
 import {
   sportLeaguePath,
   type SportLeagueFilters,
@@ -23,7 +24,9 @@ export function SportLeagueDateFilter({
   const [state, setState] = useState(filters);
 
   function apply(nextState: SportLeagueFilters) {
-    router.push(sportLeaguePath(leagueSlug, nextState));
+    navigateSearch(sportLeaguePath(leagueSlug, nextState), () =>
+      router.refresh(),
+    );
   }
 
   function update(partial: Partial<SportLeagueFilters>) {
