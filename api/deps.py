@@ -17,6 +17,10 @@ _PUBLIC_PATHS = frozenset({
     "/ready",
     "/auth/login"
 })
+_FIRST_LOGIN_ALLOWED_PATHS = frozenset({
+    "/auth/me",
+    "/auth/complete-first-login",
+    "/auth/status"})
 _OPENAPI_PREFIXES = ("/docs", "/redoc", "/openapi.json")
 
 
@@ -43,13 +47,26 @@ def _extract_bearer_token(
     return None
 
 
+def _reject_if_first_login_blocked(
+    path: str,
+    user: dict[str, Any]) -> None:
+    """Raise 403 when first-login is pending and the path is not allowed."""
+    if not user.get("first_login"):
+        return
+    if path in _FIRST_LOGIN_ALLOWED_PATHS:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="first_login_required")
+
+
 async def require_auth(
     request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Depends(_bearer_scheme)]
 ) -> dict[str, Any] | None:
-    """Wymusza autoryzację JWT, gdy jest włączona; pomija publiczne ścieżki i kill-switch."""
+    """Require a JWT when auth is on; skip public paths and the kill-switch."""
     settings = get_settings()
     if not settings.auth_enabled:
         return None
@@ -62,12 +79,14 @@ async def require_auth(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"})
     try:
-        return auth_service.resolve_user_from_token(token)
+        user = auth_service.resolve_user_from_token(token)
     except auth_service.AuthError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),
             headers={"WWW-Authenticate": "Bearer"}) from exc
+    _reject_if_first_login_blocked(request.url.path, user)
+    return user
 
 
 async def get_current_user(
