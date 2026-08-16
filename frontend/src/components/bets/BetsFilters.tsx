@@ -37,7 +37,7 @@ export function BetsFilters({
   const [state, setState] = useState(values);
 
   function applyFilters(nextState: BetsFilterValues) {
-    navigateSearch(betsFilterPath(nextState), () => router.refresh());
+    navigateSearch(betsFilterPath(nextState), router);
   }
 
   function update(partial: Partial<BetsFilterValues>) {
@@ -67,7 +67,7 @@ export function BetsFilters({
       page: 1,
     };
     setState(resetState);
-    navigateSearch("/bets", () => router.refresh());
+    navigateSearch("/bets", router);
   }
 
   return (
@@ -78,6 +78,7 @@ export function BetsFilters({
           name="leagues"
           options={leagues}
           selectedIds={state.leagueIds}
+          showClearAll
           onChange={(leagueIds) =>
             setState((current) => ({ ...current, leagueIds }))
           }

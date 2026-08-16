@@ -7,14 +7,28 @@ export function navigateAfterAuth(path: string): void {
   window.location.replace(path);
 }
 
-/**
- * Update the query string and re-render Server Components for the new URL.
- * `router.push` on the same pathname is unreliable in production.
- */
-export function navigateSearch(path: string, refresh: () => void): void {
+export interface SearchRouter {
+  push: (href: string, options?: { scroll?: boolean }) => void;
+  refresh: () => void;
+}
+
+export function isCurrentPath(path: string): boolean {
   const current = `${window.location.pathname}${window.location.search}`;
-  if (current !== path) {
-    window.history.pushState(null, "", path);
+  return decodeURIComponent(current) === decodeURIComponent(path);
+}
+
+/**
+ * Update the query string through the App Router so Server Components re-fetch.
+ *
+ * `history.pushState` + `router.refresh()` looks like it works, but Next.js
+ * treats an external pushState as ACTION_RESTORE (URL only) and discards a
+ * same-tick ACTION_REFRESH. The first Apply click then only changes the
+ * address bar; the second click finally refreshes data.
+ */
+export function navigateSearch(path: string, router: SearchRouter): void {
+  if (isCurrentPath(path)) {
+    router.refresh();
+    return;
   }
-  refresh();
+  router.push(path, { scroll: false });
 }

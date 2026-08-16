@@ -27,31 +27,41 @@ describe("navigateSearch", () => {
     vi.unstubAllGlobals();
   });
 
-  it("pushes a new query and refreshes Server Components", () => {
-    const pushState = vi.fn();
-    const refresh = vi.fn();
+  it("pushes a new query through the App Router", () => {
+    const router = { push: vi.fn(), refresh: vi.fn() };
     vi.stubGlobal("window", {
       location: { pathname: "/bets", search: "" },
-      history: { pushState },
     });
 
-    navigateSearch("/bets?from_now=true", refresh);
+    navigateSearch("/bets?from_now=true", router);
 
-    expect(pushState).toHaveBeenCalledWith(null, "", "/bets?from_now=true");
-    expect(refresh).toHaveBeenCalledOnce();
+    expect(router.push).toHaveBeenCalledWith("/bets?from_now=true", {
+      scroll: false,
+    });
+    expect(router.refresh).not.toHaveBeenCalled();
   });
 
   it("refreshes without pushing when the URL is already current", () => {
-    const pushState = vi.fn();
-    const refresh = vi.fn();
+    const router = { push: vi.fn(), refresh: vi.fn() };
     vi.stubGlobal("window", {
       location: { pathname: "/bets", search: "?from_now=true" },
-      history: { pushState },
     });
 
-    navigateSearch("/bets?from_now=true", refresh);
+    navigateSearch("/bets?from_now=true", router);
 
-    expect(pushState).not.toHaveBeenCalled();
-    expect(refresh).toHaveBeenCalledOnce();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("treats encoded commas as the same current query", () => {
+    const router = { push: vi.fn(), refresh: vi.fn() };
+    vi.stubGlobal("window", {
+      location: { pathname: "/stats", search: "?league_ids=1,2" },
+    });
+
+    navigateSearch("/stats?league_ids=1%2C2", router);
+
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.refresh).toHaveBeenCalledOnce();
   });
 });

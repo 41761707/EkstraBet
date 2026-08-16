@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
 import { navigateSearch } from "@/lib/clientNavigation";
+import {
+  statsFilterPath,
+  type StatsFilterValues,
+} from "@/lib/statsFilterParams";
 import type {
   AnalyticsAggregationMetric,
   AnalyticsGroupBy,
@@ -11,23 +15,7 @@ import type {
   FilterOption,
 } from "@/types/api";
 
-export interface StatsFilterValues {
-  leagueIds: number[];
-  seasonId: number | null;
-  modelResultIds: number[];
-  modelOuIds: number[];
-  modelBttsIds: number[];
-  dateFrom: string;
-  dateTo: string;
-  roundFrom: string;
-  roundTo: string;
-  statType: AnalyticsStatType;
-  settledOnly: boolean;
-  positiveEvOnly: boolean;
-  applyTax: boolean;
-  groupBy: AnalyticsGroupBy;
-  aggregationMetric: AnalyticsAggregationMetric;
-}
+export type { StatsFilterValues };
 
 interface StatsFiltersProps {
   leagues: FilterOption[];
@@ -53,57 +41,8 @@ export function StatsFilters({
   const [state, setState] = useState(values);
 
   function applyFilters(nextState: StatsFilterValues) {
-    const params = new URLSearchParams();
-    if (nextState.leagueIds.length > 0) {
-      params.set("league_ids", nextState.leagueIds.join(","));
-    }
-    if (nextState.seasonId) {
-      params.set("season_id", String(nextState.seasonId));
-    }
-    if (nextState.modelResultIds.length > 0) {
-      params.set("model_result_ids", nextState.modelResultIds.join(","));
-    }
-    if (nextState.modelOuIds.length > 0) {
-      params.set("model_ou_ids", nextState.modelOuIds.join(","));
-    }
-    if (nextState.modelBttsIds.length > 0) {
-      params.set("model_btts_ids", nextState.modelBttsIds.join(","));
-    }
-    if (nextState.dateFrom) {
-      params.set("date_from", nextState.dateFrom);
-    }
-    if (nextState.dateTo) {
-      params.set("date_to", nextState.dateTo);
-    }
-    if (nextState.roundFrom) {
-      params.set("round_from", nextState.roundFrom);
-    }
-    if (nextState.roundTo) {
-      params.set("round_to", nextState.roundTo);
-    }
-    if (nextState.statType !== "all") {
-      params.set("stat_type", nextState.statType);
-    }
-    if (!nextState.settledOnly) {
-      params.set("settled_only", "false");
-    }
-    if (nextState.positiveEvOnly) {
-      params.set("positive_ev_only", "true");
-    }
-    if (nextState.applyTax) {
-      params.set("apply_tax", "true");
-    }
-    if (nextState.groupBy !== "none") {
-      params.set("group_by", nextState.groupBy);
-    }
-    if (nextState.aggregationMetric !== "accuracy") {
-      params.set("aggregation_metric", nextState.aggregationMetric);
-    }
-
-    const query = params.toString();
-    navigateSearch(query ? `/stats?${query}` : "/stats", () =>
-      router.refresh(),
-    );
+    const availableLeagueIds = leagues.map((league) => league.id);
+    navigateSearch(statsFilterPath(nextState, availableLeagueIds), router);
   }
 
   function update(partial: Partial<StatsFilterValues>) {
@@ -118,7 +57,7 @@ export function StatsFilters({
   }
 
   function handleReset() {
-    navigateSearch("/stats", () => router.refresh());
+    navigateSearch("/stats", router);
   }
 
   return (
@@ -129,6 +68,7 @@ export function StatsFilters({
           name="stats-leagues"
           options={leagues}
           selectedIds={state.leagueIds}
+          showClearAll
           onChange={(leagueIds) =>
             setState((current) => ({ ...current, leagueIds }))
           }

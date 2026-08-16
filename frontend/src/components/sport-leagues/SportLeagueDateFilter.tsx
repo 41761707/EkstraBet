@@ -24,9 +24,7 @@ export function SportLeagueDateFilter({
   const [state, setState] = useState(filters);
 
   function apply(nextState: SportLeagueFilters) {
-    navigateSearch(sportLeaguePath(leagueSlug, nextState), () =>
-      router.refresh(),
-    );
+    navigateSearch(sportLeaguePath(leagueSlug, nextState), router);
   }
 
   function update(partial: Partial<SportLeagueFilters>) {

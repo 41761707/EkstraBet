@@ -19,6 +19,10 @@ import {
   parseIdList,
   parsePositiveInt,
 } from "@/lib/searchParams";
+import {
+  resolveAnalyticsLeagueIds,
+  visibleLeagueFilterIds,
+} from "@/lib/statsFilterParams";
 import type {
   AnalyticsAggregationMetric,
   AnalyticsGroupBy,
@@ -114,18 +118,22 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     );
   }
 
-  const footballLeagueIds = new Set(leagues.map((league) => league.id));
+  const allFootballLeagueIds = leagues.map((league) => league.id);
+  const footballLeagueIds = new Set(allFootballLeagueIds);
   const selectedFootballLeagueIds = filters.leagueIds.filter((id) =>
     footballLeagueIds.has(id),
+  );
+  const apiLeagueIds = resolveAnalyticsLeagueIds(
+    selectedFootballLeagueIds,
+    allFootballLeagueIds,
   );
 
   const effectiveFilters: StatsFilterValues = {
     ...filters,
-    // domyślnie wszystkie ligi piłkarskie — NBA/NHL poza kącikiem
-    leagueIds:
-      selectedFootballLeagueIds.length > 0
-        ? selectedFootballLeagueIds
-        : leagues.map((league) => league.id),
+    leagueIds: visibleLeagueFilterIds(
+      selectedFootballLeagueIds,
+      allFootballLeagueIds,
+    ),
     modelResultIds:
       filters.modelResultIds.length > 0
         ? filters.modelResultIds
@@ -155,10 +163,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
         effectiveFilters.modelBttsIds,
         modelsByFamily.btts,
       ),
-      leagueIds:
-        effectiveFilters.leagueIds.length > 0
-          ? effectiveFilters.leagueIds
-          : undefined,
+      leagueIds: apiLeagueIds.length > 0 ? apiLeagueIds : undefined,
       seasonId: effectiveFilters.seasonId ?? undefined,
       dateFrom: effectiveFilters.dateFrom || undefined,
       dateTo: effectiveFilters.dateTo || undefined,

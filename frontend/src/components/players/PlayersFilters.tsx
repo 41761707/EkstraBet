@@ -62,9 +62,7 @@ export function PlayersFilters({
     }
 
     const query = params.toString();
-    navigateSearch(query ? `/players?${query}` : "/players", () =>
-      router.refresh(),
-    );
+    navigateSearch(query ? `/players?${query}` : "/players", router);
   }
 
   function updateState(partial: Partial<PlayersFilterValues>) {
