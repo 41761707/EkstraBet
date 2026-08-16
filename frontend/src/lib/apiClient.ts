@@ -14,6 +14,8 @@ import type {
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
   PredictionPreviewResponse,
+  RatingMetric,
+  RatingProgressResponse,
   SeasonProjectionMode,
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
@@ -95,6 +97,20 @@ export async function getSportTeamHistory(
       season_id: seasonId,
       phase: options?.phase,
       lookback: options?.lookback,
+    },
+  );
+}
+
+export async function getLeagueRatingProgress(
+  leagueId: number,
+  seasonId: number,
+  metric: RatingMetric = "elo",
+): Promise<RatingProgressResponse> {
+  return fetchViaBff<RatingProgressResponse>(
+    `/leagues/${leagueId}/rating-progress`,
+    {
+      season_id: seasonId,
+      metric,
     },
   );
 }

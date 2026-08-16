@@ -74,6 +74,9 @@ describe("normalizeBffPath", () => {
 describe("isMethodAllowedForPath", () => {
   it("allows GET for leagues and POST for predictions", () => {
     expect(isMethodAllowedForPath("leagues/1", "GET")).toBe(true);
+    expect(isMethodAllowedForPath("leagues/1/rating-progress", "GET")).toBe(
+      true,
+    );
     expect(isMethodAllowedForPath("predictions/preview", "POST")).toBe(true);
   });
 

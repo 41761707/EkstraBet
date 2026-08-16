@@ -16,7 +16,6 @@ import {
   getLeagueCharacteristics,
   getLeagueDetails,
   getLeagueMatches,
-  getLeagueRatingProgress,
   getLeagueRounds,
   getLeagueStandings,
   resolveLeagueId,
@@ -174,7 +173,6 @@ export default async function LeaguePage({
       awayStandings,
       ouBttsStandings,
       characteristicsResult,
-      ratingProgressResult,
     ] = await Promise.all([
       selectedRound !== null
         ? getLeagueMatches(league.id, selectedSeasonId, selectedRound)
@@ -189,7 +187,6 @@ export default async function LeaguePage({
       getLeagueStandings(league.id, selectedSeasonId, "away"),
       getLeagueStandings(league.id, selectedSeasonId, "ou_btts"),
       getLeagueCharacteristics(league.id, selectedSeasonId).catch(() => null),
-      getLeagueRatingProgress(league.id, selectedSeasonId).catch(() => null),
     ]);
 
     const overall = overallStandings.standings as TraditionalStandingRow[];
@@ -322,20 +319,11 @@ export default async function LeaguePage({
             </ExpandableSection>
           )}
 
-          {ratingProgressResult ? (
-            <LeagueRatingProgressSection
-              key={ratingProgressResult.season_id}
-              data={ratingProgressResult}
-            />
-          ) : (
-            <ExpandableSection title="Progres siły drużyn (ELO)">
-              <StatusMessage
-                variant="empty"
-                title="Brak progresu ratingów"
-                message="Progres pojawi się po rozegraniu pierwszych meczów sezonu."
-              />
-            </ExpandableSection>
-          )}
+          <LeagueRatingProgressSection
+            key={selectedSeasonId}
+            leagueId={league.id}
+            seasonId={selectedSeasonId}
+          />
         </div>
       </div>
     );
