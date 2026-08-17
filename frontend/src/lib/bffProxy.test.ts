@@ -6,6 +6,7 @@ import {
   isMethodAllowedForPath,
   isMutatingMethod,
   normalizeBffPath,
+  resolveExpectedMutatingOrigin,
 } from "@/lib/bffProxy";
 
 const cookieStore = { token: undefined as string | undefined };
@@ -125,6 +126,21 @@ describe("mutating origin checks", () => {
     ).toBe(false);
     expect(isAllowedMutatingOrigin(null, "http://localhost:3000")).toBe(false);
     expect(isAllowedMutatingOrigin("http://localhost:3000", null)).toBe(false);
+  });
+
+  it("falls back to the BFF request origin when APP_ORIGIN is unset", () => {
+    expect(
+      resolveExpectedMutatingOrigin(
+        null,
+        "http://localhost:3001/api/backend/users/me/favorite-leagues/1",
+      ),
+    ).toBe("http://localhost:3001");
+    expect(
+      resolveExpectedMutatingOrigin(
+        "http://localhost:3000",
+        "http://localhost:3001/api/backend/users/me/favorite-leagues/1",
+      ),
+    ).toBe("http://localhost:3000");
   });
 });
 
@@ -408,5 +424,70 @@ describe("BFF route handler", () => {
     expect((init.headers as Headers).get("authorization")).toBe(
       "Bearer jwt-token",
     );
+  });
+
+  it("proxies users PUT using the request origin when APP_ORIGIN is unset", async () => {
+    vi.stubEnv("APP_ORIGIN", "");
+    vi.stubEnv("AUTH_ENABLED", "true");
+    cookieStore.token = "jwt-token";
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ league_id: 4, is_favorite: true }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { PUT } = await import("@/app/api/backend/[...path]/route");
+    const response = await PUT(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/favorite-leagues/4",
+        {
+          method: "PUT",
+          headers: {
+            origin: "http://localhost:3000",
+            accept: "application/json",
+          },
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "favorite-leagues", "4"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects users PUT from a foreign Origin when APP_ORIGIN is unset", async () => {
+    vi.stubEnv("APP_ORIGIN", "");
+    vi.stubEnv("AUTH_ENABLED", "false");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { PUT } = await import("@/app/api/backend/[...path]/route");
+    const response = await PUT(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/favorite-leagues/1",
+        {
+          method: "PUT",
+          headers: { origin: "https://evil.example" },
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "favorite-leagues", "1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

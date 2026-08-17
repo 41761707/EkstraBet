@@ -19,7 +19,7 @@ describe("ProfilePage", () => {
       <ProfilePage username="alice" displayName="Alicja">
         <ProfileSection
           title="Ulubione ligi"
-          description="Wybierz ligi, które chcesz mieć pod ręką."
+          description="Wybierz swoje ulubione ligi. Ulubione ligi mają pierwszeństwo w widoczności przed pozostałymi ligami."
         >
           siatka lig
         </ProfileSection>
@@ -27,7 +27,7 @@ describe("ProfilePage", () => {
     );
 
     expect(html).toContain("Ulubione ligi");
-    expect(html).toContain("Wybierz ligi, które chcesz mieć pod ręką.");
+    expect(html).toContain("Wybierz swoje ulubione ligi. Ulubione ligi mają pierwszeństwo w widoczności przed pozostałymi ligami.");
     expect(html).toContain("siatka lig");
   });
 });

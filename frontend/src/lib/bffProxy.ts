@@ -135,18 +135,36 @@ export function isMutatingMethod(method: string): boolean {
 }
 
 /**
- * Mutating BFF calls must present Origin matching APP_ORIGIN.
+ * Expected Origin for mutating BFF calls.
+ * Prefer APP_ORIGIN; without it (local .env) use the BFF request origin.
+ */
+export function resolveExpectedMutatingOrigin(
+  appOrigin: string | null,
+  requestUrl: string,
+): string | null {
+  if (appOrigin) {
+    return appOrigin;
+  }
+  try {
+    return new URL(requestUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mutating BFF calls must present Origin matching the expected app origin.
  * Same-origin browser fetches always send Origin for POST/PUT/PATCH/DELETE.
  */
 export function isAllowedMutatingOrigin(
   originHeader: string | null,
-  appOrigin: string | null,
+  expectedOrigin: string | null,
 ): boolean {
-  if (!appOrigin || !originHeader) {
+  if (!expectedOrigin || !originHeader) {
     return false;
   }
   try {
-    const expected = new URL(appOrigin).origin;
+    const expected = new URL(expectedOrigin).origin;
     const actual = new URL(originHeader).origin;
     return expected === actual;
   } catch {

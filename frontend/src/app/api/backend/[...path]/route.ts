@@ -7,6 +7,7 @@ import {
   isMethodAllowedForPath,
   isMutatingMethod,
   normalizeBffPath,
+  resolveExpectedMutatingOrigin,
 } from "@/lib/bffProxy";
 import { getAuthCookieName, isAuthEnabled } from "@/lib/authCookie";
 import { getApiBaseUrl, getAppOrigin } from "@/lib/runtimeConfig";
@@ -44,7 +45,11 @@ async function proxyRequest(
 
   if (isMutatingMethod(method)) {
     const origin = request.headers.get("origin");
-    if (!isAllowedMutatingOrigin(origin, getAppOrigin())) {
+    const expectedOrigin = resolveExpectedMutatingOrigin(
+      getAppOrigin(),
+      request.url,
+    );
+    if (!isAllowedMutatingOrigin(origin, expectedOrigin)) {
       return forbidden("Origin is not allowed");
     }
   }
