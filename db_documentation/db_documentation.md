@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 14.08.2026
+###### Ostatnia data modyfikacji: 17.08.2026
 
 ## Opis struktury bazy
 
@@ -53,6 +53,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
+- [USER_FAVORITE_LEAGUES](#user_favorite_leagues) (Ulubione ligi wybranych użytkowników aplikacji)
 - [USERS](#users) (Konta użytkowników aplikacji web / API)
 
 ## Legenda
@@ -1477,6 +1478,34 @@ Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. 
 **Sposób generowania danych do tabeli**:  
 
 Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencjalne rozszerzenia wkrótce)
+
+---
+
+### USER_FAVORITE_LEAGUES
+
+(Ulubione ligi wybranych użytkowników aplikacji — relacja użytkownik–liga)
+
+
+| POLE            | DOMENA   | ZAKRES   | UWAGI                                                                 | WARTOŚC DOMYŚLNA  |
+| --------------- | -------- | -------- | --------------------------------------------------------------------- | ----------------- |
+| ***USER_ID***   | INT      | INT      | Klucz główny (część) i klucz obcy do *users*                          | NULL              |
+| ***LEAGUE_ID*** | INT      | INT      | Klucz główny (część) i klucz obcy do *leagues*                        | NULL              |
+| CREATED_AT      | DATETIME | DATETIME | Moment dodania ligi do ulubionych                                     | CURRENT_TIMESTAMP |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny złożony: (`USER_ID`, `LEAGUE_ID`) — jeden użytkownik nie może mieć tej samej ligi dwa razy
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE** (usunięcie konta czyści ulubione)
+- Klucz obcy: `LEAGUE_ID` → `leagues(ID)` **ON DELETE CASCADE** (fizyczne usunięcie ligi czyści relacje)
+- Indeks: `idx_user_favorite_leagues_league` (`LEAGUE_ID`) — wymagany przez FK do `leagues`
+- Brak kolumny `sort_order`: kolejność na liście to najpierw ulubione, potem reszta, w ramach grup bez zmian względem katalogu lig
+
+Samo `leagues.active = 0` nie usuwa wiersza; użytkownik może usunąć historyczną relację z panelu.
+
+**Sposób generowania danych do tabeli:**
+
+Wiersze dodaje i usuwa zalogowany użytkownik przez API (`PUT`/`DELETE /users/me/favorite-leagues/{league_id}`).
 
 ---
 

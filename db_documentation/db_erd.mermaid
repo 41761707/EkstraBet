@@ -69,3 +69,7 @@ erDiagram
     GAMBLERS ||--o{ GAMBLER_PARLAYS : "GAMBLER_ID"
     GAMBLER_PARLAYS ||--o{ EVENTS_PARLAY : "PARLAY_ID"
     BETS ||--o{ EVENTS_PARLAY : "BET_ID"
+
+    %% Konta aplikacji (nie mylić z GAMBLERS); SZP-100 / EB-17
+    USERS ||--o{ USER_FAVORITE_LEAGUES : "USER_ID"
+    LEAGUES ||--o{ USER_FAVORITE_LEAGUES : "LEAGUE_ID"
