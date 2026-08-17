@@ -23,6 +23,7 @@ from api.routers.odds import router as odds_router
 from api.routers.players import router as players_router
 from api.routers.predictions import router as predictions_router
 from api.routers.teams import router as teams_router
+from api.routers.users import router as users_router
 from backend.config import get_settings
 from backend.database import test_connection
 
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
             "description": settings.api_description,
             "modules": [
                 "auth - Login and session status",
+                "users - Current-user private resources",
                 "leagues - League navigation and metadata",
                 "teams - Team management",
                 "helper - Reference data (countries, sports, seasons)",
@@ -115,6 +117,7 @@ def create_app() -> FastAPI:
             content=payload)
 
     app.include_router(auth_router)
+    app.include_router(users_router)
     app.include_router(leagues_router)
     app.include_router(teams_router)
     app.include_router(helper_router)
