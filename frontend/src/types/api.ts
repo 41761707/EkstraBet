@@ -8,6 +8,17 @@ export interface UserPublic {
   first_login: boolean;
 }
 
+/** Favorite league IDs from GET /users/me/favorite-leagues. */
+export interface FavoriteLeagueIdsResponse {
+  league_ids: number[];
+}
+
+/** Result of PUT/DELETE /users/me/favorite-leagues/{league_id}. */
+export interface FavoriteLeagueMutationResponse {
+  league_id: number;
+  is_favorite: boolean;
+}
+
 export interface LeagueSummary {
   id: number;
   name: string;

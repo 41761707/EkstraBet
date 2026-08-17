@@ -11,6 +11,7 @@ import {
 } from "@/lib/apiShared";
 import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
 import type {
+  FavoriteLeagueMutationResponse,
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
   PredictionPreviewResponse,
@@ -52,6 +53,26 @@ async function fetchViaBff<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function addFavoriteLeague(
+  leagueId: number,
+): Promise<FavoriteLeagueMutationResponse> {
+  return fetchViaBff<FavoriteLeagueMutationResponse>(
+    `/users/me/favorite-leagues/${leagueId}`,
+    undefined,
+    { method: "PUT" },
+  );
+}
+
+export async function removeFavoriteLeague(
+  leagueId: number,
+): Promise<FavoriteLeagueMutationResponse> {
+  return fetchViaBff<FavoriteLeagueMutationResponse>(
+    `/users/me/favorite-leagues/${leagueId}`,
+    undefined,
+    { method: "DELETE" },
+  );
 }
 
 export async function previewPrediction(

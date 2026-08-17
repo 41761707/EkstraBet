@@ -87,6 +87,27 @@ describe("isMethodAllowedForPath", () => {
     expect(isMethodAllowedForPath("odds/match/1", "GET")).toBe(false);
     expect(isMethodAllowedForPath("helper/seasons", "GET")).toBe(false);
   });
+
+  it("allows GET, PUT, and DELETE for users favorite leagues", () => {
+    expect(isMethodAllowedForPath("users/me/favorite-leagues", "GET")).toBe(
+      true,
+    );
+    expect(
+      isMethodAllowedForPath("users/me/favorite-leagues/1", "PUT"),
+    ).toBe(true);
+    expect(
+      isMethodAllowedForPath("users/me/favorite-leagues/1", "DELETE"),
+    ).toBe(true);
+  });
+
+  it("rejects POST and PATCH for the users prefix", () => {
+    expect(isMethodAllowedForPath("users/me/favorite-leagues", "POST")).toBe(
+      false,
+    );
+    expect(
+      isMethodAllowedForPath("users/me/favorite-leagues/1", "PATCH"),
+    ).toBe(false);
+  });
 });
 
 describe("mutating origin checks", () => {
@@ -265,6 +286,127 @@ describe("BFF route handler", () => {
     );
     expect((init.headers as Headers).get("content-type")).toBe(
       "application/json",
+    );
+  });
+
+  it("rejects POST on the users prefix", async () => {
+    vi.stubEnv("AUTH_ENABLED", "false");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { POST } = await import("@/app/api/backend/[...path]/route");
+    const response = await POST(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/favorite-leagues",
+        {
+          method: "POST",
+          headers: { origin: "http://localhost:3000" },
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "favorite-leagues"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects users PUT with a foreign Origin", async () => {
+    vi.stubEnv("AUTH_ENABLED", "false");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { PUT } = await import("@/app/api/backend/[...path]/route");
+    const response = await PUT(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/favorite-leagues/1",
+        {
+          method: "PUT",
+          headers: { origin: "https://evil.example" },
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "favorite-leagues", "1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects users PUT when Origin is missing", async () => {
+    vi.stubEnv("AUTH_ENABLED", "false");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { PUT } = await import("@/app/api/backend/[...path]/route");
+    const response = await PUT(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/favorite-leagues/1",
+        { method: "PUT" },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "favorite-leagues", "1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("proxies an allowlisted users PUT when Origin matches APP_ORIGIN", async () => {
+    vi.stubEnv("AUTH_ENABLED", "true");
+    cookieStore.token = "jwt-token";
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ league_id: 4, is_favorite: true }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { PUT } = await import("@/app/api/backend/[...path]/route");
+    const response = await PUT(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/favorite-leagues/4",
+        {
+          method: "PUT",
+          headers: {
+            origin: "http://localhost:3000",
+            accept: "application/json",
+          },
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "favorite-leagues", "4"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [upstreamUrl, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(upstreamUrl).toBe(
+      "http://api:8000/users/me/favorite-leagues/4",
+    );
+    expect(init.method).toBe("PUT");
+    expect((init.headers as Headers).get("authorization")).toBe(
+      "Bearer jwt-token",
     );
   });
 });

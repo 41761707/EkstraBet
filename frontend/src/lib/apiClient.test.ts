@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  addFavoriteLeague,
   getLeagueRatingProgress,
   getSeasonProjectionModes,
+  removeFavoriteLeague,
 } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiShared";
 
@@ -73,5 +75,71 @@ describe("getLeagueRatingProgress", () => {
     expect(requested).toContain("/api/backend/leagues/7/rating-progress");
     expect(requested).toContain("season_id=13");
     expect(requested).toContain("metric=elo");
+  });
+});
+
+describe("favorite league mutations", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("PUTs a favorite league through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ league_id: 4, is_favorite: true }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(addFavoriteLeague(4)).resolves.toEqual({
+      league_id: 4,
+      is_favorite: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/users/me/favorite-leagues/4");
+    expect(init.method).toBe("PUT");
+  });
+
+  it("DELETEs a favorite league through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ league_id: 4, is_favorite: false }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(removeFavoriteLeague(4)).resolves.toEqual({
+      league_id: 4,
+      is_favorite: false,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/users/me/favorite-leagues/4");
+    expect(init.method).toBe("DELETE");
   });
 });

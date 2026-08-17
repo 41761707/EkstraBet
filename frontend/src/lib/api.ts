@@ -29,6 +29,7 @@ import type {
   DailyMatchesResponse,
   EventFamilyEventsResponse,
   EventFamilyListResponse,
+  FavoriteLeagueIdsResponse,
   LeagueDetails,
   LeagueCharacteristics,
   LeagueComparisonsResponse,
@@ -117,6 +118,11 @@ export const getCurrentUser = cache(async (): Promise<UserPublic> => {
 
   return response.json() as Promise<UserPublic>;
 });
+
+/** Favorite league IDs for the current user; never cached across requests. */
+export async function getFavoriteLeagueIds(): Promise<FavoriteLeagueIdsResponse> {
+  return fetchApi<FavoriteLeagueIdsResponse>("/users/me/favorite-leagues");
+}
 
 export async function getLeagues(options?: {
   active?: boolean;
