@@ -24,7 +24,11 @@ export async function AppHeader() {
             EkstraBet
           </span>
         </Link>
-        <AppNav showLogout={showLogout} showLinks={!hideAppLinks} />
+        <AppNav
+          showLogout={showLogout}
+          showLinks={!hideAppLinks}
+          showProfile={showLogout}
+        />
       </div>
     </header>
   );

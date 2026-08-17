@@ -17,12 +17,26 @@ const NAV_LINKS = [
   { href: "/chat", label: "Asystent" },
 ] as const;
 
+const PROFILE_LINK = { href: "/profile", label: "Profil" } as const;
+
 type AppNavProps = {
   showLogout: boolean;
   showLinks?: boolean;
+  showProfile?: boolean;
 };
 
-export function AppNav({ showLogout, showLinks = true }: AppNavProps) {
+function getNavLinks(showProfile: boolean) {
+  if (!showProfile) {
+    return NAV_LINKS;
+  }
+  return [...NAV_LINKS, PROFILE_LINK];
+}
+
+export function AppNav({
+  showLogout,
+  showLinks = true,
+  showProfile = false,
+}: AppNavProps) {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -67,6 +81,7 @@ export function AppNav({ showLogout, showLinks = true }: AppNavProps) {
     toggleRef.current?.focus();
   }
 
+  const links = getNavLinks(showProfile);
   const linkClassName =
     "rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white";
   const mobileLinkClassName =
@@ -106,7 +121,7 @@ export function AppNav({ showLogout, showLinks = true }: AppNavProps) {
                 aria-label="Główna nawigacja"
               >
                 {showLinks
-                  ? NAV_LINKS.map((link) => (
+                  ? links.map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}
@@ -136,7 +151,7 @@ export function AppNav({ showLogout, showLinks = true }: AppNavProps) {
         aria-label="Główna nawigacja"
       >
         {showLinks
-          ? NAV_LINKS.map((link) => (
+          ? links.map((link) => (
               <Link key={link.href} href={link.href} className={linkClassName}>
                 {link.label}
               </Link>
