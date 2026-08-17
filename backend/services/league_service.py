@@ -69,6 +69,14 @@ def get_leagues(
     return [_map_league_row(row) for _, row in frame.iterrows()]
 
 
+def get_league_summary(league_id: int) -> dict[str, Any] | None:
+    """Return a light league summary without seasons or match count."""
+    frame = league_repository.fetch_league_by_id(league_id)
+    if frame.empty:
+        return None
+    return _map_league_row(frame.iloc[0])
+
+
 def get_league_details(league_id: int) -> dict[str, Any] | None:
     """Return league metadata with seasons and match count."""
     frame = league_repository.fetch_league_by_id(league_id)

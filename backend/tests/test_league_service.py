@@ -13,6 +13,7 @@ from backend.services.league_service import (
     get_league_details,
     get_league_rounds,
     get_league_seasons,
+    get_league_summary,
     get_leagues)
 
 
@@ -66,6 +67,61 @@ class TestLeagueService(unittest.TestCase):
         self.assertEqual(len(leagues), 1)
         self.assertEqual(leagues[0]["slug"], "ekstraklasa")
         self.assertTrue(leagues[0]["active"])
+
+    @patch(
+        "backend.services.league_service.league_repository"
+        ".fetch_league_match_count")
+    @patch(
+        "backend.services.league_service.league_repository"
+        ".fetch_seasons_for_league")
+    @patch(
+        "backend.services.league_service.league_repository.fetch_league_by_id")
+    def test_get_league_summary_returns_none_for_missing_league(
+        self,
+        mock_fetch_league: unittest.mock.MagicMock,
+        mock_fetch_seasons: unittest.mock.MagicMock,
+        mock_fetch_match_count: unittest.mock.MagicMock) -> None:
+        mock_fetch_league.return_value = pd.DataFrame()
+        self.assertIsNone(get_league_summary(999999))
+        mock_fetch_seasons.assert_not_called()
+        mock_fetch_match_count.assert_not_called()
+
+    @patch(
+        "backend.services.league_service.league_repository"
+        ".fetch_league_match_count")
+    @patch(
+        "backend.services.league_service.league_repository"
+        ".fetch_seasons_for_league")
+    @patch(
+        "backend.services.league_service.league_repository.fetch_league_by_id")
+    def test_get_league_summary_maps_fields_without_extra_fetches(
+        self,
+        mock_fetch_league: unittest.mock.MagicMock,
+        mock_fetch_seasons: unittest.mock.MagicMock,
+        mock_fetch_match_count: unittest.mock.MagicMock) -> None:
+        mock_fetch_league.return_value = self._sample_league_frame()
+        summary = get_league_summary(1)
+        assert summary is not None
+        self.assertEqual(summary["id"], 1)
+        self.assertEqual(summary["name"], "Ekstraklasa")
+        self.assertEqual(summary["slug"], "ekstraklasa")
+        self.assertTrue(summary["active"])
+        self.assertNotIn("seasons", summary)
+        self.assertNotIn("match_count", summary)
+        mock_fetch_seasons.assert_not_called()
+        mock_fetch_match_count.assert_not_called()
+
+    @patch(
+        "backend.services.league_service.league_repository.fetch_league_by_id")
+    def test_get_league_summary_includes_inactive_league(
+        self,
+        mock_fetch_league: unittest.mock.MagicMock) -> None:
+        frame = self._sample_league_frame()
+        frame.loc[0, "active"] = 0
+        mock_fetch_league.return_value = frame
+        summary = get_league_summary(1)
+        assert summary is not None
+        self.assertFalse(summary["active"])
 
     @patch(
         "backend.services.league_service.league_repository"
