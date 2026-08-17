@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
+import { DateInput } from "@/components/filters/DateInput";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
 import {
   betsFilterPath,
@@ -104,15 +106,14 @@ export function BetsFilters({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <label className="space-y-2 text-sm">
+        <div className="space-y-2 text-sm">
           <span className="font-medium text-slate-200">Data meczu</span>
-          <input
-            type="date"
+          <DateInput
             value={state.matchDate}
-            onChange={(event) => update({ matchDate: event.target.value })}
-            className={inputClassName}
+            onChange={(matchDate) => update({ matchDate })}
+            ariaLabel="Data meczu"
           />
-        </label>
+        </div>
 
         <label className="space-y-2 text-sm">
           <span className="font-medium text-slate-200">Min. kurs</span>

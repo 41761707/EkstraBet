@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   areAllOptionsSelected,
+  createDefaultStatsFilterValues,
+  resetLeagueComparisonFilters,
+  resetModelStatsFilters,
   resolveAnalyticsLeagueIds,
   serializeLeagueFilter,
   statsFilterPath,
@@ -14,24 +17,7 @@ const ALL_LEAGUE_IDS = [1, 2, 3, 4, 5];
 function baseFilters(
   overrides: Partial<StatsFilterValues> = {},
 ): StatsFilterValues {
-  return {
-    leagueIds: [],
-    seasonId: null,
-    modelResultIds: [],
-    modelOuIds: [],
-    modelBttsIds: [],
-    dateFrom: "",
-    dateTo: "",
-    roundFrom: "",
-    roundTo: "",
-    statType: "all",
-    settledOnly: true,
-    positiveEvOnly: false,
-    applyTax: false,
-    groupBy: "none",
-    aggregationMetric: "accuracy",
-    ...overrides,
-  };
+  return createDefaultStatsFilterValues(overrides);
 }
 
 describe("areAllOptionsSelected", () => {
@@ -122,5 +108,47 @@ describe("statsFilterPath", () => {
     expect(path).toContain("/stats?");
     expect(path).toContain("league_ids=");
     expect(decodeURIComponent(path)).toContain("league_ids=1,5");
+  });
+
+  it("keeps comparison filters independent from model league filters", () => {
+    const path = statsFilterPath(
+      baseFilters({
+        leagueIds: [1],
+        compareLeagueIds: [2, 5],
+        compareSeasonId: 11,
+      }),
+      ALL_LEAGUE_IDS,
+    );
+    expect(decodeURIComponent(path)).toContain("league_ids=1");
+    expect(decodeURIComponent(path)).toContain("compare_league_ids=2,5");
+    expect(path).toContain("compare_season_id=11");
+  });
+});
+
+describe("reset helpers", () => {
+  it("keeps comparison filters when model filters are reset", () => {
+    const reset = resetModelStatsFilters(
+      baseFilters({
+        applyTax: true,
+        compareLeagueIds: [2, 5],
+        compareSeasonId: 11,
+      }),
+    );
+    expect(reset.applyTax).toBe(false);
+    expect(reset.compareLeagueIds).toEqual([2, 5]);
+    expect(reset.compareSeasonId).toBe(11);
+  });
+
+  it("clears only comparison filters on comparison reset", () => {
+    const reset = resetLeagueComparisonFilters(
+      baseFilters({
+        applyTax: true,
+        compareLeagueIds: [2, 5],
+        compareSeasonId: 11,
+      }),
+    );
+    expect(reset.applyTax).toBe(true);
+    expect(reset.compareLeagueIds).toEqual([]);
+    expect(reset.compareSeasonId).toBeNull();
   });
 });

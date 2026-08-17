@@ -7,7 +7,7 @@ from datetime import date
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
 from api.routers.utils import parse_id_list
-from api.schemas.analytics import ModelAnalyticsResponse
+from api.schemas.analytics import LeagueComparisonsResponse, ModelAnalyticsResponse
 from backend.services import analytics_service
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ async def analytics_info() -> dict[str, object]:
             "Model effectiveness statistics for OU, BTTS and 1X2"),
         "endpoints": [
             "GET /analytics/models - Model prediction and bet statistics",
+            "GET /analytics/league-comparisons - League outcome rates",
         ],
     }
 
@@ -139,3 +140,32 @@ async def get_model_statistics(
         raise HTTPException(
             status_code=500,
             detail="Failed to fetch model analytics") from exc
+
+
+@router.get(
+    "/league-comparisons",
+    response_model=LeagueComparisonsResponse)
+async def get_league_comparisons(
+    league_ids: str | None = Query(
+        None,
+        description="Comma-separated league IDs"),
+    season_id: int | None = Query(
+        None,
+        ge=1,
+        description="Season ID filter"),
+) -> LeagueComparisonsResponse:
+    """Zwraca częstość zdarzeń meczowych dla wybranych lig."""
+    try:
+        payload = analytics_service.get_league_outcome_comparisons(
+            league_ids=parse_id_list(league_ids),
+            season_id=season_id)
+        if payload is None:
+            return LeagueComparisonsResponse(comparisons=None)
+        return LeagueComparisonsResponse(comparisons=payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to fetch league comparisons: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch league comparisons") from exc

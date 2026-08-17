@@ -168,6 +168,76 @@ class LeagueComparisons(BaseModel):
     averages: LeagueComparisonAverages
 
 
+class LeagueComparisonsResponse(BaseModel):
+    """Response for GET /analytics/league-comparisons."""
+
+    comparisons: LeagueComparisons | None = Field(
+        None,
+        description=(
+            "Match-weighted outcome rates when at least two leagues "
+            "are selected"))
+
+
+class ModelPredictionLeagueRow(BaseModel):
+    """Prediction accuracy for one model in one league."""
+
+    league_id: int
+    league_name: str
+    total: int
+    correct: int
+    accuracy_pct: float
+
+
+class ModelPredictionLeagueComparison(BaseModel):
+    """Per-league prediction accuracy for one model."""
+
+    model_id: int
+    model_name: str
+    leagues: list[ModelPredictionLeagueRow]
+    average_accuracy_pct: float
+
+
+class ModelBetProfitLeagueRow(BaseModel):
+    """Unit bet profit for one model in one league."""
+
+    league_id: int
+    league_name: str
+    total_bets: int
+    profit: float
+
+
+class ModelBetProfitLeagueComparison(BaseModel):
+    """Per-league unit bet profit for one model."""
+
+    model_id: int
+    model_name: str
+    leagues: list[ModelBetProfitLeagueRow]
+    total_profit: float
+
+
+class ModelPredictionLeagueFamilies(BaseModel):
+    """Prediction comparisons keyed by stat family."""
+
+    ou: list[ModelPredictionLeagueComparison] = Field(default_factory=list)
+    btts: list[ModelPredictionLeagueComparison] = Field(default_factory=list)
+    result: list[ModelPredictionLeagueComparison] = Field(default_factory=list)
+
+
+class ModelBetProfitLeagueFamilies(BaseModel):
+    """Bet profit comparisons keyed by stat family."""
+
+    ou: list[ModelBetProfitLeagueComparison] = Field(default_factory=list)
+    btts: list[ModelBetProfitLeagueComparison] = Field(default_factory=list)
+    result: list[ModelBetProfitLeagueComparison] = Field(default_factory=list)
+
+
+class ModelLeagueComparisons(BaseModel):
+    """Per-model per-league prediction accuracy and bet profit."""
+
+    predictions: ModelPredictionLeagueFamilies
+    bet_profits: ModelBetProfitLeagueFamilies
+
+
 class ModelAnalyticsResponse(BaseModel):
     """Response for GET /analytics/models."""
 
@@ -182,6 +252,11 @@ class ModelAnalyticsResponse(BaseModel):
         description=(
             "Per-league outcome rates when at least two leagues "
             "are selected"))
+    model_league_comparisons: ModelLeagueComparisons | None = Field(
+        None,
+        description=(
+            "Per-model per-league prediction accuracy and bet profit "
+            "when a model has data in at least two leagues"))
     filters_applied: dict[str, object] = Field(
         ...,
         description="Applied query filters")

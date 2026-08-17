@@ -31,6 +31,7 @@ import type {
   EventFamilyListResponse,
   LeagueDetails,
   LeagueCharacteristics,
+  LeagueComparisonsResponse,
   LeagueMatchesListResponse,
   LeagueRoundsListResponse,
   LeaguesListResponse,
@@ -466,6 +467,22 @@ export async function getModelAnalytics(options?: {
     group_by: options?.groupBy,
     aggregation_metric: options?.aggregationMetric,
   });
+}
+
+export async function getLeagueComparisons(options?: {
+  leagueIds?: number[];
+  seasonId?: number;
+}): Promise<LeagueComparisonsResponse> {
+  return fetchApi<LeagueComparisonsResponse>(
+    "/analytics/league-comparisons",
+    {
+      league_ids:
+        options?.leagueIds && options.leagueIds.length > 0
+          ? options.leagueIds.join(",")
+          : undefined,
+      season_id: options?.seasonId,
+    },
+  );
 }
 
 export async function getModels(): Promise<ModelListResponse> {

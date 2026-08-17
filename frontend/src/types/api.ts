@@ -785,6 +785,56 @@ export interface LeagueComparisons {
   averages: LeagueComparisonAverages;
 }
 
+export interface LeagueComparisonsResponse {
+  comparisons: LeagueComparisons | null;
+}
+
+export interface ModelPredictionLeagueRow {
+  league_id: number;
+  league_name: string;
+  total: number;
+  correct: number;
+  accuracy_pct: number;
+}
+
+export interface ModelPredictionLeagueComparison {
+  model_id: number;
+  model_name: string;
+  leagues: ModelPredictionLeagueRow[];
+  average_accuracy_pct: number;
+}
+
+export interface ModelBetProfitLeagueRow {
+  league_id: number;
+  league_name: string;
+  total_bets: number;
+  profit: number;
+}
+
+export interface ModelBetProfitLeagueComparison {
+  model_id: number;
+  model_name: string;
+  leagues: ModelBetProfitLeagueRow[];
+  total_profit: number;
+}
+
+export interface ModelPredictionLeagueFamilies {
+  ou: ModelPredictionLeagueComparison[];
+  btts: ModelPredictionLeagueComparison[];
+  result: ModelPredictionLeagueComparison[];
+}
+
+export interface ModelBetProfitLeagueFamilies {
+  ou: ModelBetProfitLeagueComparison[];
+  btts: ModelBetProfitLeagueComparison[];
+  result: ModelBetProfitLeagueComparison[];
+}
+
+export interface ModelLeagueComparisons {
+  predictions: ModelPredictionLeagueFamilies;
+  bet_profits: ModelBetProfitLeagueFamilies;
+}
+
 export interface EntityAggregationRow {
   entity_id: number | null;
   entity_name: string;
@@ -817,6 +867,7 @@ export interface ModelAnalyticsResponse {
   categories: Record<string, CategoryStatistics>;
   aggregations: AnalyticsAggregations;
   league_comparisons: LeagueComparisons | null;
+  model_league_comparisons: ModelLeagueComparisons | null;
   filters_applied: Record<string, unknown>;
 }
 

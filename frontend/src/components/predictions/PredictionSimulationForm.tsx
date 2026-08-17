@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/filters/DateInput";
 import { StatusMessage } from "@/components/StatusMessage";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
 import { teamChartLabel } from "@/components/predictions/predictionChartModel";
@@ -83,15 +84,14 @@ export function PredictionSimulationForm({
           />
         </label>
 
-        <label className="space-y-2 text-sm text-slate-300">
+        <div className="space-y-2 text-sm text-slate-300">
           <span className="block font-medium">Stan danych na dzień</span>
-          <input
-            type="date"
+          <DateInput
             value={simulation.asOfDate}
-            onChange={(event) => simulation.setAsOfDate(event.target.value)}
-            className="w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-white"
+            onChange={simulation.setAsOfDate}
+            ariaLabel="Stan danych na dzień"
           />
-        </label>
+        </div>
 
         <button
           type="submit"

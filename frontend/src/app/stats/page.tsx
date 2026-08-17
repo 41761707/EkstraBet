@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { AnalyticsCategoryPanel } from "@/components/stats/AnalyticsCategoryPanel";
 import { AggregationsSection } from "@/components/stats/EntityAggregationTable";
-import { LeagueComparisonsPanel } from "@/components/stats/LeagueComparisonsPanel";
+import { LeagueCharacteristicsSection } from "@/components/stats/LeagueCharacteristicsSection";
+import { ModelLeagueComparisonsPanel } from "@/components/stats/ModelLeagueComparisonsPanel";
 import {
   StatsFilters,
   type StatsFilterValues,
@@ -10,6 +11,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import {
   ApiError,
   getLeagues,
+  getLeagueComparisons,
   getModelAnalytics,
   getModelsGroupedByFamily,
   getSeasonOptions,
@@ -64,7 +66,13 @@ function parseFilters(
     aggregationMetric:
       (params.aggregation_metric as AnalyticsAggregationMetric | undefined) ??
       "accuracy",
+    compareLeagueIds: parseIdList(params.compare_league_ids),
+    compareSeasonId: parsePositiveInt(params.compare_season_id),
   };
+}
+
+function errorMessageFromReason(reason: unknown, fallback: string): string {
+  return reason instanceof ApiError ? reason.message : fallback;
 }
 
 function pickDefaultModelIds(
@@ -128,6 +136,14 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     allFootballLeagueIds,
   );
 
+  const selectedCompareLeagueIds = filters.compareLeagueIds.filter((id) =>
+    footballLeagueIds.has(id),
+  );
+  const compareApiLeagueIds = resolveAnalyticsLeagueIds(
+    selectedCompareLeagueIds,
+    allFootballLeagueIds,
+  );
+
   const effectiveFilters: StatsFilterValues = {
     ...filters,
     leagueIds: visibleLeagueFilterIds(
@@ -146,35 +162,72 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
       filters.modelBttsIds.length > 0
         ? filters.modelBttsIds
         : modelsByFamily.btts.slice(0, 1).map((model) => model.id),
+    compareLeagueIds: visibleLeagueFilterIds(
+      selectedCompareLeagueIds,
+      allFootballLeagueIds,
+    ),
   };
 
   try {
-    const analytics = await getModelAnalytics({
-      statType: effectiveFilters.statType,
-      modelResultIds: pickDefaultModelIds(
-        effectiveFilters.modelResultIds,
-        modelsByFamily.result,
-      ),
-      modelOuIds: pickDefaultModelIds(
-        effectiveFilters.modelOuIds,
-        modelsByFamily.ou,
-      ),
-      modelBttsIds: pickDefaultModelIds(
-        effectiveFilters.modelBttsIds,
-        modelsByFamily.btts,
-      ),
-      leagueIds: apiLeagueIds.length > 0 ? apiLeagueIds : undefined,
-      seasonId: effectiveFilters.seasonId ?? undefined,
-      dateFrom: effectiveFilters.dateFrom || undefined,
-      dateTo: effectiveFilters.dateTo || undefined,
-      roundFrom: parsePositiveInt(effectiveFilters.roundFrom) ?? undefined,
-      roundTo: parsePositiveInt(effectiveFilters.roundTo) ?? undefined,
-      settledOnly: effectiveFilters.settledOnly,
-      positiveEvOnly: effectiveFilters.positiveEvOnly,
-      applyTax: effectiveFilters.applyTax,
-      groupBy: effectiveFilters.groupBy,
-      aggregationMetric: effectiveFilters.aggregationMetric,
-    });
+    const [analyticsResult, comparisonResult] = await Promise.allSettled([
+      getModelAnalytics({
+        statType: effectiveFilters.statType,
+        modelResultIds: pickDefaultModelIds(
+          effectiveFilters.modelResultIds,
+          modelsByFamily.result,
+        ),
+        modelOuIds: pickDefaultModelIds(
+          effectiveFilters.modelOuIds,
+          modelsByFamily.ou,
+        ),
+        modelBttsIds: pickDefaultModelIds(
+          effectiveFilters.modelBttsIds,
+          modelsByFamily.btts,
+        ),
+        leagueIds: apiLeagueIds.length > 0 ? apiLeagueIds : undefined,
+        seasonId: effectiveFilters.seasonId ?? undefined,
+        dateFrom: effectiveFilters.dateFrom || undefined,
+        dateTo: effectiveFilters.dateTo || undefined,
+        roundFrom: parsePositiveInt(effectiveFilters.roundFrom) ?? undefined,
+        roundTo: parsePositiveInt(effectiveFilters.roundTo) ?? undefined,
+        settledOnly: effectiveFilters.settledOnly,
+        positiveEvOnly: effectiveFilters.positiveEvOnly,
+        applyTax: effectiveFilters.applyTax,
+        groupBy: effectiveFilters.groupBy,
+        aggregationMetric: effectiveFilters.aggregationMetric,
+      }),
+      getLeagueComparisons({
+        leagueIds:
+          compareApiLeagueIds.length > 0 ? compareApiLeagueIds : undefined,
+        seasonId: effectiveFilters.compareSeasonId ?? undefined,
+      }),
+    ]);
+
+    if (analyticsResult.status === "rejected") {
+      return (
+        <StatusMessage
+          variant="error"
+          title="Nie udało się załadować statystyk"
+          message={errorMessageFromReason(
+            analyticsResult.reason,
+            "Nie udało się załadować analityki modeli z API.",
+          )}
+        />
+      );
+    }
+
+    const analytics = analyticsResult.value;
+    const leagueComparisons =
+      comparisonResult.status === "fulfilled"
+        ? comparisonResult.value.comparisons
+        : null;
+    const leagueComparisonsError =
+      comparisonResult.status === "rejected"
+        ? errorMessageFromReason(
+            comparisonResult.reason,
+            "Nie udało się załadować porównania lig z API.",
+          )
+        : null;
 
     const categories = Object.entries(analytics.categories);
 
@@ -189,50 +242,75 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
           </Link>
           <h1 className="text-3xl font-bold text-white">Kącik statystyczny</h1>
           <p className="text-slate-300">
-            Skuteczność modeli predykcji i zakładów dla lig piłkarskich.
+            Góra strony to skuteczność tego, co liczą modele. Na dole —
+            charakterystyka lig z rozegranych meczów.
           </p>
         </section>
 
-        <section className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
-          <h2 className="text-lg font-semibold text-white">Filtry</h2>
-          <StatsFilters
-            leagues={leagues}
-            seasons={seasons}
-            resultModels={modelsByFamily.result}
-            ouModels={modelsByFamily.ou}
-            bttsModels={modelsByFamily.btts}
-            values={effectiveFilters}
+        <section className="space-y-8">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Predykcje i zakłady
+            </p>
+            <h2 className="text-2xl font-semibold text-white">
+              Statystyki modeli
+            </h2>
+            <p className="text-slate-300">
+              Skuteczność predykcji i profit zakładów według wybranych filtrów.
+            </p>
+          </div>
+
+          <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
+            <h3 className="text-lg font-semibold text-white">
+              Filtry modeli
+            </h3>
+            <StatsFilters
+              leagues={leagues}
+              seasons={seasons}
+              resultModels={modelsByFamily.result}
+              ouModels={modelsByFamily.ou}
+              bttsModels={modelsByFamily.btts}
+              values={effectiveFilters}
+            />
+          </div>
+
+          {categories.length === 0 ? (
+            <StatusMessage
+              variant="empty"
+              title="Brak statystyk"
+              message="Brak danych analitycznych dla wybranych filtrów."
+            />
+          ) : (
+            <div className="space-y-10">
+              {categories.map(([key, category]) => (
+                <AnalyticsCategoryPanel
+                  key={key}
+                  title={categoryTitles[key] ?? key.toUpperCase()}
+                  category={category}
+                />
+              ))}
+            </div>
+          )}
+
+          <AggregationsSection
+            byTeam={analytics.aggregations.by_team}
+            byLeague={analytics.aggregations.by_league}
           />
+
+          {analytics.model_league_comparisons ? (
+            <ModelLeagueComparisonsPanel
+              comparisons={analytics.model_league_comparisons}
+            />
+          ) : null}
         </section>
 
-        {categories.length === 0 ? (
-          <StatusMessage
-            variant="empty"
-            title="Brak statystyk"
-            message="Brak danych analitycznych dla wybranych filtrów."
-          />
-        ) : (
-          <div className="space-y-10">
-            {categories.map(([key, category]) => (
-              <AnalyticsCategoryPanel
-                key={key}
-                title={categoryTitles[key] ?? key.toUpperCase()}
-                category={category}
-              />
-            ))}
-          </div>
-        )}
-
-        <AggregationsSection
-          byTeam={analytics.aggregations.by_team}
-          byLeague={analytics.aggregations.by_league}
+        <LeagueCharacteristicsSection
+          leagues={leagues}
+          seasons={seasons}
+          values={effectiveFilters}
+          comparisons={leagueComparisons}
+          errorMessage={leagueComparisonsError}
         />
-
-        {analytics.league_comparisons ? (
-          <LeagueComparisonsPanel
-            comparisons={analytics.league_comparisons}
-          />
-        ) : null}
       </div>
     );
   } catch (error) {

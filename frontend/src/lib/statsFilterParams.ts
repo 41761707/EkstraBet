@@ -20,6 +20,52 @@ export interface StatsFilterValues {
   applyTax: boolean;
   groupBy: AnalyticsGroupBy;
   aggregationMetric: AnalyticsAggregationMetric;
+  compareLeagueIds: number[];
+  compareSeasonId: number | null;
+}
+
+export function createDefaultStatsFilterValues(
+  overrides: Partial<StatsFilterValues> = {},
+): StatsFilterValues {
+  return {
+    leagueIds: [],
+    seasonId: null,
+    modelResultIds: [],
+    modelOuIds: [],
+    modelBttsIds: [],
+    dateFrom: "",
+    dateTo: "",
+    roundFrom: "",
+    roundTo: "",
+    statType: "all",
+    settledOnly: true,
+    positiveEvOnly: false,
+    applyTax: false,
+    groupBy: "none",
+    aggregationMetric: "accuracy",
+    compareLeagueIds: [],
+    compareSeasonId: null,
+    ...overrides,
+  };
+}
+
+export function resetModelStatsFilters(
+  current: StatsFilterValues,
+): StatsFilterValues {
+  return createDefaultStatsFilterValues({
+    compareLeagueIds: current.compareLeagueIds,
+    compareSeasonId: current.compareSeasonId,
+  });
+}
+
+export function resetLeagueComparisonFilters(
+  current: StatsFilterValues,
+): StatsFilterValues {
+  return {
+    ...current,
+    compareLeagueIds: [],
+    compareSeasonId: null,
+  };
 }
 
 export function areAllOptionsSelected(
@@ -130,6 +176,16 @@ export function buildStatsFilterQuery(
   }
   if (nextState.aggregationMetric !== "accuracy") {
     params.set("aggregation_metric", nextState.aggregationMetric);
+  }
+  const compareLeagueFilter = serializeLeagueFilter(
+    nextState.compareLeagueIds,
+    availableLeagueIds,
+  );
+  if (compareLeagueFilter) {
+    params.set("compare_league_ids", compareLeagueFilter);
+  }
+  if (nextState.compareSeasonId) {
+    params.set("compare_season_id", String(nextState.compareSeasonId));
   }
   return params.toString();
 }

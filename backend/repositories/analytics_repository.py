@@ -20,6 +20,7 @@ _PREDICTION_SELECT = """
     SELECT
         m.id AS match_id,
         m.league AS league_id,
+        l.name AS league_name,
         m.season AS season_id,
         m.home_team AS home_team_id,
         m.away_team AS away_team_id,
@@ -27,10 +28,14 @@ _PREDICTION_SELECT = """
         m.home_team_goals,
         m.away_team_goals,
         p.event_id,
+        p.model_id,
+        md.name AS model_name,
         fp.outcome AS pred_outcome
     FROM matches m
     JOIN predictions p ON p.match_id = m.id
     JOIN final_predictions fp ON fp.predictions_id = p.id
+    LEFT JOIN models md ON md.id = p.model_id
+    LEFT JOIN leagues l ON l.id = m.league
     WHERE p.model_id IN ({model_placeholders})
 """
 
@@ -38,6 +43,7 @@ _BET_SELECT = """
     SELECT
         m.id AS match_id,
         m.league AS league_id,
+        l.name AS league_name,
         m.season AS season_id,
         m.home_team AS home_team_id,
         m.away_team AS away_team_id,
@@ -47,9 +53,13 @@ _BET_SELECT = """
         b.event_id AS bet_event_id,
         b.odds,
         b.EV AS ev,
-        b.outcome AS bet_outcome
+        b.outcome AS bet_outcome,
+        b.model_id,
+        md.name AS model_name
     FROM matches m
     JOIN bets b ON b.match_id = m.id
+    LEFT JOIN models md ON md.id = b.model_id
+    LEFT JOIN leagues l ON l.id = m.league
     WHERE b.model_id IN ({model_placeholders})
 """
 

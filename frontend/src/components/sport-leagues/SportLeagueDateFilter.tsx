@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
+import { DateInput } from "@/components/filters/DateInput";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
   sportLeaguePath,
@@ -12,9 +14,6 @@ interface SportLeagueDateFilterProps {
   leagueSlug: string;
   filters: SportLeagueFilters;
 }
-
-const inputClassName =
-  "w-full rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-100";
 
 export function SportLeagueDateFilter({
   leagueSlug,
@@ -49,28 +48,22 @@ export function SportLeagueDateFilter({
 
       {state.dateFilter ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2 text-sm text-slate-300">
+          <div className="space-y-2 text-sm text-slate-300">
             <span className="font-medium text-slate-200">Od</span>
-            <input
-              type="date"
-              className={inputClassName}
+            <DateInput
               value={state.dateFrom}
-              onChange={(event) =>
-                update({ dateFrom: event.target.value })
-              }
+              onChange={(dateFrom) => update({ dateFrom })}
+              ariaLabel="Data od"
             />
-          </label>
-          <label className="space-y-2 text-sm text-slate-300">
+          </div>
+          <div className="space-y-2 text-sm text-slate-300">
             <span className="font-medium text-slate-200">Do</span>
-            <input
-              type="date"
-              className={inputClassName}
+            <DateInput
               value={state.dateTo}
-              onChange={(event) =>
-                update({ dateTo: event.target.value })
-              }
+              onChange={(dateTo) => update({ dateTo })}
+              ariaLabel="Data do"
             />
-          </label>
+          </div>
         </div>
       ) : null}
     </section>

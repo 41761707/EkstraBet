@@ -2,9 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
+import { DateInput } from "@/components/filters/DateInput";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
+  resetModelStatsFilters,
   statsFilterPath,
   type StatsFilterValues,
 } from "@/lib/statsFilterParams";
@@ -42,7 +45,17 @@ export function StatsFilters({
 
   function applyFilters(nextState: StatsFilterValues) {
     const availableLeagueIds = leagues.map((league) => league.id);
-    navigateSearch(statsFilterPath(nextState, availableLeagueIds), router);
+    navigateSearch(
+      statsFilterPath(
+        {
+          ...nextState,
+          compareLeagueIds: values.compareLeagueIds,
+          compareSeasonId: values.compareSeasonId,
+        },
+        availableLeagueIds,
+      ),
+      router,
+    );
   }
 
   function update(partial: Partial<StatsFilterValues>) {
@@ -57,7 +70,13 @@ export function StatsFilters({
   }
 
   function handleReset() {
-    navigateSearch("/stats", router);
+    applyFilters(
+      resetModelStatsFilters({
+        ...state,
+        compareLeagueIds: values.compareLeagueIds,
+        compareSeasonId: values.compareSeasonId,
+      }),
+    );
   }
 
   return (
@@ -179,24 +198,22 @@ export function StatsFilters({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <label className="space-y-2 text-sm">
+        <div className="space-y-2 text-sm">
           <span className="font-medium text-slate-200">Data od</span>
-          <input
-            type="date"
+          <DateInput
             value={state.dateFrom}
-            onChange={(event) => update({ dateFrom: event.target.value })}
-            className={inputClassName}
+            onChange={(dateFrom) => update({ dateFrom })}
+            ariaLabel="Data od"
           />
-        </label>
-        <label className="space-y-2 text-sm">
+        </div>
+        <div className="space-y-2 text-sm">
           <span className="font-medium text-slate-200">Data do</span>
-          <input
-            type="date"
+          <DateInput
             value={state.dateTo}
-            onChange={(event) => update({ dateTo: event.target.value })}
-            className={inputClassName}
+            onChange={(dateTo) => update({ dateTo })}
+            ariaLabel="Data do"
           />
-        </label>
+        </div>
         <label className="space-y-2 text-sm">
           <span className="font-medium text-slate-200">Kolejka od</span>
           <input
