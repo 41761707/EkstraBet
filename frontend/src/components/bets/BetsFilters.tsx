@@ -42,12 +42,6 @@ export function BetsFilters({
     navigateSearch(betsFilterPath(nextState), router);
   }
 
-  function update(partial: Partial<BetsFilterValues>) {
-    const nextState = { ...state, ...partial, page: 1 };
-    setState(nextState);
-    applyFilters(nextState);
-  }
-
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     applyFilters({ ...state, page: 1 });
@@ -110,7 +104,9 @@ export function BetsFilters({
           <span className="font-medium text-slate-200">Data meczu</span>
           <DateInput
             value={state.matchDate}
-            onChange={(matchDate) => update({ matchDate })}
+            onChange={(matchDate) =>
+              setState((current) => ({ ...current, matchDate }))
+            }
             ariaLabel="Data meczu"
           />
         </div>
@@ -129,12 +125,6 @@ export function BetsFilters({
                 minOdds: Number(event.target.value) || 1,
               }))
             }
-            onBlur={(event) => {
-              const minOdds = Number(event.target.value) || 1;
-              const nextState = { ...state, minOdds, page: 1 };
-              setState(nextState);
-              applyFilters(nextState);
-            }}
             className={inputClassName}
           />
         </label>
@@ -144,7 +134,10 @@ export function BetsFilters({
           <select
             value={state.sortBy}
             onChange={(event) =>
-              update({ sortBy: event.target.value as BetSortBy })
+              setState((current) => ({
+                ...current,
+                sortBy: event.target.value as BetSortBy,
+              }))
             }
             className={inputClassName}
           >
@@ -159,7 +152,10 @@ export function BetsFilters({
           <select
             value={state.sortOrder}
             onChange={(event) =>
-              update({ sortOrder: event.target.value as BetSortOrder })
+              setState((current) => ({
+                ...current,
+                sortOrder: event.target.value as BetSortOrder,
+              }))
             }
             className={inputClassName}
           >
@@ -174,7 +170,12 @@ export function BetsFilters({
           <input
             type="checkbox"
             checked={state.fromNow}
-            onChange={(event) => update({ fromNow: event.target.checked })}
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                fromNow: event.target.checked,
+              }))
+            }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
           Tylko od teraz
@@ -184,7 +185,10 @@ export function BetsFilters({
             type="checkbox"
             checked={state.positiveEvOnly}
             onChange={(event) =>
-              update({ positiveEvOnly: event.target.checked })
+              setState((current) => ({
+                ...current,
+                positiveEvOnly: event.target.checked,
+              }))
             }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
@@ -194,7 +198,12 @@ export function BetsFilters({
           <input
             type="checkbox"
             checked={state.applyTax}
-            onChange={(event) => update({ applyTax: event.target.checked })}
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                applyTax: event.target.checked,
+              }))
+            }
             className="rounded border-slate-600 bg-slate-800 text-sky-500"
           />
           Uwzględnij podatek 12%
@@ -206,9 +215,10 @@ export function BetsFilters({
         <select
           value={state.settlementStatus}
           onChange={(event) =>
-            update({
+            setState((current) => ({
+              ...current,
               settlementStatus: event.target.value as SettlementStatus | "",
-            })
+            }))
           }
           className={inputClassName}
         >

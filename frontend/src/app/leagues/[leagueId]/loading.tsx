@@ -1,5 +1,4 @@
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-
+/** Intentionally empty — keep previous content visible during in-page navigation. */
 export default function LeagueLoading() {
-  return <LoadingSpinner label="Ładowanie ligi..." />;
+  return null;
 }

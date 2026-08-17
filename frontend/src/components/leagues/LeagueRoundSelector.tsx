@@ -40,6 +40,7 @@ export function LeagueRoundSelector({
             <Link
               key={round.round_number}
               href={buildLeagueHref(leagueSlug, seasonId, round.round_number)}
+              scroll={false}
               className={`rounded-full px-3 py-1.5 text-sm transition ${
                 isActive
                   ? "bg-sky-600 text-white"

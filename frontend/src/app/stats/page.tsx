@@ -24,6 +24,7 @@ import {
 import {
   resolveAnalyticsLeagueIds,
   visibleLeagueFilterIds,
+  buildStatsFilterQuery,
 } from "@/lib/statsFilterParams";
 import type {
   AnalyticsAggregationMetric,
@@ -32,6 +33,8 @@ import type {
 } from "@/types/api";
 
 const FOOTBALL_SPORT_ID = 1;
+
+export const dynamic = "force-dynamic";
 
 const categoryTitles: Record<string, string> = {
   ou: "Over/Under",
@@ -168,6 +171,9 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     ),
   };
 
+  const statsFilterKey =
+    buildStatsFilterQuery(effectiveFilters, allFootballLeagueIds) || "default";
+
   try {
     const [analyticsResult, comparisonResult] = await Promise.allSettled([
       getModelAnalytics({
@@ -265,6 +271,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
               Filtry modeli
             </h3>
             <StatsFilters
+              key={statsFilterKey}
               leagues={leagues}
               seasons={seasons}
               resultModels={modelsByFamily.result}

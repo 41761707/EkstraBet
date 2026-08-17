@@ -28,6 +28,8 @@ import type {
 } from "@/types/api";
 import { BASKETBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
 
+export const dynamic = "force-dynamic";
+
 interface LeaguePageProps {
   params: Promise<{ leagueId: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
@@ -219,6 +221,7 @@ export default async function LeaguePage({
                   href={leaguePath(league.slug, {
                     season_id: season.season_id,
                   })}
+                  scroll={false}
                   className={`rounded-full px-3 py-1.5 text-sm transition ${
                     isActive
                       ? "bg-sky-600 text-white"

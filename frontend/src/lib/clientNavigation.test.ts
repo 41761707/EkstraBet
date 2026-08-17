@@ -41,7 +41,8 @@ describe("navigateSearch", () => {
     expect(router.refresh).not.toHaveBeenCalled();
   });
 
-  it("refreshes without pushing when the URL is already current", () => {
+  it("refreshes without pushing when the URL is already current", async () => {
+    vi.useFakeTimers();
     const router = { push: vi.fn(), refresh: vi.fn() };
     vi.stubGlobal("window", {
       location: { pathname: "/bets", search: "?from_now=true" },
@@ -50,10 +51,14 @@ describe("navigateSearch", () => {
     navigateSearch("/bets?from_now=true", router);
 
     expect(router.push).not.toHaveBeenCalled();
+    expect(router.refresh).not.toHaveBeenCalled();
+    await vi.runAllTimersAsync();
     expect(router.refresh).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 
-  it("treats encoded commas as the same current query", () => {
+  it("treats encoded commas as the same current query", async () => {
+    vi.useFakeTimers();
     const router = { push: vi.fn(), refresh: vi.fn() };
     vi.stubGlobal("window", {
       location: { pathname: "/stats", search: "?league_ids=1,2" },
@@ -62,6 +67,9 @@ describe("navigateSearch", () => {
     navigateSearch("/stats?league_ids=1%2C2", router);
 
     expect(router.push).not.toHaveBeenCalled();
+    expect(router.refresh).not.toHaveBeenCalled();
+    await vi.runAllTimersAsync();
     expect(router.refresh).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 });

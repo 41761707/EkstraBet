@@ -59,6 +59,7 @@ export function FootballPlayersSection({
   return (
     <div className="space-y-6">
       <PlayersFilters
+        key={`${filters.sportId}-${filters.countryId}-${filters.teamId}-${filters.seasonId}-${filters.matchLimit}-${filters.search}`}
         countries={countries}
         teams={teams}
         seasons={seasons}

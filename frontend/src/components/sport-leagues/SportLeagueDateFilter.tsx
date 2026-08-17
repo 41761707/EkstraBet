@@ -6,6 +6,7 @@ import { useState } from "react";
 import { DateInput } from "@/components/filters/DateInput";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
+  defaultSportDateRange,
   sportLeaguePath,
   type SportLeagueFilters,
 } from "@/lib/sportLeagueParams";
@@ -26,20 +27,37 @@ export function SportLeagueDateFilter({
     navigateSearch(sportLeaguePath(leagueSlug, nextState), router);
   }
 
-  function update(partial: Partial<SportLeagueFilters>) {
-    const nextState = { ...state, ...partial };
-    setState(nextState);
-    apply(nextState);
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    apply(state);
+  }
+
+  function handleReset() {
+    const { from, to } = defaultSportDateRange();
+    const resetState: SportLeagueFilters = {
+      ...state,
+      dateFilter: true,
+      dateFrom: from,
+      dateTo: to,
+    };
+    setState(resetState);
+    apply(resetState);
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4"
+    >
       <label className="flex items-center gap-2 text-sm text-slate-300">
         <input
           type="checkbox"
           checked={state.dateFilter}
           onChange={(event) =>
-            update({ dateFilter: event.target.checked })
+            setState((current) => ({
+              ...current,
+              dateFilter: event.target.checked,
+            }))
           }
           className="rounded border-slate-600 bg-slate-900"
         />
@@ -52,7 +70,9 @@ export function SportLeagueDateFilter({
             <span className="font-medium text-slate-200">Od</span>
             <DateInput
               value={state.dateFrom}
-              onChange={(dateFrom) => update({ dateFrom })}
+              onChange={(dateFrom) =>
+                setState((current) => ({ ...current, dateFrom }))
+              }
               ariaLabel="Data od"
             />
           </div>
@@ -60,12 +80,30 @@ export function SportLeagueDateFilter({
             <span className="font-medium text-slate-200">Do</span>
             <DateInput
               value={state.dateTo}
-              onChange={(dateTo) => update({ dateTo })}
+              onChange={(dateTo) =>
+                setState((current) => ({ ...current, dateTo }))
+              }
               ariaLabel="Data do"
             />
           </div>
         </div>
       ) : null}
-    </section>
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="submit"
+          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
+        >
+          Zastosuj filtry
+        </button>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+        >
+          Resetuj
+        </button>
+      </div>
+    </form>
   );
 }

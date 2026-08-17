@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { BetRecommendationsTable } from "@/components/bets/BetRecommendationsTable";
+import { BetsFilters } from "@/components/bets/BetsFilters";
 import {
-  BetsFilters,
+  betsFilterPath,
   type BetsFilterValues,
-} from "@/components/bets/BetsFilters";
+} from "@/lib/betsFilterParams";
 import { PaginationBar } from "@/components/PaginationBar";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
@@ -27,6 +28,8 @@ import type {
 } from "@/types/api";
 
 const PAGE_SIZE = 50;
+
+export const dynamic = "force-dynamic";
 
 interface BetsPageProps {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -130,6 +133,7 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
         <section className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
           <h2 className="text-lg font-semibold text-white">Filtry</h2>
           <BetsFilters
+            key={betsFilterPath(filters)}
             leagues={leagues}
             events={events}
             models={models}

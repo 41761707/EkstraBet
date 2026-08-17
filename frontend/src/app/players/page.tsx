@@ -20,6 +20,8 @@ import {
 } from "@/lib/api";
 import { parsePositiveInt } from "@/lib/searchParams";
 
+export const dynamic = "force-dynamic";
+
 interface PlayersPageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }

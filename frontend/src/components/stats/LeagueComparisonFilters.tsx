@@ -43,19 +43,15 @@ export function LeagueComparisonFilters({
     );
   }
 
-  function update(partial: Partial<StatsFilterValues>) {
-    const nextState = { ...state, ...partial };
-    setState(nextState);
-    applyFilters(nextState);
-  }
-
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     applyFilters(state);
   }
 
   function handleReset() {
-    applyFilters(resetLeagueComparisonFilters(state));
+    const resetState = resetLeagueComparisonFilters(state);
+    setState(resetState);
+    applyFilters(resetState);
   }
 
   return (
@@ -76,11 +72,12 @@ export function LeagueComparisonFilters({
           <select
             value={state.compareSeasonId ?? ""}
             onChange={(event) =>
-              update({
+              setState((current) => ({
+                ...current,
                 compareSeasonId: event.target.value
                   ? Number(event.target.value)
                   : null,
-              })
+              }))
             }
             className={inputClassName}
           >

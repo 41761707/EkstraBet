@@ -27,7 +27,8 @@ export function isCurrentPath(path: string): boolean {
  */
 export function navigateSearch(path: string, router: SearchRouter): void {
   if (isCurrentPath(path)) {
-    router.refresh();
+    // Next.js discards refresh in the same tick as pushState — defer it.
+    setTimeout(() => router.refresh(), 0);
     return;
   }
   router.push(path, { scroll: false });
