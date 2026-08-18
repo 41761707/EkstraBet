@@ -9,6 +9,12 @@ import {
   addFavoriteLeague,
   removeFavoriteLeague,
 } from "@/lib/apiClient";
+import {
+  FAVORITE_TOGGLE_ERROR_MESSAGE,
+  FAVORITES_UNAVAILABLE_MESSAGE,
+  FAVORITES_UNAVAILABLE_TITLE,
+  nextFavoriteIds,
+} from "@/lib/favoriteLeagues";
 import type { LeagueSummary } from "@/types/api";
 
 export const FAVORITE_LEAGUES_TITLE = "Ulubione ligi";
@@ -19,31 +25,17 @@ export const EMPTY_FAVORITE_LEAGUES_MESSAGE =
   "API zwróciło pustą listę. Sprawdź dane w backendzie.";
 export const FAVORITE_LEAGUES_LOAD_ERROR_TITLE =
   "Nie udało się wczytać listy lig";
-export const FAVORITES_UNAVAILABLE_TITLE = "Ulubione ligi są niedostępne";
-export const FAVORITES_UNAVAILABLE_MESSAGE =
-  "Lista lig jest widoczna, ale stanu ulubionych nie da się teraz odczytać. Odśwież stronę.";
-export const FAVORITE_TOGGLE_ERROR_MESSAGE =
-  "Nie udało się zapisać zmiany. Spróbuj ponownie.";
+export {
+  FAVORITE_TOGGLE_ERROR_MESSAGE,
+  FAVORITES_UNAVAILABLE_MESSAGE,
+  FAVORITES_UNAVAILABLE_TITLE,
+};
 
 interface FavoriteLeaguesSectionProps {
   leagues: LeagueSummary[];
   initialFavoriteIds: number[];
   leaguesError?: string;
   favoritesUnavailable?: boolean;
-}
-
-/** Apply an optimistic add/remove without mutating the current list. */
-export function nextFavoriteIds(
-  currentIds: number[],
-  leagueId: number,
-  isFavorite: boolean,
-): number[] {
-  if (isFavorite) {
-    return currentIds.includes(leagueId)
-      ? currentIds
-      : [...currentIds, leagueId];
-  }
-  return currentIds.filter((id) => id !== leagueId);
 }
 
 export function FavoriteLeaguesSection({

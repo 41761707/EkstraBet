@@ -35,7 +35,7 @@ export function FavoriteLeagueButton({
   const colorClass = isFavorite ? "text-sky-300" : "text-slate-400";
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
-    // gwiazdka na home będzie wewnątrz Link — nie może uruchamiać nawigacji
+    // obrona na wypadek zagnieżdżenia w Link — gwiazdka nie może nawigować
     event.preventDefault();
     event.stopPropagation();
     if (isBlocked) {

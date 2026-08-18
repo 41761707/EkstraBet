@@ -3,7 +3,13 @@ import { HomeLeaguesList } from "@/components/home/HomeLeaguesList";
 import { HomeSection } from "@/components/home/HomeSection";
 import { HomeStaticSections } from "@/components/home/HomeStaticSections";
 import { HomeTodayMatches } from "@/components/home/HomeTodayMatches";
-import { ApiError, getDailyMatches, getLeagues } from "@/lib/api";
+import {
+  ApiError,
+  getDailyMatches,
+  getFavoriteLeagueIds,
+  getLeagues,
+} from "@/lib/api";
+import { isAuthEnabled } from "@/lib/authCookie";
 import { getWarsawDateIso } from "@/lib/dailyMatches";
 import type { DailyMatchSummary, LeagueSummary } from "@/types/api";
 
@@ -17,36 +23,78 @@ function resolveLoadErrorMessage(error: unknown, fallback: string): string {
   return error instanceof ApiError ? error.message : fallback;
 }
 
-export default async function HomePage() {
+interface HomePageData {
+  matchDate: string;
+  leagues: LeagueSummary[];
+  leaguesError?: string;
+  matches: DailyMatchSummary[];
+  matchesError?: string;
+  favoriteIds: number[];
+  favoritesEnabled: boolean;
+  favoritesUnavailable: boolean;
+}
+
+async function loadHomePageData(): Promise<HomePageData> {
   const matchDate = getWarsawDateIso();
+  const favoritesEnabled = isAuthEnabled();
+  const [leaguesResult, matchesResult, favoritesResult] =
+    await Promise.allSettled([
+      getLeagues({ active: true }),
+      getDailyMatches(matchDate),
+      favoritesEnabled
+        ? getFavoriteLeagueIds()
+        : Promise.resolve({ league_ids: [] }),
+    ]);
 
-  const [leaguesResult, matchesResult] = await Promise.allSettled([
-    getLeagues({ active: true }),
-    getDailyMatches(matchDate),
-  ]);
-
-  let leagues: LeagueSummary[] = [];
-  let leaguesError: string | undefined;
-  let matches: DailyMatchSummary[] = [];
-  let matchesError: string | undefined;
+  const data: HomePageData = {
+    matchDate,
+    leagues: [],
+    matches: [],
+    favoriteIds: [],
+    favoritesEnabled,
+    favoritesUnavailable: false,
+  };
 
   if (leaguesResult.status === "fulfilled") {
-    leagues = leaguesResult.value.leagues;
+    data.leagues = leaguesResult.value.leagues;
   } else {
-    leaguesError = resolveLoadErrorMessage(
+    data.leaguesError = resolveLoadErrorMessage(
       leaguesResult.reason,
       "Nie udało się połączyć z API backendu.",
     );
   }
 
   if (matchesResult.status === "fulfilled") {
-    matches = matchesResult.value.matches;
+    data.matches = matchesResult.value.matches;
   } else {
-    matchesError = resolveLoadErrorMessage(
+    data.matchesError = resolveLoadErrorMessage(
       matchesResult.reason,
       "Nie udało się połączyć z API backendu.",
     );
   }
+
+  if (favoritesEnabled) {
+    if (favoritesResult.status === "fulfilled") {
+      data.favoriteIds = favoritesResult.value.league_ids;
+    } else {
+      data.favoritesUnavailable = true;
+    }
+  }
+
+  return data;
+}
+
+export default async function HomePage() {
+  const {
+    matchDate,
+    leagues,
+    leaguesError,
+    matches,
+    matchesError,
+    favoriteIds,
+    favoritesEnabled,
+    favoritesUnavailable,
+  } = await loadHomePageData();
 
   return (
     <div className="space-y-8">
@@ -61,9 +109,14 @@ export default async function HomePage() {
       </section>
 
       <div className="space-y-4">
-
         <HomeSection title="Lista obsługiwanych lig" id="ligi" defaultOpen>
-          <HomeLeaguesList leagues={leagues} errorMessage={leaguesError} />
+          <HomeLeaguesList
+            leagues={leagues}
+            errorMessage={leaguesError}
+            initialFavoriteIds={favoriteIds}
+            favoritesEnabled={favoritesEnabled}
+            favoritesUnavailable={favoritesUnavailable}
+          />
         </HomeSection>
 
         <HomeSection title="Dzisiejsze mecze" id="dzisiejsze-mecze">

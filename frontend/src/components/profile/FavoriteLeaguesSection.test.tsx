@@ -9,7 +9,6 @@ import {
   FAVORITE_TOGGLE_ERROR_MESSAGE,
   FAVORITES_UNAVAILABLE_TITLE,
   FavoriteLeaguesSection,
-  nextFavoriteIds,
 } from "@/components/profile/FavoriteLeaguesSection";
 import type { LeagueSummary } from "@/types/api";
 
@@ -30,18 +29,6 @@ function sampleLeague(
     ...overrides,
   };
 }
-
-describe("nextFavoriteIds", () => {
-  it("adds a missing id and ignores a duplicate add", () => {
-    expect(nextFavoriteIds([1], 4, true)).toEqual([1, 4]);
-    expect(nextFavoriteIds([1, 4], 4, true)).toEqual([1, 4]);
-  });
-
-  it("removes an existing id and ignores a missing remove", () => {
-    expect(nextFavoriteIds([1, 4], 1, false)).toEqual([4]);
-    expect(nextFavoriteIds([4], 1, false)).toEqual([4]);
-  });
-});
 
 describe("FavoriteLeaguesSection", () => {
   it("renders the section title and a grid of active leagues with stars", () => {
