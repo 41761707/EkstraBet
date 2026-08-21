@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 17.08.2026
+###### Ostatnia data modyfikacji: 21.08.2026
 
 ## Opis struktury bazy
 
@@ -54,6 +54,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
 - [USER_FAVORITE_LEAGUES](#user_favorite_leagues) (Ulubione ligi wybranych użytkowników aplikacji)
+- [USER_PREFERENCES](#user_preferences) (Skalarne preferencje UI konta, m.in. motyw)
 - [USERS](#users) (Konta użytkowników aplikacji web / API)
 
 ## Legenda
@@ -1506,6 +1507,33 @@ Samo `leagues.active = 0` nie usuwa wiersza; użytkownik może usunąć historyc
 **Sposób generowania danych do tabeli:**
 
 Wiersze dodaje i usuwa zalogowany użytkownik przez API (`PUT`/`DELETE /users/me/favorite-leagues/{league_id}`).
+
+---
+
+### USER_PREFERENCES
+
+(Skalarne preferencje UI konta — relacja 1:1 z `users`; nie mylić z `USER_FAVORITE_LEAGUES`)
+
+
+| POLE            | DOMENA   | ZAKRES                    | UWAGI                                                                 | WARTOŚC DOMYŚLNA  |
+| --------------- | -------- | ------------------------- | --------------------------------------------------------------------- | ----------------- |
+| ***USER_ID***   | INT      | INT                       | Klucz główny i klucz obcy do *users*                                  | NULL              |
+| THEME           | ENUM     | {system, dark, light}     | Preferencja schematu kolorów konta                                    | system            |
+| UPDATED_AT      | DATETIME | DATETIME                  | Moment ostatniego zapisu (last-write-wins per pole)                   | CURRENT_TIMESTAMP |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `USER_ID` — jeden wiersz na konto
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE** (usunięcie konta kasuje preferencje)
+- Brak wiersza = użytkownik nigdy nie zapisał motywu na koncie (frontend wtedy wypycha cache localStorage)
+- Domyślne `system` w DDL dotyczy bezpośredniego INSERT-a, nie semantyki „użytkownik wybrał system”
+- Kolejne preferencje skalarne (np. `odds_format`) dodaje się **kolumną z DEFAULT**, bez nowej tabeli i bez JSON blob
+
+**Sposób generowania danych do tabeli:**
+
+Wiersz tworzy i aktualizuje zalogowany użytkownik przez API (`GET`/`PUT /users/me/preferences`).
+`PUT` scala tylko podane pola (v1: `{ "theme": "system"|"dark"|"light" }`).
 
 ---
 

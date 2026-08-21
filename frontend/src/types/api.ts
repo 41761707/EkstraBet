@@ -19,6 +19,19 @@ export interface FavoriteLeagueMutationResponse {
   is_favorite: boolean;
 }
 
+/** Account color-scheme preference from GET/PUT /users/me/preferences. */
+export type UserThemePreference = "system" | "dark" | "light";
+
+/** Full document from GET /users/me/preferences (v1: theme only). */
+export interface UserPreferencesResponse {
+  theme: UserThemePreference;
+}
+
+/** Partial body for PUT /users/me/preferences (v1: theme only). */
+export interface UserPreferencesUpdate {
+  theme: UserThemePreference;
+}
+
 export interface LeagueSummary {
   id: number;
   name: string;

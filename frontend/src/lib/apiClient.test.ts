@@ -4,6 +4,8 @@ import {
   addFavoriteLeague,
   getLeagueRatingProgress,
   getSeasonProjectionModes,
+  getUserPreferences,
+  putUserPreferences,
   removeFavoriteLeague,
 } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiShared";
@@ -141,5 +143,58 @@ describe("favorite league mutations", () => {
     ];
     expect(requested).toContain("/api/backend/users/me/favorite-leagues/4");
     expect(init.method).toBe("DELETE");
+  });
+});
+
+describe("user preferences", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("GETs preferences through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ theme: "light" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(getUserPreferences()).resolves.toEqual({ theme: "light" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requested = String(fetchMock.mock.calls[0]?.[0]);
+    expect(requested).toContain("/api/backend/users/me/preferences");
+  });
+
+  it("PUTs preferences through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ theme: "dark" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(putUserPreferences({ theme: "dark" })).resolves.toEqual({
+      theme: "dark",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/users/me/preferences");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({ theme: "dark" });
   });
 });
