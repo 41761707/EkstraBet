@@ -1,21 +1,224 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0b1120;
-  --foreground: #e2e8f0;
+/*
+ * Palety żyją pod [data-theme]; @theme inline wystawia bg-page, text-muted itd.
+ * Chrom html/body/formularze zostaje przy wartościach dark do SZP-113 — istniejące
+ * klasy text-white nie dziedziczą tokenów i przy light page były nieczytelne.
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: #0b1120;
+  --surface: #0f172a;
+  --surface-muted: #020617;
+  --surface-raised: #1e293b;
+  --overlay: #020617b3;
+
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --on-accent: #f8fafc;
+
+  --border: #334155;
+  --border-strong: #475569;
+  --focus-ring: #38bdf8;
+
+  --accent: #0284c7;
+  --accent-hover: #0ea5e9;
+  --accent-soft: #082f49;
+
+  --success: #6ee7b7;
+  --success-text: #a7f3d0;
+  --success-bg: #022c22;
+  --success-border: #065f46;
+  --warning: #fcd34d;
+  --warning-text: #fde68a;
+  --warning-bg: #451a03;
+  --warning-border: #b45309;
+  --danger: #fca5a5;
+  --danger-text: #fecaca;
+  --danger-bg: #450a0a;
+  --danger-border: #991b1b;
+  --info: #7dd3fc;
+  --info-text: #bae6fd;
+  --info-bg: #082f49;
+  --info-border: #0369a1;
+
+  --chart-grid: #1e293b;
+  --chart-axis: #94a3b8;
+  --chart-track: #1e293b;
+  --skeleton: #1e293b;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+[data-theme="light"] {
+  color-scheme: light;
+
+  --page: #f3f6fa;
+  --surface: #ffffff;
+  --surface-muted: #eaf0f6;
+  --surface-raised: #ffffff;
+  --overlay: #17203373;
+
+  --text: #172033;
+  --text-muted: #526174;
+  --text-subtle: #6b7a90;
+  --on-accent: #ffffff;
+
+  --border: #cbd5e1;
+  --border-strong: #94a3b8;
+  --focus-ring: #0369a1;
+
+  --accent: #0369a1;
+  --accent-hover: #075985;
+  --accent-soft: #e0f2fe;
+
+  --success: #047857;
+  --success-text: #065f46;
+  --success-bg: #ecfdf5;
+  --success-border: #6ee7b7;
+  --warning: #b45309;
+  --warning-text: #92400e;
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
+  --danger: #b91c1c;
+  --danger-text: #991b1b;
+  --danger-bg: #fef2f2;
+  --danger-border: #fca5a5;
+  --info: #0369a1;
+  --info-text: #075985;
+  --info-bg: #f0f9ff;
+  --info-border: #7dd3fc;
+
+  --chart-grid: #e2e8f0;
+  --chart-axis: #526174;
+  --chart-track: #eaf0f6;
+  --skeleton: #d7e0ea;
 }
 
-a {
-  text-decoration: none;
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-overlay: var(--overlay);
+
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
+  --color-on-accent: var(--on-accent);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-focus-ring: var(--focus-ring);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-text: var(--info-text);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  --color-chart-track: var(--chart-track);
+  --color-skeleton: var(--skeleton);
 }
 
-/* KaTeX inherits page colors on the dark documentation UI */
+@layer base {
+  /*
+   * Istniejący UI ma twarde text-white / text-sky-300 / text-slate-*.
+   * Te klasy nie dziedziczą --text, więc body na var(--page) przy
+   * data-theme=light daje białe napisy na jasnym tle (każda podstrona).
+   * Chrom zostaje przy palecie dark do migracji w SZP-113; tokeny
+   * (bg-page, text-text, …) są już dostępne dla zmigrowanych klas.
+   */
+  html,
+  body {
+    background-color: #0b1120;
+    color: #e2e8f0;
+  }
+
+  body {
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid #334155;
+  }
+
+  table {
+    border-color: #334155;
+  }
+
+  th,
+  td {
+    border-color: #334155;
+    color: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    background-color: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b;
+  }
+
+  :focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 2px;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    border-color: #38bdf8;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html,
+  body,
+  a,
+  hr,
+  input,
+  select,
+  textarea,
+  th,
+  td {
+    transition-property: background-color, color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+}
+
+/* KaTeX dziedziczy kolor tekstu z motywu dokumentacji */
 .katex {
   color: inherit;
   font-size: 1.05em;
