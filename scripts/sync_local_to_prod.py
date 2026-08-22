@@ -338,19 +338,20 @@ class SshDockerProdMysql:
         cfg = self._config
         remote = _build_remote_mysql_bash(cfg, mysql_extra, sql)
         command = ["ssh", cfg.ssh_host, "bash", "-s"]
+        # bajty + LF: text=True na Windows wysyla CR LF i psuje pipefail
         result = subprocess.run(
             command,
-            input=remote,
+            input=_unix_utf8_bytes(remote),
             capture_output=True,
-            text=True,
-            encoding="utf-8",
             check=False)
+        stdout = _decode_ssh_output(result.stdout)
+        stderr = _decode_ssh_output(result.stderr)
         if result.returncode != 0:
-            detail = (result.stderr or result.stdout or "").strip()
+            detail = (stderr or stdout).strip()
             raise RuntimeError(
                 f"Remote MySQL via SSH failed (exit {result.returncode}): "
                 f"{detail or 'no details'}")
-        return result.stdout or ""
+        return stdout
 
 
 def _build_remote_mysql_bash(
@@ -373,26 +374,42 @@ def _build_remote_mysql_bash(
         # haslo w env sesji bash na VPS, nie w lokalnym ps
         password_q = shlex.quote(cfg.mysql_password)
         auth = (
-            f"MYSQL_USER={user}\n"
-            f"MYSQL_PWD={password_q}\n")
+            f"export MYSQL_USER={user}\n"
+            f"export MYSQL_PWD={password_q}\n")
     else:
         auth = (
-            "MYSQL_USER=root\n"
-            'MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"\n')
+            "export MYSQL_USER=root\n"
+            'export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"\n')
 
     # APP_ORIGIN wymagane przez interpolacje compose.production.yml
-    return f"""set -euo pipefail
+    # MYSQL_PWD musi byc w env: compose exec -e MYSQL_PWD czyta proces
+    script = f"""set -euo pipefail
 set -a
 # shellcheck disable=SC1090
 source {env_file}
 set +a
 export APP_ORIGIN="${{APP_ORIGIN:-https://localhost}}"
 {auth}
+if [ -z "${{MYSQL_PWD}}" ]; then
+  echo "MYSQL_PWD is empty after loading {env_file}" >&2
+  exit 1
+fi
 cd {repo}
 printf '%s' {encoded_q} | base64 -d | docker compose -f {compose} exec -T \\
   -e MYSQL_PWD \\
   {service} mysql -u"$MYSQL_USER" {database} {extra}
 """
+    return script.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _unix_utf8_bytes(text: str) -> bytes:
+    """Encode text as UTF-8 with LF-only newlines for remote bash."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+
+
+def _decode_ssh_output(payload: bytes | None) -> str:
+    """Decode captured SSH stdout/stderr as UTF-8 text."""
+    return (payload or b"").decode("utf-8", errors="replace")
 
 
 def _split_sql_statements(sql: str) -> list[str]:

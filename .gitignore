@@ -236,3 +236,4 @@ db_module.py
 .szponti.env
 /tasks/
 models/artifacts/dev/**/*
+deploy/mysql.env
