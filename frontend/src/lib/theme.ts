@@ -24,6 +24,14 @@ export function resolveTheme(
 }
 
 /**
+ * Binary toggle target: the opposite of the currently resolved theme.
+ * Always returns an explicit `dark` / `light`, never `system`.
+ */
+export function nextExplicitTheme(resolved: ResolvedTheme): ThemePreference {
+  return resolved === "dark" ? "light" : "dark";
+}
+
+/**
  * Read `prefers-color-scheme`. Missing `matchMedia` falls back to dark
  * so the first paint matches the current (dark-only) UI.
  */

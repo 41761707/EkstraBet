@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ThemeToggle } from "@/components/preferences/ThemeToggle";
 
 const NAV_LINKS = [
   { href: "/", label: "Strona główna" },
@@ -19,24 +20,26 @@ const NAV_LINKS = [
 
 const PROFILE_LINK = { href: "/profile", label: "Profil" } as const;
 
+type NavLink = (typeof NAV_LINKS)[number] | typeof PROFILE_LINK;
+
 type AppNavProps = {
   showLogout: boolean;
   showLinks?: boolean;
   showProfile?: boolean;
 };
 
-function getNavLinks(showProfile: boolean) {
+const HAMBURGER_CLASS_NAME =
+  "inline-flex items-center justify-center rounded-md p-2 text-slate-300 " +
+  "transition hover:bg-slate-800 hover:text-white";
+
+function getNavLinks(showProfile: boolean): NavLink[] {
   if (!showProfile) {
-    return NAV_LINKS;
+    return [...NAV_LINKS];
   }
   return [...NAV_LINKS, PROFILE_LINK];
 }
 
-export function AppNav({
-  showLogout,
-  showLinks = true,
-  showProfile = false,
-}: AppNavProps) {
+function useMobileMenu() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -81,6 +84,16 @@ export function AppNav({
     toggleRef.current?.focus();
   }
 
+  return { isOpen, setIsOpen, isMounted, menuId, toggleRef, panelRef, closeMenu };
+}
+
+export function AppNav({
+  showLogout,
+  showLinks = true,
+  showProfile = false,
+}: AppNavProps) {
+  const { isOpen, setIsOpen, isMounted, menuId, toggleRef, panelRef, closeMenu } =
+    useMobileMenu();
   const links = getNavLinks(showProfile);
   const linkClassName =
     "rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white";
@@ -90,56 +103,16 @@ export function AppNav({
   const mobileMenu =
     isOpen && isMounted
       ? createPortal(
-          <div className="fixed inset-0 z-50 lg:hidden" role="presentation">
-            <button
-              type="button"
-              className="absolute inset-0 bg-slate-950/70"
-              aria-label="Zamknij menu"
-              onClick={closeMenu}
-            />
-            <div
-              ref={panelRef}
-              id={menuId}
-              role="dialog"
-              aria-modal="true"
-              aria-label="Menu nawigacyjne"
-              className="absolute right-0 top-0 flex h-full w-[min(100%,20rem)] flex-col border-l border-slate-700/80 bg-slate-950 shadow-xl"
-            >
-              <div className="flex items-center justify-between border-b border-slate-700/80 px-4 py-4">
-                <span className="text-sm font-medium text-slate-200">Menu</span>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
-                  aria-label="Zamknij menu"
-                  onClick={closeMenu}
-                >
-                  <CloseIcon />
-                </button>
-              </div>
-              <nav
-                className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-slate-300"
-                aria-label="Główna nawigacja"
-              >
-                {showLinks
-                  ? links.map((link) => (
-                      <Link
-                        key={link.href}
-                        href={link.href}
-                        className={mobileLinkClassName}
-                        onClick={() => setIsOpen(false)}
-                      >
-                        {link.label}
-                      </Link>
-                    ))
-                  : null}
-                {showLogout ? (
-                  <div className="mt-2 border-t border-slate-700/80 pt-2">
-                    <LogoutButton />
-                  </div>
-                ) : null}
-              </nav>
-            </div>
-          </div>,
+          <MobileNavPanel
+            menuId={menuId}
+            panelRef={panelRef}
+            links={links}
+            showLinks={showLinks}
+            showLogout={showLogout}
+            mobileLinkClassName={mobileLinkClassName}
+            onClose={closeMenu}
+            onNavigate={() => setIsOpen(false)}
+          />,
           document.body,
         )
       : null;
@@ -157,16 +130,17 @@ export function AppNav({
               </Link>
             ))
           : null}
+        <ThemeToggle />
         {showLogout ? <LogoutButton /> : null}
       </nav>
 
-      <div className="lg:hidden">
+      <div className="flex items-center gap-1 lg:hidden">
         {showLinks ? (
           <>
             <button
               ref={toggleRef}
               type="button"
-              className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              className={HAMBURGER_CLASS_NAME}
               aria-expanded={isOpen}
               aria-controls={menuId}
               aria-label={isOpen ? "Zamknij menu" : "Otwórz menu"}
@@ -176,11 +150,105 @@ export function AppNav({
             </button>
             {mobileMenu}
           </>
-        ) : showLogout ? (
-          <LogoutButton />
-        ) : null}
+        ) : (
+          <ThemeToggle />
+        )}
+        {!showLinks && showLogout ? <LogoutButton /> : null}
       </div>
     </>
+  );
+}
+
+interface MobileNavPanelProps {
+  menuId: string;
+  panelRef: RefObject<HTMLDivElement | null>;
+  links: NavLink[];
+  showLinks: boolean;
+  showLogout: boolean;
+  mobileLinkClassName: string;
+  onClose: () => void;
+  onNavigate: () => void;
+}
+
+function MobileNavPanel({
+  menuId,
+  panelRef,
+  links,
+  showLinks,
+  showLogout,
+  mobileLinkClassName,
+  onClose,
+  onNavigate,
+}: MobileNavPanelProps) {
+  return (
+    <div className="fixed inset-0 z-50 lg:hidden" role="presentation">
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-950/70"
+        aria-label="Zamknij menu"
+        onClick={onClose}
+      />
+      <div
+        ref={panelRef}
+        id={menuId}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu nawigacyjne"
+        className={
+          "absolute right-0 top-0 flex h-full w-[min(100%,20rem)] flex-col " +
+          "border-l border-slate-700/80 bg-slate-950 shadow-xl"
+        }
+      >
+        <div className="flex items-center justify-between border-b border-slate-700/80 px-4 py-4">
+          <span className="text-sm font-medium text-slate-200">Menu</span>
+          <button
+            type="button"
+            className={HAMBURGER_CLASS_NAME}
+            aria-label="Zamknij menu"
+            onClick={onClose}
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        <nav
+          className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-slate-300"
+          aria-label="Główna nawigacja"
+        >
+          {showLinks
+            ? links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={mobileLinkClassName}
+                  onClick={onNavigate}
+                >
+                  {link.label}
+                </Link>
+              ))
+            : null}
+          <MobileThemeSection />
+          {showLogout ? (
+            <div className="mt-2 border-t border-slate-700/80 pt-2">
+              <LogoutButton />
+            </div>
+          ) : null}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+function MobileThemeSection() {
+  return (
+    <div
+      className={
+        "mt-2 flex items-center justify-between border-t " +
+        "border-slate-700/80 px-3 py-2"
+      }
+    >
+      <span className="text-sm text-slate-400">Wygląd</span>
+      <ThemeToggle />
+    </div>
   );
 }
 

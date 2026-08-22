@@ -13,6 +13,7 @@ import {
   buildThemeBootstrapScript,
   COLOR_SCHEME_DARK_QUERY,
   getSystemPrefersDark,
+  nextExplicitTheme,
   resolveTheme,
 } from "@/lib/theme";
 
@@ -32,6 +33,18 @@ describe("resolveTheme", () => {
       expect(resolveTheme(preference, systemPrefersDark)).toBe(expected);
     },
   );
+});
+
+describe("nextExplicitTheme", () => {
+  it("toggles dark to light and light to dark", () => {
+    expect(nextExplicitTheme("dark")).toBe("light");
+    expect(nextExplicitTheme("light")).toBe("dark");
+  });
+
+  it("toggles the resolved value of a system preference", () => {
+    expect(nextExplicitTheme(resolveTheme("system", true))).toBe("light");
+    expect(nextExplicitTheme(resolveTheme("system", false))).toBe("dark");
+  });
 });
 
 describe("getSystemPrefersDark", () => {

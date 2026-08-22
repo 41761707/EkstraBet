@@ -32,29 +32,36 @@ describe("createPreferencesApi", () => {
     );
     const api = createPreferencesApi();
 
-    await expect(api.get()).resolves.toEqual({ version: 1, theme: "light" });
+    await expect(api.get()).resolves.toEqual({
+      status: "found",
+      preferences: { version: 1, theme: "light" },
+    });
 
     const requested = String(fetchMock.mock.calls[0]?.[0]);
     expect(requested).toContain("/api/backend/users/me/preferences");
   });
 
-  it("maps GET 404 to null (no account row)", async () => {
+  it("maps GET 404 to missing (no account row)", async () => {
     stubBrowserFetch(
       vi.fn().mockResolvedValue(
         jsonResponse(404, { detail: "Preferences not found" }),
       ),
     );
-    await expect(createPreferencesApi().get()).resolves.toBeNull();
+    await expect(createPreferencesApi().get()).resolves.toEqual({
+      status: "missing",
+    });
   });
 
-  it("maps GET 401 to null (no session)", async () => {
+  it("maps GET 401 to no-session", async () => {
     stubBrowserFetch(
       vi.fn().mockResolvedValue(jsonResponse(401, { detail: "Not authenticated" })),
     );
-    await expect(createPreferencesApi().get()).resolves.toBeNull();
+    await expect(createPreferencesApi().get()).resolves.toEqual({
+      status: "no-session",
+    });
   });
 
-  it("maps GET 403 to null without redirecting to first-login", async () => {
+  it("maps GET 403 to no-session without redirecting to first-login", async () => {
     const replace = vi.fn();
     vi.stubGlobal("window", {
       location: { origin: "http://localhost:3000", replace },
@@ -66,7 +73,9 @@ describe("createPreferencesApi", () => {
       ),
     );
 
-    await expect(createPreferencesApi().get()).resolves.toBeNull();
+    await expect(createPreferencesApi().get()).resolves.toEqual({
+      status: "no-session",
+    });
     expect(replace).not.toHaveBeenCalled();
   });
 

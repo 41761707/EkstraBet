@@ -18,10 +18,26 @@ export interface PreferencesStorage {
   save(preferences: UserPreferencesV1): void;
 }
 
+/**
+ * Account GET outcome. `missing` is a 404 (no row yet); `no-session` is
+ * 401/403 (unauthenticated or first-login gate).
+ */
+export type PreferencesLookupResult =
+  | { status: "found"; preferences: UserPreferencesV1 }
+  | { status: "missing" }
+  | { status: "no-session" };
+
 /** HTTP boundary; implemented in SZP-117 (`preferencesApi.ts`). */
 export interface PreferencesApi {
-  get(): Promise<UserPreferencesV1 | null>;
+  get(): Promise<PreferencesLookupResult>;
   put(preferences: UserPreferencesV1): Promise<UserPreferencesV1>;
+}
+
+export interface PreferencesContextValue {
+  preferences: UserPreferencesV1;
+  resolvedTheme: ResolvedTheme;
+  setTheme(theme: ThemePreference): void;
+  toggleTheme(): void;
 }
 
 export const DEFAULT_PREFERENCES: UserPreferencesV1 = Object.freeze({

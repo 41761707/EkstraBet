@@ -4,6 +4,7 @@ import {
   parsePreferences,
   PREFERENCES_VERSION,
   type PreferencesApi,
+  type PreferencesLookupResult,
   type UserPreferencesV1,
 } from "@/lib/preferences";
 
@@ -33,17 +34,23 @@ function fromApiPayload(payload: unknown): UserPreferencesV1 {
 }
 
 /**
- * Account preferences adapter. 401/403 behave like no session; GET 404 is
- * "no row yet". Network and 5xx errors propagate to the caller.
+ * Account preferences adapter. 401/403 are `no-session`; GET 404 is
+ * `missing` (first save). Network and 5xx errors propagate to the caller.
  */
 export function createPreferencesApi(): PreferencesApi {
   return {
-    async get(): Promise<UserPreferencesV1 | null> {
+    async get(): Promise<PreferencesLookupResult> {
       try {
-        return fromApiPayload(await getUserPreferences());
+        return {
+          status: "found",
+          preferences: fromApiPayload(await getUserPreferences()),
+        };
       } catch (error) {
-        if (isNoSessionError(error) || isMissingRowError(error)) {
-          return null;
+        if (isNoSessionError(error)) {
+          return { status: "no-session" };
+        }
+        if (isMissingRowError(error)) {
+          return { status: "missing" };
         }
         throw error;
       }
