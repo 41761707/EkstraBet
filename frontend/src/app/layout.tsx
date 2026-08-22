@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AppHeader } from "@/components/AppHeader";
+import { ThemeBootstrapScript } from "@/components/preferences/ThemeBootstrapScript";
 import { redirectIfFirstLoginIncomplete } from "@/lib/firstLoginGate";
 import "./globals.css";
 
@@ -28,7 +29,10 @@ export default async function RootLayout({
   await redirectIfFirstLoginIncomplete();
 
   return (
-    <html lang="pl">
+    <html lang="pl" suppressHydrationWarning>
+      <head>
+        <ThemeBootstrapScript />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
       >
