@@ -6,7 +6,6 @@ import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { ThemeToggle } from "@/components/preferences/ThemeToggle";
 
 const NAV_LINKS = [
   { href: "/", label: "Strona główna" },
@@ -130,11 +129,10 @@ export function AppNav({
               </Link>
             ))
           : null}
-        <ThemeToggle />
         {showLogout ? <LogoutButton /> : null}
       </nav>
 
-      <div className="flex items-center gap-1 lg:hidden">
+      <div className="lg:hidden">
         {showLinks ? (
           <>
             <button
@@ -150,10 +148,9 @@ export function AppNav({
             </button>
             {mobileMenu}
           </>
-        ) : (
-          <ThemeToggle />
-        )}
-        {!showLinks && showLogout ? <LogoutButton /> : null}
+        ) : showLogout ? (
+          <LogoutButton />
+        ) : null}
       </div>
     </>
   );
@@ -226,7 +223,6 @@ function MobileNavPanel({
                 </Link>
               ))
             : null}
-          <MobileThemeSection />
           {showLogout ? (
             <div className="mt-2 border-t border-slate-700/80 pt-2">
               <LogoutButton />
@@ -234,20 +230,6 @@ function MobileNavPanel({
           ) : null}
         </nav>
       </div>
-    </div>
-  );
-}
-
-function MobileThemeSection() {
-  return (
-    <div
-      className={
-        "mt-2 flex items-center justify-between border-t " +
-        "border-slate-700/80 px-3 py-2"
-      }
-    >
-      <span className="text-sm text-slate-400">Wygląd</span>
-      <ThemeToggle />
     </div>
   );
 }

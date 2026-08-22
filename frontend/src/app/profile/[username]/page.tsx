@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { FavoriteLeaguesSection } from "@/components/profile/FavoriteLeaguesSection";
 import { ProfilePage } from "@/components/profile/ProfilePage";
+import { ProfileSettingsSection } from "@/components/profile/ProfileSettingsSection";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
   ApiError,
@@ -60,6 +61,7 @@ export default async function ProfileUsernamePage({
       username={result.user.username}
       displayName={displayName}
     >
+      <ProfileSettingsSection />
       <FavoriteLeaguesSection
         leagues={catalog.leagues}
         initialFavoriteIds={catalog.favoriteIds}
