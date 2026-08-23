@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
 
+import {
+  EXPANDABLE_SECTION_BODY_CLASS_NAME,
+  EXPANDABLE_SECTION_CHEVRON_CLASS_NAME,
+  EXPANDABLE_SECTION_CLASS_NAME,
+  EXPANDABLE_SECTION_SUMMARY_CLASS_NAME,
+} from "@/components/expandableSectionStyles";
+
 interface ExpandableSectionProps {
   title: string;
   children: ReactNode;
@@ -17,20 +24,18 @@ export function ExpandableSection({
     <details
       id={id}
       open={defaultOpen}
-      className="group min-w-0 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/50"
+      className={EXPANDABLE_SECTION_CLASS_NAME}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-sky-300 transition hover:bg-slate-800/40 [&::-webkit-details-marker]:hidden">
+      <summary className={EXPANDABLE_SECTION_SUMMARY_CLASS_NAME}>
         <span className="min-w-0 break-words">{title}</span>
         <span
-          className="shrink-0 text-slate-500 transition group-open:rotate-180"
+          className={EXPANDABLE_SECTION_CHEVRON_CLASS_NAME}
           aria-hidden="true"
         >
           ▾
         </span>
       </summary>
-      <div className="min-w-0 border-t border-slate-700/80 px-5 py-4 text-slate-300">
-        {children}
-      </div>
+      <div className={EXPANDABLE_SECTION_BODY_CLASS_NAME}>{children}</div>
     </details>
   );
 }

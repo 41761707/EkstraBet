@@ -20,10 +20,10 @@ export function ProfileSettingsSection() {
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium text-slate-200">
+          <p className="text-sm font-medium text-text">
             {COLOR_SCHEME_LABEL}
           </p>
-          <p className="text-sm text-slate-400">{COLOR_SCHEME_DESCRIPTION}</p>
+          <p className="text-sm text-muted">{COLOR_SCHEME_DESCRIPTION}</p>
         </div>
         <ThemeToggle />
       </div>

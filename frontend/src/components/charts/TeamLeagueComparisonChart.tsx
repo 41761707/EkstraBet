@@ -2,6 +2,7 @@ import {
   CHART_COLOR_DRAW,
   CHART_COLOR_NEGATIVE,
   CHART_COLOR_POSITIVE,
+  CHART_LABEL_ON_FILL,
   getTeamComparisonBarColor,
 } from "@/lib/chartColors";
 import { formatPercent } from "@/lib/format";
@@ -41,15 +42,15 @@ export function TeamLeagueComparisonChart({
   const labelColumn = `minmax(0,${labelWidthClassName})`;
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+    <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-white">{title}</h4>
-        <span className="text-xs text-slate-400">
+        <h4 className="text-sm font-semibold text-text">{title}</h4>
+        <span className="text-xs text-muted">
           {averageLabel}: {formatPercent(leagueAverage)}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+      <div className="flex flex-wrap gap-3 text-xs text-muted">
         <span className="flex items-center gap-1">
           <span
             className="inline-block h-2 w-2 rounded-full"
@@ -98,20 +99,21 @@ export function TeamLeagueComparisonChart({
                 style={{ gridTemplateColumns: `${labelColumn} 1fr` }}
               >
                 <span
-                  className="truncate text-xs text-slate-300"
+                  className="truncate text-xs text-muted"
                   title={team.teamName}
                 >
                   {team.teamName}
                 </span>
-                <div className="relative h-6 rounded-md bg-slate-800/80">
+                <div className="relative h-6 rounded-md bg-chart-track">
                   <div
-                    className="flex h-6 items-center rounded-md px-2 text-xs font-medium text-slate-950"
+                    className="flex h-6 items-center rounded-md px-2 text-xs font-medium"
                     style={{
                       width: `${Math.max(width, 4)}%`,
                       backgroundColor: getTeamComparisonBarColor(
                         team.value,
                         leagueAverage,
                       ),
+                      color: CHART_LABEL_ON_FILL,
                     }}
                   >
                     <span className="whitespace-nowrap">

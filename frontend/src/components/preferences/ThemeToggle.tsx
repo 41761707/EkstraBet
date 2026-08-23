@@ -6,10 +6,10 @@ import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import type { ResolvedTheme } from "@/lib/preferences";
 
 const TOGGLE_CLASS_NAME =
-  "inline-flex items-center justify-center rounded-md p-2 text-slate-300 " +
-  "transition hover:bg-slate-800 hover:text-white " +
+  "inline-flex items-center justify-center rounded-md p-2 text-muted " +
+  "transition hover:bg-surface-muted hover:text-text " +
   "focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-2 focus-visible:outline-sky-400";
+  "focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 
 const GENERIC_LABEL = "Przełącz motyw";
 

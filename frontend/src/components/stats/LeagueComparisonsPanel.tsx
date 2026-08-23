@@ -19,7 +19,7 @@ export function LeagueComparisonsPanel({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Wykresy pokazują wskaźniki wybranych lig na tle średniej ważonej liczbą
         meczów (linia przerywana). Bez wybranego sezonu używany jest najnowszy
         sezon każdej ligi.

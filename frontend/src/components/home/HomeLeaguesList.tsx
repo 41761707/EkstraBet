@@ -140,7 +140,7 @@ function HomeLeaguesInteractive({
       <p
         aria-live="polite"
         aria-atomic="true"
-        className={liveMessage ? "text-sm text-red-300" : "sr-only"}
+        className={liveMessage ? "text-sm text-danger" : "sr-only"}
       >
         {liveMessage ?? ""}
       </p>
@@ -177,7 +177,7 @@ function HomeLeagueItem({
       <li>
         <Link
           href={leaguePath(league.slug)}
-          className="flex items-center gap-2 rounded-lg border border-slate-700/60 bg-slate-800/40 px-3 py-2 text-sm text-slate-200 transition hover:border-sky-500/40 hover:bg-slate-800 hover:text-white"
+          className="flex items-center gap-2 rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-text transition hover:border-accent/40 hover:bg-surface-muted hover:text-text"
         >
           {leagueLabel}
         </Link>
@@ -187,10 +187,10 @@ function HomeLeagueItem({
 
   return (
     <li>
-      <div className="flex items-center rounded-lg border border-slate-700/60 bg-slate-800/40 transition hover:border-sky-500/40 hover:bg-slate-800">
+      <div className="flex items-center rounded-lg border border-border bg-surface-muted transition hover:border-accent/40 hover:bg-surface-muted">
         <Link
           href={leaguePath(league.slug)}
-          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm text-slate-200 transition hover:text-white"
+          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm text-text transition hover:text-text"
         >
           {leagueLabel}
         </Link>

@@ -115,7 +115,7 @@ export async function SportLeaguePage({
       />
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">Sezon</h2>
+        <h2 className="text-lg font-semibold text-text">Sezon</h2>
         <div className="flex flex-wrap gap-2">
           {league.seasons.map((season) => {
             const isActive = season.season_id === filters.seasonId;
@@ -132,8 +132,8 @@ export async function SportLeaguePage({
                 scroll={false}
                 className={`rounded-full px-3 py-1.5 text-sm transition ${
                   isActive
-                    ? "bg-sky-600 text-white"
-                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    ? "bg-accent text-on-accent"
+                    : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
                 }`}
               >
                 {season.years}
@@ -163,7 +163,7 @@ export async function SportLeaguePage({
           defaultOpen
         >
           <div className="space-y-4">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               {matchesResponse.total_count} mecz
               {matchesResponse.total_count === 1 ? "" : "ów"}
             </p>

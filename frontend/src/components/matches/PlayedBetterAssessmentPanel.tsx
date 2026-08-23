@@ -85,14 +85,14 @@ function ProbabilityPieChart({
             />
           );
         })}
-        <circle cx="50" cy="50" r="22" className="fill-slate-900" />
+        <circle cx="50" cy="50" r="22" className="fill-surface" />
       </svg>
 
       <ul className="w-full space-y-2 text-sm">
         {legend.map((item) => (
           <li
             key={item.side}
-            className="flex items-center justify-between gap-3 text-slate-300"
+            className="flex items-center justify-between gap-3 text-muted"
           >
             <span className="flex min-w-0 items-center gap-2">
               <span
@@ -102,7 +102,7 @@ function ProbabilityPieChart({
               />
               <span className="truncate">{item.label}</span>
             </span>
-            <span className="tabular-nums text-slate-200">{item.percent}%</span>
+            <span className="tabular-nums text-text">{item.percent}%</span>
           </li>
         ))}
       </ul>
@@ -125,11 +125,11 @@ function ProbabilityBar({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-xs text-slate-300">
+      <div className="flex items-center justify-between text-xs text-muted">
         <span className="truncate pr-2">{homeName}</span>
         <span className="truncate pl-2 text-right">{awayName}</span>
       </div>
-      <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-800">
+      <div className="flex h-4 w-full overflow-hidden rounded-full bg-surface-muted">
         <div
           className="h-full transition-[width] duration-500 ease-out"
           style={{ width: `${homePct}%`, backgroundColor: SIDE_COLORS.home }}
@@ -143,7 +143,7 @@ function ProbabilityBar({
           style={{ width: `${awayPct}%`, backgroundColor: SIDE_COLORS.away }}
         />
       </div>
-      <div className="flex justify-between text-xs text-slate-400">
+      <div className="flex justify-between text-xs text-muted">
         <span>{homePct}%</span>
         <span>{drawPct}%</span>
         <span>{awayPct}%</span>
@@ -186,16 +186,16 @@ export function PlayedBetterAssessmentPanel({
   );
 
   return (
-    <section className="space-y-5 rounded-xl border border-slate-700/80 bg-slate-900/50 p-5">
+    <section className="space-y-5 rounded-xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-muted">
             Na podstawie statystyk: kto zagrał lepiej?
           </h3>
-          <p className="mt-1 text-2xl font-semibold text-white">{title}</p>
+          <p className="mt-1 text-2xl font-semibold text-text">{title}</p>
         </div>
         {assessment.confidence !== null ? (
-          <span className="rounded-full border border-slate-600/80 bg-slate-800/80 px-3 py-1 text-xs text-slate-200">
+          <span className="rounded-full border border-border bg-surface-muted px-3 py-1 text-xs text-text">
             Pewność werdyktu: {formatPercent(assessment.confidence)}
           </span>
         ) : null}
@@ -218,7 +218,7 @@ export function PlayedBetterAssessmentPanel({
       />
 
       {narrative ? (
-        <div className="rounded-lg border border-slate-700/60 bg-slate-800/40 px-4 py-3 text-sm text-slate-200">
+        <div className="rounded-lg border border-border bg-surface-muted px-4 py-3 text-sm text-text">
           {narrative.text}
         </div>
       ) : null}

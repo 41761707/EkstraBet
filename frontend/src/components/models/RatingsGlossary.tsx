@@ -9,11 +9,11 @@ export function RatingsGlossary() {
       <div className="space-y-1">
         <h2
           id="concepts-glossary-heading"
-          className="text-xl font-semibold text-white sm:text-2xl"
+          className="text-xl font-semibold text-text sm:text-2xl"
         >
           Pojęcia kluczowe
         </h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           Zanim przejdziesz do kart modeli: czym są LSTM, logity i Softmax
           oraz ratingi Elo, GAP i Czech, z których korzystają modele
           przedmeczowe.
@@ -31,9 +31,9 @@ export function RatingsGlossary() {
             <div className="space-y-3">
               <MathText
                 text={entry.summary}
-                className="text-sm leading-relaxed text-slate-300"
+                className="text-sm leading-relaxed text-muted"
               />
-              <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-300">
+              <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
                 {entry.details.map((detail) => (
                   <MathText
                     key={detail}

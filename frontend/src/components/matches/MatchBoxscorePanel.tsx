@@ -51,20 +51,20 @@ function PlayerCard({ player }: { player: MatchPlayerStat }) {
   });
 
   return (
-    <article className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-4 transition hover:border-sky-500/30">
+    <article className="rounded-xl border border-border bg-surface p-4 transition hover:border-accent/30">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h4 className="font-semibold text-white">{player.player_name}</h4>
-          <p className="text-xs text-slate-500">{player.team_name}</p>
+          <h4 className="font-semibold text-text">{player.player_name}</h4>
+          <p className="text-xs text-subtle">{player.team_name}</p>
         </div>
         <div className="flex gap-2">
           {typeof player.goals === "number" && player.goals > 0 ? (
-            <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-300">
+            <span className="rounded-full bg-success-bg px-2 py-1 text-xs font-semibold text-success">
               {player.goals} G
             </span>
           ) : null}
           {typeof player.assists === "number" && player.assists > 0 ? (
-            <span className="rounded-full bg-sky-500/20 px-2 py-1 text-xs font-semibold text-sky-300">
+            <span className="rounded-full bg-accent-soft px-2 py-1 text-xs font-semibold text-accent-text">
               {player.assists} A
             </span>
           ) : null}
@@ -77,20 +77,12 @@ function PlayerCard({ player }: { player: MatchPlayerStat }) {
           return (
             <div
               key={stat.key}
-              className={`rounded-lg px-2 py-2 text-center ${
-                stat.accent
-                  ? "bg-slate-800/80"
-                  : "bg-slate-800/40"
-              }`}
+              className="rounded-lg bg-surface-muted px-2 py-2 text-center"
             >
-              <div
-                className={`text-sm font-bold ${
-                  stat.accent ? "text-white" : "text-slate-200"
-                }`}
-              >
+              <div className="text-sm font-bold text-text">
                 {formatStatValue(typeof value === "number" ? value : null)}
               </div>
-              <div className="text-[10px] uppercase tracking-wide text-slate-500">
+              <div className="text-[10px] uppercase tracking-wide text-subtle">
                 {stat.label}
               </div>
             </div>
@@ -139,8 +131,8 @@ export function MatchBoxscorePanel({
               onClick={() => setActiveTab(tab.id)}
               className={`rounded-full px-3 py-1.5 text-sm transition ${
                 isActive
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  ? "bg-accent text-on-accent"
+                  : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
               }`}
             >
               {tab.label}
@@ -150,7 +142,7 @@ export function MatchBoxscorePanel({
       </div>
 
       {filteredPlayers.length === 0 ? (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           Brak statystyk zawodników dla wybranej drużyny.
         </p>
       ) : (

@@ -13,9 +13,9 @@ export function MatchPredictionsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface-muted text-left text-muted">
           <tr>
             <th className="px-4 py-3 font-medium">Zdarzenie</th>
             <th className="px-4 py-3 font-medium">Model</th>
@@ -29,23 +29,23 @@ export function MatchPredictionsTable({
           {predictions.map((prediction) => (
             <tr
               key={prediction.prediction_id}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted"
             >
-              <td className="px-4 py-3 text-white">
+              <td className="px-4 py-3 text-text">
                 <div>{prediction.event_name}</div>
                 {prediction.event_family ? (
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-subtle">
                     {prediction.event_family.name}
                   </div>
                 ) : null}
               </td>
-              <td className="px-4 py-3 text-slate-300">
+              <td className="px-4 py-3 text-muted">
                 {prediction.model_name ?? `Model ${prediction.model_id}`}
               </td>
-              <td className="px-4 py-3 text-center font-medium text-sky-200">
+              <td className="px-4 py-3 text-center font-medium text-accent-text">
                 {formatProbability(prediction.value)}
               </td>
-              <td className="px-4 py-3 text-center text-slate-300">
+              <td className="px-4 py-3 text-center text-muted">
                 {prediction.outcome === null
                   ? "—"
                   : prediction.outcome === 1

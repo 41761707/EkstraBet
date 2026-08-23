@@ -28,8 +28,8 @@ type AppNavProps = {
 };
 
 const HAMBURGER_CLASS_NAME =
-  "inline-flex items-center justify-center rounded-md p-2 text-slate-300 " +
-  "transition hover:bg-slate-800 hover:text-white";
+  "inline-flex items-center justify-center rounded-md p-2 text-muted " +
+  "transition hover:bg-surface-raised hover:text-text";
 
 function getNavLinks(showProfile: boolean): NavLink[] {
   if (!showProfile) {
@@ -95,9 +95,9 @@ export function AppNav({
     useMobileMenu();
   const links = getNavLinks(showProfile);
   const linkClassName =
-    "rounded-md px-3 py-1.5 transition hover:bg-slate-800 hover:text-white";
+    "rounded-md px-3 py-1.5 transition hover:bg-surface-raised hover:text-text";
   const mobileLinkClassName =
-    "block rounded-md px-3 py-3 text-base transition hover:bg-slate-800 hover:text-white";
+    "block rounded-md px-3 py-3 text-base transition hover:bg-surface-raised hover:text-text";
 
   const mobileMenu =
     isOpen && isMounted
@@ -119,7 +119,7 @@ export function AppNav({
   return (
     <>
       <nav
-        className="hidden items-center justify-end gap-1 text-sm text-slate-300 lg:flex"
+        className="hidden items-center justify-end gap-1 text-sm text-muted lg:flex"
         aria-label="Główna nawigacja"
       >
         {showLinks
@@ -181,7 +181,7 @@ function MobileNavPanel({
     <div className="fixed inset-0 z-50 lg:hidden" role="presentation">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-950/70"
+        className="absolute inset-0 bg-overlay"
         aria-label="Zamknij menu"
         onClick={onClose}
       />
@@ -193,11 +193,11 @@ function MobileNavPanel({
         aria-label="Menu nawigacyjne"
         className={
           "absolute right-0 top-0 flex h-full w-[min(100%,20rem)] flex-col " +
-          "border-l border-slate-700/80 bg-slate-950 shadow-xl"
+          "border-l border-border bg-page shadow-xl"
         }
       >
-        <div className="flex items-center justify-between border-b border-slate-700/80 px-4 py-4">
-          <span className="text-sm font-medium text-slate-200">Menu</span>
+        <div className="flex items-center justify-between border-b border-border px-4 py-4">
+          <span className="text-sm font-medium text-text">Menu</span>
           <button
             type="button"
             className={HAMBURGER_CLASS_NAME}
@@ -208,7 +208,7 @@ function MobileNavPanel({
           </button>
         </div>
         <nav
-          className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-slate-300"
+          className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-muted"
           aria-label="Główna nawigacja"
         >
           {showLinks
@@ -224,7 +224,7 @@ function MobileNavPanel({
               ))
             : null}
           {showLogout ? (
-            <div className="mt-2 border-t border-slate-700/80 pt-2">
+            <div className="mt-2 border-t border-border pt-2">
               <LogoutButton />
             </div>
           ) : null}

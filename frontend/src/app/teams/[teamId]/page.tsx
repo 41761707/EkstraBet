@@ -151,29 +151,29 @@ export default async function TeamPage({
     return (
       <div className="space-y-8">
         <section className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-sky-300">
-            <Link href="/" className="transition hover:text-sky-200">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-accent-text">
+            <Link href="/" className="transition hover:text-accent-text-hover">
               Ligi
             </Link>
             {leagueId && leagueSlug ? (
               <>
-                <span className="text-slate-600">/</span>
+                <span className="text-subtle">/</span>
                 <Link
                   href={leaguePath(leagueSlug, {
                     season_id: selectedSeasonId,
                   })}
-                  className="transition hover:text-sky-200"
+                  className="transition hover:text-accent-text-hover"
                 >
                   {leagueName}
                 </Link>
               </>
             ) : null}
           </div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-text">
             {profile.team.country_emoji ? `${profile.team.country_emoji} ` : ""}
             {profile.team.name}
           </h1>
-          <p className="text-slate-300">
+          <p className="text-muted">
             {[profile.team.country_name, profile.team.sport_name]
               .filter(Boolean)
               .join(" · ")}
@@ -198,8 +198,8 @@ export default async function TeamPage({
                       href={`/teams/${teamId}?${query}`}
                       className={`rounded-full px-3 py-1.5 text-sm transition ${
                         isActive
-                          ? "bg-sky-600 text-white"
-                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                          ? "bg-accent text-on-accent"
+                          : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
                       }`}
                     >
                       {season.years}
@@ -250,7 +250,7 @@ export default async function TeamPage({
               title={`Bezpośrednie mecze (H2H) vs ${profile.head_to_head.opponent_id}`}
             >
               <div className="space-y-4">
-                <div className="grid gap-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
                   <H2HStat
                     label="Rozegrane"
                     value={profile.head_to_head.played}
@@ -323,8 +323,8 @@ interface H2HStatProps {
 function H2HStat({ label, value }: H2HStatProps) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+      <p className="text-xs uppercase tracking-wide text-subtle">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-text">{value}</p>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
+
 interface PasswordFieldProps {
   label: string;
   name: string;
@@ -10,9 +12,8 @@ interface PasswordFieldProps {
   onChange: (value: string) => void;
 }
 
-const INPUT_CLASS_NAME =
-  "w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2 pr-10 " +
-  "text-slate-100 outline-none focus:border-sky-500";
+const PASSWORD_INPUT_CLASS_NAME =
+  `w-full rounded-md pr-10 ${INPUT_CLASS_NAME}`;
 
 export function PasswordField({
   label,
@@ -25,7 +26,7 @@ export function PasswordField({
   const toggleLabel = isVisible ? "Ukryj hasło" : "Pokaż hasło";
 
   return (
-    <label className="flex flex-col gap-1.5 text-sm text-slate-300">
+    <label className="flex flex-col gap-1.5 text-sm text-muted">
       {label}
       <span className="relative">
         <input
@@ -35,14 +36,14 @@ export function PasswordField({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           required
-          className={INPUT_CLASS_NAME}
+          className={PASSWORD_INPUT_CLASS_NAME}
         />
         <button
           type="button"
           onClick={() => setIsVisible((current) => !current)}
           className={
             "absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 " +
-            "text-slate-400 hover:text-slate-200"
+            "text-muted hover:text-text"
           }
           aria-label={toggleLabel}
           aria-pressed={isVisible}

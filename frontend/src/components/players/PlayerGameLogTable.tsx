@@ -20,7 +20,7 @@ export function PlayerGameLogTable({
 }: PlayerGameLogTableProps) {
   if (selectedStats.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Wybierz statystyki do wyświetlenia w tabeli.
       </p>
     );
@@ -35,9 +35,9 @@ export function PlayerGameLogTable({
   );
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface text-left text-muted">
           <tr>
             <th className="px-3 py-3 font-medium">L.P.</th>
             <th className="px-3 py-3 font-medium">Gospodarz</th>
@@ -57,16 +57,16 @@ export function PlayerGameLogTable({
           {matches.map((match, index) => (
             <tr
               key={match.match_id}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted/50"
             >
-              <td className="px-3 py-2 text-slate-400">{index + 1}</td>
-              <td className="px-3 py-2 text-white">{match.home_team}</td>
-              <td className="px-3 py-2 text-white">{match.away_team}</td>
-              <td className="px-3 py-2 text-slate-300">{match.match_date}</td>
+              <td className="px-3 py-2 text-muted">{index + 1}</td>
+              <td className="px-3 py-2 text-text">{match.home_team}</td>
+              <td className="px-3 py-2 text-text">{match.away_team}</td>
+              <td className="px-3 py-2 text-muted">{match.match_date}</td>
               {statColumns.map((column) => (
                 <td
                   key={column.key}
-                  className="px-3 py-2 text-center text-slate-200"
+                  className="px-3 py-2 text-center text-text"
                 >
                   {formatTableValue(getMatchStatValue(match, column.key))}
                 </td>

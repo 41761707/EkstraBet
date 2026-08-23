@@ -7,6 +7,7 @@ import {
   type ChartSeriesView,
   type RatingProgressChartModel,
 } from "@/components/charts/ratingProgressChartModel";
+import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
 import type { TeamRatingProgress } from "@/types/api";
 
 interface RatingProgressChartProps {
@@ -19,7 +20,7 @@ interface RatingProgressChartProps {
   onHighlightedTeamIdChange?: (teamId: number | null) => void;
 }
 
-const DIMMED_STROKE = "#64748b";
+const DIMMED_STROKE = CHART_COLOR_NEUTRAL;
 const DIMMED_OPACITY = 0.32;
 const ACTIVE_STROKE_WIDTH = 3.25;
 const DEFAULT_STROKE_WIDTH = 2.25;
@@ -44,7 +45,7 @@ function ChartAxes({ model }: { model: RatingProgressChartModel }) {
         y1={model.plotBottom}
         x2={model.plotRight}
         y2={model.plotBottom}
-        className="stroke-slate-600"
+        className="stroke-chart-axis"
         strokeWidth="1"
       />
       <line
@@ -52,7 +53,7 @@ function ChartAxes({ model }: { model: RatingProgressChartModel }) {
         y1={model.plotTop}
         x2={model.plotLeft}
         y2={model.plotBottom}
-        className="stroke-slate-600"
+        className="stroke-chart-axis"
         strokeWidth="1"
       />
       {model.yTicks.map((tick) => (
@@ -62,7 +63,7 @@ function ChartAxes({ model }: { model: RatingProgressChartModel }) {
             y1={tick.position}
             x2={model.plotRight}
             y2={tick.position}
-            className="stroke-slate-700/70"
+            className="stroke-chart-grid"
             strokeWidth="1"
             strokeDasharray="3 4"
           />
@@ -71,7 +72,7 @@ function ChartAxes({ model }: { model: RatingProgressChartModel }) {
             y={tick.position}
             textAnchor="end"
             dominantBaseline="middle"
-            className="fill-slate-400"
+            className="fill-muted"
             fontSize="10"
           >
             {tick.label}
@@ -84,7 +85,7 @@ function ChartAxes({ model }: { model: RatingProgressChartModel }) {
           x={tick.position}
           y={model.height - 12}
           textAnchor="middle"
-          className="fill-slate-400"
+          className="fill-muted"
           fontSize="10"
         >
           {tick.label}
@@ -242,10 +243,10 @@ export function RatingProgressChart({
   const model = buildRatingProgressChartModel(teams, { lastPlayedAt });
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-900/40 p-3">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface p-3">
       <svg
         viewBox={`0 0 ${model.width} ${model.height}`}
-        className="min-h-[240px] w-full min-w-[520px] text-slate-300"
+        className="min-h-[240px] w-full min-w-[520px] text-muted"
         role="img"
         aria-labelledby="rating-progress-title rating-progress-desc"
         onPointerLeave={() => setHighlight(null)}

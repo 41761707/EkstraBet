@@ -99,10 +99,10 @@ export default async function HomePage() {
   return (
     <div className="space-y-8">
       <section className="space-y-3 text-center sm:text-left">
-        <h1 className="text-3xl font-bold text-white">
+        <h1 className="text-3xl font-bold text-text">
           EkstraBet - Asystent Statystyczno-Predykcyjny - Sezon 1
         </h1>
-        <p className="max-w-3xl text-slate-300">
+        <p className="max-w-3xl text-muted">
           Oficjalny start od momentu rozpoczęcia sezonu 2026/2027 dla każdej z
           lig.
         </p>

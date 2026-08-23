@@ -78,12 +78,12 @@ export function BasketballTeamCharts({
     charts.push(
       <div
         key="results"
-        className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4"
+        className="rounded-xl border border-border bg-surface p-4"
       >
-        <h4 className="text-sm font-semibold text-white">
+        <h4 className="text-sm font-semibold text-text">
           Ostatnie wyniki: {teamName}
         </h4>
-        <ul className="mt-3 space-y-2 text-sm text-slate-300">
+        <ul className="mt-3 space-y-2 text-sm text-muted">
           {history.map((point) => (
             <li key={point.match_id}>
               {point.match_date} vs {point.opponent_shortcut}: {point.home_team_name}{" "}
@@ -98,7 +98,7 @@ export function BasketballTeamCharts({
 
   if (charts.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Wybrane statystyki nie są jeszcze dostępne w tej wersji (np. rzuty, zbiórki).
       </p>
     );

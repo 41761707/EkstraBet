@@ -14,13 +14,13 @@ export async function AppHeader() {
   const homeHref = hideAppLinks ? FIRST_LOGIN_PATH : "/";
 
   return (
-    <header className="border-b border-slate-700/80 bg-slate-950/90 backdrop-blur">
+    <header className="border-b border-border bg-page/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         <Link href={homeHref} className="group flex items-center gap-2">
           <span className="text-2xl" aria-hidden="true">
             ⚽
           </span>
-          <span className="text-lg font-semibold text-sky-300 group-hover:text-sky-200">
+          <span className="text-lg font-semibold text-accent-text group-hover:text-accent-text-hover">
             EkstraBet
           </span>
         </Link>

@@ -48,7 +48,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="flex flex-wrap gap-2 border-b border-slate-700/80 pb-1">
+      <div className="flex flex-wrap gap-2 border-b border-border pb-1">
         {visibleTabs.map((tab) => {
           const isActive = tab.id === activeTab;
           return (
@@ -58,8 +58,8 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
               onClick={() => setActiveTab(tab.id)}
               className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
                 isActive
-                  ? "border-sky-400 text-sky-200"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
+                  ? "border-accent text-accent-text-hover"
+                  : "border-transparent text-muted hover:text-text"
               }`}
             >
               {tab.label}

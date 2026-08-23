@@ -47,10 +47,10 @@ function SignedProfitRow({
         gridTemplateColumns: `${labelColumn} 1fr minmax(7.5rem,auto)`,
       }}
     >
-      <span className="truncate text-xs text-slate-300" title={point.leagueName}>
+      <span className="truncate text-xs text-muted" title={point.leagueName}>
         {point.leagueName}
       </span>
-      <div className="relative h-6 rounded-md bg-slate-800/80">
+      <div className="relative h-6 rounded-md bg-chart-track">
         <div
           className="pointer-events-none absolute bottom-0 top-0 border-l border-dashed"
           style={{
@@ -70,7 +70,7 @@ function SignedProfitRow({
           />
         ) : null}
       </div>
-      <span className="whitespace-nowrap text-xs tabular-nums text-slate-200">
+      <span className="whitespace-nowrap text-xs tabular-nums text-text">
         {formatProfit(point.profit)} · {point.totalBets} zakł.
       </span>
     </div>
@@ -95,15 +95,15 @@ export function SignedLeagueProfitChart({
   const labelColumn = `minmax(0,${labelWidthClassName})`;
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+    <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-white">{title}</h4>
-        <span className="text-xs text-slate-400">
+        <h4 className="text-sm font-semibold text-text">{title}</h4>
+        <span className="text-xs text-muted">
           Suma: {formatProfit(totalProfit)}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+      <div className="flex flex-wrap gap-3 text-xs text-muted">
         <span className="flex items-center gap-1">
           <span
             className="inline-block h-2 w-2 rounded-full"

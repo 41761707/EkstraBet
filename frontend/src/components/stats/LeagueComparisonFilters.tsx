@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
   resetLeagueComparisonFilters,
@@ -17,8 +18,7 @@ interface LeagueComparisonFiltersProps {
   values: StatsFilterValues;
 }
 
-const inputClassName =
-  "w-full rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-100";
+const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 
 export function LeagueComparisonFilters({
   leagues,
@@ -68,7 +68,7 @@ export function LeagueComparisonFilters({
           }
         />
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Sezon</span>
+          <span className="font-medium text-text">Sezon</span>
           <select
             value={state.compareSeasonId ?? ""}
             onChange={(event) =>
@@ -79,7 +79,7 @@ export function LeagueComparisonFilters({
                   : null,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="">Najnowszy sezon każdej ligi</option>
             {seasons.map((season) => (
@@ -94,14 +94,14 @@ export function LeagueComparisonFilters({
       <div className="flex flex-wrap gap-3">
         <button
           type="submit"
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover"
         >
           Zastosuj filtry
         </button>
         <button
           type="button"
           onClick={handleReset}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-text transition hover:bg-surface-muted"
         >
           Resetuj
         </button>

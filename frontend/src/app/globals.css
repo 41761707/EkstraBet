@@ -2,32 +2,35 @@
 
 /*
  * Palety żyją pod [data-theme]; @theme inline wystawia bg-page, text-muted itd.
- * Chrom html/body/formularze zostaje przy wartościach dark do SZP-113 — istniejące
- * klasy text-white nie dziedziczą tokenów i przy light page były nieczytelne.
+ * html/body dziedziczą --page / --text. Kolory UI tylko tokenami.
  */
 
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
 
+  /* Granat #0b1120: dark = głęboki niebieski, bez prześwietlenia kart. */
   --page: #0b1120;
   --surface: #0f172a;
-  --surface-muted: #020617;
-  --surface-raised: #1e293b;
-  --overlay: #020617b3;
+  --surface-muted: #0c1322;
+  --surface-raised: #152036;
+  --overlay: #0b1120cc;
 
   --text: #e2e8f0;
   --text-muted: #94a3b8;
-  --text-subtle: #64748b;
+  /* #7b8ea6: AA >= 4.5:1 na page/surface/surface-muted; jaśniejsze niż muted. */
+  --text-subtle: #7b8ea6;
   --on-accent: #f8fafc;
 
-  --border: #334155;
-  --border-strong: #475569;
+  --border: #2d3f5c;
+  --border-strong: #3d5478;
   --focus-ring: #38bdf8;
 
   --accent: #0284c7;
   --accent-hover: #0ea5e9;
   --accent-soft: #082f49;
+  --accent-text: #7dd3fc;
+  --accent-text-hover: #bae6fd;
 
   --success: #6ee7b7;
   --success-text: #a7f3d0;
@@ -46,10 +49,10 @@
   --info-bg: #082f49;
   --info-border: #0369a1;
 
-  --chart-grid: #1e293b;
+  --chart-grid: #152036;
   --chart-axis: #94a3b8;
-  --chart-track: #1e293b;
-  --skeleton: #1e293b;
+  --chart-track: #152036;
+  --skeleton: #152036;
 }
 
 [data-theme="light"] {
@@ -58,12 +61,14 @@
   --page: #f3f6fa;
   --surface: #ffffff;
   --surface-muted: #eaf0f6;
+  /* Raised zostaje białe (chip/tab). Hover na surface -> surface-muted, nie raised. */
   --surface-raised: #ffffff;
   --overlay: #17203373;
 
   --text: #172033;
   --text-muted: #526174;
-  --text-subtle: #6b7a90;
+  /* #5a6b82: AA >= 4.5:1 na bieli, page i surface-muted; jaśniejsze niż muted. */
+  --text-subtle: #5a6b82;
   --on-accent: #ffffff;
 
   --border: #cbd5e1;
@@ -73,6 +78,8 @@
   --accent: #0369a1;
   --accent-hover: #075985;
   --accent-soft: #e0f2fe;
+  --accent-text: #0369a1;
+  --accent-text-hover: #075985;
 
   --success: #047857;
   --success-text: #065f46;
@@ -116,6 +123,8 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-accent-text-hover: var(--accent-text-hover);
 
   --color-success: var(--success);
   --color-success-text: var(--success-text);
@@ -141,17 +150,10 @@
 }
 
 @layer base {
-  /*
-   * Istniejący UI ma twarde text-white / text-sky-300 / text-slate-*.
-   * Te klasy nie dziedziczą --text, więc body na var(--page) przy
-   * data-theme=light daje białe napisy na jasnym tle (każda podstrona).
-   * Chrom zostaje przy palecie dark do migracji w SZP-113; tokeny
-   * (bg-page, text-text, …) są już dostępne dla zmigrowanych klas.
-   */
   html,
   body {
-    background-color: #0b1120;
-    color: #e2e8f0;
+    background-color: var(--page);
+    color: var(--text);
   }
 
   body {
@@ -164,41 +166,41 @@
 
   hr {
     border: 0;
-    border-top: 1px solid #334155;
+    border-top: 1px solid var(--border);
   }
 
   table {
-    border-color: #334155;
+    border-color: var(--border);
   }
 
   th,
   td {
-    border-color: #334155;
+    border-color: var(--border);
     color: inherit;
   }
 
   input,
   select,
   textarea {
-    background-color: #0f172a;
-    color: #e2e8f0;
-    border: 1px solid #334155;
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: #64748b;
+    color: var(--text-subtle);
   }
 
   :focus-visible {
-    outline: 2px solid #38bdf8;
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    border-color: #38bdf8;
+    border-color: var(--focus-ring);
   }
 }
 

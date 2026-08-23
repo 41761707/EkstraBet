@@ -19,27 +19,27 @@ function formatValue(value: number | string | null | undefined): string {
 
 function plusMinusClassName(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) {
-    return "text-slate-200";
+    return "text-text";
   }
   if (value > 0) {
-    return "bg-emerald-500/25 font-semibold text-emerald-100";
+    return "bg-success-bg font-semibold text-success-text";
   }
-  return "bg-rose-500/25 font-semibold text-rose-100";
+  return "bg-danger-bg font-semibold text-danger-text";
 }
 
 function GoaliesTable({ rows }: { rows: HockeyGoalieBoxscoreRow[] }) {
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Brak statystyk bramkarzy dla tego meczu.
       </p>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface text-left text-muted">
           <tr>
             <th className="px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Drużyna</th>
@@ -56,29 +56,29 @@ function GoaliesTable({ rows }: { rows: HockeyGoalieBoxscoreRow[] }) {
           {rows.map((row, index) => (
             <tr
               key={`${row.player_id}-${row.team_id}`}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted/50"
             >
-              <td className="px-3 py-2 text-slate-500">{index + 1}</td>
-              <td className="px-3 py-2 text-slate-300">{row.team_name}</td>
-              <td className="px-3 py-2 font-medium text-white">
+              <td className="px-3 py-2 text-subtle">{index + 1}</td>
+              <td className="px-3 py-2 text-muted">{row.team_name}</td>
+              <td className="px-3 py-2 font-medium text-text">
                 {row.player_name}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.points)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.penalty_minutes)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.time_on_ice)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.shots_against)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.shots_saved)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {row.saves_accuracy !== null
                   ? row.saves_accuracy.toFixed(2)
                   : "—"}
@@ -94,16 +94,16 @@ function GoaliesTable({ rows }: { rows: HockeyGoalieBoxscoreRow[] }) {
 function SkatersTable({ rows }: { rows: HockeySkaterBoxscoreRow[] }) {
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Brak statystyk zawodników z pola dla tego meczu.
       </p>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface text-left text-muted">
           <tr>
             <th className="px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Drużyna</th>
@@ -121,20 +121,20 @@ function SkatersTable({ rows }: { rows: HockeySkaterBoxscoreRow[] }) {
           {rows.map((row, index) => (
             <tr
               key={`${row.player_id}-${row.team_id}`}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted/50"
             >
-              <td className="px-3 py-2 text-slate-500">{index + 1}</td>
-              <td className="px-3 py-2 text-slate-300">{row.team_name}</td>
-              <td className="px-3 py-2 font-medium text-white">
+              <td className="px-3 py-2 text-subtle">{index + 1}</td>
+              <td className="px-3 py-2 text-muted">{row.team_name}</td>
+              <td className="px-3 py-2 font-medium text-text">
                 {row.player_name}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.goals)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.assists)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.points)}
               </td>
               <td
@@ -144,13 +144,13 @@ function SkatersTable({ rows }: { rows: HockeySkaterBoxscoreRow[] }) {
               >
                 {formatValue(row.plus_minus)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.penalty_minutes)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.shots_on_goal)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-200">
+              <td className="px-3 py-2 text-center text-text">
                 {formatValue(row.time_on_ice)}
               </td>
             </tr>
@@ -167,12 +167,12 @@ export function HockeyMatchBoxscorePanel({
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h3 className="text-lg font-semibold text-white">Bramkarze</h3>
+        <h3 className="text-lg font-semibold text-text">Bramkarze</h3>
         <GoaliesTable rows={boxscore.goalies} />
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-lg font-semibold text-white">Zawodnicy</h3>
+        <h3 className="text-lg font-semibold text-text">Zawodnicy</h3>
         <SkatersTable rows={boxscore.skaters} />
       </section>
     </div>

@@ -59,26 +59,26 @@ export default async function MatchPage({
     return (
       <div className="space-y-8">
         <section className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-sky-300">
-            <Link href="/" className="transition hover:text-sky-200">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-accent-text">
+            <Link href="/" className="transition hover:text-accent-text-hover">
               Ligi
             </Link>
-            <span className="text-slate-600">/</span>
-            <Link href={leagueHref} className="transition hover:text-sky-200">
+            <span className="text-subtle">/</span>
+            <Link href={leagueHref} className="transition hover:text-accent-text-hover">
               {league.name}
             </Link>
           </div>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             {formatMatchDateTime(match.game_date)}
             {roundLabel !== null ? ` · ${roundLabel}` : ""}
           </p>
         </section>
 
-        <section className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-6">
+        <section className="rounded-xl border border-border bg-surface p-6">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <Link
               href={`/teams/${match.home_team.id}?${teamQuery}`}
-              className="text-right text-xl font-semibold text-white transition hover:text-sky-200 sm:text-2xl"
+              className="text-right text-xl font-semibold text-text transition hover:text-accent-text-hover sm:text-2xl"
             >
               {match.home_team.name}
             </Link>
@@ -87,7 +87,7 @@ export default async function MatchPage({
             </div>
             <Link
               href={`/teams/${match.away_team.id}?${teamQuery}`}
-              className="text-xl font-semibold text-white transition hover:text-sky-200 sm:text-2xl"
+              className="text-xl font-semibold text-text transition hover:text-accent-text-hover sm:text-2xl"
             >
               {match.away_team.name}
             </Link>

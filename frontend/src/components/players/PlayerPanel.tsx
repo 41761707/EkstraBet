@@ -100,19 +100,19 @@ export function PlayerPanel({
 
   return (
     <details
-      className="group rounded-xl border border-slate-700/80 bg-slate-900/50"
+      className="group rounded-xl border border-border bg-surface"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-sky-300 transition hover:bg-slate-800/40 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-accent-text transition hover:bg-surface-muted/40 [&::-webkit-details-marker]:hidden">
         <span>{playerName}</span>
         <span
-          className="text-slate-500 transition group-open:rotate-180"
+          className="text-subtle transition group-open:rotate-180"
           aria-hidden="true"
         >
           ▾
         </span>
       </summary>
-      <div className="space-y-6 border-t border-slate-700/80 px-5 py-4">
+      <div className="space-y-6 border-t border-border px-5 py-4">
         {loading ? (
           <LoadingSpinner label="Ładowanie statystyk zawodnika..." />
         ) : null}
@@ -164,7 +164,7 @@ export function PlayerPanel({
             )}
 
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-white">
+              <h4 className="text-sm font-semibold text-text">
                 Log meczowy
               </h4>
               <PlayerGameLogTable
@@ -210,9 +210,9 @@ export function PlayersStatConfig({
   );
 
   return (
-    <div className="space-y-6 rounded-xl border border-slate-700/80 bg-slate-900/40 p-5">
+    <div className="space-y-6 rounded-xl border border-border bg-surface p-5">
       <div className="space-y-3">
-        <h3 className="text-base font-semibold text-white">
+        <h3 className="text-base font-semibold text-text">
           Statystyki do wyświetlania
         </h3>
         <div className="flex flex-wrap gap-3">
@@ -222,14 +222,14 @@ export function PlayersStatConfig({
               <label
                 key={stat.key}
                 htmlFor={inputId}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-300"
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted"
               >
                 <input
                   id={inputId}
                   type="checkbox"
                   checked={selectedStats.includes(stat.key)}
                   onChange={() => toggleStat(stat.key)}
-                  className="rounded border-slate-600 bg-slate-800 text-sky-500"
+                  className="rounded border-border bg-surface-muted text-accent-text"
                 />
                 <span>{stat.label}</span>
               </label>
@@ -240,7 +240,7 @@ export function PlayersStatConfig({
 
       {statsWithSliders.length > 0 ? (
         <div className="space-y-3">
-          <h3 className="text-base font-semibold text-white">
+          <h3 className="text-base font-semibold text-text">
             Linie progowe dla wykresów
           </h3>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -252,11 +252,11 @@ export function PlayersStatConfig({
               return (
                 <label
                   key={statKey}
-                  className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-3 text-sm text-slate-300"
+                  className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm text-muted"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span>{definition.label}</span>
-                    <span className="font-semibold text-white">
+                    <span className="font-semibold text-text">
                       {value.toFixed(1)}
                     </span>
                   </div>
@@ -269,7 +269,7 @@ export function PlayersStatConfig({
                     onChange={(event) =>
                       onThresholdLineChange(statKey, Number(event.target.value))
                     }
-                    className="w-full accent-sky-400"
+                    className="w-full accent-accent"
                   />
                 </label>
               );

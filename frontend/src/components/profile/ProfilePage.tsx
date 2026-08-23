@@ -14,8 +14,8 @@ export function ProfilePage({
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-bold text-white">{displayName}</h1>
-        <p className="text-sm text-slate-400">@{username}</p>
+        <h1 className="text-3xl font-bold text-text">{displayName}</h1>
+        <p className="text-sm text-muted">@{username}</p>
       </header>
       {children ? <div className="space-y-4">{children}</div> : null}
     </div>

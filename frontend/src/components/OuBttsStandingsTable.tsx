@@ -34,9 +34,9 @@ export function OuBttsStandingsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface-muted text-left text-muted">
           <tr>
             <th className="px-3 py-3 font-medium">Drużyna</th>
             <th className="px-3 py-3 text-center font-medium">M</th>
@@ -54,41 +54,41 @@ export function OuBttsStandingsTable({
           {standings.map((row) => (
             <tr
               key={row.team_id}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted"
             >
               <td className="px-3 py-2 font-medium">
                 <Link
                   href={teamHref(row.team_id, seasonId, leagueId)}
-                  className="text-white transition hover:text-sky-200"
+                  className="text-text transition hover:text-accent-text"
                 >
                   {row.team_name}
                 </Link>
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {row.played}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {row.btts_count}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {formatPercent(row.btts_percentage)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {row.over_1_5_count}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {formatPercent(row.over_1_5_percentage)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {row.over_2_5_count}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {formatPercent(row.over_2_5_percentage)}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {row.over_3_5_count}
               </td>
-              <td className="px-3 py-2 text-center text-slate-300">
+              <td className="px-3 py-2 text-center text-muted">
                 {formatPercent(row.over_3_5_percentage)}
               </td>
             </tr>

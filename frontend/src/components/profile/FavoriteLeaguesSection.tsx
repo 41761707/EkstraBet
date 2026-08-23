@@ -113,7 +113,7 @@ function FavoriteLeaguesBody({
       <p
         aria-live="polite"
         aria-atomic="true"
-        className={liveMessage ? "text-sm text-red-300" : "sr-only"}
+        className={liveMessage ? "text-sm text-danger" : "sr-only"}
       >
         {liveMessage ?? ""}
       </p>
@@ -170,7 +170,7 @@ function FavoriteLeaguesContent({
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {leagues.map((league) => (
           <li key={league.id}>
-            <div className="flex items-center gap-2 rounded-lg border border-slate-700/60 bg-slate-800/40 px-3 py-2 text-sm text-slate-200">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-text">
               {league.country_emoji ? (
                 <span aria-hidden="true">{league.country_emoji}</span>
               ) : null}

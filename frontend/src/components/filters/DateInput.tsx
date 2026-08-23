@@ -7,12 +7,12 @@ import {
   formatIsoDatePl,
   parseIsoDate,
 } from "@/components/filters/dateInputModel";
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { getWarsawDateIso } from "@/lib/date";
 
 const DEFAULT_TRIGGER_CLASS_NAME =
   "flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg " +
-  "border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-left text-sm " +
-  "text-slate-100";
+  `text-left text-sm ${INPUT_CLASS_NAME}`;
 
 /** ISO YYYY-MM-DD date field with a calendar popover instead of native typing. */
 interface DateInputProps {
@@ -55,7 +55,7 @@ export function DateInput({
         aria-controls={calendarId}
         onClick={() => setIsOpen((open) => !open)}
       >
-        <span className={value ? "text-slate-100" : "text-slate-500"}>
+        <span className={value ? "text-text" : "text-subtle"}>
           {displayValue}
         </span>
         <CalendarIcon />
@@ -129,7 +129,7 @@ function CalendarIcon() {
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-4 w-4 shrink-0 text-slate-300"
+      className="h-4 w-4 shrink-0 text-muted"
       aria-hidden="true"
     >
       <rect x="3" y="5" width="18" height="16" rx="2" />

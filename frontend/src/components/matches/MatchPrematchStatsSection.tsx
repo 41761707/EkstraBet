@@ -41,8 +41,8 @@ interface MatchPrematchStatsSectionProps {
 function H2HStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+      <p className="text-xs uppercase tracking-wide text-subtle">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-text">{value}</p>
     </div>
   );
 }
@@ -105,12 +105,12 @@ export function MatchPrematchStatsSection({
     <div className="min-w-0 space-y-4">
       <ExpandableSection title="Konfiguracja analizy" defaultOpen>
         <div className="grid gap-4 md:grid-cols-3">
-          <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-slate-200">
+              <span className="font-medium text-text">
                 Liczba prezentowanych spotkań H2H
               </span>
-              <span className="font-semibold text-white">{h2hLimit}</span>
+              <span className="font-semibold text-text">{h2hLimit}</span>
             </div>
             <input
               type="range"
@@ -119,16 +119,16 @@ export function MatchPrematchStatsSection({
               step={1}
               value={h2hLimit}
               onChange={(event) => setH2hLimit(Number(event.target.value))}
-              className="w-full accent-sky-400"
+              className="w-full accent-accent"
             />
           </label>
 
-          <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-slate-200">
+              <span className="font-medium text-text">
                 Linia Over/Under
               </span>
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-text">
                 {ouLine.toFixed(1)}
               </span>
             </div>
@@ -139,16 +139,16 @@ export function MatchPrematchStatsSection({
               step={isHockey ? ouBounds!.step : MATCH_OU_LINE_STEP}
               value={ouLine}
               onChange={(event) => setOuLine(Number(event.target.value))}
-              className="w-full accent-sky-400"
+              className="w-full accent-accent"
             />
           </label>
 
-          <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-slate-200">
+              <span className="font-medium text-text">
                 Liczba analizowanych spotkań wstecz
               </span>
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-text">
                 {effectiveLookback}
               </span>
             </div>
@@ -159,10 +159,10 @@ export function MatchPrematchStatsSection({
               step={1}
               value={lookback}
               onChange={(event) => setLookback(Number(event.target.value))}
-              className="w-full accent-sky-400"
+              className="w-full accent-accent"
               disabled={lookbackBounds.max <= 0}
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-subtle">
               Statystyki i wykresy z N ostatnich meczów przed datą tego
               spotkania.
             </p>
@@ -176,7 +176,7 @@ export function MatchPrematchStatsSection({
           defaultOpen
         >
           {safeHeadToHead.played > 0 ? (
-            <div className="mb-4 grid gap-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
               <H2HStat label="Rozegrane" value={safeHeadToHead.played} />
               <H2HStat
                 label="Bilans (gospodarz)"

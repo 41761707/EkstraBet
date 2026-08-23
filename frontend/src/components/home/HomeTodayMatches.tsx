@@ -27,13 +27,12 @@ interface HomeTodayMatchesProps {
 const FOOTBALL_SPORT_ID = 1;
 
 const SPORT_ACCENT: Record<number, string> = {
-  [FOOTBALL_SPORT_ID]: "border-sky-500/45 bg-sky-950/35 text-sky-200",
-  [HOCKEY_SPORT_ID]: "border-slate-400/45 bg-slate-800/55 text-slate-200",
-  [BASKETBALL_SPORT_ID]: "border-sky-400/35 bg-slate-900/70 text-sky-100",
+  [FOOTBALL_SPORT_ID]: "border-accent/45 bg-accent-soft text-accent-text",
+  [HOCKEY_SPORT_ID]: "border-border bg-surface-muted text-text",
+  [BASKETBALL_SPORT_ID]: "border-accent/35 bg-surface text-accent-text",
 };
 
-const DEFAULT_SPORT_ACCENT =
-  "border-slate-500/40 bg-slate-900/50 text-slate-200";
+const DEFAULT_SPORT_ACCENT = "border-border bg-surface text-text";
 
 function formatPolishFullDate(isoDate: string): string {
   const date = new Date(`${isoDate}T12:00:00Z`);
@@ -88,17 +87,17 @@ function resolveMatchPulseDotTone(
 }
 
 const MATCH_PULSE_DOT_CLASS: Record<MatchPulseDotTone, string> = {
-  default: "bg-slate-500/80",
-  live: "bg-red-500",
-  missingResult: "bg-amber-400",
+  default: "bg-subtle",
+  live: "bg-danger",
+  missingResult: "bg-warning",
 };
 
 const MATCH_PULSE_ROW_CLASS: Record<MatchPulseDotTone, string> = {
   default:
-    "border-slate-700/70 bg-slate-950/40 hover:border-sky-500/40 hover:bg-slate-900/55",
-  live: "border-slate-700/70 bg-slate-950/40 hover:border-sky-500/40 hover:bg-slate-900/55",
+    "border-border/70 bg-surface-muted hover:border-accent/40 hover:bg-surface-muted/55",
+  live: "border-border/70 bg-surface-muted hover:border-accent/40 hover:bg-surface-muted/55",
   missingResult:
-    "border-amber-400/50 bg-amber-950/25 hover:border-amber-300/60 hover:bg-amber-950/35",
+    "border-warning-border bg-warning-bg hover:border-warning hover:bg-warning-bg",
 };
 
 function MatchPulseRow({
@@ -127,28 +126,28 @@ function MatchPulseRow({
           />
           <time
             dateTime={match.game_date}
-            className="font-mono text-sm font-medium text-slate-300"
+            className="font-mono text-sm font-medium text-muted"
           >
             {timelineLabel}
           </time>
         </div>
 
-        <div className="min-w-0 space-y-1 border-l border-slate-700/80 pl-3 sm:border-l-0 sm:pl-0">
-          <p className="truncate text-sm font-medium text-white">
+        <div className="min-w-0 space-y-1 border-l border-border pl-3 sm:border-l-0 sm:pl-0">
+          <p className="truncate text-sm font-medium text-text">
             {match.home_team.name}
           </p>
-          <p className="truncate text-sm font-medium text-slate-200">
+          <p className="truncate text-sm font-medium text-text">
             {match.away_team.name}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center sm:gap-2">
           {match.is_played ? (
-            <div className="min-w-[4.5rem] text-sm font-semibold text-slate-100 sm:text-right">
+            <div className="min-w-[4.5rem] text-sm font-semibold text-text sm:text-right">
               <MatchScoreDisplay match={match} size="sm" />
             </div>
           ) : null}
-          <span className="text-xs font-medium text-sky-300">Szczegóły</span>
+          <span className="text-xs font-medium text-accent-text">Szczegóły</span>
         </div>
       </div>
     </Link>
@@ -163,15 +162,15 @@ function MatchPulseLeagueCard({
   now: Date;
 }) {
   return (
-    <section className="space-y-3 rounded-xl border border-slate-700/60 bg-slate-900/35 p-3 sm:p-4">
+    <section className="space-y-3 rounded-xl border border-border bg-surface p-3 sm:p-4">
       <div className="flex items-baseline justify-between gap-3">
         <Link
           href={`/leagues/${league.leagueId}`}
-          className="text-sm font-semibold text-sky-200 transition hover:text-sky-100"
+          className="text-sm font-semibold text-accent-text transition hover:text-accent-text-hover"
         >
           {league.leagueName}
         </Link>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-subtle">
           {formatMatchCountLabel(league.matches.length)}
         </span>
       </div>
@@ -205,7 +204,7 @@ function MatchPulseSportGroup({
         >
           {group.sportName}
         </span>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-subtle">
           {formatMatchCountLabel(matchCount)}
         </span>
       </div>
@@ -252,16 +251,16 @@ export function HomeTodayMatches({
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-700/60 pb-3">
+      <header className="flex flex-wrap items-end justify-between gap-2 border-b border-border pb-3">
         <div>
-          <p className="text-sm font-medium text-slate-200">
+          <p className="text-sm font-medium text-text">
             {formatPolishFullDate(matchDate)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-subtle">
             Mecze wszystkich aktywnych lig
           </p>
         </div>
-        <p className="text-sm font-semibold text-sky-300">
+        <p className="text-sm font-semibold text-accent-text">
           {formatMatchCountLabel(matches.length)}
         </p>
       </header>

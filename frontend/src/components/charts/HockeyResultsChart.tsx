@@ -1,7 +1,10 @@
 import {
   CHART_COLOR_DRAW,
   CHART_COLOR_NEGATIVE,
+  CHART_COLOR_OVERTIME_LOSS,
+  CHART_COLOR_OVERTIME_WIN,
   CHART_COLOR_POSITIVE,
+  CHART_LABEL_ON_FILL,
 } from "@/lib/chartColors";
 import type { HockeyFormResult } from "@/types/api";
 
@@ -16,8 +19,8 @@ const RESULT_ROWS: {
   color: string;
 }[] = [
   { key: "W", label: "Wygrane", color: CHART_COLOR_POSITIVE },
-  { key: "WPD", label: "Wygrane po dogrywce", color: "#22c55e" },
-  { key: "PPD", label: "Przegrane po dogrywce", color: "#f97316" },
+  { key: "WPD", label: "Wygrane po dogrywce", color: CHART_COLOR_OVERTIME_WIN },
+  { key: "PPD", label: "Przegrane po dogrywce", color: CHART_COLOR_OVERTIME_LOSS },
   { key: "D", label: "Remisy", color: CHART_COLOR_DRAW },
   { key: "L", label: "Przegrane", color: CHART_COLOR_NEGATIVE },
 ];
@@ -40,12 +43,12 @@ export function HockeyResultsChart({
   const maxCount = Math.max(...Object.values(counts), 1);
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+    <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
       <div>
-        <h4 className="text-sm font-semibold text-white">
+        <h4 className="text-sm font-semibold text-text">
           Rezultaty meczów: {teamName}
         </h4>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-muted">
           Analizowane mecze: {results.length}
         </p>
       </div>
@@ -59,16 +62,17 @@ export function HockeyResultsChart({
           const width = (value / maxCount) * 100;
           return (
             <div key={row.key} className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-300">
+              <div className="flex items-center justify-between text-xs text-muted">
                 <span>{row.label}</span>
-                <span className="font-semibold text-white">{value}</span>
+                <span className="font-semibold text-text">{value}</span>
               </div>
-              <div className="h-8 rounded-md bg-slate-800/80">
+              <div className="h-8 rounded-md bg-chart-track">
                 <div
-                  className="flex h-8 items-center rounded-md px-2 text-xs font-semibold text-white"
+                  className="flex h-8 items-center rounded-md px-2 text-xs font-semibold"
                   style={{
                     width: `${Math.max(width, 12)}%`,
                     backgroundColor: row.color,
+                    color: CHART_LABEL_ON_FILL,
                   }}
                 >
                   {value}

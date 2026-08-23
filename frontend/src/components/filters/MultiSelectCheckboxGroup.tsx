@@ -31,12 +31,12 @@ export function MultiSelectCheckboxGroup({
 
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium text-slate-200">{label}</legend>
+      <legend className="text-sm font-medium text-text">{label}</legend>
       <div
-        className={`overflow-y-auto rounded-lg border border-slate-700/80 bg-slate-900/50 p-3 ${maxHeightClassName}`}
+        className={`overflow-y-auto rounded-lg border border-border bg-surface-muted p-3 ${maxHeightClassName}`}
       >
         {options.length === 0 ? (
-          <p className="text-sm text-slate-400">Brak dostępnych opcji.</p>
+          <p className="text-sm text-muted">Brak dostępnych opcji.</p>
         ) : (
           <div className="space-y-2">
             {options.map((option) => {
@@ -45,14 +45,14 @@ export function MultiSelectCheckboxGroup({
                 <label
                   key={option.id}
                   htmlFor={inputId}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-slate-300"
+                  className="flex cursor-pointer items-center gap-2 text-sm text-muted"
                 >
                   <input
                     id={inputId}
                     type="checkbox"
                     checked={selectedIds.includes(option.id)}
                     onChange={() => toggleOption(option.id)}
-                    className="rounded border-slate-600 bg-slate-800 text-sky-500"
+                    className="rounded border-border bg-surface-raised accent-accent"
                   />
                   <span>{option.label}</span>
                 </label>
@@ -66,7 +66,7 @@ export function MultiSelectCheckboxGroup({
           type="button"
           disabled={isClearDisabled}
           onClick={() => onChange([])}
-          className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 disabled:hover:bg-transparent"
+          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:border-border disabled:text-subtle disabled:hover:bg-transparent"
         >
           Odznacz wszystkie
         </button>

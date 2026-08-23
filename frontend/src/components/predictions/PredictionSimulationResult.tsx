@@ -28,7 +28,7 @@ export function PredictionSimulationResult({
 
   return (
     <section className="space-y-4" aria-live="polite">
-      <h2 className="text-2xl font-semibold text-white">{title}</h2>
+      <h2 className="text-2xl font-semibold text-text">{title}</h2>
       <div className="grid gap-4 md:grid-cols-3">
         <ProbabilityDonutChart
           title="Rezultat 1X2"
@@ -60,7 +60,7 @@ export function PredictionSimulationResult({
         />
       </div>
       {hasExpectedGoals ? (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           Oczekiwane gole: gospodarze {chart.lambdaHome.toFixed(2)}, goście{" "}
           {chart.lambdaAway.toFixed(2)}.
         </p>

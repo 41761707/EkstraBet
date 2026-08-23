@@ -20,9 +20,9 @@ const FAMILY_TITLES: Record<StatFamily, string> = {
 };
 
 const PILL_BUTTON_ACTIVE =
-  "rounded-full bg-sky-600 px-3 py-1.5 text-sm text-white transition hover:bg-sky-500";
+  "rounded-full bg-accent px-3 py-1.5 text-sm text-on-accent transition hover:bg-accent-hover";
 const PILL_BUTTON_IDLE =
-  "rounded-full bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-700";
+  "rounded-full bg-surface px-3 py-1.5 text-sm text-muted transition hover:bg-surface-muted";
 
 interface ModelLeagueComparisonsPanelProps {
   comparisons: ModelLeagueComparisons;
@@ -181,7 +181,7 @@ export function ModelLeagueComparisonsPanel({
           defaultOpen
         >
           <div className="space-y-3">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Wykresy pokazują skuteczność aktywnego modelu w ligach na tle
               średniej ważonej liczbą predykcji. Przełącz model przyciskiem.
             </p>
@@ -202,7 +202,7 @@ export function ModelLeagueComparisonsPanel({
           defaultOpen
         >
           <div className="space-y-3">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Profit to suma unitów (stawka 1) po filtrach EV i podatku. Oś
               zero oddziela zysk od straty.
             </p>

@@ -91,13 +91,13 @@ function SortableHeader({
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
-          isActive ? "text-slate-200" : "text-slate-400"
+        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+          isActive ? "text-text" : "text-muted"
         } ${align === "center" ? "justify-center" : ""}`}
       >
         <span>{label}</span>
         {indicator ? (
-          <span aria-hidden="true" className="text-sky-300">
+          <span aria-hidden="true" className="text-accent-text">
             {indicator}
           </span>
         ) : null}
@@ -133,12 +133,12 @@ function OddsTable({
   };
 
   return (
-    <div className="min-w-0 rounded-xl border border-slate-700/80">
-      <p className="border-b border-slate-700/80 bg-slate-900/80 px-4 py-3 text-sm font-medium text-slate-200">
+    <div className="min-w-0 rounded-xl border border-border bg-surface">
+      <p className="border-b border-border bg-surface-muted px-4 py-3 text-sm font-medium text-text">
         {title}
       </p>
       <table className="w-full text-sm">
-        <thead className="bg-slate-900/60 text-left text-slate-400">
+        <thead className="bg-surface text-left text-muted">
           <tr>
             <SortableHeader
               label="Bukmacher"
@@ -162,9 +162,9 @@ function OddsTable({
           {rows.map((bookmaker) => (
             <tr
               key={bookmaker}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted"
             >
-              <td className="whitespace-nowrap px-3 py-3 font-medium text-white">
+              <td className="whitespace-nowrap px-3 py-3 font-medium text-text">
                 {bookmaker}
               </td>
               {columns.map((column) => {
@@ -177,7 +177,7 @@ function OddsTable({
                 return (
                   <td
                     key={column.key}
-                    className="whitespace-nowrap px-3 py-3 text-center font-semibold text-emerald-300"
+                    className="whitespace-nowrap px-3 py-3 text-center font-semibold text-success"
                   >
                     {formatCell(value)}
                   </td>

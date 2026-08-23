@@ -242,12 +242,12 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
         <section className="space-y-2">
           <Link
             href="/"
-            className="text-sm text-sky-300 transition hover:text-sky-200"
+            className="text-sm text-accent-text transition hover:text-accent-text-hover"
           >
             Powrót do lig
           </Link>
-          <h1 className="text-3xl font-bold text-white">Kącik statystyczny</h1>
-          <p className="text-slate-300">
+          <h1 className="text-3xl font-bold text-text">Kącik statystyczny</h1>
+          <p className="text-muted">
             Góra strony to skuteczność tego, co liczą modele. Na dole —
             charakterystyka lig z rozegranych meczów.
           </p>
@@ -255,19 +255,19 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
 
         <section className="space-y-8">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
               Predykcje i zakłady
             </p>
-            <h2 className="text-2xl font-semibold text-white">
+            <h2 className="text-2xl font-semibold text-text">
               Statystyki modeli
             </h2>
-            <p className="text-slate-300">
+            <p className="text-muted">
               Skuteczność predykcji i profit zakładów według wybranych filtrów.
             </p>
           </div>
 
-          <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
-            <h3 className="text-lg font-semibold text-white">
+          <div className="space-y-4 rounded-xl border border-border bg-surface-muted p-5">
+            <h3 className="text-lg font-semibold text-text">
               Filtry modeli
             </h3>
             <StatsFilters

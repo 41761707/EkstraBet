@@ -8,6 +8,7 @@ import {
   validateFirstLoginForm,
 } from "@/components/auth/firstLoginFormModel";
 import { PasswordField } from "@/components/auth/PasswordField";
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateAfterAuth } from "@/lib/clientNavigation";
 
 interface FirstLoginFormProps {
@@ -23,8 +24,7 @@ interface AuthFieldProps {
   onChange: (value: string) => void;
 }
 
-const INPUT_CLASS_NAME =
-  "rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-sky-500";
+const FIRST_LOGIN_INPUT_CLASS_NAME = `rounded-md ${INPUT_CLASS_NAME}`;
 
 export function FirstLoginForm({
   initialUsername,
@@ -75,10 +75,10 @@ export function FirstLoginForm({
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-sky-300">
+        <h1 className="text-2xl font-semibold text-accent-text">
           Uzupełnij konto
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-muted">
           Ustaw własne hasło, potwierdź nazwę użytkownika i wyświetlaną nazwę,
           aby korzystać z EkstraBet.
         </p>
@@ -131,7 +131,7 @@ function FirstLoginFields({
   return (
     <form
       onSubmit={onSubmit}
-      className="flex flex-col gap-4 rounded-lg border border-slate-700/80 bg-slate-900/50 p-6"
+      className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-6"
     >
       <AuthField
         label="Nazwa użytkownika"
@@ -163,7 +163,7 @@ function FirstLoginFields({
       />
 
       {error ? (
-        <p className="text-sm text-rose-400" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {error}
         </p>
       ) : null}
@@ -171,7 +171,7 @@ function FirstLoginFields({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Zapisywanie…" : "Zapisz"}
       </button>
@@ -187,7 +187,7 @@ function AuthField({
   onChange,
 }: AuthFieldProps) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm text-slate-300">
+    <label className="flex flex-col gap-1.5 text-sm text-muted">
       {label}
       <input
         type="text"
@@ -196,7 +196,7 @@ function AuthField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required
-        className={INPUT_CLASS_NAME}
+        className={FIRST_LOGIN_INPUT_CLASS_NAME}
       />
     </label>
   );

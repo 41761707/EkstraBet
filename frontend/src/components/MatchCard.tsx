@@ -35,11 +35,11 @@ export function MatchCard({
   const roundLabel = formatRoundLabel(match.round_label);
 
   return (
-    <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4 transition hover:border-sky-500/40 hover:bg-slate-900/80">
-      <div className="mb-3 flex items-center justify-between gap-2 text-xs text-slate-400">
+    <div className="rounded-lg border border-border bg-surface p-4 transition hover:border-accent/40 hover:bg-surface-muted">
+      <div className="mb-3 flex items-center justify-between gap-2 text-xs text-muted">
         <Link
           href={`/matches/${match.id}`}
-          className="transition hover:text-sky-300"
+          className="transition hover:text-accent-text"
         >
           {formatMatchDate(match.game_date)}
         </Link>
@@ -48,26 +48,26 @@ export function MatchCard({
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <Link
           href={teamHref(match.home_team.id, seasonId, leagueId)}
-          className={`truncate text-right font-medium transition hover:text-sky-200 ${
+          className={`truncate text-right font-medium transition hover:text-accent-text-hover ${
             highlightTeamId === match.home_team.id
-              ? "text-sky-200"
-              : "text-white"
+              ? "text-accent-text"
+              : "text-text"
           }`}
         >
           {match.home_team.name}
         </Link>
         <Link
           href={`/matches/${match.id}`}
-          className="text-center transition hover:text-sky-100"
+          className="text-center transition hover:text-accent-text"
         >
           <MatchScoreDisplay match={match} size="md" />
         </Link>
         <Link
           href={teamHref(match.away_team.id, seasonId, leagueId)}
-          className={`truncate font-medium transition hover:text-sky-200 ${
+          className={`truncate font-medium transition hover:text-accent-text-hover ${
             highlightTeamId === match.away_team.id
-              ? "text-sky-200"
-              : "text-white"
+              ? "text-accent-text"
+              : "text-text"
           }`}
         >
           {match.away_team.name}

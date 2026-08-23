@@ -5,9 +5,9 @@ interface StatusMessageProps {
 }
 
 const variantStyles = {
-  error: "border-red-500/40 bg-red-950/30 text-red-100",
-  empty: "border-slate-600 bg-slate-900/60 text-slate-200",
-  info: "border-sky-500/40 bg-sky-950/20 text-sky-100",
+  error: "border-danger-border bg-danger-bg text-danger-text",
+  empty: "border-border bg-surface text-text",
+  info: "border-info-border bg-info-bg text-info-text",
 };
 
 export function StatusMessage({

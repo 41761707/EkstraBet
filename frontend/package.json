@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint && node scripts/audit-theme-classes.mjs",
+    "audit:theme": "node scripts/audit-theme-classes.mjs",
     "test": "vitest run"
   },
   "dependencies": {

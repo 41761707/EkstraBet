@@ -40,15 +40,15 @@ export function ChatIntro({
   onExampleClick,
 }: ChatIntroProps) {
   return (
-    <section className="rounded-2xl border border-slate-700/80 bg-slate-900/50 p-5 shadow-xl shadow-slate-950/30">
+    <section className="rounded-2xl border border-border bg-surface p-5 shadow-xl ">
       <div className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-wide text-sky-300">
+        <p className="text-sm font-semibold uppercase tracking-wide text-accent-text">
           {providerLabel}
         </p>
-        <h1 className="text-3xl font-bold text-white">
+        <h1 className="text-3xl font-bold text-text">
           Krzychu - Asystent analityczny EkstraBet
         </h1>
-        <p className="max-w-3xl text-sm leading-6 text-slate-300">
+        <p className="max-w-3xl text-sm leading-6 text-muted">
           Zadawaj pytania po polsku o ligi, drużyny, zawodników, mecze,
           statystyki, kursy i prawdopodobieństwa modeli.
         </p>
@@ -76,7 +76,7 @@ export function ChatIntro({
             key={prompt}
             type="button"
             onClick={() => onExampleClick(prompt)}
-            className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1.5 text-xs text-slate-300 transition hover:border-sky-500/60 hover:text-sky-200"
+            className="rounded-full border border-border bg-surface-muted px-3 py-1.5 text-xs text-muted transition hover:border-accent/60 hover:text-accent-text-hover"
           >
             {prompt}
           </button>

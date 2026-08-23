@@ -28,24 +28,24 @@ function BarChartBody({ chart, maxValue }: { chart: ChatChartSpec; maxValue: num
             key={`${point.label}-${point.value}`}
             className="flex min-w-[4.5rem] flex-col items-center gap-2"
           >
-            <div className="flex h-44 items-end gap-1 rounded-md bg-slate-900/80 px-2 py-2">
+            <div className="flex h-44 items-end gap-1 rounded-md bg-chart-track px-2 py-2">
               <div className="flex h-full flex-col justify-end gap-1">
-                <span className="text-center text-xs font-semibold text-white">
+                <span className="text-center text-xs font-semibold text-text">
                   {point.value}
                 </span>
                 <div
-                  className="w-7 rounded-t-md bg-sky-400"
+                  className="w-7 rounded-t-md bg-accent"
                   style={{ height: `${height}%` }}
                   title={`${chart.seriesLabel ?? "Wartość"}: ${point.value}`}
                 />
               </div>
               {secondaryHeight !== null ? (
                 <div className="flex h-full flex-col justify-end gap-1">
-                  <span className="text-center text-xs font-semibold text-amber-100">
+                  <span className="text-center text-xs font-semibold text-warning-text">
                     {point.secondaryValue}
                   </span>
                   <div
-                    className="w-7 rounded-t-md bg-amber-400"
+                    className="w-7 rounded-t-md bg-warning"
                     style={{ height: `${secondaryHeight}%` }}
                     title={`${chart.secondarySeriesLabel ?? "Wartość 2"}: ${
                       point.secondaryValue
@@ -54,7 +54,7 @@ function BarChartBody({ chart, maxValue }: { chart: ChatChartSpec; maxValue: num
                 </div>
               ) : null}
             </div>
-            <span className="max-w-[5rem] text-center text-[10px] leading-tight text-slate-400">
+            <span className="max-w-[5rem] text-center text-[10px] leading-tight text-muted">
               {point.label}
             </span>
           </div>
@@ -102,7 +102,7 @@ function LineChartBody({ chart, maxValue }: { chart: ChatChartSpec; maxValue: nu
     <div className="overflow-x-auto pb-2">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="min-w-full text-sky-400"
+        className="min-w-full text-accent-text"
         role="img"
         aria-label={chart.title}
       >
@@ -111,18 +111,18 @@ function LineChartBody({ chart, maxValue }: { chart: ChatChartSpec; maxValue: nu
           <path
             d={secondaryPath}
             fill="none"
-            stroke="#fbbf24"
+            stroke="var(--warning)"
             strokeWidth="2.5"
           />
         ) : null}
         {chart.points.map((point, index) => (
           <g key={`${point.label}-${index}`}>
-            <circle cx={xAt(index)} cy={yAt(point.value)} r="3.5" fill="#38bdf8" />
+            <circle cx={xAt(index)} cy={yAt(point.value)} r="3.5" fill="var(--accent)" />
             <text
               x={xAt(index)}
               y={height - 2}
               textAnchor="middle"
-              className="fill-slate-400"
+              className="fill-muted"
               fontSize="9"
             >
               {point.label}
@@ -142,11 +142,11 @@ export function ChatChartRenderer({ chart }: ChatChartRendererProps) {
   const maxValue = maxPointValue(chart.points);
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/70 p-4">
+    <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
       <div>
-        <h3 className="text-sm font-semibold text-white">{chart.title}</h3>
+        <h3 className="text-sm font-semibold text-text">{chart.title}</h3>
         {chart.yLabel ? (
-          <p className="mt-1 text-xs text-slate-400">{chart.yLabel}</p>
+          <p className="mt-1 text-xs text-muted">{chart.yLabel}</p>
         ) : null}
       </div>
 

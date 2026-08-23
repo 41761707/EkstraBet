@@ -22,10 +22,10 @@ export function EntityAggregationTable({
 
   return (
     <section className="space-y-3">
-      <h3 className="text-lg font-semibold text-white">{title}</h3>
-      <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+      <h3 className="text-lg font-semibold text-text">{title}</h3>
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-900/80 text-left text-slate-400">
+          <thead className="bg-surface text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Nazwa</th>
               {metric === "accuracy" ? (
@@ -45,25 +45,25 @@ export function EntityAggregationTable({
             {rows.map((row) => (
               <tr
                 key={`${row.entity_id ?? "avg"}-${row.entity_name}`}
-                className="border-t border-slate-800/80 hover:bg-slate-900/50"
+                className="border-t border-border hover:bg-surface-muted/50"
               >
-                <td className="px-4 py-3 font-medium text-white">
+                <td className="px-4 py-3 font-medium text-text">
                   {row.entity_name}
                 </td>
                 {metric === "accuracy" ? (
                   <>
-                    <td className="px-4 py-3 text-right text-slate-200">
+                    <td className="px-4 py-3 text-right text-text">
                       {row.total_predictions ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-200">
+                    <td className="px-4 py-3 text-right text-text">
                       {row.correct_predictions ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-right text-sky-200">
+                    <td className="px-4 py-3 text-right text-accent-text-hover">
                       {formatPercent(row.accuracy_pct)}
                     </td>
                   </>
                 ) : (
-                  <td className="px-4 py-3 text-right text-amber-200">
+                  <td className="px-4 py-3 text-right text-warning-text">
                     {formatProfit(row.profit)}
                   </td>
                 )}
@@ -100,7 +100,7 @@ export function AggregationsSection({
 
   return (
     <section className="space-y-8">
-      <h2 className="text-2xl font-semibold text-white">Agregacje</h2>
+      <h2 className="text-2xl font-semibold text-text">Agregacje</h2>
 
       {byTeam ? (
         <div className="space-y-6">

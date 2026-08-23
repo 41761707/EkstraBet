@@ -17,9 +17,9 @@ export function ChatMessageList({
   error,
 }: ChatMessageListProps) {
   return (
-    <section className="min-h-[24rem] space-y-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+    <section className="min-h-[24rem] space-y-4 rounded-2xl border border-border bg-page/50 p-4">
       {messages.length === 0 ? (
-        <div className="flex min-h-64 items-center justify-center rounded-xl border border-dashed border-slate-700 text-center text-sm text-slate-400">
+        <div className="flex min-h-64 items-center justify-center rounded-xl border border-dashed border-border text-center text-sm text-muted">
           {emptyLabel}
         </div>
       ) : (
@@ -28,11 +28,11 @@ export function ChatMessageList({
             key={message.id}
             className={`rounded-2xl border px-4 py-3 ${
               message.role === "user"
-                ? "ml-auto max-w-3xl border-sky-500/30 bg-sky-950/30 text-sky-50"
-                : "mr-auto max-w-4xl border-slate-700/80 bg-slate-900/80 text-slate-100"
+                ? "ml-auto max-w-3xl border-accent/30 bg-accent-soft text-text"
+                : "mr-auto max-w-4xl border-border bg-surface text-text"
             }`}
           >
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
               {message.role === "user" ? "Ty" : "Asystent"}
             </div>
             {message.answer ? (
@@ -47,13 +47,13 @@ export function ChatMessageList({
       )}
 
       {isLoading ? (
-        <div className="mr-auto max-w-3xl rounded-2xl border border-slate-700/80 bg-slate-900/80 px-4 py-3 text-sm text-slate-300">
+        <div className="mr-auto max-w-3xl rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-muted">
           Krzychu analizuje pytanie i przygotowuje odpowiedź...
         </div>
       ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-100">
+        <div className="rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-text">
           {error}
         </div>
       ) : null}

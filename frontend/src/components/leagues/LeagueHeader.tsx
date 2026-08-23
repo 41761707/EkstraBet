@@ -23,14 +23,14 @@ export function LeagueHeader({
     <section className="space-y-2">
       <Link
         href="/#ligi"
-        className="text-sm text-sky-300 transition hover:text-sky-200"
+        className="text-sm text-accent-text transition hover:text-accent-text-hover"
       >
         ← Strona główna
       </Link>
-      <h1 className="text-3xl font-bold text-white">{name}</h1>
-      {meta ? <p className="text-slate-300">{meta}</p> : null}
+      <h1 className="text-3xl font-bold text-text">{name}</h1>
+      {meta ? <p className="text-muted">{meta}</p> : null}
       {lastUpdate ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-subtle">
           Ostatnia aktualizacja: {lastUpdate}
         </p>
       ) : null}

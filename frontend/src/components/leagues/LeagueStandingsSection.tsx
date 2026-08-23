@@ -49,9 +49,9 @@ export function LeagueStandingsSection({
   return (
     <section className="space-y-4">
       {embedded ? null : (
-        <h2 className="text-lg font-semibold text-white">Tabele ligowe</h2>
+        <h2 className="text-lg font-semibold text-text">Tabele ligowe</h2>
       )}
-      <div className="flex flex-wrap gap-2 border-b border-slate-700/80 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
         {(Object.keys(TAB_LABELS) as StandingScope[]).map((scope) => (
           <button
             key={scope}
@@ -59,8 +59,8 @@ export function LeagueStandingsSection({
             onClick={() => setActiveScope(scope)}
             className={`rounded-full px-3 py-1.5 text-sm transition ${
               activeScope === scope
-                ? "bg-sky-600 text-white"
-                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                ? "bg-accent text-on-accent"
+                : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
             }`}
           >
             {TAB_LABELS[scope]}
@@ -75,7 +75,7 @@ export function LeagueStandingsSection({
             seasonId={seasonId}
             leagueId={leagueId}
           />
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-subtle">
             Drużyny prezentowane są w kolejności alfabetycznej.
           </p>
         </>

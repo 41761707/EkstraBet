@@ -26,9 +26,9 @@ function StatsTable({
     );
   }
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-slate-400">
+        <thead className="bg-surface text-muted">
           <tr>
             {columns.map((column) => (
               <th key={column.key} className="px-3 py-2 text-left">
@@ -41,7 +41,7 @@ function StatsTable({
           {rows.map((row) => (
             <tr
               key={`${row.team_name}-${row.team_shortcut}`}
-              className="border-t border-slate-800/80 text-slate-200"
+              className="border-t border-border text-text"
             >
               {columns.map((column) => (
                 <td key={column.key} className="px-3 py-2">
@@ -84,8 +84,8 @@ export function SportLeagueStatsSection({
             onClick={() => setActiveTab(tab.id)}
             className={`rounded-full px-3 py-1.5 text-sm transition ${
               activeTab === tab.id
-                ? "bg-sky-600 text-white"
-                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                ? "bg-accent text-on-accent"
+                : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
             }`}
           >
             {tab.label}
@@ -101,33 +101,33 @@ export function SportLeagueStatsSection({
         />
       ) : activeTab === "points" && payload.distribution ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-            <p className="text-xs text-slate-400">Średnia punktów na mecz</p>
-            <p className="text-2xl font-semibold text-white">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-xs text-muted">Średnia punktów na mecz</p>
+            <p className="text-2xl font-semibold text-text">
               {payload.distribution.average_total}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-            <p className="text-xs text-slate-400">Mediana</p>
-            <p className="text-2xl font-semibold text-white">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-xs text-muted">Mediana</p>
+            <p className="text-2xl font-semibold text-text">
               {payload.distribution.median_total}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-            <p className="text-xs text-slate-400">Min / max</p>
-            <p className="text-2xl font-semibold text-white">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-xs text-muted">Min / max</p>
+            <p className="text-2xl font-semibold text-text">
               {payload.distribution.min_total} / {payload.distribution.max_total}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-            <p className="text-xs text-slate-400">Średnia punktów gospodarzy</p>
-            <p className="text-2xl font-semibold text-white">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-xs text-muted">Średnia punktów gospodarzy</p>
+            <p className="text-2xl font-semibold text-text">
               {payload.distribution.average_home}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-            <p className="text-xs text-slate-400">Średnia punktów gości</p>
-            <p className="text-2xl font-semibold text-white">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-xs text-muted">Średnia punktów gości</p>
+            <p className="text-2xl font-semibold text-text">
               {payload.distribution.average_away}
             </p>
           </div>

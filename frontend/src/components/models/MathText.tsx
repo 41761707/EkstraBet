@@ -70,8 +70,8 @@ export function MathText({ text, className, as: Tag = "p" }: MathTextProps) {
             key={`m-${index}`}
             className={
               segment.display
-                ? "my-3 block overflow-x-auto text-slate-100"
-                : "mx-0.5 text-slate-100"
+                ? "my-3 block overflow-x-auto text-text"
+                : "mx-0.5 text-text"
             }
             dangerouslySetInnerHTML={{
               __html: renderKatex(segment.value, segment.display),

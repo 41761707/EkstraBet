@@ -6,6 +6,7 @@ import {
   getMatchLimitOptions,
   MATCH_LIMIT_OPTIONS,
 } from "@/components/players/playerStatsConfig";
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateSearch } from "@/lib/clientNavigation";
 import type { PlayersFilterValues } from "@/lib/playerFilterParams";
 import { FOOTBALL_SPORT_ID } from "@/lib/playerFilterParams";
@@ -24,8 +25,7 @@ interface PlayersFiltersProps {
   values: PlayersFilterValues;
 }
 
-const inputClassName =
-  "w-full rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-100";
+const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 
 function defaultMatchLimit(sportId: number): number {
   return (
@@ -107,14 +107,14 @@ export function PlayersFilters({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-900/40 p-5"
+      className="space-y-4 rounded-xl border border-border bg-surface p-5"
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {countries.length > 0 ? (
-          <label className="space-y-2 text-sm text-slate-300">
-            <span className="font-medium text-slate-200">Wybierz kraj</span>
+          <label className="space-y-2 text-sm text-muted">
+            <span className="font-medium text-text">Wybierz kraj</span>
             <select
-              className={inputClassName}
+              className={FILTER_INPUT_CLASS_NAME}
               value={state.countryId ?? ""}
               onChange={(event) =>
                 patchState({
@@ -132,10 +132,10 @@ export function PlayersFilters({
           </label>
         ) : null}
 
-        <label className="space-y-2 text-sm text-slate-300">
-          <span className="font-medium text-slate-200">Wybierz drużynę</span>
+        <label className="space-y-2 text-sm text-muted">
+          <span className="font-medium text-text">Wybierz drużynę</span>
           <select
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
             value={state.teamId ?? ""}
             disabled={teams.length === 0}
             onChange={(event) =>
@@ -152,10 +152,10 @@ export function PlayersFilters({
           </select>
         </label>
 
-        <label className="space-y-2 text-sm text-slate-300">
-          <span className="font-medium text-slate-200">Sezon</span>
+        <label className="space-y-2 text-sm text-muted">
+          <span className="font-medium text-text">Sezon</span>
           <select
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
             value={state.seasonId ?? ""}
             onChange={(event) =>
               patchState({
@@ -171,10 +171,10 @@ export function PlayersFilters({
           </select>
         </label>
 
-        <label className="space-y-2 text-sm text-slate-300">
-          <span className="font-medium text-slate-200">Liczba meczów</span>
+        <label className="space-y-2 text-sm text-muted">
+          <span className="font-medium text-text">Liczba meczów</span>
           <select
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
             value={state.matchLimit}
             onChange={(event) =>
               patchState({
@@ -190,13 +190,13 @@ export function PlayersFilters({
           </select>
         </label>
 
-        <label className="space-y-2 text-sm text-slate-300">
-          <span className="font-medium text-slate-200">
+        <label className="space-y-2 text-sm text-muted">
+          <span className="font-medium text-text">
             Wpisz nazwę zawodnika
           </span>
           <input
             type="search"
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
             value={state.search}
             placeholder="Szukaj po nazwie..."
             onChange={(event) =>
@@ -209,14 +209,14 @@ export function PlayersFilters({
       <div className="flex flex-wrap gap-3">
         <button
           type="submit"
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover"
         >
           Zastosuj filtry
         </button>
         <button
           type="button"
           onClick={handleReset}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-text transition hover:bg-surface-muted"
         >
           Resetuj
         </button>

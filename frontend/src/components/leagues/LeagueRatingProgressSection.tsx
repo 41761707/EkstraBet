@@ -29,7 +29,7 @@ interface RatingProgressLoadBodyProps {
 }
 
 const COMPUTE_BUTTON_CLASS =
-  "rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500";
+  "rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover";
 
 export function RatingProgressIdlePanel({
   onCompute,
@@ -38,7 +38,7 @@ export function RatingProgressIdlePanel({
 }) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-400">{COMPUTE_RATING_PROGRESS_HINT}</p>
+      <p className="text-sm text-muted">{COMPUTE_RATING_PROGRESS_HINT}</p>
       <button
         type="button"
         onClick={onCompute}
