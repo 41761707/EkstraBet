@@ -50,7 +50,7 @@ function VerticalStatBars({
           <div key={point.label} className={density.columnClass}>
             <span className={density.valueClass}>{point.value}</span>
             <div
-              className={`relative flex ${density.barHeightClass} ${density.barWidthClass} items-end rounded-md bg-slate-800/80`}
+              className={`relative flex ${density.barHeightClass} ${density.barWidthClass} items-end rounded-md bg-chart-track`}
             >
               <div
                 className="w-full rounded-md"
@@ -60,7 +60,7 @@ function VerticalStatBars({
                 }}
               />
               <div
-                className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-white/70"
+                className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-chart-axis"
                 style={{
                   bottom: `${(thresholdLine / maxValue) * 100}%`,
                 }}
@@ -93,12 +93,12 @@ export function VerticalStatChart({
   const chartTitle = `${title}: ${playerName}`;
 
   return (
-    <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+    <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-border bg-surface p-4">
       <div className="min-w-0">
-        <h4 className="break-words text-sm font-semibold text-white">
+        <h4 className="break-words text-sm font-semibold text-text">
           {chartTitle}
         </h4>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-muted">
           Średnia: {average.toFixed(1)} · Skuteczność O{" "}
           {thresholdLine.toFixed(1)}:{" "}
           {formatPercent(hitRate)}

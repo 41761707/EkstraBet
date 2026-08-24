@@ -3,6 +3,7 @@
  * Mirrors CLI PNG baseline/label rules so WWW and operators see the same series.
  */
 
+import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
 import type { TeamRatingProgress } from "@/types/api";
 
 export const DEFAULT_VISIBLE_TEAMS = 6;
@@ -106,7 +107,7 @@ export interface RatingProgressChartModel {
 }
 
 export function colorForTeam(teamId: number): string {
-  return TEAM_SERIES_COLORS[teamId % TEAM_SERIES_COLORS.length] ?? "#64748b";
+  return TEAM_SERIES_COLORS[teamId % TEAM_SERIES_COLORS.length] ?? CHART_COLOR_NEUTRAL;
 }
 
 export function teamDisplayLabel(

@@ -120,18 +120,18 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
         <section className="space-y-2">
           <Link
             href="/"
-            className="text-sm text-sky-300 transition hover:text-sky-200"
+            className="text-sm text-accent-text transition hover:text-accent-text-hover"
           >
             ← Powrót do lig
           </Link>
-          <h1 className="text-3xl font-bold text-white">Kącik Bukmacherski</h1>
-          <p className="text-slate-300">
+          <h1 className="text-3xl font-bold text-text">Kącik Bukmacherski</h1>
+          <p className="text-muted">
             Rekomendowane zakłady na dowolne ligi i zakłady 
           </p>
         </section>
 
-        <section className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
-          <h2 className="text-lg font-semibold text-white">Filtry</h2>
+        <section className="space-y-4 rounded-xl border border-border bg-surface p-5">
+          <h2 className="text-lg font-semibold text-text">Filtry</h2>
           <BetsFilters
             key={betsFilterPath(filters)}
             leagues={leagues}
@@ -143,10 +143,10 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-lg font-semibold text-text">
               Rekomendacje
             </h2>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-muted">
               {response.total_count} zakładów
             </span>
           </div>

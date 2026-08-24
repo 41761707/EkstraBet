@@ -35,7 +35,7 @@ export function PaginationBar({
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 text-sm text-slate-300">
+    <div className="flex items-center justify-between gap-4 text-sm text-muted">
       <p>
         Strona {currentPage} z {totalPages} ({totalCount} wyników)
       </p>
@@ -43,7 +43,7 @@ export function PaginationBar({
         {currentPage > 1 ? (
           <Link
             href={buildHref(currentPage - 1)}
-            className="rounded-lg border border-slate-600 px-3 py-1.5 transition hover:bg-slate-800"
+            className="rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-raised"
           >
             Poprzednia
           </Link>
@@ -51,7 +51,7 @@ export function PaginationBar({
         {currentPage < totalPages ? (
           <Link
             href={buildHref(currentPage + 1)}
-            className="rounded-lg border border-slate-600 px-3 py-1.5 transition hover:bg-slate-800"
+            className="rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-raised"
           >
             Następna
           </Link>

@@ -127,8 +127,8 @@ export function PlayersSportTabs({
         const className = [
           "rounded-lg px-4 py-2 text-sm font-medium transition",
           isActive
-            ? "bg-sky-500/20 text-sky-200 ring-1 ring-sky-400/40"
-            : "bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-white",
+            ? "bg-accent-soft text-accent-text-hover ring-1 ring-accent/40"
+            : "bg-surface text-muted hover:bg-surface-muted hover:text-text",
           !sport.available ? "opacity-70" : "",
         ].join(" ");
 
@@ -140,7 +140,7 @@ export function PlayersSportTabs({
               title="Wkrótce w nowej wersji"
             >
               {sport.emoji} {sport.label}
-              <span className="ml-1 text-xs text-slate-500">(wkrótce)</span>
+              <span className="ml-1 text-xs text-subtle">(wkrótce)</span>
             </span>
           );
         }

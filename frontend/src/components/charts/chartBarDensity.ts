@@ -20,10 +20,10 @@ export function getChartBarDensityClasses(
       columnClass: "flex w-[3.5rem] shrink-0 flex-col items-center gap-2",
       barWidthClass: "w-10",
       barHeightClass: "h-40",
-      valueClass: "font-semibold text-white text-xs",
+      valueClass: "font-semibold text-text text-xs",
       labelClass:
-        "max-w-[3.5rem] truncate text-center leading-tight text-slate-400 text-[10px]",
-      barLabelClass: "font-bold text-white text-[10px]",
+        "max-w-[3.5rem] truncate text-center leading-tight text-muted text-[10px]",
+      barLabelClass: "font-bold text-[10px]",
     };
   }
 
@@ -59,9 +59,9 @@ export function getChartBarDensityClasses(
     columnClass: "flex min-w-0 flex-1 flex-col items-center gap-1",
     barWidthClass: "w-full max-w-14",
     barHeightClass: pointCount > 20 ? "h-32" : "h-40",
-    valueClass: `font-semibold text-white ${valueSize}`,
-    labelClass: `w-full truncate text-center leading-tight text-slate-400 ${labelSize}`,
-    barLabelClass: `font-bold text-white ${barLabelSize}`,
+    valueClass: `font-semibold text-text ${valueSize}`,
+    labelClass: `w-full truncate text-center leading-tight text-muted ${labelSize}`,
+    barLabelClass: `font-bold ${barLabelSize}`,
   };
 }
 

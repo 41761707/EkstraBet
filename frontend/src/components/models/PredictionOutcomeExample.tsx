@@ -29,27 +29,27 @@ function fixtureToPreview(
 function PlayedBetterWalkthrough() {
   return (
     <section
-      className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4"
+      className="space-y-3 rounded-xl border border-border bg-surface p-4"
       aria-labelledby="played-better-walkthrough-heading"
     >
       <h3
         id="played-better-walkthrough-heading"
-        className="text-base font-semibold text-white"
+        className="text-base font-semibold text-text"
       >
         Osobno: ocena jakości gry po meczu
       </h3>
-      <p className="text-sm leading-relaxed text-slate-300">
+      <p className="text-sm leading-relaxed text-muted">
         Modele PLAYED_BETTER nie wynikają z samego rezultatu bramkowego.
         Wejściem są statystyki pomeczowe (strzały, posiadanie, rożne, kartki…),
         a wyjściem trzy prawdopodobieństwa: kto zagrał lepiej lub remis jakości.
       </p>
-      <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
+      <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
         <li>
-          <span className="font-medium text-slate-100">V1 (z xG)</span> —
+          <span className="font-medium text-text">V1 (z xG)</span> —
           wymaga dodatniego xG obu drużyn; bez xG mecz jest pomijany.
         </li>
         <li>
-          <span className="font-medium text-slate-100">NOXG</span> — celowo bez
+          <span className="font-medium text-text">NOXG</span> — celowo bez
           xG; działa, gdy expected goals są niedostępne.
         </li>
       </ul>
@@ -68,11 +68,11 @@ export function PredictionOutcomeExample({
       <div className="space-y-2">
         <h2
           id="outcome-example-heading"
-          className="text-xl font-semibold text-white sm:text-2xl"
+          className="text-xl font-semibold text-text sm:text-2xl"
         >
           Przykładowa predykcja przedmeczowa
         </h2>
-        <p className="max-w-3xl text-sm leading-relaxed text-slate-400">
+        <p className="max-w-3xl text-sm leading-relaxed text-muted">
           Ilustracja kształtu predykcji: jak wyglądają wyjścia modeli 1X2, BTTS
           i goli (Poisson) dla jednego meczu.
         </p>

@@ -10,6 +10,7 @@ import {
 import {
   CHART_COLOR_NEGATIVE,
   CHART_COLOR_POSITIVE,
+  CHART_LABEL_ON_FILL,
 } from "@/lib/chartColors";
 import { formatPercent } from "@/lib/format";
 
@@ -45,7 +46,7 @@ function BttsBars({
         return (
           <div key={point.label} className={density.columnClass}>
             <div
-              className={`flex ${density.barHeightClass} ${density.barWidthClass} items-end rounded-md bg-slate-800/80`}
+              className={`flex ${density.barHeightClass} ${density.barWidthClass} items-end rounded-md bg-chart-track`}
             >
               <div
                 className={`flex w-full items-center justify-center rounded-md ${density.barLabelClass}`}
@@ -54,6 +55,7 @@ function BttsBars({
                   backgroundColor: isPositive
                     ? CHART_COLOR_POSITIVE
                     : CHART_COLOR_NEGATIVE,
+                  color: CHART_LABEL_ON_FILL,
                 }}
               >
                 {getBttsBarLabel(isPositive, points.length)}
@@ -82,12 +84,12 @@ export function BttsMatchChart({
   const chartTitle = `${title}: ${teamName}`;
 
   return (
-    <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
+    <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-border bg-surface p-4">
       <div className="min-w-0">
-        <h4 className="break-words text-sm font-semibold text-white">
+        <h4 className="break-words text-sm font-semibold text-text">
           {chartTitle}
         </h4>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-muted">
           Liczba BTTS: {bttsCount} · Skuteczność BTTS: {formatPercent(hitRate)}
         </p>
       </div>

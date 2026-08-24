@@ -20,22 +20,22 @@ export function LeagueCharacteristicsSection({
   errorMessage,
 }: LeagueCharacteristicsSectionProps) {
   return (
-    <section className="space-y-6 border-t border-slate-600 pt-10">
+    <section className="space-y-6 border-t border-border pt-10">
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wide text-subtle">
           Dane z meczów
         </p>
-        <h2 className="text-2xl font-semibold text-white">
+        <h2 className="text-2xl font-semibold text-text">
           Porównanie lig ze średnią
         </h2>
-        <p className="text-slate-300">
+        <p className="text-muted">
           Częstość zdarzeń w rozegranych meczach — niezależnie od modeli,
           zakładów i filtrów powyżej.
         </p>
       </div>
 
-      <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-950/40 p-5">
-        <h3 className="text-lg font-semibold text-white">
+      <div className="space-y-4 rounded-xl border border-border bg-surface-muted p-5">
+        <h3 className="text-lg font-semibold text-text">
           Filtry porównania lig
         </h3>
         <LeagueComparisonFilters

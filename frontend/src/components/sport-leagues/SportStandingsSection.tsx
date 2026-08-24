@@ -50,9 +50,9 @@ function HockeyTable({ rows }: { rows: HockeyStandingRow[] }) {
     );
   }
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-slate-400">
+        <thead className="bg-surface text-muted">
           <tr>
             <th className="px-3 py-2 text-left">Miejsce</th>
             <th className="px-3 py-2 text-left">Drużyna</th>
@@ -70,7 +70,7 @@ function HockeyTable({ rows }: { rows: HockeyStandingRow[] }) {
           {rows.map((row) => (
             <tr
               key={row.team_id}
-              className="border-t border-slate-800/80 text-slate-200"
+              className="border-t border-border text-text"
             >
               <td className="px-3 py-2">{row.position}</td>
               <td className="px-3 py-2 font-medium">{row.team_name}</td>
@@ -105,9 +105,9 @@ function BasketballTable({ rows }: { rows: BasketballStandingRow[] }) {
     );
   }
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-slate-400">
+        <thead className="bg-surface text-muted">
           <tr>
             <th className="px-3 py-2 text-left">Miejsce</th>
             <th className="px-3 py-2 text-left">Drużyna</th>
@@ -124,7 +124,7 @@ function BasketballTable({ rows }: { rows: BasketballStandingRow[] }) {
           {rows.map((row) => (
             <tr
               key={row.team_id}
-              className="border-t border-slate-800/80 text-slate-200"
+              className="border-t border-border text-text"
             >
               <td className="px-3 py-2">{row.position}</td>
               <td className="px-3 py-2 font-medium">{row.team_name}</td>
@@ -168,8 +168,8 @@ export function SportStandingsSection({
             onClick={() => setActiveTab(tab.id)}
             className={`rounded-full px-3 py-1.5 text-sm transition ${
               activeTab === tab.id
-                ? "bg-sky-600 text-white"
-                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                ? "bg-accent text-on-accent"
+                : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
             }`}
           >
             {tab.label}
@@ -179,7 +179,7 @@ export function SportStandingsSection({
 
       {activeTab === "overall" ? (
         <div className="space-y-3">
-          <h3 className="text-base font-semibold text-white">Tabela ogólna</h3>
+          <h3 className="text-base font-semibold text-text">Tabela ogólna</h3>
           {isHockey ? (
             <HockeyTable rows={overallHockey ?? []} />
           ) : (
@@ -189,7 +189,7 @@ export function SportStandingsSection({
       ) : null}
 
       {activeTab === "conferences" || activeTab === "divisions" ? (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           Tabela z podziałem na{" "}
           {activeTab === "conferences" ? "konferencje" : "dywizje"} — wkrótce.
         </p>
@@ -212,7 +212,7 @@ export function SportStandingsSection({
       ) : null}
 
       {isHockey ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-subtle">
           Legenda: WPD - wygrane po dogrywce, PPD - przegrane po dogrywce
         </p>
       ) : null}

@@ -20,12 +20,12 @@ interface TeamSelectProps {
 
 function TeamSelect({ label, value, teams, onChange }: TeamSelectProps) {
   return (
-    <label className="space-y-2 text-sm text-slate-300">
+    <label className="space-y-2 text-sm text-muted">
       <span className="block font-medium">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-white"
+        className="w-full rounded-md border border-border bg-page px-3 py-2 text-text"
       >
         {teams.map((team) => (
           <option key={team.id} value={team.id}>
@@ -58,7 +58,7 @@ export function PredictionSimulationForm({
     <div className="space-y-6">
       <form
         onSubmit={simulation.handleSubmit}
-        className="grid gap-4 rounded-xl border border-slate-700 bg-slate-900/60 p-5 md:grid-cols-2"
+        className="grid gap-4 rounded-xl border border-border bg-surface p-5 md:grid-cols-2"
       >
         <TeamSelect
           label="Gospodarz"
@@ -73,18 +73,18 @@ export function PredictionSimulationForm({
           onChange={simulation.setAwayTeamId}
         />
 
-        <label className="space-y-2 text-sm text-slate-300">
+        <label className="space-y-2 text-sm text-muted">
           <span className="block font-medium">ID ligi (opcjonalnie)</span>
           <input
             type="number"
             min={1}
             value={simulation.leagueId}
             onChange={(event) => simulation.setLeagueId(event.target.value)}
-            className="w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-white"
+            className="w-full rounded-md border border-border bg-page px-3 py-2 text-text"
           />
         </label>
 
-        <div className="space-y-2 text-sm text-slate-300">
+        <div className="space-y-2 text-sm text-muted">
           <span className="block font-medium">Stan danych na dzień</span>
           <DateInput
             value={simulation.asOfDate}
@@ -96,7 +96,7 @@ export function PredictionSimulationForm({
         <button
           type="submit"
           disabled={simulation.isSubmitting || teams.length < 2}
-          className="rounded-md bg-sky-500 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50 md:col-span-2"
+          className="rounded-md bg-accent px-4 py-2 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50 md:col-span-2"
         >
           {simulation.isSubmitting
             ? "Obliczanie predykcji…"

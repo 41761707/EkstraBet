@@ -32,7 +32,7 @@ export function LeagueRoundSelector({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-white">Kolejka</h2>
+      <h2 className="text-lg font-semibold text-text">Kolejka</h2>
       <div className="flex flex-wrap gap-2">
         {rounds.map((round) => {
           const isActive = round.round_number === selectedRound;
@@ -43,8 +43,8 @@ export function LeagueRoundSelector({
               scroll={false}
               className={`rounded-full px-3 py-1.5 text-sm transition ${
                 isActive
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  ? "bg-accent text-on-accent"
+                  : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
               }`}
             >
               {round.round_label}

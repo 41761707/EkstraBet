@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { DateInput } from "@/components/filters/DateInput";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
   resetModelStatsFilters,
@@ -29,8 +30,7 @@ interface StatsFiltersProps {
   values: StatsFilterValues;
 }
 
-const inputClassName =
-  "w-full rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-100";
+const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 
 export function StatsFilters({
   leagues,
@@ -117,7 +117,7 @@ export function StatsFilters({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Sezon</span>
+          <span className="font-medium text-text">Sezon</span>
           <select
             value={state.seasonId ?? ""}
             onChange={(event) =>
@@ -128,7 +128,7 @@ export function StatsFilters({
                   : null,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="">Wszystkie sezony</option>
             {seasons.map((season) => (
@@ -140,7 +140,7 @@ export function StatsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Typ statystyki</span>
+          <span className="font-medium text-text">Typ statystyki</span>
           <select
             value={state.statType}
             onChange={(event) =>
@@ -149,7 +149,7 @@ export function StatsFilters({
                 statType: event.target.value as AnalyticsStatType,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="all">Wszystkie</option>
             <option value="ou">Over/Under</option>
@@ -159,7 +159,7 @@ export function StatsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Grupuj według</span>
+          <span className="font-medium text-text">Grupuj według</span>
           <select
             value={state.groupBy}
             onChange={(event) =>
@@ -168,7 +168,7 @@ export function StatsFilters({
                 groupBy: event.target.value as AnalyticsGroupBy,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="none">Brak</option>
             <option value="league">Liga</option>
@@ -177,7 +177,7 @@ export function StatsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Sposoby agregacji</span>
+          <span className="font-medium text-text">Sposoby agregacji</span>
           <select
             value={state.aggregationMetric}
             onChange={(event) =>
@@ -187,7 +187,7 @@ export function StatsFilters({
                   event.target.value as AnalyticsAggregationMetric,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="accuracy">Skuteczność</option>
             <option value="profit">Zysk</option>
@@ -197,7 +197,7 @@ export function StatsFilters({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Data od</span>
+          <span className="font-medium text-text">Data od</span>
           <DateInput
             value={state.dateFrom}
             onChange={(dateFrom) =>
@@ -207,7 +207,7 @@ export function StatsFilters({
           />
         </div>
         <div className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Data do</span>
+          <span className="font-medium text-text">Data do</span>
           <DateInput
             value={state.dateTo}
             onChange={(dateTo) =>
@@ -217,7 +217,7 @@ export function StatsFilters({
           />
         </div>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Kolejka od</span>
+          <span className="font-medium text-text">Kolejka od</span>
           <input
             type="number"
             min={1}
@@ -228,11 +228,11 @@ export function StatsFilters({
                 roundFrom: event.target.value,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           />
         </label>
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Kolejka do</span>
+          <span className="font-medium text-text">Kolejka do</span>
           <input
             type="number"
             min={1}
@@ -243,12 +243,12 @@ export function StatsFilters({
                 roundTo: event.target.value,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           />
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-4 text-sm text-slate-200">
+      <div className="flex flex-wrap gap-4 text-sm text-text">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -259,7 +259,7 @@ export function StatsFilters({
                 settledOnly: event.target.checked,
               }))
             }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
+            className="rounded border-border bg-surface-muted text-accent-text"
           />
           Tylko rozliczone mecze
         </label>
@@ -273,7 +273,7 @@ export function StatsFilters({
                 positiveEvOnly: event.target.checked,
               }))
             }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
+            className="rounded border-border bg-surface-muted text-accent-text"
           />
           Tylko dodatnie EV
         </label>
@@ -287,7 +287,7 @@ export function StatsFilters({
                 applyTax: event.target.checked,
               }))
             }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
+            className="rounded border-border bg-surface-muted text-accent-text"
           />
           Uwzględnij podatek 12%
         </label>
@@ -296,14 +296,14 @@ export function StatsFilters({
       <div className="flex flex-wrap gap-3">
         <button
           type="submit"
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover"
         >
           Zastosuj filtry
         </button>
         <button
           type="button"
           onClick={handleReset}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-text transition hover:bg-surface-muted"
         >
           Resetuj
         </button>

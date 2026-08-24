@@ -32,7 +32,7 @@ export function FavoriteLeagueButton({
 }: FavoriteLeagueButtonProps) {
   const label = favoriteLeagueButtonLabel(leagueName, isFavorite);
   const isBlocked = isPending || isDisabled;
-  const colorClass = isFavorite ? "text-sky-300" : "text-slate-400";
+  const colorClass = isFavorite ? "text-accent-text" : "text-muted";
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
     // obrona na wypadek zagnieżdżenia w Link — gwiazdka nie może nawigować
@@ -54,7 +54,7 @@ export function FavoriteLeagueButton({
       onClick={handleClick}
       className={
         "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md " +
-        `transition hover:bg-slate-800 hover:text-sky-300 ${colorClass} ` +
+        `transition hover:bg-surface-muted hover:text-accent-text ${colorClass} ` +
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
       }
     >

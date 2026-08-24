@@ -28,7 +28,7 @@ export function LeagueTeamComparisonsSection({
   return (
     <ExpandableSection title="Porównanie drużyn ze średnią ligową">
       <div className="space-y-3">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           Wykresy pokazują, jak procentowe wskaźniki drużyn wypadają na tle
           średniej ligowej (linia przerywana). Zielony — powyżej średniej,
           czerwony — poniżej.

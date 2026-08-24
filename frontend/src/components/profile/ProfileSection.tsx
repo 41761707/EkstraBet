@@ -12,14 +12,14 @@ export function ProfileSection({
   children,
 }: ProfileSectionProps) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/50">
+    <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface">
       <header className="space-y-1 px-5 py-4">
-        <h2 className="text-base font-semibold text-sky-300">{title}</h2>
+        <h2 className="text-base font-semibold text-accent-text">{title}</h2>
         {description ? (
-          <p className="text-sm text-slate-400">{description}</p>
+          <p className="text-sm text-muted">{description}</p>
         ) : null}
       </header>
-      <div className="min-w-0 border-t border-slate-700/80 px-5 py-4 text-slate-300">
+      <div className="min-w-0 border-t border-border px-5 py-4 text-muted">
         {children}
       </div>
     </section>

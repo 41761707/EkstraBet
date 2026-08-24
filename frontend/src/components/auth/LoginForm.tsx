@@ -4,8 +4,11 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { resolvePostLoginPath } from "@/lib/authCookie";
 import { navigateAfterAuth } from "@/lib/clientNavigation";
+
+const LOGIN_INPUT_CLASS_NAME = `rounded-md ${INPUT_CLASS_NAME}`;
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -58,17 +61,17 @@ export function LoginForm() {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-sky-300">Logowanie</h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <h1 className="text-2xl font-semibold text-accent-text">Logowanie</h1>
+        <p className="mt-2 text-sm text-muted">
           Zaloguj się, aby korzystać z EkstraBet.
         </p>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-lg border border-slate-700/80 bg-slate-900/50 p-6"
+        className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-6"
       >
-        <label className="flex flex-col gap-1.5 text-sm text-slate-300">
+        <label className="flex flex-col gap-1.5 text-sm text-muted">
           Nazwa użytkownika
           <input
             type="text"
@@ -77,11 +80,11 @@ export function LoginForm() {
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             required
-            className="rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-sky-500"
+            className={LOGIN_INPUT_CLASS_NAME}
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm text-slate-300">
+        <label className="flex flex-col gap-1.5 text-sm text-muted">
           Hasło
           <input
             type="password"
@@ -90,12 +93,12 @@ export function LoginForm() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
-            className="rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-sky-500"
+            className={LOGIN_INPUT_CLASS_NAME}
           />
         </label>
 
         {error ? (
-          <p className="text-sm text-rose-400" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {error}
           </p>
         ) : null}
@@ -103,7 +106,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Logowanie…" : "Zaloguj"}
         </button>

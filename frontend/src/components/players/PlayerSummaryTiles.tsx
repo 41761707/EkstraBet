@@ -104,12 +104,12 @@ function SummaryTile({
   value: string | number | null;
 }) {
   return (
-    <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-4 text-center">
+    <div className="rounded-xl border border-border bg-surface p-4 text-center">
       <div className="text-3xl">{emoji}</div>
-      <div className="mt-2 text-3xl font-semibold text-white">
+      <div className="mt-2 text-3xl font-semibold text-text">
         {value ?? "-"}
       </div>
-      <div className="mt-1 text-sm text-slate-400">{label}</div>
+      <div className="mt-1 text-sm text-muted">{label}</div>
     </div>
   );
 }

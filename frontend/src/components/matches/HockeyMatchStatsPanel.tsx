@@ -150,12 +150,12 @@ function compareValues(
 
 function cardClassName(side: "home" | "away", winner: ReturnType<typeof compareValues>) {
   if (winner === "unknown" || winner === "equal") {
-    return "border-slate-600/80 bg-slate-800/60 text-white";
+    return "border-border bg-surface-muted text-text";
   }
   if (winner === side) {
-    return "border-emerald-500/40 bg-emerald-950/50 text-emerald-50";
+    return "border-success-border bg-success-bg text-success-text";
   }
-  return "border-rose-500/40 bg-rose-950/40 text-rose-50";
+  return "border-danger-border bg-danger-bg text-danger-text";
 }
 
 function StatCard({
@@ -170,7 +170,7 @@ function StatCard({
   return (
     <div className={`rounded-lg border px-4 py-3 text-center shadow-sm ${tone}`}>
       <div className="text-2xl font-bold">{value}</div>
-      <div className="mt-1 text-sm text-slate-300">{label}</div>
+      <div className="mt-1 text-sm text-muted">{label}</div>
     </div>
   );
 }
@@ -192,10 +192,10 @@ export function HockeyMatchStatsPanel({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 items-start gap-4">
-        <h3 className="text-right text-lg font-semibold text-white">
+        <h3 className="text-right text-lg font-semibold text-text">
           {homeTeamName}
         </h3>
-        <h3 className="text-lg font-semibold text-white">{awayTeamName}</h3>
+        <h3 className="text-lg font-semibold text-text">{awayTeamName}</h3>
       </div>
 
       <div className="space-y-3">

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { DateInput } from "@/components/filters/DateInput";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
+import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import {
   betsFilterPath,
   type BetsFilterValues,
@@ -26,8 +27,7 @@ interface BetsFiltersProps {
   values: BetsFilterValues;
 }
 
-const inputClassName =
-  "w-full rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-100";
+const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 
 export function BetsFilters({
   leagues,
@@ -101,7 +101,7 @@ export function BetsFilters({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Data meczu</span>
+          <span className="font-medium text-text">Data meczu</span>
           <DateInput
             value={state.matchDate}
             onChange={(matchDate) =>
@@ -112,7 +112,7 @@ export function BetsFilters({
         </div>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Min. kurs</span>
+          <span className="font-medium text-text">Min. kurs</span>
           <input
             type="number"
             min={1}
@@ -125,12 +125,12 @@ export function BetsFilters({
                 minOdds: Number(event.target.value) || 1,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           />
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Sortuj według</span>
+          <span className="font-medium text-text">Sortuj według</span>
           <select
             value={state.sortBy}
             onChange={(event) =>
@@ -139,7 +139,7 @@ export function BetsFilters({
                 sortBy: event.target.value as BetSortBy,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="ev">EV</option>
             <option value="probability">Prawdopodobieństwo</option>
@@ -148,7 +148,7 @@ export function BetsFilters({
         </label>
 
         <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-200">Kolejność</span>
+          <span className="font-medium text-text">Kolejność</span>
           <select
             value={state.sortOrder}
             onChange={(event) =>
@@ -157,7 +157,7 @@ export function BetsFilters({
                 sortOrder: event.target.value as BetSortOrder,
               }))
             }
-            className={inputClassName}
+            className={FILTER_INPUT_CLASS_NAME}
           >
             <option value="desc">Malejąco</option>
             <option value="asc">Rosnąco</option>
@@ -165,7 +165,7 @@ export function BetsFilters({
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-4 text-sm text-slate-200">
+      <div className="flex flex-wrap gap-4 text-sm text-text">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -176,7 +176,7 @@ export function BetsFilters({
                 fromNow: event.target.checked,
               }))
             }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
+            className="rounded border-border bg-surface-raised accent-accent"
           />
           Tylko od teraz
         </label>
@@ -190,7 +190,7 @@ export function BetsFilters({
                 positiveEvOnly: event.target.checked,
               }))
             }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
+            className="rounded border-border bg-surface-raised accent-accent"
           />
           Tylko dodatnie EV
         </label>
@@ -204,14 +204,14 @@ export function BetsFilters({
                 applyTax: event.target.checked,
               }))
             }
-            className="rounded border-slate-600 bg-slate-800 text-sky-500"
+            className="rounded border-border bg-surface-raised accent-accent"
           />
           Uwzględnij podatek 12%
         </label>
       </div>
 
       <label className="block max-w-xs space-y-2 text-sm">
-        <span className="font-medium text-slate-200">Status rozliczenia</span>
+        <span className="font-medium text-text">Status rozliczenia</span>
         <select
           value={state.settlementStatus}
           onChange={(event) =>
@@ -220,7 +220,7 @@ export function BetsFilters({
               settlementStatus: event.target.value as SettlementStatus | "",
             }))
           }
-          className={inputClassName}
+          className={FILTER_INPUT_CLASS_NAME}
         >
           <option value="">Wszystkie</option>
           <option value="pending">Oczekujący</option>
@@ -232,14 +232,14 @@ export function BetsFilters({
       <div className="flex flex-wrap gap-3">
         <button
           type="submit"
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-500"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover"
         >
           Zastosuj filtry
         </button>
         <button
           type="button"
           onClick={handleReset}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+          className="rounded-lg border border-border px-4 py-2 text-sm text-text transition hover:bg-surface-muted"
         >
           Resetuj
         </button>

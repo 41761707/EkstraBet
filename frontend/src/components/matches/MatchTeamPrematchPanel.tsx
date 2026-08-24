@@ -98,9 +98,9 @@ export function MatchTeamPrematchPanel({
           {TEAM_MATCH_STAT_CHARTS.map((definition) => (
             <div
               key={definition.key}
-              className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4"
+              className="space-y-3 rounded-xl border border-border bg-surface p-4"
             >
-              <h4 className="text-sm font-semibold text-sky-300">
+              <h4 className="text-sm font-semibold text-accent-text">
                 {definition.configGroupTitle}
               </h4>
               <div className="grid gap-4 md:grid-cols-3">
@@ -110,13 +110,13 @@ export function MatchTeamPrematchPanel({
                   return (
                     <label
                       key={`${definition.key}-${perspective}`}
-                      className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300"
+                      className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-slate-200">
+                        <span className="font-medium text-text">
                           {resolvePerspectiveSliderLabel(perspective, teamName)}
                         </span>
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-text">
                           {statLines[definition.key][perspective].toFixed(1)}
                         </span>
                       </div>
@@ -133,7 +133,7 @@ export function MatchTeamPrematchPanel({
                             Number(event.target.value),
                           )
                         }
-                        className="w-full accent-sky-400"
+                        className="w-full accent-accent"
                       />
                     </label>
                   );

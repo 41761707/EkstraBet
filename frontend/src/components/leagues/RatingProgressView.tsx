@@ -12,6 +12,7 @@ import {
   sortTeamsByCurrentRating,
   teamDisplayLabel,
 } from "@/components/charts/ratingProgressChartModel";
+import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
 import { StatusMessage } from "@/components/StatusMessage";
 import type {
   RatingProgressResponse,
@@ -21,9 +22,9 @@ import type {
 type SelectionPreset = "top" | "bottom" | "all" | "custom";
 
 const PRESET_BUTTON_ACTIVE =
-  "rounded-full bg-sky-600 px-3 py-1.5 text-sm text-white transition hover:bg-sky-500";
+  "rounded-full bg-accent px-3 py-1.5 text-sm text-on-accent transition hover:bg-accent-hover";
 const PRESET_BUTTON_IDLE =
-  "rounded-full bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-700";
+  "rounded-full bg-surface px-3 py-1.5 text-sm text-muted transition hover:bg-surface-muted";
 
 function formatRating(value: number): string {
   return value.toFixed(1);
@@ -39,12 +40,12 @@ function formatChange(value: number): string {
 
 function changeClassName(value: number): string {
   if (value > 0) {
-    return "text-emerald-400";
+    return "text-success";
   }
   if (value < 0) {
-    return "text-rose-400";
+    return "text-danger";
   }
-  return "text-slate-300";
+  return "text-muted";
 }
 
 function LeaderCard({
@@ -58,9 +59,9 @@ function LeaderCard({
     return null;
   }
   return (
-    <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-3">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{title}</p>
-      <p className="mt-1 text-sm font-semibold text-white">
+    <div className="rounded-xl border border-border bg-surface p-3">
+      <p className="text-xs uppercase tracking-wide text-subtle">{title}</p>
+      <p className="mt-1 text-sm font-semibold text-text">
         {teamDisplayLabel(team)}
       </p>
       <p className={`mt-1 text-sm ${changeClassName(team.change)}`}>
@@ -150,13 +151,13 @@ function TeamSelector({
               }}
               className={`rounded-full border px-3 py-1.5 text-sm transition ${
                 isSelected
-                  ? "border-transparent text-white"
-                  : "border-slate-700 bg-slate-900/60 text-slate-400 hover:border-slate-500"
+                  ? "border-transparent text-text"
+                  : "border-border bg-surface text-muted hover:border-border-strong"
               }`}
               style={
                 isSelected
                   ? {
-                      backgroundColor: isDimmed ? "#64748b" : color,
+                      backgroundColor: isDimmed ? CHART_COLOR_NEUTRAL : color,
                       opacity: isDimmed ? 0.45 : 1,
                     }
                   : { borderColor: `${color}66` }
@@ -173,9 +174,9 @@ function TeamSelector({
 
 function RatingSummaryTable({ teams }: { teams: TeamRatingProgress[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
-      <table className="min-w-full text-left text-sm text-slate-300">
-        <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-500">
+    <div className="overflow-x-auto rounded-xl border border-border">
+      <table className="min-w-full text-left text-sm text-muted">
+        <thead className="bg-surface text-xs uppercase tracking-wide text-subtle">
           <tr>
             <th className="px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Drużyna</th>
@@ -186,7 +187,7 @@ function RatingSummaryTable({ teams }: { teams: TeamRatingProgress[] }) {
         </thead>
         <tbody>
           {teams.map((team) => (
-            <tr key={team.team_id} className="border-t border-slate-800/80">
+            <tr key={team.team_id} className="border-t border-border">
               <td className="px-3 py-2">{team.current_rank}</td>
               <td className="px-3 py-2">
                 <span
@@ -251,7 +252,7 @@ export function RatingProgressView({ data }: RatingProgressViewProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted">
         Sezon {data.season_years} · metryka {data.metric.toUpperCase()} ·
         wartości zgodne z pipeline ML
       </p>

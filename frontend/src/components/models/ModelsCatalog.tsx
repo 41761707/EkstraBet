@@ -27,11 +27,11 @@ function CatalogGroup({
       <div className="space-y-1">
         <h2
           id={headingId}
-          className="text-xl font-semibold text-white sm:text-2xl"
+          className="text-xl font-semibold text-text sm:text-2xl"
         >
           {title}
         </h2>
-        <p className="text-sm text-slate-400">{description}</p>
+        <p className="text-sm text-muted">{description}</p>
       </div>
       <div className="space-y-3">
         {models.map((model, index) => (

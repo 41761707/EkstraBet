@@ -92,8 +92,8 @@ export default async function AboutModelsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-3">
-        <h1 className="text-3xl font-bold text-white">O modelach</h1>
-        <p className="max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">
+        <h1 className="text-3xl font-bold text-text">O modelach</h1>
+        <p className="max-w-3xl text-sm leading-relaxed text-muted sm:text-base">
           Podstrona przedstawia opis aktualnych modeli: jak powstają cechy,
           jak działa inferencja, co oznaczają wyjścia, jakie są ograniczenia
           oraz tłumaczy kluczowe pojęcia (LSTM, logit, Softmax, Elo, GAP,

@@ -35,7 +35,7 @@ export function ProjectedPositionChance({
   probability: number | null;
 }) {
   return (
-    <p className="text-sm text-slate-300">
+    <p className="text-sm text-muted">
       Szansa na {tablePosition}. miejsce: {formatProbability(probability)}
     </p>
   );
@@ -47,7 +47,7 @@ export function ProjectedPositionChanceList({
   probabilities: number[];
 }) {
   if (probabilities.length === 0) {
-    return <p className="text-sm text-slate-500">Brak rozkładu pozycji.</p>;
+    return <p className="text-sm text-subtle">Brak rozkładu pozycji.</p>;
   }
 
   return (
@@ -78,12 +78,12 @@ function ProjectionRow({
 
   return (
     <>
-      <tr className="border-t border-slate-800/80 hover:bg-slate-900/50">
-        <td className="px-3 py-2 text-slate-400">
+      <tr className="border-t border-border hover:bg-surface-muted">
+        <td className="px-3 py-2 text-muted">
           <button
             type="button"
             onClick={() => setIsExpanded((open) => !open)}
-            className="inline-flex items-center gap-1 text-left text-sky-300 transition hover:text-sky-200"
+            className="inline-flex items-center gap-1 text-left text-accent-text transition hover:text-accent-text-hover"
             aria-expanded={isExpanded}
           >
             <span aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
@@ -93,33 +93,33 @@ function ProjectionRow({
         <td className="px-3 py-2 font-medium">
           <Link
             href={teamHref(row.team_id, seasonId, leagueId)}
-            className="text-white transition hover:text-sky-200"
+            className="text-text transition hover:text-accent-text"
           >
             {row.team_name}
           </Link>
         </td>
-        <td className="px-3 py-2 text-center text-slate-300">
+        <td className="px-3 py-2 text-center text-muted">
           {row.current_points}
         </td>
-        <td className="px-3 py-2 text-center font-semibold text-sky-200">
+        <td className="px-3 py-2 text-center font-semibold text-accent-text">
           {formatProjectionPoints(row.expected_points)}
         </td>
-        <td className="px-3 py-2 text-center text-slate-300">
+        <td className="px-3 py-2 text-center text-muted">
           {formatProjectionPoints(row.points_stddev)}
         </td>
-        <td className="px-3 py-2 text-center text-slate-300">
+        <td className="px-3 py-2 text-center text-muted">
           {formatProjectionPoints(row.points_p05)}–
           {formatProjectionPoints(row.points_p95)}
         </td>
-        <td className="px-3 py-2 text-center text-slate-300">
+        <td className="px-3 py-2 text-center text-muted">
           {formatProjectionPoints(row.points_min)}–
           {formatProjectionPoints(row.points_max)}
         </td>
       </tr>
       {isExpanded ? (
-        <tr className="border-t border-slate-800/60 bg-slate-950/40">
+        <tr className="border-t border-border bg-surface-muted">
           <td colSpan={7} className="px-3 py-3">
-            <p className="mb-2 text-xs text-slate-500">
+            <p className="mb-2 text-xs text-subtle">
               Najbardziej prawdopodobna pozycja: {row.most_likely_position}.
               Szansa na każde miejsce końcowe (1…{row.position_probabilities.length}).
             </p>
@@ -145,9 +145,9 @@ export function ProjectedSeasonStandingsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface-muted text-left text-muted">
           <tr>
             <th className="px-3 py-3 font-medium">#</th>
             <th className="px-3 py-3 font-medium">Drużyna</th>

@@ -24,7 +24,7 @@ export function ChatEngineSelector({
 }: ChatEngineSelectorProps) {
   return (
     <fieldset className="mt-5 space-y-3">
-      <legend className="text-sm font-semibold text-white">
+      <legend className="text-sm font-semibold text-text">
         Tryb silnika LLM
       </legend>
       <div className="flex flex-wrap gap-3">
@@ -33,8 +33,8 @@ export function ChatEngineSelector({
             key={provider.id}
             className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
               selectedProvider === provider.id
-                ? "border-sky-400 bg-sky-950/60 text-sky-100"
-                : "border-slate-700 bg-slate-950/60 text-slate-300 hover:border-sky-500/50"
+                ? "border-accent bg-accent-soft text-accent-text"
+                : "border-border bg-page/60 text-muted hover:border-accent/50"
             }`}
           >
             <input
@@ -50,7 +50,7 @@ export function ChatEngineSelector({
           </label>
         ))}
       </div>
-      <p className="text-xs text-slate-500">{hint}</p>
+      <p className="text-xs text-subtle">{hint}</p>
     </fieldset>
   );
 }
@@ -70,7 +70,7 @@ export function ChatSportSelector({
 }: ChatSportSelectorProps) {
   return (
     <fieldset className="mt-5 space-y-3">
-      <legend className="text-sm font-semibold text-white">
+      <legend className="text-sm font-semibold text-text">
         Wybierz sport dla tej rozmowy
       </legend>
       <div className="flex flex-wrap gap-3">
@@ -79,8 +79,8 @@ export function ChatSportSelector({
             key={sport.sport_id}
             className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
               selectedSportId === sport.sport_id
-                ? "border-sky-400 bg-sky-950/60 text-sky-100"
-                : "border-slate-700 bg-slate-950/60 text-slate-300 hover:border-sky-500/50"
+                ? "border-accent bg-accent-soft text-accent-text"
+                : "border-border bg-page/60 text-muted hover:border-accent/50"
             }`}
           >
             <input
@@ -96,7 +96,7 @@ export function ChatSportSelector({
           </label>
         ))}
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-subtle">
         Sport jest przekazywany do planera narzędzi, aby zapytania nie mieszały
         danych między dyscyplinami.
       </p>

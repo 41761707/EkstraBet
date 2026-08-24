@@ -12,7 +12,7 @@ interface ModelDocumentationCardProps {
 
 function BulletList({ items }: { items: string[] }) {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
+    <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
       {items.map((item) => (
         <MathText key={item} as="li" text={item} className="leading-relaxed" />
       ))}
@@ -22,7 +22,7 @@ function BulletList({ items }: { items: string[] }) {
 
 function SectionHeading({ children }: { children: string }) {
   return (
-    <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-sky-300/90">
+    <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-accent-text/90">
       {children}
     </h4>
   );
@@ -57,24 +57,24 @@ function formatMetricValue(key: string, value: number | null): string {
 function MetricsBlock({ model }: { model: DocumentedModelView }) {
   return (
     <ContentBlock title="Metryki walidacyjne">
-      <ul className="space-y-3 text-sm text-slate-300">
+      <ul className="space-y-3 text-sm text-muted">
         {model.metrics.map((metric) => (
           <li
             key={`${model.name}-${metric.key}`}
-            className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2"
+            className="rounded-lg border border-border bg-surface-muted px-3 py-2"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-medium text-slate-100">{metric.label}</span>
-              <span className="font-mono text-sky-200">
+              <span className="font-medium text-text">{metric.label}</span>
+              <span className="font-mono text-accent-text-hover">
                 {formatMetricValue(metric.key, metric.value)}
               </span>
             </div>
             {metric.artifactVersion ? (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-subtle">
                 Artefakt v{metric.artifactVersion}
               </p>
             ) : null}
-            <p className="mt-1 text-xs text-slate-400">{metric.note}</p>
+            <p className="mt-1 text-xs text-muted">{metric.note}</p>
           </li>
         ))}
       </ul>
@@ -85,14 +85,14 @@ function MetricsBlock({ model }: { model: DocumentedModelView }) {
 function AvailabilityBadge({ model }: { model: DocumentedModelView }) {
   if (!model.availabilityNote) {
     return (
-      <span className="rounded-full border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-0.5 text-xs font-medium text-emerald-200">
+      <span className="rounded-full border border-success-border bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success-text">
         Dostępny
       </span>
     );
   }
 
   return (
-    <span className="rounded-full border border-amber-500/40 bg-amber-950/30 px-2.5 py-0.5 text-xs font-medium text-amber-100">
+    <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning-text">
       {model.availabilityNote}
     </span>
   );
@@ -101,7 +101,7 @@ function AvailabilityBadge({ model }: { model: DocumentedModelView }) {
 function PhaseBadge({ phase }: { phase: DocumentedModelView["phase"] }) {
   const label = phase === "pre_match" ? "Przed meczem" : "Po meczu";
   return (
-    <span className="rounded-full border border-slate-600 bg-slate-800/80 px-2.5 py-0.5 text-xs text-slate-300">
+    <span className="rounded-full border border-border bg-surface-muted px-2.5 py-0.5 text-xs text-muted">
       {label}
     </span>
   );
@@ -119,20 +119,20 @@ export function ModelDocumentationCard({
         <div className="flex flex-wrap items-center gap-2">
           <PhaseBadge phase={model.phase} />
           <AvailabilityBadge model={model} />
-          <span className="font-mono text-xs text-slate-500">{model.name}</span>
+          <span className="font-mono text-xs text-subtle">{model.name}</span>
         </div>
 
         <ContentBlock title="Przeznaczenie">
           <MathText
             text={model.purpose}
-            className="text-sm leading-relaxed text-slate-300"
+            className="text-sm leading-relaxed text-muted"
           />
         </ContentBlock>
 
         <ContentBlock title="Algorytm">
           <MathText
             text={model.algorithm}
-            className="text-sm leading-relaxed text-slate-300"
+            className="text-sm leading-relaxed text-muted"
           />
         </ContentBlock>
 
@@ -145,7 +145,7 @@ export function ModelDocumentationCard({
         </ContentBlock>
 
         <ContentBlock title="Etapy predykcji">
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-300">
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
             {model.predictionSteps.map((step) => (
               <MathText
                 key={step}

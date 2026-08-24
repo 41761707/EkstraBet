@@ -21,14 +21,21 @@ import type {
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
   SportTeamHistoryResponse,
+  UserPreferencesResponse,
+  UserPreferencesUpdate,
 } from "@/types/api";
 
 export { ApiError, buildClientProxyPath } from "@/lib/apiShared";
+
+interface FetchViaBffOptions {
+  skipFirstLoginRedirect?: boolean;
+}
 
 async function fetchViaBff<T>(
   path: string,
   params?: SearchParams,
   init?: RequestInit,
+  options?: FetchViaBffOptions,
 ): Promise<T> {
   const url = new URL(
     buildClientProxyPath(path, params),
@@ -46,7 +53,9 @@ async function fetchViaBff<T>(
 
   if (!response.ok) {
     const message = await parseErrorMessage(response);
-    if (isFirstLoginRequiredError(response.status, message)) {
+    const skipRedirect = options?.skipFirstLoginRedirect === true;
+    // preferencje na /first-login zostają lokalne — 403 nie może robić pętli redirectu
+    if (!skipRedirect && isFirstLoginRequiredError(response.status, message)) {
       window.location.replace(FIRST_LOGIN_PATH);
     }
     throw new ApiError(response.status, message);
@@ -72,6 +81,30 @@ export async function removeFavoriteLeague(
     `/users/me/favorite-leagues/${leagueId}`,
     undefined,
     { method: "DELETE" },
+  );
+}
+
+export async function getUserPreferences(): Promise<UserPreferencesResponse> {
+  return fetchViaBff<UserPreferencesResponse>(
+    "/users/me/preferences",
+    undefined,
+    undefined,
+    { skipFirstLoginRedirect: true },
+  );
+}
+
+export async function putUserPreferences(
+  update: UserPreferencesUpdate,
+): Promise<UserPreferencesResponse> {
+  return fetchViaBff<UserPreferencesResponse>(
+    "/users/me/preferences",
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+    },
+    { skipFirstLoginRedirect: true },
   );
 }
 

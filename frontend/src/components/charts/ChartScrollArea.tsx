@@ -140,26 +140,26 @@ export function ChartScrollArea({
         >
           {children}
         </div>
-        <p className="text-center text-[10px] text-slate-500 opacity-70 transition group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+        <p className="text-center text-[10px] text-subtle opacity-70 transition group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
           Przesuń poziomo lub kliknij, aby powiększyć
         </p>
       </div>
 
       {expanded ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label={chartTitle}
           onClick={close}
         >
           <div
-            className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-xl border border-slate-600 bg-slate-900 p-6 shadow-2xl"
+            className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-xl border border-border bg-surface p-6 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-4">
               {chartTitle ? (
-                <h3 className="text-base font-semibold text-white">
+                <h3 className="text-base font-semibold text-text">
                   {chartTitle}
                 </h3>
               ) : (
@@ -168,7 +168,7 @@ export function ChartScrollArea({
               <button
                 type="button"
                 onClick={close}
-                className="rounded-md px-3 py-1 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="rounded-md px-3 py-1 text-sm text-muted transition hover:bg-surface-muted hover:text-text"
                 aria-label="Zamknij"
               >
                 Zamknij ✕

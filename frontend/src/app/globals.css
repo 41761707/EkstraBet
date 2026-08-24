@@ -1,21 +1,226 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0b1120;
-  --foreground: #e2e8f0;
+/*
+ * Palety żyją pod [data-theme]; @theme inline wystawia bg-page, text-muted itd.
+ * html/body dziedziczą --page / --text. Kolory UI tylko tokenami.
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Granat #0b1120: dark = głęboki niebieski, bez prześwietlenia kart. */
+  --page: #0b1120;
+  --surface: #0f172a;
+  --surface-muted: #0c1322;
+  --surface-raised: #152036;
+  --overlay: #0b1120cc;
+
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  /* #7b8ea6: AA >= 4.5:1 na page/surface/surface-muted; jaśniejsze niż muted. */
+  --text-subtle: #7b8ea6;
+  --on-accent: #f8fafc;
+
+  --border: #2d3f5c;
+  --border-strong: #3d5478;
+  --focus-ring: #38bdf8;
+
+  --accent: #0284c7;
+  --accent-hover: #0ea5e9;
+  --accent-soft: #082f49;
+  --accent-text: #7dd3fc;
+  --accent-text-hover: #bae6fd;
+
+  --success: #6ee7b7;
+  --success-text: #a7f3d0;
+  --success-bg: #022c22;
+  --success-border: #065f46;
+  --warning: #fcd34d;
+  --warning-text: #fde68a;
+  --warning-bg: #451a03;
+  --warning-border: #b45309;
+  --danger: #fca5a5;
+  --danger-text: #fecaca;
+  --danger-bg: #450a0a;
+  --danger-border: #991b1b;
+  --info: #7dd3fc;
+  --info-text: #bae6fd;
+  --info-bg: #082f49;
+  --info-border: #0369a1;
+
+  --chart-grid: #152036;
+  --chart-axis: #94a3b8;
+  --chart-track: #152036;
+  --skeleton: #152036;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+[data-theme="light"] {
+  color-scheme: light;
+
+  --page: #f3f6fa;
+  --surface: #ffffff;
+  --surface-muted: #eaf0f6;
+  /* Raised zostaje białe (chip/tab). Hover na surface -> surface-muted, nie raised. */
+  --surface-raised: #ffffff;
+  --overlay: #17203373;
+
+  --text: #172033;
+  --text-muted: #526174;
+  /* #5a6b82: AA >= 4.5:1 na bieli, page i surface-muted; jaśniejsze niż muted. */
+  --text-subtle: #5a6b82;
+  --on-accent: #ffffff;
+
+  --border: #cbd5e1;
+  --border-strong: #94a3b8;
+  --focus-ring: #0369a1;
+
+  --accent: #0369a1;
+  --accent-hover: #075985;
+  --accent-soft: #e0f2fe;
+  --accent-text: #0369a1;
+  --accent-text-hover: #075985;
+
+  --success: #047857;
+  --success-text: #065f46;
+  --success-bg: #ecfdf5;
+  --success-border: #6ee7b7;
+  --warning: #b45309;
+  --warning-text: #92400e;
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
+  --danger: #b91c1c;
+  --danger-text: #991b1b;
+  --danger-bg: #fef2f2;
+  --danger-border: #fca5a5;
+  --info: #0369a1;
+  --info-text: #075985;
+  --info-bg: #f0f9ff;
+  --info-border: #7dd3fc;
+
+  --chart-grid: #e2e8f0;
+  --chart-axis: #526174;
+  --chart-track: #eaf0f6;
+  --skeleton: #d7e0ea;
 }
 
-a {
-  text-decoration: none;
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-overlay: var(--overlay);
+
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
+  --color-on-accent: var(--on-accent);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-focus-ring: var(--focus-ring);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-accent-text-hover: var(--accent-text-hover);
+
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-text: var(--info-text);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  --color-chart-track: var(--chart-track);
+  --color-skeleton: var(--skeleton);
 }
 
-/* KaTeX inherits page colors on the dark documentation UI */
+@layer base {
+  html,
+  body {
+    background-color: var(--page);
+    color: var(--text);
+  }
+
+  body {
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  table {
+    border-color: var(--border);
+  }
+
+  th,
+  td {
+    border-color: var(--border);
+    color: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-subtle);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    border-color: var(--focus-ring);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html,
+  body,
+  a,
+  hr,
+  input,
+  select,
+  textarea,
+  th,
+  td {
+    transition-property: background-color, color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+}
+
+/* KaTeX dziedziczy kolor tekstu z motywu dokumentacji */
 .katex {
   color: inherit;
   font-size: 1.05em;

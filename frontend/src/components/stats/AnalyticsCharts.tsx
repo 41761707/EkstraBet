@@ -2,6 +2,7 @@ import type { ChartComparison, ChartDistribution } from "@/types/api";
 import { formatAnalyticsTypeLabel } from "@/lib/analyticsLabels";
 import {
   CHART_COLOR_NEGATIVE,
+  CHART_COLOR_NEUTRAL,
   CHART_COLOR_POSITIVE,
   getSemanticBarColor,
 } from "@/lib/chartColors";
@@ -48,12 +49,12 @@ export function DistributionChart({ data, title }: DistributionChartProps) {
   );
 
   return (
-    <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-      <h4 className="text-sm font-semibold tracking-tight text-white">
+    <div className="space-y-4 rounded-xl border border-border bg-surface p-4">
+      <h4 className="text-sm font-semibold tracking-tight text-text">
         {title}
       </h4>
       {total === 0 ? (
-        <p className="text-sm text-slate-400">Brak danych do wykresu.</p>
+        <p className="text-sm text-muted">Brak danych do wykresu.</p>
       ) : (
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
           <svg
@@ -65,7 +66,7 @@ export function DistributionChart({ data, title }: DistributionChartProps) {
             {slices.map((slice) => {
               const fill =
                 segments.find((segment) => segment.id === slice.id)?.color ??
-                "#64748b";
+                CHART_COLOR_NEUTRAL;
               if (slice.isFullCircle) {
                 return (
                   <circle key={slice.id} cx="50" cy="50" r="42" fill={fill} />
@@ -82,7 +83,7 @@ export function DistributionChart({ data, title }: DistributionChartProps) {
             {segments.map((segment) => (
               <li
                 key={segment.id}
-                className="flex items-center justify-between gap-3 rounded-lg bg-slate-950/40 px-2.5 py-2"
+                className="flex items-center justify-between gap-3 rounded-lg bg-surface-muted px-2.5 py-2"
               >
                 <span className="flex min-w-0 items-center gap-2.5">
                   <span
@@ -91,17 +92,17 @@ export function DistributionChart({ data, title }: DistributionChartProps) {
                     aria-hidden
                   />
                   <span
-                    className="truncate text-sm font-medium text-slate-100"
+                    className="truncate text-sm font-medium text-text"
                     title={segment.label}
                   >
                     {segment.label}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block text-sm font-semibold tabular-nums text-white">
+                  <span className="block text-sm font-semibold tabular-nums text-text">
                     {segment.percent}%
                   </span>
-                  <span className="block text-xs tabular-nums text-slate-400">
+                  <span className="block text-xs tabular-nums text-muted">
                     {segment.value} szt.
                   </span>
                 </span>
@@ -116,8 +117,8 @@ export function DistributionChart({ data, title }: DistributionChartProps) {
 
 export function ComparisonChart({ data, title }: ComparisonChartProps) {
   return (
-    <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-      <h4 className="text-sm font-semibold tracking-tight text-white">
+    <div className="space-y-4 rounded-xl border border-border bg-surface p-4">
+      <h4 className="text-sm font-semibold tracking-tight text-text">
         {title}
       </h4>
       <div className="space-y-4">
@@ -132,17 +133,17 @@ export function ComparisonChart({ data, title }: ComparisonChartProps) {
           return (
             <div key={rawLabel} className="space-y-2">
               <div className="flex items-end justify-between gap-3">
-                <span className="text-sm font-medium text-slate-100">
+                <span className="text-sm font-medium text-text">
                   {label}
                 </span>
-                <span className="text-xs tabular-nums text-slate-400">
-                  <span className="font-medium text-emerald-300">{correct}</span>
+                <span className="text-xs tabular-nums text-muted">
+                  <span className="font-medium text-success">{correct}</span>
                   {" / "}
-                  <span className="font-medium text-red-300">{incorrect}</span>
-                  <span className="ml-1 text-slate-500">popr./błęd.</span>
+                  <span className="font-medium text-danger">{incorrect}</span>
+                  <span className="ml-1 text-subtle">popr./błęd.</span>
                 </span>
               </div>
-              <div className="flex h-3.5 overflow-hidden rounded-full bg-slate-800">
+              <div className="flex h-3.5 overflow-hidden rounded-full bg-chart-track">
                 <div
                   style={{
                     width: `${correctWidth}%`,
@@ -162,7 +163,7 @@ export function ComparisonChart({ data, title }: ComparisonChartProps) {
           );
         })}
       </div>
-      <div className="flex flex-wrap gap-4 border-t border-slate-800/80 pt-3 text-xs text-slate-400">
+      <div className="flex flex-wrap gap-4 border-t border-border pt-3 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-2.5 w-2.5 rounded-full"

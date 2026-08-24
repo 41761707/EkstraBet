@@ -15,7 +15,7 @@ function BucketTable({
   rows: { label: string; count: number; percentage: number }[];
 }) {
   return (
-    <ul className="space-y-2 text-sm text-slate-300">
+    <ul className="space-y-2 text-sm text-muted">
       {rows.map((row) => (
         <li key={row.label} className="flex items-center justify-between">
           <span>{row.label}</span>
@@ -42,8 +42,8 @@ function DistributionPanel({
   return (
     <ExpandableSection title={title}>
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-white">Tabela</h4>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h4 className="mb-3 text-sm font-semibold text-text">Tabela</h4>
           <BucketTable rows={tableRows} />
         </div>
         <DistributionChart data={distribution} title={chartTitle} />
@@ -81,24 +81,24 @@ export function LeagueCharacteristicsSection({
   return (
     <ExpandableSection title={`Charakterystyki ligi: ${leagueName}`}>
       <div className="space-y-4">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           Do tej pory rozegrano {characteristics.played_matches} meczów.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <p className="text-xs uppercase tracking-wide text-muted">
               Rozegrane mecze
             </p>
-            <p className="mt-1 text-2xl font-semibold text-white">
+            <p className="mt-1 text-2xl font-semibold text-text">
               {characteristics.played_matches}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-700/80 bg-slate-900/50 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <p className="text-xs uppercase tracking-wide text-muted">
               Średnia bramek / mecz
             </p>
-            <p className="mt-1 text-2xl font-semibold text-white">
+            <p className="mt-1 text-2xl font-semibold text-text">
               {characteristics.avg_goals_per_match.toFixed(2)}
             </p>
           </div>

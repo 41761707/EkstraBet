@@ -113,12 +113,12 @@ export function TeamSeasonChartsSection({
       <ExpandableSection title="Konfiguracja analizy" defaultOpen>
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+            <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-slate-200">
+                <span className="font-medium text-text">
                   Linia Over/Under
                 </span>
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-text">
                   {ouLine.toFixed(1)}
                 </span>
               </div>
@@ -129,19 +129,19 @@ export function TeamSeasonChartsSection({
                 step={TEAM_OU_LINE_STEP}
                 value={ouLine}
                 onChange={(event) => setOuLine(Number(event.target.value))}
-                className="w-full accent-sky-400"
+                className="w-full accent-accent"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-subtle">
                 Próg dla wykresu bramek i skuteczności Over.
               </p>
             </label>
 
-            <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+            <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-slate-200">
+                <span className="font-medium text-text">
                   Liczba analizowanych spotkań wstecz
                 </span>
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-text">
                   {lookback === lookbackBounds.max
                     ? `Cały sezon (${lookback})`
                     : lookback}
@@ -154,9 +154,9 @@ export function TeamSeasonChartsSection({
                 step={1}
                 value={lookback}
                 onChange={(event) => setLookback(Number(event.target.value))}
-                className="w-full accent-sky-400"
+                className="w-full accent-accent"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-subtle">
                 Domyślnie cały sezon. Zmniejsz wartość, aby zobaczyć ostatnią
                 tendencję.
               </p>
@@ -166,9 +166,9 @@ export function TeamSeasonChartsSection({
           {TEAM_MATCH_STAT_CHARTS.map((definition) => (
             <div
               key={definition.key}
-              className="space-y-3 rounded-xl border border-slate-700/80 bg-slate-900/40 p-4"
+              className="space-y-3 rounded-xl border border-border bg-surface p-4"
             >
-              <h4 className="text-sm font-semibold text-sky-300">
+              <h4 className="text-sm font-semibold text-accent-text">
                 {definition.configGroupTitle}
               </h4>
               <div className="grid gap-4 md:grid-cols-3">
@@ -178,16 +178,16 @@ export function TeamSeasonChartsSection({
                   return (
                     <label
                       key={`${definition.key}-${perspective}`}
-                      className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300"
+                      className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-slate-200">
+                        <span className="font-medium text-text">
                           {resolvePerspectiveSliderLabel(
                             perspective,
                             teamName,
                           )}
                         </span>
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-text">
                           {statLines[definition.key][perspective].toFixed(1)}
                         </span>
                       </div>
@@ -204,9 +204,9 @@ export function TeamSeasonChartsSection({
                             Number(event.target.value),
                           )
                         }
-                        className="w-full accent-sky-400"
+                        className="w-full accent-accent"
                       />
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-subtle">
                         Próg dla wykresu:{" "}
                         {perspective === "team"
                           ? definition.teamChartTitle.toLowerCase()

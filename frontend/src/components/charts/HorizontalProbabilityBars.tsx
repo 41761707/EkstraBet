@@ -14,25 +14,25 @@ export function HorizontalProbabilityBars({
 }: HorizontalProbabilityBarsProps) {
   if (points.length === 0) {
     return (
-      <article className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
-        <h3 className="mb-3 font-semibold text-sky-300">{title}</h3>
-        <p className="text-sm text-slate-400">{emptyMessage}</p>
+      <article className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="mb-3 font-semibold text-accent-text">{title}</h3>
+        <p className="text-sm text-muted">{emptyMessage}</p>
       </article>
     );
   }
 
   return (
-    <article className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
-      <h3 className="mb-3 font-semibold text-sky-300">{title}</h3>
+    <article className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="mb-3 font-semibold text-accent-text">{title}</h3>
       <div className="space-y-3">
         {points.map((point) => {
           const width = Math.max(point.barPercent, point.probability > 0 ? 8 : 0);
           return (
             <div key={point.id} className="space-y-1">
-              <div className="flex items-center justify-between gap-3 text-xs text-slate-300">
+              <div className="flex items-center justify-between gap-3 text-xs text-muted">
                 <span
                   className={`truncate ${
-                    point.isFavorite ? "font-semibold text-sky-300" : ""
+                    point.isFavorite ? "font-semibold text-accent-text" : ""
                   }`}
                   title={point.label}
                 >
@@ -43,14 +43,14 @@ export function HorizontalProbabilityBars({
                     </span>
                   ) : null}
                 </span>
-                <span className="shrink-0 tabular-nums font-semibold text-white">
+                <span className="shrink-0 tabular-nums font-semibold text-text">
                   {formatProbability(point.probability)}
                 </span>
               </div>
-              <div className="h-7 rounded-md bg-slate-800/80">
+              <div className="h-7 rounded-md bg-chart-track">
                 <div
-                  className={`flex h-7 items-center rounded-md px-2 text-xs font-semibold text-white ${
-                    point.isFavorite ? "ring-1 ring-inset ring-sky-300/60" : ""
+                  className={`flex h-7 items-center rounded-md px-2 text-xs font-semibold ${
+                    point.isFavorite ? "ring-1 ring-inset ring-accent/60" : ""
                   }`}
                   style={{
                     width: `${width}%`,

@@ -4,6 +4,10 @@ export const CHART_COLOR_NEGATIVE = "#d95757";
 export const CHART_COLOR_POSITIVE = "#52b788";
 export const CHART_COLOR_DRAW = "#d9b44a";
 export const CHART_COLOR_NEUTRAL = "#64748b";
+export const CHART_COLOR_OVERTIME_WIN = "#22c55e";
+export const CHART_COLOR_OVERTIME_LOSS = "#f97316";
+/** Stały ciemny tekst na fillu (W/D/L, BTTS, % na słupku) — nie token motywu. */
+export const CHART_LABEL_ON_FILL = "#020617";
 
 function normalizeLabel(label: string): string {
   return label

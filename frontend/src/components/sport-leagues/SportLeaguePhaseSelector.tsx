@@ -29,7 +29,7 @@ export function SportLeaguePhaseSelector({
 }: SportLeaguePhaseSelectorProps) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-white">Faza sezonu</h2>
+      <h2 className="text-lg font-semibold text-text">Faza sezonu</h2>
       <div className="flex flex-wrap gap-2">
         {PHASES.map((phase) => {
           const isActive = phase.value === selectedPhase;
@@ -46,8 +46,8 @@ export function SportLeaguePhaseSelector({
               scroll={false}
               className={`rounded-full px-3 py-1.5 text-sm transition ${
                 isActive
-                  ? "bg-sky-600 text-white"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  ? "bg-accent text-on-accent"
+                  : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
               }`}
             >
               {phase.label}

@@ -12,10 +12,10 @@ export default async function PredictionSimulationPage() {
     return (
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-text">
             Symulacja predykcji
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted">
             Wybierz gospodarza i gościa, aby sprawdzić prognozę modeli dla
             przyszłego meczu piłkarskiego.
           </p>
@@ -36,7 +36,7 @@ export default async function PredictionSimulationPage() {
     return (
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <header>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-text">
             Symulacja predykcji
           </h1>
         </header>

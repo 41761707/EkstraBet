@@ -101,6 +101,11 @@ describe("isMethodAllowedForPath", () => {
     ).toBe(true);
   });
 
+  it("allows GET and PUT for users preferences", () => {
+    expect(isMethodAllowedForPath("users/me/preferences", "GET")).toBe(true);
+    expect(isMethodAllowedForPath("users/me/preferences", "PUT")).toBe(true);
+  });
+
   it("rejects POST and PATCH for the users prefix", () => {
     expect(isMethodAllowedForPath("users/me/favorite-leagues", "POST")).toBe(
       false,
@@ -108,6 +113,8 @@ describe("isMethodAllowedForPath", () => {
     expect(
       isMethodAllowedForPath("users/me/favorite-leagues/1", "PATCH"),
     ).toBe(false);
+    expect(isMethodAllowedForPath("users/me/preferences", "POST")).toBe(false);
+    expect(isMethodAllowedForPath("users/me/preferences", "PATCH")).toBe(false);
   });
 });
 
@@ -322,6 +329,31 @@ describe("BFF route handler", () => {
       {
         params: Promise.resolve({
           path: ["users", "me", "favorite-leagues"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects POST on users preferences", async () => {
+    vi.stubEnv("AUTH_ENABLED", "false");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { POST } = await import("@/app/api/backend/[...path]/route");
+    const response = await POST(
+      new Request(
+        "http://localhost:3000/api/backend/users/me/preferences",
+        {
+          method: "POST",
+          headers: { origin: "http://localhost:3000" },
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["users", "me", "preferences"],
         }),
       },
     );

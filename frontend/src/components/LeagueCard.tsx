@@ -14,25 +14,25 @@ export function LeagueCard({ league }: LeagueCardProps) {
   return (
     <Link
       href={leaguePath(league.slug)}
-      className="group block rounded-xl border border-slate-700/80 bg-slate-900/70 p-4 transition hover:border-sky-500/50 hover:bg-slate-900"
+      className="group block rounded-xl border border-border bg-surface p-4 transition hover:border-accent/50 hover:bg-surface-muted"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-white group-hover:text-sky-200">
+          <h2 className="text-base font-semibold text-text group-hover:text-accent-text">
             {league.name}
           </h2>
           {subtitle ? (
-            <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
+            <p className="mt-1 text-sm text-muted">{subtitle}</p>
           ) : null}
         </div>
         {league.active ? (
-          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">
+          <span className="rounded-full bg-success-bg px-2 py-0.5 text-xs text-success">
             Aktywna
           </span>
         ) : null}
       </div>
       {league.last_update ? (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-subtle">
           Aktualizacja: {league.last_update}
         </p>
       ) : null}

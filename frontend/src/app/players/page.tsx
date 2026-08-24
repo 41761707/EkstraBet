@@ -135,8 +135,8 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     return (
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Zawodnicy</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-3xl font-bold text-text">Zawodnicy</h1>
+          <p className="text-sm text-muted">
             Szczegółowe statystyki i analizy zawodników z różnych dyscyplin.
           </p>
         </header>
@@ -218,8 +218,8 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     return (
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Zawodnicy</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-3xl font-bold text-text">Zawodnicy</h1>
+          <p className="text-sm text-muted">
             Szczegółowe statystyki i analizy zawodników z różnych dyscyplin.
           </p>
         </header>
@@ -230,7 +230,7 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
         />
 
         <section className="space-y-2">
-          <h2 className="text-xl font-semibold text-sky-300">
+          <h2 className="text-xl font-semibold text-accent-text">
             {currentSport.emoji} {currentSport.label} — Zawodnicy
           </h2>
           <FootballPlayersSection
@@ -248,7 +248,7 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     return (
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Zawodnicy</h1>
+          <h1 className="text-3xl font-bold text-text">Zawodnicy</h1>
         </header>
         <PlayersSportTabs
           sports={sportsResponse.sports}

@@ -12,10 +12,10 @@ export function LoadingSpinner({
       aria-live="polite"
     >
       <div
-        className="h-10 w-10 animate-spin rounded-full border-4 border-sky-400/30 border-t-sky-400"
+        className="h-10 w-10 animate-spin rounded-full border-4 border-accent/30 border-t-accent"
         aria-hidden="true"
       />
-      <p className="text-sm text-slate-300">{label}</p>
+      <p className="text-sm text-muted">{label}</p>
     </div>
   );
 }

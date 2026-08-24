@@ -27,22 +27,22 @@ function formatParams(
 export function ChatAnswerView({ answer }: ChatAnswerViewProps) {
   return (
     <div className="space-y-4">
-      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">
+      <p className="whitespace-pre-wrap text-sm leading-6 text-text">
         {answer.answerText}
       </p>
 
       {answer.chart ? <ChatChartRenderer chart={answer.chart} /> : null}
 
       {answer.table ? (
-        <section className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-950/70">
-          <div className="border-b border-slate-800 px-4 py-3">
-            <h3 className="text-sm font-semibold text-white">
+        <section className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
+            <h3 className="text-sm font-semibold text-text">
               {answer.table.title}
             </h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+              <thead className="bg-surface text-xs uppercase tracking-wide text-muted">
                 <tr>
                   {answer.table.columns.map((column) => (
                     <th key={column} className="px-3 py-2 font-medium">
@@ -51,7 +51,7 @@ export function ChatAnswerView({ answer }: ChatAnswerViewProps) {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-200">
+              <tbody className="divide-y divide-border text-text">
                 {answer.table.rows.map((row, rowIndex) => (
                   <tr key={rowIndex}>
                     {row.map((cell, cellIndex) => (
@@ -68,7 +68,7 @@ export function ChatAnswerView({ answer }: ChatAnswerViewProps) {
       ) : null}
 
       {answer.warnings.length > 0 ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
+        <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-text">
           {answer.warnings.map((warning, index) => (
             <p key={`${index}-${warning}`}>{warning}</p>
           ))}
@@ -76,17 +76,17 @@ export function ChatAnswerView({ answer }: ChatAnswerViewProps) {
       ) : null}
 
       {answer.dataSources.length > 0 ? (
-        <details className="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
-          <summary className="cursor-pointer text-slate-300">
+        <details className="rounded-lg border border-border bg-page/50 px-3 py-2 text-xs text-muted">
+          <summary className="cursor-pointer text-muted">
             Źródła danych
           </summary>
           <ul className="mt-2 space-y-1">
             {answer.dataSources.map((source, index) => (
               <li key={`${source.endpoint}-${index}`}>
-                <span className="text-slate-200">{source.label}</span>:{" "}
+                <span className="text-text">{source.label}</span>:{" "}
                 <code>{source.endpoint}</code>
                 {formatParams(source.params) ? (
-                  <div className="mt-0.5 pl-3 text-slate-500">
+                  <div className="mt-0.5 pl-3 text-subtle">
                     query: <code>{formatParams(source.params)}</code>
                   </div>
                 ) : null}

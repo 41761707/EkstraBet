@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  EXPANDABLE_SECTION_BODY_CLASS_NAME,
+  EXPANDABLE_SECTION_CHEVRON_CLASS_NAME,
+  EXPANDABLE_SECTION_CLASS_NAME,
+  EXPANDABLE_SECTION_SUMMARY_CLASS_NAME,
+} from "@/components/expandableSectionStyles";
 import { ProjectedSeasonStandingsTable } from "@/components/leagues/ProjectedSeasonStandingsTable";
 import {
   availableSeasonProjectionModes,
@@ -37,9 +43,9 @@ interface ProjectedSeasonStandingsContentProps {
 }
 
 const MODE_BUTTON_ACTIVE =
-  "rounded-full bg-sky-600 px-3 py-1.5 text-sm text-white transition hover:bg-sky-500";
+  "rounded-full bg-accent px-3 py-1.5 text-sm text-on-accent transition hover:bg-accent-hover";
 const MODE_BUTTON_IDLE =
-  "rounded-full bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition hover:bg-slate-700";
+  "rounded-full bg-surface px-3 py-1.5 text-sm text-muted transition hover:bg-surface-muted";
 
 export function ProjectionModeToggle({
   flags,
@@ -76,12 +82,10 @@ export function ProjectionModeToggle({
 
 export function ProjectionColumnLegend() {
   return (
-    <dl className="grid gap-x-4 gap-y-1 text-xs text-slate-400 sm:grid-cols-2">
+    <dl className="grid gap-x-4 gap-y-1 text-xs text-subtle sm:grid-cols-2">
       {PROJECTION_COLUMN_LEGEND.map((item) => (
         <div key={item.symbol} className="flex gap-2">
-          <dt className="shrink-0 font-semibold text-slate-300">
-            {item.symbol}
-          </dt>
+          <dt className="shrink-0 font-semibold text-muted">{item.symbol}</dt>
           <dd>{item.meaning}</dd>
         </div>
       ))}
@@ -158,7 +162,7 @@ function ProjectionBody({
 
   if (!data) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-subtle">
         Otwórz sekcję, aby pobrać projekcję końca sezonu.
       </p>
     );
@@ -192,19 +196,19 @@ export function ProjectedSeasonStandingsSection({
 
   return (
     <details
-      className="group min-w-0 overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/50"
+      className={EXPANDABLE_SECTION_CLASS_NAME}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-sky-300 transition hover:bg-slate-800/40 [&::-webkit-details-marker]:hidden">
+      <summary className={EXPANDABLE_SECTION_SUMMARY_CLASS_NAME}>
         <span className="min-w-0 break-words">Projekcja końca sezonu</span>
         <span
-          className="shrink-0 text-slate-500 transition group-open:rotate-180"
+          className={EXPANDABLE_SECTION_CHEVRON_CLASS_NAME}
           aria-hidden="true"
         >
           ▾
         </span>
       </summary>
-      <div className="min-w-0 border-t border-slate-700/80 px-5 py-4 text-slate-300">
+      <div className={EXPANDABLE_SECTION_BODY_CLASS_NAME}>
         <ProjectedSeasonStandingsContent
           loading={projection.loading && projection.data === null}
           error={projection.error}

@@ -116,7 +116,7 @@ export function TeamSportSeasonChartsSection({
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-400">Ładowanie statystyk…</p>;
+    return <p className="text-sm text-muted">Ładowanie statystyk…</p>;
   }
   if (error) {
     return <StatusMessage variant="error" title="Błąd" message={error} />;
@@ -142,12 +142,12 @@ export function TeamSportSeasonChartsSection({
       <ExpandableSection title="Konfiguracja analizy" defaultOpen>
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+            <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-slate-200">
+                <span className="font-medium text-text">
                   Linia Over/Under
                 </span>
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-text">
                   {ouLine.toFixed(1)}
                 </span>
               </div>
@@ -158,16 +158,16 @@ export function TeamSportSeasonChartsSection({
                 step={ouBounds.step}
                 value={ouLine}
                 onChange={(event) => setOuLine(Number(event.target.value))}
-                className="w-full accent-sky-400"
+                className="w-full accent-accent"
               />
             </label>
 
-            <label className="space-y-2 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4 text-sm text-slate-300">
+            <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-slate-200">
+                <span className="font-medium text-text">
                   Liczba analizowanych spotkań wstecz
                 </span>
-                <span className="font-semibold text-white">{lookback}</span>
+                <span className="font-semibold text-text">{lookback}</span>
               </div>
               <input
                 type="range"
@@ -175,13 +175,13 @@ export function TeamSportSeasonChartsSection({
                 max={SPORT_LOOKBACK_MAX}
                 value={lookback}
                 onChange={(event) => setLookback(Number(event.target.value))}
-                className="w-full accent-sky-400"
+                className="w-full accent-accent"
               />
             </label>
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-sm font-semibold text-slate-200">
+            <h4 className="text-sm font-semibold text-text">
               Statystyki do wyświetlania
             </h4>
             <div className="flex flex-wrap gap-2">
@@ -194,8 +194,8 @@ export function TeamSportSeasonChartsSection({
                     onClick={() => toggleStat(stat)}
                     className={`rounded-full px-3 py-1.5 text-sm transition ${
                       active
-                        ? "bg-sky-600 text-white"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        ? "bg-accent text-on-accent"
+                        : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
                     }`}
                   >
                     {stat}

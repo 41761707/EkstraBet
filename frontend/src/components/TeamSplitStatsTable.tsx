@@ -29,9 +29,9 @@ export function TeamSplitStatsTable({
   ];
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/80 text-left text-slate-400">
+        <thead className="bg-surface-muted text-left text-muted">
           <tr>
             <th className="px-4 py-3 font-medium">Zakres</th>
             {columns.map((column) => (
@@ -48,14 +48,14 @@ export function TeamSplitStatsTable({
           {rows.map((row) => (
             <tr
               key={row.label}
-              className="border-t border-slate-800/80 hover:bg-slate-900/50"
+              className="border-t border-border hover:bg-surface-muted"
             >
-              <td className="px-4 py-2 font-medium text-white">{row.label}</td>
+              <td className="px-4 py-2 font-medium text-text">{row.label}</td>
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={`px-3 py-2 text-center text-slate-300 ${
-                    column.key === "points" ? "font-semibold text-sky-200" : ""
+                  className={`px-3 py-2 text-center text-muted ${
+                    column.key === "points" ? "font-semibold text-accent-text" : ""
                   }`}
                 >
                   {row.stats[column.key]}
