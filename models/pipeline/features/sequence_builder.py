@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -21,6 +22,10 @@ from models.pipeline.data.match_history_repository import fetch_league_context
 from models.pipeline.features.matchup_features import STATIC_FEATURE_COLUMNS
 from models.pipeline.features.matchup_features import build_matchup_static
 from models.pipeline.features.ratings import compute_ratings_timeline
+
+if TYPE_CHECKING:
+    from models.pipeline.data.shared_history_context import (
+        SharedHistoryContext)
 
 DEFAULT_SEQUENCE_FEATURES = [
     "won",
@@ -397,6 +402,42 @@ def _league_tier(sport_id: int, league_id: int) -> int | None:
     return int(context.iloc[0]["tier"])
 
 
+def _matchup_league_tier(
+        sport_id: int,
+        league_id: int,
+        context: SharedHistoryContext | None) -> int | None:
+    if context is None:
+        return _league_tier(sport_id, league_id)
+    return context.league_tiers.get(league_id)
+
+
+def _timeline_for_matchup(
+        matchup: MatchupInput,
+        config: FutureEventsRunConfig,
+        context: SharedHistoryContext | None) -> pd.DataFrame:
+    """Return ratings history strictly before the matchup date."""
+    if context is None:
+        history = fetch_finished_matches(
+            config.sport_id, matchup.as_of_date)
+        return compute_ratings_timeline(
+            history, params=config.ratings)
+    if matchup.as_of_date > context.max_as_of_date:
+        raise ValueError(
+            f"as_of_date {matchup.as_of_date} is after context "
+            f"max_as_of {context.max_as_of_date}")
+    # import lokalny: features/__init__ importuje sequence_builder
+    from models.pipeline.data.shared_history_context import feature_signature
+    ratings_key = feature_signature(config).ratings_key
+    timelines = context.ratings_by_key or {}
+    if ratings_key not in timelines:
+        raise KeyError(
+            "No ratings timeline for ratings_key="
+            f"{ratings_key!r} in SharedHistoryContext")
+    timeline = timelines[ratings_key]
+    dates = pd.to_datetime(timeline["game_date"])
+    return timeline.loc[dates < pd.Timestamp(matchup.as_of_date)].copy()
+
+
 @register_feature_builder("FutureEventsFeatureBuilder")
 class FutureEventsFeatureBuilder:
     """Build dual sequences, static features, labels, and sample dates."""
@@ -458,12 +499,10 @@ class FutureEventsFeatureBuilder:
     def build_matchup_batch(
             self,
             matchup: MatchupInput,
-            config: FutureEventsRunConfig) -> SequenceBatch:
-        """Build one inference batch from database history."""
-        history = fetch_finished_matches(
-            config.sport_id, matchup.as_of_date)
-        timeline = compute_ratings_timeline(
-            history, params=config.ratings)
+            config: FutureEventsRunConfig,
+            context: SharedHistoryContext | None = None) -> SequenceBatch:
+        """Build one inference batch from history or a shared context."""
+        timeline = _timeline_for_matchup(matchup, config, context)
         home = build_team_sequence(
             timeline, matchup.home_team_id, matchup.as_of_date,
             config.window_size, config.sequence_feature_columns)
@@ -488,7 +527,8 @@ class FutureEventsFeatureBuilder:
             league_id,
             timeline,
             timeline,
-            _league_tier(config.sport_id, league_id),
+            _matchup_league_tier(
+                config.sport_id, league_id, context),
             config.static_feature_columns)
         return SequenceBatch(
             X_home=home[np.newaxis, ...],
@@ -498,6 +538,7 @@ class FutureEventsFeatureBuilder:
     def build_prediction_batch(
             self,
             matchup: MatchupInput,
-            config: FutureEventsRunConfig) -> SequenceBatch:
+            config: FutureEventsRunConfig,
+            context: SharedHistoryContext | None = None) -> SequenceBatch:
         """Compatibility alias for pair inference."""
-        return self.build_matchup_batch(matchup, config)
+        return self.build_matchup_batch(matchup, config, context)
