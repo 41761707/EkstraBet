@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { auditSource } from "./themeClassAudit.mjs";
+import { auditExitCode, auditSource } from "./themeClassAudit.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(SCRIPT_DIR, "../src");
@@ -14,7 +14,8 @@ if (hits.length > 0) {
   for (const hit of hits) {
     console.error(`  ${hit.relativePath}:${hit.line}  ${hit.className}`);
   }
-  process.exit(1);
+  process.exit(auditExitCode(hits));
 }
 
 console.log("Audyt motywu: brak klas dark-only poza allowlistą.");
+process.exit(auditExitCode(hits));

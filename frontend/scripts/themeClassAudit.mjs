@@ -1,8 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const FORBIDDEN_CLASS =
-  /(?:^|[^a-zA-Z0-9-])((?:hover:|focus(?:-visible)?:|active:|disabled:|placeholder:|group-hover:|group-open:|odd:|even:)*(?:bg|text|border|ring|fill|stroke|from|to|via|divide|outline|accent|ring-offset|caret|decoration)-(?:slate|sky|white)(?:-\d{2,3})?(?:\/\d+)?)\b/g;
+/** Prefiksy wariantów Tailwinda (`hover:`, `md:`, `sm:hover:`, …). */
+const VARIANT_PREFIX = "(?:[\\w-]+:)*";
+/** `border-t` / `border-x` / `border-ss` — separatory kart i tabel. */
+const COLOR_UTILITIES =
+  "bg|text|border(?:-[trblxyse]{1,2})?|shadow|ring-offset|ring|fill|stroke|" +
+  "from|to|via|divide|outline|accent|caret|decoration";
+const PALETTE_COLOR = "(?:slate|sky|white)(?:-\\d{2,3})?";
+const ARBITRARY_HEX = "\\[#[0-9a-fA-F]{3,8}\\]";
+
+export const FORBIDDEN_CLASS = new RegExp(
+  `(?:^|[^a-zA-Z0-9-])((?:${VARIANT_PREFIX})(?:${COLOR_UTILITIES})-` +
+    `(?:${PALETTE_COLOR}|${ARBITRARY_HEX})(?:\\/\\d+)?)(?![a-zA-Z0-9-])`,
+  "g",
+);
 
 export const DARK_VARIANT = /\bdark:/g;
 
@@ -40,11 +52,23 @@ export function collectForbiddenFromContent(content, relativePath) {
 
 export function loadAllowlist(allowlistPath) {
   const raw = JSON.parse(fs.readFileSync(allowlistPath, "utf8"));
-  return (raw.entries ?? []).map((entry) => ({
-    pathSuffix: String(entry.path).replaceAll("\\", "/"),
-    pattern: new RegExp(entry.pattern),
-    reason: entry.reason,
-  }));
+  return (raw.entries ?? []).map((entry, index) => {
+    if (
+      typeof entry?.path !== "string" ||
+      typeof entry?.pattern !== "string" ||
+      typeof entry?.reason !== "string"
+    ) {
+      throw new Error(
+        `Invalid allowlist entry at index ${index}: expected path, pattern, and reason strings.`,
+      );
+    }
+
+    return {
+      pathSuffix: entry.path.replaceAll("\\", "/"),
+      pattern: new RegExp(entry.pattern),
+      reason: entry.reason,
+    };
+  });
 }
 
 export function isAllowed(relativePath, className, allowlist) {
@@ -84,4 +108,9 @@ export function auditSource(srcDir, allowlistPath) {
   }
 
   return hits;
+}
+
+/** CLI exit code: 1 when forbidden classes remain outside the allowlist. */
+export function auditExitCode(hits) {
+  return hits.length > 0 ? 1 : 0;
 }

@@ -1,4 +1,9 @@
 {
-  "description": "Wyjątki audytu klas motywu: path względem src, wzorzec regex klasy, powód.",
+  "description": "Wyjątki audytu klas motywu. Każdy wpis pozwala na konkretną klasę Tailwind (slate/sky/white, border-t-slate-*, shadow-slate-*, dark: albo bg-[#hex]) w jednym pliku, gdy kolor niesie semantykę danych lub sportu, a nie chrome UI. Hex w stałych JS (chartColors.ts) nie wymaga wpisu — skaner flaguje wyłącznie utility classes, w tym arbitrary values w className.",
+  "format": {
+    "path": "Ścieżka względem frontend/src; skrypt porównuje ją jako końcówkę ścieżki pliku (np. lib/chartColors.ts).",
+    "pattern": "Regex testowany względem tokenu klasy (np. ^bg-slate-500$ albo ^bg-\\[#0f172a\\]$). Kotwice ^$ zalecane, żeby nie przepuścić pokrewnych klas.",
+    "reason": "Dlaczego to semantyka danych/sportu, nie tło ani tekst interfejsu."
+  },
   "entries": []
 }
