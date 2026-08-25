@@ -116,7 +116,7 @@ def _mock_models() -> LoadedFutureModels:
 
 
 def _three_family_predictor(
-        provider,
+        provider=None,
         result_overrides: dict | None = None,
         btts_overrides: dict | None = None,
         goals_overrides: dict | None = None) -> FutureEventsPredictor:
@@ -135,6 +135,117 @@ def _three_family_predictor(
         goals_config=goals_config,
         models=_mock_models(),
         feature_provider=provider)
+
+
+def _two_matchups() -> list[MatchupInput]:
+    return [
+        _matchup(date(2026, 1, 16)),
+        MatchupInput(
+            home_team_id=10,
+            away_team_id=20,
+            league_id=1,
+            as_of_date=date(2026, 1, 18))]
+
+
+def _home_tensor(model, index: int) -> np.ndarray:
+    return model.predict.call_args_list[index].args[0][0]
+
+
+def _assert_family_tensor_sharing(
+        predictor: FutureEventsPredictor,
+        matchup_count: int,
+        *,
+        share_btts: bool,
+        share_goals: bool) -> None:
+    # te same obiekty numpy = reuse SequenceBatch; is not = osobny tensor
+    models = predictor.models
+    for index in range(matchup_count):
+        result_home = _home_tensor(models.result_model, index)
+        btts_home = _home_tensor(models.btts_model, index)
+        goals_home = _home_tensor(models.goals_model, index)
+        if share_btts:
+            assert result_home is btts_home
+        else:
+            assert result_home is not btts_home
+        if share_goals:
+            assert result_home is goals_home
+        else:
+            assert result_home is not goals_home
+
+
+def _patch_shared_history(
+        monkeypatch,
+        matches: pd.DataFrame) -> dict[str, list]:
+    """Count history fetches and fail if the matchup builder hits DB."""
+    counts: dict[str, list] = {
+        "fetch": [],
+        "league": [],
+        "timeline": [],
+        "build": []}
+
+    def fake_fetch(sport_id, date_to):
+        counts["fetch"].append((sport_id, date_to))
+        return matches.copy()
+
+    def fake_leagues(sport_id, league_id=None):
+        del league_id
+        counts["league"].append(sport_id)
+        return _league_frame()
+
+    def fake_timeline(finished, teams=None, params=None):
+        counts["timeline"].append(params)
+        return compute_ratings_timeline(
+            finished, teams=teams, params=params)
+
+    original_build = FutureEventsFeatureBuilder.build_matchup_batch
+
+    def spy_build(self, matchup, config, context=None):
+        counts["build"].append((
+            matchup.as_of_date, feature_signature(config)))
+        return original_build(self, matchup, config, context)
+
+    monkeypatch.setattr(
+        history_context, "fetch_finished_matches", fake_fetch)
+    monkeypatch.setattr(
+        history_context, "fetch_league_context", fake_leagues)
+    monkeypatch.setattr(
+        history_context, "compute_ratings_timeline", fake_timeline)
+    monkeypatch.setattr(
+        sequence_builder, "fetch_finished_matches", _fail_db)
+    monkeypatch.setattr(
+        sequence_builder, "fetch_league_context", _fail_db)
+    monkeypatch.setattr(
+        sequence_builder, "compute_ratings_timeline", _fail_db)
+    monkeypatch.setattr(
+        FutureEventsFeatureBuilder, "build_matchup_batch", spy_build)
+    return counts
+
+
+def _predict_batch_with_shared_history(
+        monkeypatch,
+        *,
+        result_overrides: dict | None = None,
+        btts_overrides: dict | None = None,
+        goals_overrides: dict | None = None
+        ) -> tuple[FutureEventsPredictor, dict[str, list], date]:
+    matches = _matches(20)
+    counts = _patch_shared_history(monkeypatch, matches)
+    matchups = _two_matchups()
+    max_as_of = date(2026, 1, 20)
+    predictor = _three_family_predictor(
+        result_overrides=result_overrides,
+        btts_overrides=btts_overrides,
+        goals_overrides=goals_overrides)
+    rating_sets = [
+        config.ratings
+        for config in (
+            predictor.result_config,
+            predictor.btts_config,
+            predictor.goals_config)
+        if config is not None]
+    context = build_shared_history_context(1, max_as_of, rating_sets)
+    predictor.predict_batch(matchups, context=context)
+    return predictor, counts, max_as_of
 
 
 def test_build_matchup_batch_uses_context_without_db(monkeypatch) -> None:
@@ -220,10 +331,12 @@ def test_shared_history_builds_one_timeline_per_unique_ratings_key(
     monkeypatch.setattr(
         history_context, "compute_ratings_timeline", fake_timeline)
 
-    duplicate = {"elo": True}
-    other = {"elo": True, "gap": True}
+    # sort_keys: ta sama treść ratingów, inna kolejność kluczy
+    reordered = {"gap": True, "elo": True}
+    canonical = {"elo": True, "gap": True}
+    other = {"elo": True}
     context = build_shared_history_context(
-        1, date(2026, 1, 20), [duplicate, duplicate, other])
+        1, date(2026, 1, 20), [reordered, canonical, other])
 
     assert len(timeline_params) == 2
     assert context.ratings_by_key is not None
@@ -302,6 +415,21 @@ def test_feature_signature_stable() -> None:
         _future_config(sequence_feature_columns=["elo", "btts"]))
     assert first != feature_signature(
         _future_config(static_feature_columns=["elo_home", "elo_away"]))
+    # ratings_key z sort_keys: kolejność kluczy w dict bez znaczenia
+    gap_then_elo = feature_signature(
+        _future_config(ratings={"gap": True, "elo": True}))
+    elo_then_gap = feature_signature(
+        _future_config(ratings={"elo": True, "gap": True}))
+    assert gap_then_elo.ratings_key == elo_then_gap.ratings_key
+    assert gap_then_elo == elo_then_gap
+    # kolejność kolumn ma znaczenie dla tensora
+    elo_then_btts = feature_signature(_future_config(
+        sequence_feature_columns=["elo", "btts"]))
+    btts_then_elo = feature_signature(_future_config(
+        sequence_feature_columns=["btts", "elo"]))
+    assert elo_then_btts != btts_then_elo
+    assert first != feature_signature(
+        _future_config(feature_builder="OtherFeatureBuilder"))
 
 
 def test_identical_signatures_reuse_sequence_batch() -> None:
@@ -319,6 +447,8 @@ def test_identical_signatures_reuse_sequence_batch() -> None:
     assert set(payload) == {"result", "btts", "goals_poisson"}
     assert calls == ["result"]
     assert len(cache) == 1
+    _assert_family_tensor_sharing(
+        predictor, 1, share_btts=True, share_goals=True)
 
 
 def test_divergent_signatures_build_separate_batches() -> None:
@@ -336,6 +466,8 @@ def test_divergent_signatures_build_separate_batches() -> None:
 
     assert calls == [("result", 2), ("goals_poisson", 12)]
     assert len(cache) == 2
+    _assert_family_tensor_sharing(
+        predictor, 1, share_btts=True, share_goals=False)
 
 
 def test_divergent_columns_build_separate_batches() -> None:
@@ -356,6 +488,8 @@ def test_divergent_columns_build_separate_batches() -> None:
     assert ("elo",) in calls
     assert ("elo", "btts") in calls
     assert len(cache) == 2
+    _assert_family_tensor_sharing(
+        predictor, 1, share_btts=False, share_goals=True)
 
 
 def test_divergent_ratings_build_separate_batches() -> None:
@@ -374,6 +508,8 @@ def test_divergent_ratings_build_separate_batches() -> None:
 
     assert calls == ["result", "goals_poisson"]
     assert len(cache) == 2
+    _assert_family_tensor_sharing(
+        predictor, 1, share_btts=True, share_goals=False)
 
 
 def test_predict_batch_reuses_cache_across_matchups() -> None:
@@ -457,3 +593,78 @@ def test_predict_pair_forwards_shared_history_context() -> None:
         feature_provider=provider)
     predictor.predict_pair(_matchup(), context=context)
     assert seen == [context]
+
+
+def test_predict_batch_builds_history_once(monkeypatch) -> None:
+    predictor, counts, max_as_of = _predict_batch_with_shared_history(
+        monkeypatch)
+    assert counts["fetch"] == [(1, max_as_of)]
+    assert counts["league"] == [1]
+    assert len(counts["timeline"]) == 1
+    assert len(counts["build"]) == 2
+    _assert_family_tensor_sharing(
+        predictor, 2, share_btts=True, share_goals=True)
+
+
+@pytest.mark.parametrize(
+    ("btts_overrides", "goals_overrides", "builds", "timelines",
+     "share_btts", "share_goals"),
+    [
+        ({}, {"window_size": 12}, 4, 1, True, False),
+        (
+            {"sequence_feature_columns": ["elo", "btts"]},
+            {},
+            4,
+            1,
+            False,
+            True),
+        (
+            {},
+            {"ratings": {"elo": True, "gap": True}},
+            4,
+            2,
+            True,
+            False),
+        (
+            {"window_size": 8},
+            {"window_size": 12},
+            6,
+            1,
+            False,
+            False)
+    ])
+def test_predict_batch_count_matrix(
+        monkeypatch,
+        btts_overrides: dict,
+        goals_overrides: dict,
+        builds: int,
+        timelines: int,
+        share_btts: bool,
+        share_goals: bool) -> None:
+    predictor, counts, max_as_of = _predict_batch_with_shared_history(
+        monkeypatch,
+        btts_overrides=btts_overrides,
+        goals_overrides=goals_overrides)
+    assert counts["fetch"] == [(1, max_as_of)]
+    assert counts["league"] == [1]
+    assert len(counts["timeline"]) == timelines
+    assert len(counts["build"]) == builds
+    unique_keys = {item[1] for item in counts["build"]}
+    assert len(counts["build"]) == 2 * len(unique_keys)
+    _assert_family_tensor_sharing(
+        predictor, 2, share_btts=share_btts, share_goals=share_goals)
+
+
+def test_predict_batch_divergent_signatures_keep_separate_tensors(
+        monkeypatch) -> None:
+    predictor, counts, max_as_of = _predict_batch_with_shared_history(
+        monkeypatch, goals_overrides={"window_size": 12})
+    assert counts["fetch"] == [(1, max_as_of)]
+    assert len(counts["build"]) == 4
+    cache_batches = [
+        _home_tensor(predictor.models.result_model, 0),
+        _home_tensor(predictor.models.goals_model, 0)]
+    assert cache_batches[0] is not cache_batches[1]
+    assert cache_batches[0].shape != cache_batches[1].shape
+    _assert_family_tensor_sharing(
+        predictor, 2, share_btts=True, share_goals=False)
