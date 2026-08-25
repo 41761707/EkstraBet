@@ -393,6 +393,27 @@ def test_predict_batch_reuses_cache_across_matchups() -> None:
     assert len(built) == 1
 
 
+def test_predict_batch_progress_callback_is_sequential() -> None:
+    seen: list[tuple[int, int, int]] = []
+
+    def progress(
+            index: int, total: int, matchup: MatchupInput) -> None:
+        seen.append((index, total, matchup.home_team_id))
+
+    first = _matchup()
+    second = MatchupInput(
+        home_team_id=11,
+        away_team_id=21,
+        league_id=1,
+        as_of_date=date(2026, 1, 8))
+    predictor = _three_family_predictor(
+        lambda _matchup, _config, context=None: _dummy_batch())
+    results = predictor.predict_batch(
+        [first, second], progress=progress)
+    assert len(results) == 2
+    assert seen == [(1, 2, 10), (2, 2, 11)]
+
+
 def test_builder_type_error_is_not_retried_without_context(
         monkeypatch) -> None:
     calls: list[object] = []

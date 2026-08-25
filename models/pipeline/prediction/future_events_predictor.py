@@ -6,6 +6,7 @@ import inspect
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import Callable
 from typing import Iterable
 from typing import Protocol
 
@@ -46,6 +47,7 @@ class FeatureProvider(Protocol):
 
 CacheKey = tuple[tuple[Any, ...], FeatureSignature]
 FeatureCache = dict[CacheKey, SequenceBatch]
+ProgressCallback = Callable[[int, int, MatchupInput], None]
 
 
 @dataclass(frozen=True)
@@ -277,14 +279,19 @@ class FutureEventsPredictor:
             self,
             matchups: Iterable[MatchupInput],
             *,
-            context: SharedHistoryContext | None = None
+            context: SharedHistoryContext | None = None,
+            progress: ProgressCallback | None = None
             ) -> list[dict[str, object]]:
         """Predict multiple pairs while reusing artifacts and feature batches."""
+        matchup_list = list(matchups)
+        total = len(matchup_list)
         feature_cache: FeatureCache = {}
         results: list[dict[str, object]] = []
-        for matchup in matchups:
+        for index, matchup in enumerate(matchup_list, start=1):
             results.append(self.predict_pair(
                 matchup, context=context, feature_cache=feature_cache))
+            if progress is not None:
+                progress(index, total, matchup)
         return results
 
     def _batch_for(
@@ -428,7 +435,9 @@ def predict_batch(
         matchups: Iterable[MatchupInput],
         models: FutureEventsPredictor,
         *,
-        context: SharedHistoryContext | None = None
+        context: SharedHistoryContext | None = None,
+        progress: ProgressCallback | None = None
         ) -> list[dict[str, object]]:
     """Module-level batch prediction API reusing loaded artifacts."""
-    return models.predict_batch(matchups, context=context)
+    return models.predict_batch(
+        matchups, context=context, progress=progress)

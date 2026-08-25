@@ -44,6 +44,11 @@ from models.pipeline.persistence.season_projection_writer import (
     fail_projection_run,
     start_projection_run,
     write_projection)
+from models.pipeline.data.shared_history_context import SharedHistoryContext
+from models.pipeline.data.shared_history_context import (
+    build_shared_history_context)
+from models.pipeline.prediction.future_events_predictor import (
+    FeatureCache)
 from models.pipeline.prediction.future_events_predictor import (
     FutureEventsPredictor)
 from models.pipeline.simulation.config import (
@@ -413,6 +418,58 @@ def _future_predictor(args: argparse.Namespace) -> FutureEventsPredictor:
         args.goals_config)
 
 
+def _active_future_configs(
+        predictor: FutureEventsPredictor) -> list[FutureEventsRunConfig]:
+    configs: list[FutureEventsRunConfig] = []
+    for config in (
+            predictor.result_config,
+            predictor.btts_config,
+            predictor.goals_config):
+        if config is not None:
+            configs.append(config)
+    return configs
+
+
+def _build_predict_history_context(
+        predictor: FutureEventsPredictor,
+        matchups: Sequence[MatchupInput]
+        ) -> SharedHistoryContext | None:
+    """Fetch finished matches once for the given predict run."""
+    if not matchups:
+        return None
+    configs = _active_future_configs(predictor)
+    max_as_of = max(item.as_of_date for item in matchups)
+    logger.info("Building shared history...")
+    context = build_shared_history_context(
+        configs[0].sport_id,
+        max_as_of,
+        [config.ratings for config in configs])
+    logger.info(
+        "History ready (%s finished, %s rating timelines)",
+        len(context.finished_matches),
+        len(context.ratings_by_key or {}))
+    return context
+
+
+def _predict_batch_progress(
+        matchups: Sequence[MatchupInput]
+        ) -> Iterable[MatchupInput]:
+    """Wrap matchups in tqdm on stderr; disable when not a TTY."""
+    from tqdm import tqdm
+
+    # JSON wyniku idzie na stdout — pasek nie może mieszać się z kontraktem
+    return tqdm(
+        matchups,
+        desc="predict-batch",
+        unit="match",
+        file=sys.stderr,
+        disable=not sys.stderr.isatty(),
+        dynamic_ncols=True,
+        bar_format=(
+            "{l_bar}{bar}| {n_fmt}/{total_fmt} matches "
+            "[{elapsed}<{remaining}, {rate_fmt}]"))
+
+
 def _persist_future_prediction(
         predictor: FutureEventsPredictor,
         matchup: MatchupInput,
@@ -453,7 +510,8 @@ def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
         as_of_date=args.as_of,
         match_id=args.match_id)
     predictor = _future_predictor(args)
-    prediction = predictor.predict_pair(matchup)
+    context = _build_predict_history_context(predictor, [matchup])
+    prediction = predictor.predict_pair(matchup, context=context)
     written = 0
     if args.write_db:
         written = _persist_future_prediction(
@@ -467,40 +525,48 @@ def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
 
 def run_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
     """Run future-event artifacts; skip matchups that cannot be predicted."""
+    from tqdm.contrib.logging import logging_redirect_tqdm
+
     raw_matchups = _load_batch_matchups(args)
     matchups = [MatchupInput.model_validate(item) for item in raw_matchups]
     predictor = _future_predictor(args)
+    context = _build_predict_history_context(predictor, matchups)
+    feature_cache: FeatureCache = {}
     results: list[dict[str, Any]] = []
     skipped = 0
-    for matchup in matchups:
-        try:
-            prediction = predictor.predict_pair(matchup)
-        except Exception as exc:
-            skipped += 1
-            logger.error(
-                "Skipping match_id=%s home=%s away=%s: %s",
-                matchup.match_id,
-                matchup.home_team_id,
-                matchup.away_team_id,
-                exc)
+    progress = _predict_batch_progress(matchups)
+    # skipi na stderr nie mogą nadpisać paska — tqdm.write czyści i odrysowuje
+    with logging_redirect_tqdm():
+        for matchup in progress:
+            try:
+                prediction = predictor.predict_pair(
+                    matchup, context=context, feature_cache=feature_cache)
+            except Exception as exc:
+                skipped += 1
+                logger.error(
+                    "Skipping match_id=%s home=%s away=%s: %s",
+                    matchup.match_id,
+                    matchup.home_team_id,
+                    matchup.away_team_id,
+                    exc)
+                results.append({
+                    "matchup": matchup.model_dump(),
+                    "predictions": None,
+                    "written": 0,
+                    "skipped": True,
+                    "error": str(exc)
+                })
+                continue
+            written = 0
+            if args.write_db:
+                written = _persist_future_prediction(
+                    predictor, matchup, prediction, args.select_finals)
             results.append({
                 "matchup": matchup.model_dump(),
-                "predictions": None,
-                "written": 0,
-                "skipped": True,
-                "error": str(exc)
+                "predictions": _json_value(prediction),
+                "written": written,
+                "skipped": False
             })
-            continue
-        written = 0
-        if args.write_db:
-            written = _persist_future_prediction(
-                predictor, matchup, prediction, args.select_finals)
-        results.append({
-            "matchup": matchup.model_dump(),
-            "predictions": _json_value(prediction),
-            "written": written,
-            "skipped": False
-        })
     return {
         "processed": len(matchups),
         "predicted": len(matchups) - skipped,
