@@ -5,12 +5,15 @@ from __future__ import annotations
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
+from unittest.mock import MagicMock
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import MatchupInput
+from models.pipeline.core.config import SequenceBatch
 from models.pipeline.data import shared_history_context as history_context
 from models.pipeline.data.shared_history_context import SharedHistoryContext
 from models.pipeline.data.shared_history_context import (
@@ -20,6 +23,10 @@ from models.pipeline.features import sequence_builder
 from models.pipeline.features.ratings import compute_ratings_timeline
 from models.pipeline.features.sequence_builder import (
     FutureEventsFeatureBuilder)
+from models.pipeline.prediction.future_events_predictor import (
+    FutureEventsPredictor)
+from models.pipeline.prediction.future_events_predictor import (
+    LoadedFutureModels)
 
 
 def _fail_db(*args, **kwargs):
@@ -86,6 +93,48 @@ def _context_from_matches(
         league_tiers={1: 2},
         max_as_of_date=max_as_of,
         ratings_by_key={key: timeline})
+
+
+def _dummy_batch() -> SequenceBatch:
+    return SequenceBatch(
+        X_home=np.zeros((1, 2, 3), dtype=float),
+        X_away=np.zeros((1, 2, 3), dtype=float),
+        X_static=np.zeros((1, 4), dtype=float))
+
+
+def _mock_models() -> LoadedFutureModels:
+    result = MagicMock()
+    result.predict.return_value = np.asarray([[0.5, 0.3, 0.2]], dtype=float)
+    btts = MagicMock()
+    btts.predict.return_value = np.asarray([[0.4, 0.6]], dtype=float)
+    goals = MagicMock()
+    goals.predict.return_value = np.asarray([[1.2, 0.8]], dtype=float)
+    return LoadedFutureModels(
+        result_model=result,
+        btts_model=btts,
+        goals_model=goals)
+
+
+def _three_family_predictor(
+        provider,
+        result_overrides: dict | None = None,
+        btts_overrides: dict | None = None,
+        goals_overrides: dict | None = None) -> FutureEventsPredictor:
+    result_config = _future_config(**(result_overrides or {}))
+    btts_config = _future_config(
+        task_type="btts",
+        output_columns=["p_yes", "p_no"],
+        **(btts_overrides or {}))
+    goals_config = _future_config(
+        task_type="goals_poisson",
+        output_columns=["lambda_home", "lambda_away"],
+        **(goals_overrides or {}))
+    return FutureEventsPredictor(
+        result_config=result_config,
+        btts_config=btts_config,
+        goals_config=goals_config,
+        models=_mock_models(),
+        feature_provider=provider)
 
 
 def test_build_matchup_batch_uses_context_without_db(monkeypatch) -> None:
@@ -235,3 +284,155 @@ def test_build_matchup_batch_rejects_missing_ratings_key(
     with pytest.raises(KeyError, match="ratings_key"):
         FutureEventsFeatureBuilder().build_matchup_batch(
             _matchup(), _future_config(), context)
+
+
+def test_feature_signature_stable() -> None:
+    first = feature_signature(_future_config())
+    second = feature_signature(_future_config())
+    assert first == second
+    assert hash(first) == hash(second)
+    btts = feature_signature(_future_config(
+        task_type="btts",
+        output_columns=["p_yes", "p_no"]))
+    assert first == btts
+    assert first != feature_signature(_future_config(window_size=12))
+    assert first != feature_signature(
+        _future_config(ratings={"elo": True, "gap": True}))
+    assert first != feature_signature(
+        _future_config(sequence_feature_columns=["elo", "btts"]))
+    assert first != feature_signature(
+        _future_config(static_feature_columns=["elo_home", "elo_away"]))
+
+
+def test_identical_signatures_reuse_sequence_batch() -> None:
+    calls: list[str] = []
+
+    def provider(matchup, config, context=None):
+        del matchup, context
+        calls.append(config.task_type)
+        return _dummy_batch()
+
+    cache: dict = {}
+    predictor = _three_family_predictor(provider)
+    payload = predictor.predict_pair(_matchup(), feature_cache=cache)
+
+    assert set(payload) == {"result", "btts", "goals_poisson"}
+    assert calls == ["result"]
+    assert len(cache) == 1
+
+
+def test_divergent_signatures_build_separate_batches() -> None:
+    calls: list[tuple[str, int]] = []
+
+    def provider(matchup, config, context=None):
+        del matchup, context
+        calls.append((config.task_type, config.window_size))
+        return _dummy_batch()
+
+    cache: dict = {}
+    predictor = _three_family_predictor(
+        provider, goals_overrides={"window_size": 12})
+    predictor.predict_pair(_matchup(), feature_cache=cache)
+
+    assert calls == [("result", 2), ("goals_poisson", 12)]
+    assert len(cache) == 2
+
+
+def test_divergent_columns_build_separate_batches() -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def provider(matchup, config, context=None):
+        del matchup, context
+        calls.append(tuple(config.sequence_feature_columns))
+        return _dummy_batch()
+
+    cache: dict = {}
+    predictor = _three_family_predictor(
+        provider,
+        btts_overrides={"sequence_feature_columns": ["elo", "btts"]})
+    predictor.predict_pair(_matchup(), feature_cache=cache)
+
+    assert len(calls) == 2
+    assert ("elo",) in calls
+    assert ("elo", "btts") in calls
+    assert len(cache) == 2
+
+
+def test_divergent_ratings_build_separate_batches() -> None:
+    calls: list[str] = []
+
+    def provider(matchup, config, context=None):
+        del matchup, context
+        calls.append(config.task_type)
+        return _dummy_batch()
+
+    cache: dict = {}
+    predictor = _three_family_predictor(
+        provider,
+        goals_overrides={"ratings": {"elo": True, "gap": True}})
+    predictor.predict_pair(_matchup(), feature_cache=cache)
+
+    assert calls == ["result", "goals_poisson"]
+    assert len(cache) == 2
+
+
+def test_predict_batch_reuses_cache_across_matchups() -> None:
+    built: list[SequenceBatch] = []
+
+    def provider(matchup, config, context=None):
+        del matchup, config, context
+        batch = _dummy_batch()
+        built.append(batch)
+        return batch
+
+    matchup = _matchup()
+    predictor = _three_family_predictor(provider)
+    results = predictor.predict_batch([matchup, matchup])
+
+    assert len(results) == 2
+    assert len(built) == 1
+
+
+def test_builder_type_error_is_not_retried_without_context(
+        monkeypatch) -> None:
+    calls: list[object] = []
+
+    def boom(self, matchup, config, context=None):
+        del self, matchup, config
+        calls.append(context)
+        raise TypeError("cannot reshape array of size 0")
+
+    monkeypatch.setattr(
+        FutureEventsFeatureBuilder, "build_matchup_batch", boom)
+    config = _future_config()
+    context = _context_from_matches(_matches(), config)
+    result_model = MagicMock()
+    result_model.predict.return_value = np.asarray(
+        [[0.5, 0.3, 0.2]], dtype=float)
+    predictor = FutureEventsPredictor(
+        result_config=config,
+        models=LoadedFutureModels(result_model=result_model))
+    with pytest.raises(TypeError, match="reshape"):
+        predictor.predict_pair(_matchup(), context=context)
+    assert calls == [context]
+
+
+def test_predict_pair_forwards_shared_history_context() -> None:
+    seen: list[object] = []
+
+    def provider(matchup, config, context=None):
+        del matchup, config
+        seen.append(context)
+        return _dummy_batch()
+
+    config = _future_config()
+    context = _context_from_matches(_matches(), config)
+    result_model = MagicMock()
+    result_model.predict.return_value = np.asarray(
+        [[0.5, 0.3, 0.2]], dtype=float)
+    predictor = FutureEventsPredictor(
+        result_config=config,
+        models=LoadedFutureModels(result_model=result_model),
+        feature_provider=provider)
+    predictor.predict_pair(_matchup(), context=context)
+    assert seen == [context]

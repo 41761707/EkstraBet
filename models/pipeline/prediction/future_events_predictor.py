@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from typing import Callable
 from typing import Iterable
+from typing import Protocol
 
 import numpy as np
 
@@ -19,6 +20,9 @@ from models.pipeline.core.config import ResultPrediction
 from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import load_model_config
 from models.pipeline.core.registry import get_feature_builder
+from models.pipeline.data.shared_history_context import FeatureSignature
+from models.pipeline.data.shared_history_context import SharedHistoryContext
+from models.pipeline.data.shared_history_context import feature_signature
 from models.pipeline.prediction.score_matrix import derive_goal_markets
 from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
 from models.pipeline.prediction.score_matrix import top_exact_scores
@@ -27,7 +31,21 @@ from models.pipeline.prediction.score_matrix import top_exact_scores
 # zgodne z SeasonSimulationConfig.inference_batch_size (bez importu simulation)
 _DEFAULT_GOAL_RATE_BATCH_SIZE = 512
 
-FeatureProvider = Callable[[MatchupInput, FutureEventsRunConfig], SequenceBatch]
+
+class FeatureProvider(Protocol):
+    """Callable that builds one-row features for a matchup."""
+
+    def __call__(
+            self,
+            matchup: MatchupInput,
+            config: FutureEventsRunConfig,
+            context: SharedHistoryContext | None = None
+            ) -> SequenceBatch:
+        ...
+
+
+CacheKey = tuple[tuple[Any, ...], FeatureSignature]
+FeatureCache = dict[CacheKey, SequenceBatch]
 
 
 @dataclass(frozen=True)
@@ -92,9 +110,46 @@ def load_future_models(
             if goals_config is not None else None))
 
 
+def matchup_cache_key(matchup: MatchupInput) -> tuple[Any, ...]:
+    """Return a hashable identity for one matchup in the feature cache."""
+    return (
+        matchup.home_team_id,
+        matchup.away_team_id,
+        matchup.league_id,
+        matchup.season_id,
+        matchup.as_of_date,
+        matchup.match_id)
+
+
+def _accepts_history_context(target: Any) -> bool:
+    """Return whether a callable accepts a ``context`` keyword argument."""
+    try:
+        signature = inspect.signature(target)
+    except (TypeError, ValueError):
+        return False
+    if "context" in signature.parameters:
+        return True
+    for item in signature.parameters.values():
+        if item.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+    return False
+
+
+def _call_with_optional_context(
+        target: Any,
+        matchup: MatchupInput,
+        config: FutureEventsRunConfig,
+        context: SharedHistoryContext | None) -> Any:
+    """Invoke a provider or builder without assuming a context parameter."""
+    if _accepts_history_context(target):
+        return target(matchup, config, context=context)
+    return target(matchup, config)
+
+
 def _default_feature_provider(
         matchup: MatchupInput,
-        config: FutureEventsRunConfig) -> SequenceBatch:
+        config: FutureEventsRunConfig,
+        context: SharedHistoryContext | None = None) -> SequenceBatch:
     builder = get_feature_builder(config.feature_builder)
     method = getattr(builder, "build_matchup_batch", None)
     if method is None:
@@ -102,7 +157,8 @@ def _default_feature_provider(
     if method is None:
         raise TypeError(
             f"{type(builder).__name__} must implement build_matchup_batch")
-    batch = method(matchup, config)
+    batch = _call_with_optional_context(
+        method, matchup, config, context)
     if not isinstance(batch, SequenceBatch):
         raise TypeError("Future feature builder did not return SequenceBatch")
     if batch.X_home.shape[0] != 1:
@@ -199,23 +255,54 @@ class FutureEventsPredictor:
 
     def predict_pair(
             self,
-            matchup: MatchupInput) -> dict[str, object]:
+            matchup: MatchupInput,
+            *,
+            context: SharedHistoryContext | None = None,
+            feature_cache: FeatureCache | None = None) -> dict[str, object]:
         """Predict configured result, BTTS, and/or goals families."""
+        cache = feature_cache if feature_cache is not None else {}
         payload: dict[str, object] = {}
         if self.result_config is not None:
-            payload["result"] = self._predict_result(matchup)
+            payload["result"] = self._predict_result(
+                matchup, cache=cache, context=context)
         if self.btts_config is not None:
-            payload["btts"] = self._predict_btts(matchup)
+            payload["btts"] = self._predict_btts(
+                matchup, cache=cache, context=context)
         if self.goals_config is not None:
-            payload["goals_poisson"] = self._predict_goals(matchup)
+            payload["goals_poisson"] = self._predict_goals(
+                matchup, cache=cache, context=context)
         return payload
 
     def predict_batch(
             self,
-            matchups: Iterable[MatchupInput]
-    ) -> list[dict[str, object]]:
-        """Predict multiple pairs while reusing all loaded artifacts."""
-        return [self.predict_pair(matchup) for matchup in matchups]
+            matchups: Iterable[MatchupInput],
+            *,
+            context: SharedHistoryContext | None = None
+            ) -> list[dict[str, object]]:
+        """Predict multiple pairs while reusing artifacts and feature batches."""
+        feature_cache: FeatureCache = {}
+        results: list[dict[str, object]] = []
+        for matchup in matchups:
+            results.append(self.predict_pair(
+                matchup, context=context, feature_cache=feature_cache))
+        return results
+
+    def _batch_for(
+            self,
+            matchup: MatchupInput,
+            config: FutureEventsRunConfig,
+            *,
+            cache: FeatureCache,
+            context: SharedHistoryContext | None) -> SequenceBatch:
+        """Return a SequenceBatch, reusing one only for the same signature."""
+        key = (matchup_cache_key(matchup), feature_signature(config))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        batch = _call_with_optional_context(
+            self.feature_provider, matchup, config, context)
+        cache[key] = batch
+        return batch
 
     def predict_goal_rates(
             self,
@@ -248,10 +335,16 @@ class FutureEventsPredictor:
             chunks.append(chunk_rates)
         return np.concatenate(chunks, axis=0)
 
-    def _predict_result(self, matchup: MatchupInput) -> ResultPrediction:
+    def _predict_result(
+            self,
+            matchup: MatchupInput,
+            *,
+            cache: FeatureCache,
+            context: SharedHistoryContext | None) -> ResultPrediction:
         if self.result_config is None or self.models.result_model is None:
             raise RuntimeError("Result model is not configured")
-        batch = self.feature_provider(matchup, self.result_config)
+        batch = self._batch_for(
+            matchup, self.result_config, cache=cache, context=context)
         values = _normalized_probabilities(
             _predict_array(
                 self.models.result_model,
@@ -262,10 +355,16 @@ class FutureEventsPredictor:
             p_draw=float(values[1]),
             p_away=float(values[2]))
 
-    def _predict_btts(self, matchup: MatchupInput) -> BttsPrediction:
+    def _predict_btts(
+            self,
+            matchup: MatchupInput,
+            *,
+            cache: FeatureCache,
+            context: SharedHistoryContext | None) -> BttsPrediction:
         if self.btts_config is None or self.models.btts_model is None:
             raise RuntimeError("BTTS model is not configured")
-        batch = self.feature_provider(matchup, self.btts_config)
+        batch = self._batch_for(
+            matchup, self.btts_config, cache=cache, context=context)
         values = _normalized_probabilities(
             _predict_array(
                 self.models.btts_model,
@@ -276,10 +375,15 @@ class FutureEventsPredictor:
             p_no=float(values[0]))
 
     def _predict_goals(
-            self, matchup: MatchupInput) -> GoalsPoissonPrediction:
+            self,
+            matchup: MatchupInput,
+            *,
+            cache: FeatureCache,
+            context: SharedHistoryContext | None) -> GoalsPoissonPrediction:
         if self.goals_config is None:
             raise RuntimeError("Goals model is not configured")
-        batch = self.feature_provider(matchup, self.goals_config)
+        batch = self._batch_for(
+            matchup, self.goals_config, cache=cache, context=context)
         rates = self.predict_goal_rates(batch)[0]
         return _goals_prediction(rates, self.goals_config)
 
@@ -311,13 +415,20 @@ def _goals_prediction(
 
 def predict_pair(
         matchup: MatchupInput,
-        models: FutureEventsPredictor) -> dict[str, object]:
+        models: FutureEventsPredictor,
+        *,
+        context: SharedHistoryContext | None = None,
+        feature_cache: FeatureCache | None = None) -> dict[str, object]:
     """Module-level pair prediction API from the technical design."""
-    return models.predict_pair(matchup)
+    return models.predict_pair(
+        matchup, context=context, feature_cache=feature_cache)
 
 
 def predict_batch(
         matchups: Iterable[MatchupInput],
-        models: FutureEventsPredictor) -> list[dict[str, object]]:
+        models: FutureEventsPredictor,
+        *,
+        context: SharedHistoryContext | None = None
+        ) -> list[dict[str, object]]:
     """Module-level batch prediction API reusing loaded artifacts."""
-    return models.predict_batch(matchups)
+    return models.predict_batch(matchups, context=context)
