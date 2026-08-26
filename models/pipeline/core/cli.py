@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import sys
+import warnings
 from dataclasses import asdict, is_dataclass
 from datetime import date
 from datetime import datetime
@@ -68,8 +69,15 @@ from models.pipeline.training.sklearn_trainer import evaluate, train
 
 logger = logging.getLogger(__name__)
 
+_PANDAS_SQLALCHEMY_WARNING = "pandas only supports SQLAlchemy connectable"
+
 
 def _configure_logging(verbose: bool) -> None:
+    # mysql.connector nie jest SQLAlchemy — warning psuje pasek tqdm
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message=_PANDAS_SQLALCHEMY_WARNING)
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
