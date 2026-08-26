@@ -2,6 +2,9 @@
 
 import type { ReactNode } from "react";
 import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type { HockeyTeamHistoryPoint } from "@/types/api";
 
 interface HockeyTeamChartsProps {
@@ -18,16 +21,53 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-export function HockeyTeamCharts({
-  teamName,
-  history,
-  ouLine,
-  selectedStats,
-}: HockeyTeamChartsProps) {
-  const labels = history.map(
-    (point) => `${point.opponent_shortcut} ${point.match_date}`,
+function buildChartLabel(
+  point: Pick<
+    HockeyTeamHistoryPoint,
+    "opponent_name" | "opponent_shortcut" | "match_date"
+  >,
+  preference: TeamNameDisplayPreference,
+): string {
+  const opponent = formatTeamName(
+    point.opponent_name,
+    point.opponent_shortcut,
+    preference,
   );
+  return `${opponent} ${point.match_date}`;
+}
 
+function opponentLabel(
+  point: Pick<HockeyTeamHistoryPoint, "opponent_name" | "opponent_shortcut">,
+  preference: TeamNameDisplayPreference,
+): string {
+  return formatTeamName(
+    point.opponent_name,
+    point.opponent_shortcut,
+    preference,
+  );
+}
+
+function toChartPoints(
+  history: HockeyTeamHistoryPoint[],
+  preference: TeamNameDisplayPreference,
+  getValue: (point: HockeyTeamHistoryPoint) => number,
+): { label: string; value: number }[] {
+  return history.map((point) => ({
+    label: buildChartLabel(point, preference),
+    value: getValue(point),
+  }));
+}
+
+interface HockeyChartBuildContext {
+  teamName: string;
+  history: HockeyTeamHistoryPoint[];
+  ouLine: number;
+  selectedStats: string[];
+  teamNameDisplay: TeamNameDisplayPreference;
+}
+
+function collectGoalCharts(ctx: HockeyChartBuildContext): ReactNode[] {
+  const { teamName, history, ouLine, selectedStats, teamNameDisplay } = ctx;
   const charts: ReactNode[] = [];
 
   if (selectedStats.includes("Bramki")) {
@@ -36,10 +76,11 @@ export function HockeyTeamCharts({
         key="goals"
         title="Bramki w meczach"
         playerName={teamName}
-        points={history.map((point, index) => ({
-          label: labels[index],
-          value: point.total_goals,
-        }))}
+        points={toChartPoints(
+          history,
+          teamNameDisplay,
+          (point) => point.total_goals,
+        )}
         thresholdLine={ouLine}
         compactScrollAlign="start"
       />,
@@ -47,25 +88,22 @@ export function HockeyTeamCharts({
   }
 
   if (selectedStats.includes("Bramki w pierwszej tercji")) {
-    const firstPeriodValues = history
-      .map((point) => point.first_period_goals)
-      .filter((value): value is number => value !== null && value !== undefined);
-    if (firstPeriodValues.length > 0) {
+    const firstPeriodHistory = history.filter(
+      (point) =>
+        point.first_period_goals !== null &&
+        point.first_period_goals !== undefined,
+    );
+    if (firstPeriodHistory.length > 0) {
       charts.push(
         <VerticalStatChart
           key="first-period-goals"
           title="Bramki w pierwszej tercji"
           playerName={teamName}
-          points={history
-            .filter(
-              (point) =>
-                point.first_period_goals !== null &&
-                point.first_period_goals !== undefined,
-            )
-            .map((point, index) => ({
-              label: labels[index],
-              value: point.first_period_goals ?? 0,
-            }))}
+          points={toChartPoints(
+            firstPeriodHistory,
+            teamNameDisplay,
+            (point) => point.first_period_goals ?? 0,
+          )}
           thresholdLine={1.5}
           compactScrollAlign="start"
         />,
@@ -81,10 +119,11 @@ export function HockeyTeamCharts({
         key="team-goals"
         title="Liczba bramek drużyny"
         playerName={teamName}
-        points={history.map((point, index) => ({
-          label: labels[index],
-          value: point.team_goals,
-        }))}
+        points={toChartPoints(
+          history,
+          teamNameDisplay,
+          (point) => point.team_goals,
+        )}
         thresholdLine={average(teamGoals)}
         compactScrollAlign="start"
       />,
@@ -92,76 +131,114 @@ export function HockeyTeamCharts({
         key="opponent-goals"
         title="Liczba bramek przeciwników"
         playerName={teamName}
-        points={history.map((point, index) => ({
-          label: labels[index],
-          value: point.opponent_goals,
-        }))}
+        points={toChartPoints(
+          history,
+          teamNameDisplay,
+          (point) => point.opponent_goals,
+        )}
         thresholdLine={average(opponentGoals)}
         compactScrollAlign="start"
       />,
     );
   }
 
-  if (selectedStats.includes("Strzały celne")) {
-    const teamShots = history
-      .map((point) => point.team_shots_on_goal)
-      .filter((value): value is number => value !== null);
-    const opponentShots = history
-      .map((point) => point.opponent_shots_on_goal)
-      .filter((value): value is number => value !== null);
-    if (teamShots.length > 0) {
-      charts.push(
-        <VerticalStatChart
-          key="team-sog"
-          title="Liczba strzałów celnych drużyny"
-          playerName={teamName}
-          points={history
-            .filter((point) => point.team_shots_on_goal !== null)
-            .map((point, index) => ({
-              label: labels[index],
-              value: point.team_shots_on_goal ?? 0,
-            }))}
-          thresholdLine={average(teamShots)}
-          compactScrollAlign="start"
-        />,
-        <VerticalStatChart
-          key="opponent-sog"
-          title="Liczba strzałów przeciwników"
-          playerName={teamName}
-          points={history
-            .filter((point) => point.opponent_shots_on_goal !== null)
-            .map((point, index) => ({
-              label: labels[index],
-              value: point.opponent_shots_on_goal ?? 0,
-            }))}
-          thresholdLine={average(opponentShots)}
-          compactScrollAlign="start"
-        />,
-      );
-    }
+  return charts;
+}
+
+function collectShotCharts(ctx: HockeyChartBuildContext): ReactNode[] {
+  const { teamName, history, selectedStats, teamNameDisplay } = ctx;
+  if (!selectedStats.includes("Strzały celne")) {
+    return [];
   }
 
-  if (selectedStats.includes("Rezultaty")) {
-    charts.push(
-      <div
-        key="results"
-        className="rounded-xl border border-border bg-surface p-4"
-      >
-        <h4 className="text-sm font-semibold text-text">
-          Ostatnie wyniki: {teamName}
-        </h4>
-        <ul className="mt-3 space-y-2 text-sm text-muted">
-          {history.map((point) => (
-            <li key={point.match_id}>
-              {point.match_date} vs {point.opponent_shortcut}: {point.home_team_name}{" "}
-              {point.home_goals}:{point.away_goals} {point.away_team_name} (
-              {point.result})
-            </li>
-          ))}
-        </ul>
-      </div>,
-    );
+  const teamShotHistory = history.filter(
+    (point) => point.team_shots_on_goal !== null,
+  );
+  const opponentShotHistory = history.filter(
+    (point) => point.opponent_shots_on_goal !== null,
+  );
+  if (teamShotHistory.length === 0) {
+    return [];
   }
+
+  return [
+    <VerticalStatChart
+      key="team-sog"
+      title="Liczba strzałów celnych drużyny"
+      playerName={teamName}
+      points={toChartPoints(
+        teamShotHistory,
+        teamNameDisplay,
+        (point) => point.team_shots_on_goal ?? 0,
+      )}
+      thresholdLine={average(
+        teamShotHistory.map((point) => point.team_shots_on_goal ?? 0),
+      )}
+      compactScrollAlign="start"
+    />,
+    <VerticalStatChart
+      key="opponent-sog"
+      title="Liczba strzałów przeciwników"
+      playerName={teamName}
+      points={toChartPoints(
+        opponentShotHistory,
+        teamNameDisplay,
+        (point) => point.opponent_shots_on_goal ?? 0,
+      )}
+      thresholdLine={average(
+        opponentShotHistory.map((point) => point.opponent_shots_on_goal ?? 0),
+      )}
+      compactScrollAlign="start"
+    />,
+  ];
+}
+
+function collectResultsChart(ctx: HockeyChartBuildContext): ReactNode[] {
+  const { teamName, history, selectedStats, teamNameDisplay } = ctx;
+  if (!selectedStats.includes("Rezultaty")) {
+    return [];
+  }
+
+  return [
+    <div
+      key="results"
+      className="rounded-xl border border-border bg-surface p-4"
+    >
+      <h4 className="text-sm font-semibold text-text">
+        Ostatnie wyniki: {teamName}
+      </h4>
+      <ul className="mt-3 space-y-2 text-sm text-muted">
+        {history.map((point) => (
+          <li key={point.match_id}>
+            {point.match_date} vs {opponentLabel(point, teamNameDisplay)}:{" "}
+            {point.home_team_name} {point.home_goals}:{point.away_goals}{" "}
+            {point.away_team_name} ({point.result})
+          </li>
+        ))}
+      </ul>
+    </div>,
+  ];
+}
+
+export function HockeyTeamCharts({
+  teamName,
+  history,
+  ouLine,
+  selectedStats,
+}: HockeyTeamChartsProps) {
+  const { preferences } = usePreferences();
+  const ctx: HockeyChartBuildContext = {
+    teamName,
+    history,
+    ouLine,
+    selectedStats,
+    teamNameDisplay: preferences.teamNameDisplay,
+  };
+  const charts = [
+    ...collectGoalCharts(ctx),
+    ...collectShotCharts(ctx),
+    ...collectResultsChart(ctx),
+  ];
 
   if (charts.length === 0) {
     return null;

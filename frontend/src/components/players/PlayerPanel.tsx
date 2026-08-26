@@ -11,8 +11,13 @@ import {
 import { PlayerSummaryTiles } from "@/components/players/PlayerSummaryTiles";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatusMessage } from "@/components/StatusMessage";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { getPlayerMatchStats } from "@/lib/apiClient";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type {
+  FootballPlayerMatchStat,
+  HockeyPlayerMatchStat,
   HockeyPlayerMatchStatsResponse,
   PlayerMatchStatsResponse,
   PlayerStatKey,
@@ -29,6 +34,21 @@ interface PlayerPanelProps {
   thresholdLines: Partial<Record<PlayerStatKey, number>>;
 }
 
+function buildChartLabel(
+  match: Pick<
+    FootballPlayerMatchStat | HockeyPlayerMatchStat,
+    "opponent_name" | "opponent_shortcut" | "match_date"
+  >,
+  preference: TeamNameDisplayPreference,
+): string {
+  const opponent = formatTeamName(
+    match.opponent_name,
+    match.opponent_shortcut,
+    preference,
+  );
+  return `${opponent} ${match.match_date}`;
+}
+
 export function PlayerPanel({
   sportId,
   playerId,
@@ -39,6 +59,8 @@ export function PlayerPanel({
   selectedStats,
   thresholdLines,
 }: PlayerPanelProps) {
+  const { preferences } = usePreferences();
+  const teamNameDisplay = preferences.teamNameDisplay;
   const [isOpen, setIsOpen] = useState(false);
   const [data, setData] = useState<PlayerMatchStatsResponse | null>(
     null,
@@ -91,27 +113,12 @@ export function PlayerPanel({
     };
   }, [isOpen, data, sportId, playerId, seasonId, matchLimit]);
 
-  const chartMatches = data ? [...data.matches].reverse() : [];
-  const playerRole = getPlayerRole(data, playerPosition);
-  const displayStats =
-    playerRole === "goalie"
-      ? HOCKEY_GOALIE_PLAYER_STATS.map((stat) => stat.key)
-      : selectedStats;
-
   return (
     <details
       className="group rounded-xl border border-border bg-surface"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-accent-text transition hover:bg-surface-muted/40 [&::-webkit-details-marker]:hidden">
-        <span>{playerName}</span>
-        <span
-          className="text-subtle transition group-open:rotate-180"
-          aria-hidden="true"
-        >
-          ▾
-        </span>
-      </summary>
+      <PlayerPanelSummary playerName={playerName} />
       <div className="space-y-6 border-t border-border px-5 py-4">
         {loading ? (
           <LoadingSpinner label="Ładowanie statystyk zawodnika..." />
@@ -124,60 +131,109 @@ export function PlayerPanel({
           />
         ) : null}
         {data ? (
-          <>
-            <PlayerSummaryTiles
-              sportId={sportId}
-              playerRole={playerRole}
-              summary={data.summary}
-            />
-
-            {displayStats.length === 0 ? (
-              <StatusMessage
-                variant="info"
-                title="Brak wybranych statystyk"
-                message="Wybierz statystyki do wyświetlenia w sekcji konfiguracji powyżej."
-              />
-            ) : (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {displayStats.map((statKey) => {
-                  const definition = getStatDefinition(
-                    statKey,
-                    sportId,
-                    playerRole,
-                  );
-                  const threshold =
-                    thresholdLines[statKey] ?? definition.defaultLine;
-                  return (
-                    <VerticalStatChart
-                      key={statKey}
-                      title={definition.chartTitle}
-                      playerName={playerName}
-                      thresholdLine={threshold}
-                      points={chartMatches.map((match) => ({
-                        label: `${match.opponent_shortcut} ${match.match_date}`,
-                        value: getMatchStatValue(match, statKey),
-                      }))}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-text">
-                Log meczowy
-              </h4>
-              <PlayerGameLogTable
-                sportId={sportId}
-                playerRole={playerRole}
-                matches={data.matches}
-                selectedStats={displayStats}
-              />
-            </div>
-          </>
+          <PlayerPanelLoadedBody
+            sportId={sportId}
+            playerName={playerName}
+            playerPosition={playerPosition}
+            selectedStats={selectedStats}
+            data={data}
+            thresholdLines={thresholdLines}
+            teamNameDisplay={teamNameDisplay}
+          />
         ) : null}
       </div>
     </details>
+  );
+}
+
+function PlayerPanelSummary({ playerName }: { playerName: string }) {
+  return (
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-base font-semibold text-accent-text transition hover:bg-surface-muted/40 [&::-webkit-details-marker]:hidden">
+      <span>{playerName}</span>
+      <span
+        className="text-subtle transition group-open:rotate-180"
+        aria-hidden="true"
+      >
+        ▾
+      </span>
+    </summary>
+  );
+}
+
+function PlayerPanelLoadedBody({
+  sportId,
+  playerName,
+  playerPosition,
+  selectedStats,
+  data,
+  thresholdLines,
+  teamNameDisplay,
+}: {
+  sportId: number;
+  playerName: string;
+  playerPosition: string | null;
+  selectedStats: PlayerStatKey[];
+  data: PlayerMatchStatsResponse;
+  thresholdLines: Partial<Record<PlayerStatKey, number>>;
+  teamNameDisplay: TeamNameDisplayPreference;
+}) {
+  const chartMatches = [...data.matches].reverse();
+  const playerRole = getPlayerRole(data, playerPosition);
+  const displayStats =
+    playerRole === "goalie"
+      ? HOCKEY_GOALIE_PLAYER_STATS.map((stat) => stat.key)
+      : selectedStats;
+
+  return (
+    <>
+      <PlayerSummaryTiles
+        sportId={sportId}
+        playerRole={playerRole}
+        summary={data.summary}
+      />
+
+      {displayStats.length === 0 ? (
+        <StatusMessage
+          variant="info"
+          title="Brak wybranych statystyk"
+          message="Wybierz statystyki do wyświetlenia w sekcji konfiguracji powyżej."
+        />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {displayStats.map((statKey) => {
+            const definition = getStatDefinition(
+              statKey,
+              sportId,
+              playerRole,
+            );
+            const threshold =
+              thresholdLines[statKey] ?? definition.defaultLine;
+            return (
+              <VerticalStatChart
+                key={statKey}
+                title={definition.chartTitle}
+                playerName={playerName}
+                thresholdLine={threshold}
+                points={chartMatches.map((match) => ({
+                  label: buildChartLabel(match, teamNameDisplay),
+                  value: getMatchStatValue(match, statKey),
+                }))}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-text">Log meczowy</h4>
+        <PlayerGameLogTable
+          sportId={sportId}
+          playerRole={playerRole}
+          matches={data.matches}
+          selectedStats={displayStats}
+        />
+      </div>
+    </>
   );
 }
 
