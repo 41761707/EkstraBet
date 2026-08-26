@@ -22,14 +22,19 @@ export interface FavoriteLeagueMutationResponse {
 /** Account color-scheme preference from GET/PUT /users/me/preferences. */
 export type UserThemePreference = "system" | "dark" | "light";
 
-/** Full document from GET /users/me/preferences (v1: theme only). */
+/** Account team-label preference from GET/PUT /users/me/preferences. */
+export type UserTeamNameDisplayPreference = "full" | "shortcut";
+
+/** Full document from GET /users/me/preferences. */
 export interface UserPreferencesResponse {
   theme: UserThemePreference;
+  team_name_display: UserTeamNameDisplayPreference;
 }
 
-/** Partial body for PUT /users/me/preferences (v1: theme only). */
+/** Partial body for PUT /users/me/preferences; at least one field required. */
 export interface UserPreferencesUpdate {
-  theme: UserThemePreference;
+  theme?: UserThemePreference;
+  team_name_display?: UserTeamNameDisplayPreference;
 }
 
 export interface LeagueSummary {

@@ -153,6 +153,7 @@ function usePreferencesController(
     (theme: ThemePreference) => {
       writeEpochRef.current += 1;
       const next = persistThemePreference({
+        current: preferencesRef.current,
         theme,
         storage,
         api,
@@ -160,6 +161,9 @@ function usePreferencesController(
         systemPrefersDark,
         writeQueue: writeQueueRef.current,
       });
+      // ref synchronicznie, zanim setState — drugi setter w tej samej klatce
+      // musi widzieć już scalony dokument, nie stary storage
+      preferencesRef.current = next;
       setPreferences(next);
     },
     [api, hasSession, storage, systemPrefersDark],

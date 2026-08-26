@@ -4,11 +4,13 @@ import {
   DEFAULT_PREFERENCES,
   type PreferencesApi,
   type PreferencesStorage,
+  type UserPreferencesPatch,
   type UserPreferencesV1,
 } from "@/lib/preferences";
 import {
   createPreferencesWriteQueue,
   hydrateAccountPreferences,
+  persistPreferencesPatch,
   persistThemePreference,
 } from "@/lib/preferencesSync";
 
@@ -24,6 +26,23 @@ function createMemoryStorage(
       document = { ...preferences };
     },
   };
+}
+
+function createNoOpStorage(initial: UserPreferencesV1): PreferencesStorage {
+  return {
+    load(): UserPreferencesV1 {
+      return { ...initial };
+    },
+    save(): void {
+      // quota / SecurityError — dokument zostaje tylko w pamięci sesji
+    },
+  };
+}
+
+function documentWith(
+  overrides: Partial<Pick<UserPreferencesV1, "theme" | "teamNameDisplay">> = {},
+): UserPreferencesV1 {
+  return { ...DEFAULT_PREFERENCES, ...overrides };
 }
 
 function stubDocumentRoot(): { theme?: string; colorScheme?: string } {
@@ -53,10 +72,11 @@ describe("persistThemePreference", () => {
     const storage = createMemoryStorage();
     const api: PreferencesApi = {
       get: vi.fn(),
-      put: vi.fn().mockResolvedValue({ version: 1, theme: "light" }),
+      put: vi.fn().mockResolvedValue(documentWith({ theme: "light" })),
     };
 
     const next = persistThemePreference({
+      current: storage.load(),
       theme: "light",
       storage,
       api,
@@ -64,11 +84,11 @@ describe("persistThemePreference", () => {
       systemPrefersDark: true,
     });
 
-    expect(next).toEqual({ version: 1, theme: "light" });
-    expect(storage.load()).toEqual({ version: 1, theme: "light" });
+    expect(next).toEqual(documentWith({ theme: "light" }));
+    expect(storage.load()).toEqual(documentWith({ theme: "light" }));
     expect(root.theme).toBe("light");
     expect(root.colorScheme).toBe("light");
-    expect(api.put).toHaveBeenCalledWith({ version: 1, theme: "light" });
+    expect(api.put).toHaveBeenCalledWith({ theme: "light" });
   });
 
   it("does not PUT without a session", () => {
@@ -76,6 +96,7 @@ describe("persistThemePreference", () => {
     const api: PreferencesApi = { get: vi.fn(), put: vi.fn() };
 
     persistThemePreference({
+      current: DEFAULT_PREFERENCES,
       theme: "dark",
       storage: createMemoryStorage(),
       api,
@@ -95,6 +116,7 @@ describe("persistThemePreference", () => {
     };
 
     persistThemePreference({
+      current: storage.load(),
       theme: "light",
       storage,
       api,
@@ -104,8 +126,107 @@ describe("persistThemePreference", () => {
 
     await Promise.resolve();
 
-    expect(storage.load()).toEqual({ version: 1, theme: "light" });
+    expect(storage.load()).toEqual(documentWith({ theme: "light" }));
     expect(root.theme).toBe("light");
+  });
+
+  it("does not reset teamNameDisplay when only theme changes", () => {
+    stubDocumentRoot();
+    const storage = createMemoryStorage(
+      documentWith({ theme: "dark", teamNameDisplay: "shortcut" }),
+    );
+    const api: PreferencesApi = {
+      get: vi.fn(),
+      put: vi.fn().mockResolvedValue(
+        documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+      ),
+    };
+
+    const next = persistThemePreference({
+      current: storage.load(),
+      theme: "light",
+      storage,
+      api,
+      hasSession: true,
+      systemPrefersDark: true,
+    });
+
+    expect(next).toEqual(
+      documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+    );
+    expect(storage.load()).toEqual(
+      documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+    );
+    expect(api.put).toHaveBeenCalledWith({ theme: "light" });
+    expect(api.put).not.toHaveBeenCalledWith(
+      expect.objectContaining({ teamNameDisplay: expect.anything() }),
+    );
+  });
+
+  it("keeps in-memory shortcut when storage save is a no-op", () => {
+    stubDocumentRoot();
+    const stored = documentWith({ theme: "dark", teamNameDisplay: "full" });
+    const inMemory = documentWith({
+      theme: "dark",
+      teamNameDisplay: "shortcut",
+    });
+    const storage = createNoOpStorage(stored);
+    const api: PreferencesApi = { get: vi.fn(), put: vi.fn() };
+
+    const next = persistThemePreference({
+      current: inMemory,
+      theme: "light",
+      storage,
+      api,
+      hasSession: false,
+      systemPrefersDark: true,
+    });
+
+    expect(next).toEqual(
+      documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+    );
+    expect(storage.load()).toEqual(stored);
+  });
+});
+
+describe("persistPreferencesPatch", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("PUTs only teamNameDisplay and keeps the current theme", () => {
+    stubDocumentRoot();
+    const current = documentWith({ theme: "light", teamNameDisplay: "full" });
+    const storage = createMemoryStorage(current);
+    const api: PreferencesApi = {
+      get: vi.fn(),
+      put: vi.fn().mockResolvedValue(
+        documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+      ),
+    };
+
+    const next = persistPreferencesPatch(
+      current,
+      { teamNameDisplay: "shortcut" },
+      {
+        storage,
+        api,
+        hasSession: true,
+        systemPrefersDark: true,
+      },
+    );
+
+    expect(next).toEqual(
+      documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+    );
+    expect(storage.load()).toEqual(
+      documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+    );
+    expect(api.put).toHaveBeenCalledWith({ teamNameDisplay: "shortcut" });
+    expect(api.put).not.toHaveBeenCalledWith(
+      expect.objectContaining({ theme: expect.anything() }),
+    );
   });
 });
 
@@ -117,8 +238,8 @@ describe("hydrateAccountPreferences", () => {
 
   it("overwrites storage and DOM when GET returns a row", async () => {
     stubDocumentRoot();
-    const storage = createMemoryStorage({ version: 1, theme: "dark" });
-    const remote: UserPreferencesV1 = { version: 1, theme: "light" };
+    const storage = createMemoryStorage(documentWith({ theme: "dark" }));
+    const remote = documentWith({ theme: "light", teamNameDisplay: "shortcut" });
     const apply = vi.fn();
     const api: PreferencesApi = {
       get: vi.fn().mockResolvedValue({
@@ -135,8 +256,8 @@ describe("hydrateAccountPreferences", () => {
     expect(api.put).not.toHaveBeenCalled();
   });
 
-  it("PUTs the local document when GET returns missing (no row)", async () => {
-    const local: UserPreferencesV1 = { version: 1, theme: "light" };
+  it("PUTs the full local document when GET returns missing (no row)", async () => {
+    const local = documentWith({ theme: "light", teamNameDisplay: "shortcut" });
     const storage = createMemoryStorage(local);
     const api: PreferencesApi = {
       get: vi.fn().mockResolvedValue({ status: "missing" }),
@@ -145,16 +266,19 @@ describe("hydrateAccountPreferences", () => {
 
     await hydrateAccountPreferences({ storage, api, apply: vi.fn() });
 
-    expect(api.put).toHaveBeenCalledWith(local);
+    expect(api.put).toHaveBeenCalledWith({
+      theme: "light",
+      teamNameDisplay: "shortcut",
+    });
   });
 
   it("skips applying a remote row when shouldApply is false", async () => {
-    const storage = createMemoryStorage({ version: 1, theme: "dark" });
+    const storage = createMemoryStorage(documentWith({ theme: "dark" }));
     const apply = vi.fn();
     const api: PreferencesApi = {
       get: vi.fn().mockResolvedValue({
         status: "found",
-        preferences: { version: 1, theme: "light" },
+        preferences: documentWith({ theme: "light" }),
       }),
       put: vi.fn(),
     };
@@ -167,12 +291,12 @@ describe("hydrateAccountPreferences", () => {
     });
 
     expect(apply).not.toHaveBeenCalled();
-    expect(storage.load()).toEqual({ version: 1, theme: "dark" });
+    expect(storage.load()).toEqual(documentWith({ theme: "dark" }));
     expect(api.put).not.toHaveBeenCalled();
   });
 
   it("does not first-save PUT when GET is no-session (401/403)", async () => {
-    const local: UserPreferencesV1 = { version: 1, theme: "light" };
+    const local = documentWith({ theme: "light" });
     const storage = createMemoryStorage(local);
     const apply = vi.fn();
     const api: PreferencesApi = {
@@ -188,13 +312,13 @@ describe("hydrateAccountPreferences", () => {
   });
 
   it("skips save when shouldApply becomes false after GET", async () => {
-    const storage = createMemoryStorage({ version: 1, theme: "dark" });
+    const storage = createMemoryStorage(documentWith({ theme: "dark" }));
     const apply = vi.fn();
     let remainingAllows = 1;
     const api: PreferencesApi = {
       get: vi.fn().mockResolvedValue({
         status: "found",
-        preferences: { version: 1, theme: "light" },
+        preferences: documentWith({ theme: "light" }),
       }),
       put: vi.fn(),
     };
@@ -213,11 +337,11 @@ describe("hydrateAccountPreferences", () => {
     });
 
     expect(apply).not.toHaveBeenCalled();
-    expect(storage.load()).toEqual({ version: 1, theme: "dark" });
+    expect(storage.load()).toEqual(documentWith({ theme: "dark" }));
   });
 
   it("skips first-save PUT when shouldApply becomes false after GET", async () => {
-    const local: UserPreferencesV1 = { version: 1, theme: "system" };
+    const local = documentWith({ theme: "system" });
     const storage = createMemoryStorage(local);
     const api: PreferencesApi = {
       get: vi.fn().mockResolvedValue({ status: "missing" }),
@@ -236,22 +360,25 @@ describe("hydrateAccountPreferences", () => {
 
   it("lets a newer persist PUT win over an in-flight first-save", async () => {
     stubDocumentRoot();
-    const local: UserPreferencesV1 = { version: 1, theme: "system" };
+    const local = documentWith({ theme: "system", teamNameDisplay: "shortcut" });
     const storage = createMemoryStorage(local);
     const writeQueue = createPreferencesWriteQueue();
     let releaseFirstPut: (() => void) | undefined;
     const firstPutGate = new Promise<void>((resolve) => {
       releaseFirstPut = resolve;
     });
-    const putOrder: UserPreferencesV1[] = [];
+    const putOrder: UserPreferencesPatch[] = [];
     const api: PreferencesApi = {
       get: vi.fn().mockResolvedValue({ status: "missing" }),
-      put: vi.fn().mockImplementation(async (document: UserPreferencesV1) => {
-        putOrder.push({ ...document });
+      put: vi.fn().mockImplementation(async (update: UserPreferencesPatch) => {
+        putOrder.push({ ...update });
         if (putOrder.length === 1) {
           await firstPutGate;
         }
-        return document;
+        return documentWith({
+          theme: update.theme ?? local.theme,
+          teamNameDisplay: update.teamNameDisplay ?? local.teamNameDisplay,
+        });
       }),
     };
 
@@ -267,10 +394,13 @@ describe("hydrateAccountPreferences", () => {
     for (let i = 0; i < 10 && putOrder.length === 0; i += 1) {
       await Promise.resolve();
     }
-    expect(putOrder).toEqual([{ version: 1, theme: "system" }]);
+    expect(putOrder).toEqual([
+      { theme: "system", teamNameDisplay: "shortcut" },
+    ]);
 
     epoch = 1;
     persistThemePreference({
+      current: storage.load(),
       theme: "light",
       storage,
       api,
@@ -285,14 +415,16 @@ describe("hydrateAccountPreferences", () => {
     await writeQueue.enqueue(async () => undefined);
 
     expect(putOrder).toEqual([
-      { version: 1, theme: "system" },
-      { version: 1, theme: "light" },
+      { theme: "system", teamNameDisplay: "shortcut" },
+      { theme: "light" },
     ]);
-    expect(storage.load()).toEqual({ version: 1, theme: "light" });
+    expect(storage.load()).toEqual(
+      documentWith({ theme: "light", teamNameDisplay: "shortcut" }),
+    );
   });
 
   it("keeps the local cache when GET throws", async () => {
-    const local: UserPreferencesV1 = { version: 1, theme: "light" };
+    const local = documentWith({ theme: "light" });
     const storage = createMemoryStorage(local);
     const apply = vi.fn();
     const api: PreferencesApi = {

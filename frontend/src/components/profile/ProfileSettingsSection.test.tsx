@@ -25,7 +25,7 @@ function silentStorage(): PreferencesStorage {
 function silentApi(): PreferencesApi {
   return {
     get: async () => ({ status: "no-session" }),
-    put: async (preferences) => preferences,
+    put: async () => ({ ...DEFAULT_PREFERENCES }),
   };
 }
 

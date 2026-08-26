@@ -1,8 +1,9 @@
 import {
-  PREFERENCES_VERSION,
+  toPreferencesPatch,
   type PreferencesApi,
   type PreferencesStorage,
   type ThemePreference,
+  type UserPreferencesPatch,
   type UserPreferencesV1,
 } from "@/lib/preferences";
 import { applyResolvedTheme, resolveTheme } from "@/lib/theme";
@@ -11,13 +12,17 @@ export interface PreferencesWriteQueue {
   enqueue(task: () => Promise<void>): Promise<void>;
 }
 
-export interface PersistThemeOptions {
-  theme: ThemePreference;
+export interface PersistPreferencesPatchOptions {
   storage: PreferencesStorage;
   api: PreferencesApi;
   hasSession: boolean;
   systemPrefersDark: boolean;
   writeQueue?: PreferencesWriteQueue;
+}
+
+export interface PersistThemeOptions extends PersistPreferencesPatchOptions {
+  theme: ThemePreference;
+  current: UserPreferencesV1;
 }
 
 export interface HydrateAccountPreferencesOptions {
@@ -62,29 +67,63 @@ async function runAccountWrite(
   await writeQueue.enqueue(task);
 }
 
+function definedPatch(update: UserPreferencesPatch): UserPreferencesPatch {
+  const patch: UserPreferencesPatch = {};
+  if (update.theme !== undefined) {
+    patch.theme = update.theme;
+  }
+  if (update.teamNameDisplay !== undefined) {
+    patch.teamNameDisplay = update.teamNameDisplay;
+  }
+  return patch;
+}
+
+function hasPatchFields(update: UserPreferencesPatch): boolean {
+  return update.theme !== undefined || update.teamNameDisplay !== undefined;
+}
+
 /**
- * Write a theme choice to the in-memory document, localStorage and the DOM.
- * With a session, fires `PUT { theme }` without rolling the UI back on error.
+ * Merge a field patch into the current document, persist the full local
+ * cache, and PUT only the changed field(s) when a session exists.
  */
-export function persistThemePreference(
-  options: PersistThemeOptions,
+export function persistPreferencesPatch(
+  current: UserPreferencesV1,
+  update: UserPreferencesPatch,
+  options: PersistPreferencesPatchOptions,
 ): UserPreferencesV1 {
+  const patch = definedPatch(update);
   const next: UserPreferencesV1 = {
-    version: PREFERENCES_VERSION,
-    theme: options.theme,
+    version: current.version,
+    theme: patch.theme ?? current.theme,
+    teamNameDisplay: patch.teamNameDisplay ?? current.teamNameDisplay,
   };
   options.storage.save(next);
   applyResolvedTheme(resolveTheme(next.theme, options.systemPrefersDark));
-  if (options.hasSession) {
+  if (options.hasSession && hasPatchFields(patch)) {
     void runAccountWrite(options.writeQueue, async () => {
       try {
-        await options.api.put(next);
+        await options.api.put(patch);
       } catch {
         // sieć/5xx: UI i cache zostają przy nowym wyborze
       }
     });
   }
   return next;
+}
+
+/**
+ * Write a theme choice by merging onto the in-memory document, not storage.
+ * Storage save can no-op (quota / SecurityError); `current` is the source of
+ * truth. With a session, fires `PUT { theme }` without rolling the UI back.
+ */
+export function persistThemePreference(
+  options: PersistThemeOptions,
+): UserPreferencesV1 {
+  return persistPreferencesPatch(
+    options.current,
+    { theme: options.theme },
+    options,
+  );
 }
 
 function applyRemoteIfCurrent(
@@ -126,7 +165,7 @@ export async function hydrateAccountPreferences(
       if (!isWriteStillCurrent(shouldApply)) {
         return;
       }
-      await api.put(storage.load());
+      await api.put(toPreferencesPatch(storage.load()));
     });
   } catch {
     // sieć/5xx przy hydracji: zostajemy przy cache z localStorage

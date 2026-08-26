@@ -5,8 +5,10 @@ import {
   PREFERENCES_VERSION,
   type PreferencesApi,
   type PreferencesLookupResult,
+  type UserPreferencesPatch,
   type UserPreferencesV1,
 } from "@/lib/preferences";
+import type { UserPreferencesUpdate } from "@/types/api";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -30,7 +32,19 @@ function fromApiPayload(payload: unknown): UserPreferencesV1 {
   return parsePreferences({
     version: PREFERENCES_VERSION,
     theme: payload.theme,
+    teamNameDisplay: payload.team_name_display,
   });
+}
+
+function toApiUpdate(update: UserPreferencesPatch): UserPreferencesUpdate {
+  const body: UserPreferencesUpdate = {};
+  if (update.theme !== undefined) {
+    body.theme = update.theme;
+  }
+  if (update.teamNameDisplay !== undefined) {
+    body.team_name_display = update.teamNameDisplay;
+  }
+  return body;
 }
 
 /**
@@ -55,10 +69,13 @@ export function createPreferencesApi(): PreferencesApi {
         throw error;
       }
     },
-    async put(preferences: UserPreferencesV1): Promise<UserPreferencesV1> {
-      const document = parsePreferences(preferences);
+    async put(update: UserPreferencesPatch): Promise<UserPreferencesV1> {
+      const document = parsePreferences({
+        version: PREFERENCES_VERSION,
+        ...update,
+      });
       try {
-        const payload = await putUserPreferences({ theme: document.theme });
+        const payload = await putUserPreferences(toApiUpdate(update));
         return fromApiPayload(payload);
       } catch (error) {
         if (isNoSessionError(error)) {
