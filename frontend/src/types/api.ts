@@ -262,6 +262,7 @@ export interface HockeyTeamHistoryPoint {
   match_id: number;
   match_date: string;
   opponent_shortcut: string;
+  opponent_name: string;
   team_goals: number;
   opponent_goals: number;
   total_goals: number;
@@ -279,6 +280,7 @@ export interface BasketballTeamHistoryPoint {
   match_id: number;
   match_date: string;
   opponent_shortcut: string;
+  opponent_name: string;
   team_points: number;
   opponent_points: number;
   total_points: number;
@@ -1040,6 +1042,7 @@ export interface FootballPlayerMatchStat {
   away_team: string;
   match_date: string;
   opponent_shortcut: string;
+  opponent_name: string;
   goals: number;
   assists: number;
   shots: number;
@@ -1077,6 +1080,7 @@ export interface HockeyPlayerMatchStat {
   away_team: string;
   match_date: string;
   opponent_shortcut: string;
+  opponent_name: string;
   toi: string;
   toi_minutes: number;
   points: number | null;

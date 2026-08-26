@@ -299,6 +299,7 @@ describe("assessPlayerMarket", () => {
       away_team: "B",
       match_date: "2026-01-01",
       opponent_shortcut: "OPP",
+      opponent_name: "Opponent",
       goals: 0,
       assists: 0,
       shots: shotsOnTarget + 1,

@@ -186,6 +186,9 @@ def _build_match_stat_row(row: pd.Series) -> dict[str, Any]:
         "opponent_shortcut": (
             str(row["opponent_shortcut"])
             if pd.notna(row["opponent_shortcut"]) else ""),
+        "opponent_name": (
+            str(row["opponent_name"])
+            if pd.notna(row["opponent_name"]) else ""),
         "goals": int(row["goals"]),
         "assists": int(row["assists"]),
         "shots": int(row["shots"]),
@@ -260,6 +263,9 @@ def _build_hockey_match_stat_row(
         "opponent_shortcut": (
             str(row["opponent_shortcut"])
             if pd.notna(row["opponent_shortcut"]) else ""),
+        "opponent_name": (
+            str(row["opponent_name"])
+            if pd.notna(row["opponent_name"]) else ""),
         "toi": str(row["toi"]),
         "toi_minutes": round(_toi_to_minutes(row["toi"]), 2),
     }

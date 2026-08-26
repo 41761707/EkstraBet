@@ -79,6 +79,7 @@ class HockeyTeamHistoryPoint(BaseModel):
     match_id: int
     match_date: str
     opponent_shortcut: str
+    opponent_name: str
     team_goals: int
     opponent_goals: int
     total_goals: int
@@ -97,6 +98,7 @@ class BasketballTeamHistoryPoint(BaseModel):
     match_id: int
     match_date: str
     opponent_shortcut: str
+    opponent_name: str
     team_points: int
     opponent_points: int
     total_points: int
