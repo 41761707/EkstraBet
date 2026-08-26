@@ -4,6 +4,8 @@
  */
 
 import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type { TeamRatingProgress } from "@/types/api";
 
 export const DEFAULT_VISIBLE_TEAMS = 6;
@@ -112,9 +114,9 @@ export function colorForTeam(teamId: number): string {
 
 export function teamDisplayLabel(
   team: Pick<TeamRatingProgress, "team_name" | "team_shortcut">,
+  preference: TeamNameDisplayPreference,
 ): string {
-  const shortcut = team.team_shortcut?.trim();
-  return shortcut ? shortcut : team.team_name;
+  return formatTeamName(team.team_name, team.team_shortcut, preference);
 }
 
 export function sortTeamsByCurrentRating(
@@ -401,6 +403,7 @@ export function buildRatingProgressChartModel(
     lastPlayedAt?: string | null;
     width?: number;
     height?: number;
+    teamNameDisplay?: TeamNameDisplayPreference;
   },
 ): RatingProgressChartModel {
   const width = options?.width ?? CHART_WIDTH;
@@ -421,6 +424,7 @@ export function buildRatingProgressChartModel(
   const maxAxisIndex = Math.max(0, ...axisSlots.map((slot) => slot.index));
   const xAtIndex = buildLinearScale(0, Math.max(maxAxisIndex, 1), plotLeft, plotRight);
 
+  const teamNameDisplay = options?.teamNameDisplay ?? "full";
   const plotted: ChartSeriesView[] = teams.map((team) => {
     const source = buildSeriesSourcePoints(team, baselineIso);
     const points: ChartPlotPoint[] = source.map((point) => ({
@@ -430,7 +434,7 @@ export function buildRatingProgressChartModel(
     }));
     return {
       teamId: team.team_id,
-      label: teamDisplayLabel(team),
+      label: teamDisplayLabel(team, teamNameDisplay),
       color: colorForTeam(team.team_id),
       currentRank: team.current_rank,
       currentRating: team.current_rating,

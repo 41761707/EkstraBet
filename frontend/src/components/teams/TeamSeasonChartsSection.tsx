@@ -7,6 +7,7 @@ import { TeamResultsChart } from "@/components/charts/TeamResultsChart";
 import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { StatusMessage } from "@/components/StatusMessage";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { TeamFormStrip } from "@/components/TeamFormStrip";
 import { TeamTripleStatCharts } from "@/components/teams/TeamTripleStatCharts";
 import {
@@ -25,6 +26,8 @@ import {
   TEAM_OU_LINE_STEP,
 } from "@/components/teams/teamChartConfig";
 import { formatMatchDateShort } from "@/lib/format";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type { MatchSummary, TeamSeasonMatchPoint } from "@/types/api";
 
 interface TeamSeasonChartsSectionProps {
@@ -36,8 +39,16 @@ interface TeamSeasonChartsSectionProps {
   recentMatches: MatchSummary[];
 }
 
-function buildChartLabel(match: TeamSeasonMatchPoint): string {
-  return `${match.opponent_shortcut} ${formatMatchDateShort(match.match_date)}`;
+function buildChartLabel(
+  match: TeamSeasonMatchPoint,
+  preference: TeamNameDisplayPreference,
+): string {
+  const opponent = formatTeamName(
+    match.opponent_name,
+    match.opponent_shortcut,
+    preference,
+  );
+  return `${opponent} ${formatMatchDateShort(match.match_date)}`;
 }
 
 function resolveEffectiveLookback(
@@ -58,6 +69,8 @@ export function TeamSeasonChartsSection({
   seasonMatches,
   recentMatches,
 }: TeamSeasonChartsSectionProps) {
+  const { preferences } = usePreferences();
+  const teamNameDisplay = preferences.teamNameDisplay;
   const lookbackBounds = useMemo(
     () => resolveLookbackBounds(seasonMatches.length),
     [seasonMatches.length],
@@ -235,7 +248,7 @@ export function TeamSeasonChartsSection({
             playerName={teamName}
             thresholdLine={ouLine}
             points={chartMatches.map((match) => ({
-              label: buildChartLabel(match),
+              label: buildChartLabel(match, teamNameDisplay),
               value: match.total_goals,
             }))}
           />
@@ -243,7 +256,7 @@ export function TeamSeasonChartsSection({
             title="BTTS w meczach"
             teamName={teamName}
             points={chartMatches.map((match) => ({
-              label: buildChartLabel(match),
+              label: buildChartLabel(match, teamNameDisplay),
               btts: match.btts,
             }))}
           />
@@ -255,7 +268,7 @@ export function TeamSeasonChartsSection({
           <TeamTripleStatCharts
             teamName={teamName}
             chartMatches={chartMatches}
-            buildLabel={buildChartLabel}
+            buildLabel={(match) => buildChartLabel(match, teamNameDisplay)}
             definition={definition}
             thresholdLines={statLines[definition.key]}
           />

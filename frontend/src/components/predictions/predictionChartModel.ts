@@ -6,6 +6,8 @@ import {
 } from "@/lib/chartColors";
 import { formatProbability } from "@/lib/format";
 import { normalizeProbabilitiesToPercents } from "@/lib/pieSlices";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type { PredictionPreviewResponse, TeamSummary } from "@/types/api";
 
 export interface ProbabilitySegmentView {
@@ -39,9 +41,11 @@ export interface PredictionChartModel {
   lambdaAway: number;
 }
 
-export function teamChartLabel(team: Pick<TeamSummary, "name" | "shortcut">): string {
-  const shortcut = team.shortcut?.trim();
-  return shortcut ? shortcut : team.name;
+export function teamChartLabel(
+  team: Pick<TeamSummary, "name" | "shortcut">,
+  preference: TeamNameDisplayPreference,
+): string {
+  return formatTeamName(team.name, team.shortcut, preference);
 }
 
 function markFavoriteSegments(

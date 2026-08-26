@@ -2,9 +2,11 @@
 
 import { DateInput } from "@/components/filters/DateInput";
 import { StatusMessage } from "@/components/StatusMessage";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
 import { teamChartLabel } from "@/components/predictions/predictionChartModel";
 import { usePredictionSimulation } from "@/components/predictions/usePredictionSimulation";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import type { TeamSummary } from "@/types/api";
 
 interface PredictionSimulationFormProps {
@@ -37,17 +39,22 @@ function TeamSelect({ label, value, teams, onChange }: TeamSelectProps) {
   );
 }
 
-function findTeamLabel(teams: TeamSummary[], teamId: number): string {
+function findTeamLabel(
+  teams: TeamSummary[],
+  teamId: number,
+  preference: TeamNameDisplayPreference,
+): string {
   const team = teams.find((item) => item.id === teamId);
   if (!team) {
     return `Drużyna ${teamId}`;
   }
-  return teamChartLabel(team);
+  return teamChartLabel(team, preference);
 }
 
 export function PredictionSimulationForm({
   teams,
 }: PredictionSimulationFormProps) {
+  const { preferences } = usePreferences();
   const initialAwayId = teams[1]?.id ?? teams[0]?.id ?? 0;
   const simulation = usePredictionSimulation(
     teams[0]?.id ?? 0,
@@ -126,8 +133,16 @@ export function PredictionSimulationForm({
       {simulation.result ? (
         <PredictionSimulationResult
           result={simulation.result}
-          homeTeamLabel={findTeamLabel(teams, simulation.homeTeamId)}
-          awayTeamLabel={findTeamLabel(teams, simulation.awayTeamId)}
+          homeTeamLabel={findTeamLabel(
+            teams,
+            simulation.homeTeamId,
+            preferences.teamNameDisplay,
+          )}
+          awayTeamLabel={findTeamLabel(
+            teams,
+            simulation.awayTeamId,
+            preferences.teamNameDisplay,
+          )}
         />
       ) : null}
     </div>

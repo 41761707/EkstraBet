@@ -40,18 +40,36 @@ function makeTeam(
 }
 
 describe("teamDisplayLabel", () => {
-  it("prefers shortcut when present", () => {
+  it("returns the full name in full mode even when a shortcut exists", () => {
     expect(
-      teamDisplayLabel({ team_name: "Legia Warszawa", team_shortcut: "LEG" }),
+      teamDisplayLabel(
+        { team_name: "Legia Warszawa", team_shortcut: "LEG" },
+        "full",
+      ),
+    ).toBe("Legia Warszawa");
+  });
+
+  it("returns the shortcut in shortcut mode", () => {
+    expect(
+      teamDisplayLabel(
+        { team_name: "Legia Warszawa", team_shortcut: "LEG" },
+        "shortcut",
+      ),
     ).toBe("LEG");
   });
 
-  it("falls back to full name", () => {
+  it("falls back to full name when shortcut is missing", () => {
     expect(
-      teamDisplayLabel({ team_name: "Legia Warszawa", team_shortcut: null }),
+      teamDisplayLabel(
+        { team_name: "Legia Warszawa", team_shortcut: null },
+        "shortcut",
+      ),
     ).toBe("Legia Warszawa");
     expect(
-      teamDisplayLabel({ team_name: "Legia Warszawa", team_shortcut: "  " }),
+      teamDisplayLabel(
+        { team_name: "Legia Warszawa", team_shortcut: "  " },
+        "shortcut",
+      ),
     ).toBe("Legia Warszawa");
   });
 });
@@ -387,9 +405,33 @@ describe("buildRatingProgressChartModel", () => {
     expect(model.series).toHaveLength(2);
     expect(model.series[0]?.pathD.startsWith("M ")).toBe(true);
     expect(model.series[0]?.points[0]?.isBaseline).toBe(true);
-    expect(model.series[0]?.endLabel?.text).toContain("LEG");
+    expect(model.series[0]?.endLabel?.text).toContain("Team 1");
     expect(model.yTicks.length).toBeGreaterThan(0);
     expect(model.xTicks.length).toBeGreaterThan(0);
+  });
+
+  it("uses full team names by default and shortcuts when requested", () => {
+    const teams = [
+      makeTeam({
+        team_id: 1,
+        team_name: "Legia Warszawa",
+        team_shortcut: "LEG",
+        start_rating: 1500,
+        current_rating: 1580,
+        change: 80,
+        current_rank: 1,
+      }),
+    ];
+
+    const fullModel = buildRatingProgressChartModel(teams);
+    expect(fullModel.series[0]?.label).toBe("Legia Warszawa");
+    expect(fullModel.series[0]?.endLabel?.text).toContain("Legia Warszawa");
+
+    const shortcutModel = buildRatingProgressChartModel(teams, {
+      teamNameDisplay: "shortcut",
+    });
+    expect(shortcutModel.series[0]?.label).toBe("LEG");
+    expect(shortcutModel.series[0]?.endLabel?.text).toContain("LEG");
   });
 
   it("handles teams with missing points without crashing", () => {

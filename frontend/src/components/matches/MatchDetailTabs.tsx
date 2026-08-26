@@ -12,6 +12,7 @@ import { MatchStatsPanel } from "@/components/MatchStatsPanel";
 import { PlayedBetterAssessmentPanel } from "@/components/matches/PlayedBetterAssessmentPanel";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { StatusMessage } from "@/components/StatusMessage";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
 import { teamChartLabel } from "@/components/predictions/predictionChartModel";
 import type { MatchDetails } from "@/types/api";
@@ -24,6 +25,7 @@ type MatchTab = "prematch" | "predictions" | "stats" | "boxscore";
 
 export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<MatchTab>("prematch");
+  const { preferences } = usePreferences();
 
   const tabs: { id: MatchTab; label: string; visible: boolean }[] = [
     { id: "prematch", label: "Statystyki przedmeczowe", visible: true },
@@ -43,8 +45,14 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   ];
 
   const visibleTabs = tabs.filter((tab) => tab.visible);
-  const homeTeamLabel = teamChartLabel(match.home_team);
-  const awayTeamLabel = teamChartLabel(match.away_team);
+  const homeTeamLabel = teamChartLabel(
+    match.home_team,
+    preferences.teamNameDisplay,
+  );
+  const awayTeamLabel = teamChartLabel(
+    match.away_team,
+    preferences.teamNameDisplay,
+  );
 
   return (
     <div className="min-w-0 space-y-6">

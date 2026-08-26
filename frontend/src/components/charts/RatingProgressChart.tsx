@@ -7,6 +7,7 @@ import {
   type ChartSeriesView,
   type RatingProgressChartModel,
 } from "@/components/charts/ratingProgressChartModel";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
 import type { TeamRatingProgress } from "@/types/api";
 
@@ -225,6 +226,7 @@ export function RatingProgressChart({
   onHighlightedTeamIdChange,
 }: RatingProgressChartProps) {
   const [localHighlight, setLocalHighlight] = useState<number | null>(null);
+  const { preferences } = usePreferences();
   const controlled = onHighlightedTeamIdChange !== undefined;
   const activeHighlight = controlled ? highlightedTeamId : localHighlight;
 
@@ -240,7 +242,10 @@ export function RatingProgressChart({
     return null;
   }
 
-  const model = buildRatingProgressChartModel(teams, { lastPlayedAt });
+  const model = buildRatingProgressChartModel(teams, {
+    lastPlayedAt,
+    teamNameDisplay: preferences.teamNameDisplay,
+  });
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface p-3">

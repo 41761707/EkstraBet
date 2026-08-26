@@ -6,6 +6,7 @@ import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { computeSplitStatsFromHistory } from "@/components/matches/matchTeamStatsUtils";
 import { StatusMessage } from "@/components/StatusMessage";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { TeamFormStrip } from "@/components/TeamFormStrip";
 import { TeamSplitStatsTable } from "@/components/TeamSplitStatsTable";
 import { TeamTripleStatCharts } from "@/components/teams/TeamTripleStatCharts";
@@ -20,6 +21,8 @@ import {
   type TeamMatchStatPerspective,
 } from "@/components/teams/teamMatchStatsConfig";
 import { formatMatchDateShort } from "@/lib/format";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type { HockeyFormResult, TeamSeasonMatchPoint } from "@/types/api";
 
 interface HockeyTeamPrematchPanelProps {
@@ -29,8 +32,16 @@ interface HockeyTeamPrematchPanelProps {
   ouLine: number;
 }
 
-function buildChartLabel(match: TeamSeasonMatchPoint): string {
-  return `${match.opponent_shortcut} ${formatMatchDateShort(match.match_date)}`;
+function buildChartLabel(
+  match: TeamSeasonMatchPoint,
+  preference: TeamNameDisplayPreference,
+): string {
+  const opponent = formatTeamName(
+    match.opponent_name,
+    match.opponent_shortcut,
+    preference,
+  );
+  return `${opponent} ${formatMatchDateShort(match.match_date)}`;
 }
 
 export function HockeyTeamPrematchPanel({
@@ -39,6 +50,8 @@ export function HockeyTeamPrematchPanel({
   lookback,
   ouLine,
 }: HockeyTeamPrematchPanelProps) {
+  const { preferences } = usePreferences();
+  const teamNameDisplay = preferences.teamNameDisplay;
   const [statLines, setStatLines] = useState(buildHockeyDefaultStatLines);
 
   const analyzedMatches = useMemo(() => {
@@ -68,10 +81,10 @@ export function HockeyTeamPrematchPanel({
       chartMatches
         .filter((match) => match.first_period_goals !== null)
         .map((match) => ({
-          label: buildChartLabel(match),
+          label: buildChartLabel(match, teamNameDisplay),
           value: match.first_period_goals ?? 0,
         })),
-    [chartMatches],
+    [chartMatches, teamNameDisplay],
   );
 
   const updateStatLine = (
@@ -167,7 +180,7 @@ export function HockeyTeamPrematchPanel({
             playerName={teamName}
             thresholdLine={ouLine}
             points={chartMatches.map((match) => ({
-              label: buildChartLabel(match),
+              label: buildChartLabel(match, teamNameDisplay),
               value: match.total_goals,
             }))}
           />
@@ -190,7 +203,7 @@ export function HockeyTeamPrematchPanel({
           <TeamTripleStatCharts
             teamName={teamName}
             chartMatches={chartMatches}
-            buildLabel={buildChartLabel}
+            buildLabel={(match) => buildChartLabel(match, teamNameDisplay)}
             definition={definition}
             thresholdLines={statLines[definition.key]}
           />

@@ -12,8 +12,10 @@ import {
   sortTeamsByCurrentRating,
   teamDisplayLabel,
 } from "@/components/charts/ratingProgressChartModel";
-import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { StatusMessage } from "@/components/StatusMessage";
+import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import type {
   RatingProgressResponse,
   TeamRatingProgress,
@@ -48,13 +50,13 @@ function changeClassName(value: number): string {
   return "text-muted";
 }
 
-function LeaderCard({
-  title,
-  team,
-}: {
+interface LeaderCardProps {
   title: string;
   team: TeamRatingProgress | null;
-}) {
+  teamNameDisplay: TeamNameDisplayPreference;
+}
+
+function LeaderCard({ title, team, teamNameDisplay }: LeaderCardProps) {
   if (!team) {
     return null;
   }
@@ -62,7 +64,7 @@ function LeaderCard({
     <div className="rounded-xl border border-border bg-surface p-3">
       <p className="text-xs uppercase tracking-wide text-subtle">{title}</p>
       <p className="mt-1 text-sm font-semibold text-text">
-        {teamDisplayLabel(team)}
+        {teamDisplayLabel(team, teamNameDisplay)}
       </p>
       <p className={`mt-1 text-sm ${changeClassName(team.change)}`}>
         {formatChange(team.change)} ({formatRating(team.start_rating)} →{" "}
@@ -72,27 +74,31 @@ function LeaderCard({
   );
 }
 
-function TeamSelector({
-  teams,
-  selectedIds,
-  activePreset,
-  highlightedTeamId,
-  onToggle,
-  onSelectTop,
-  onSelectBottom,
-  onSelectAll,
-  onHighlightTeam,
-}: {
+interface TeamSelectorProps {
   teams: TeamRatingProgress[];
   selectedIds: number[];
   activePreset: SelectionPreset;
   highlightedTeamId: number | null;
+  teamNameDisplay: TeamNameDisplayPreference;
   onToggle: (teamId: number) => void;
   onSelectTop: () => void;
   onSelectBottom: () => void;
   onSelectAll: () => void;
   onHighlightTeam: (teamId: number | null) => void;
-}) {
+}
+
+function TeamSelector({
+  teams,
+  selectedIds,
+  activePreset,
+  highlightedTeamId,
+  teamNameDisplay,
+  onToggle,
+  onSelectTop,
+  onSelectBottom,
+  onSelectAll,
+  onHighlightTeam,
+}: TeamSelectorProps) {
   const selected = new Set(selectedIds);
   return (
     <div className="space-y-3">
@@ -163,7 +169,7 @@ function TeamSelector({
                   : { borderColor: `${color}66` }
               }
             >
-              {teamDisplayLabel(team)}
+              {teamDisplayLabel(team, teamNameDisplay)}
             </button>
           );
         })}
@@ -221,6 +227,8 @@ interface RatingProgressViewProps {
 }
 
 export function RatingProgressView({ data }: RatingProgressViewProps) {
+  const { preferences } = usePreferences();
+  const teamNameDisplay = preferences.teamNameDisplay;
   const rankedTeams = useMemo(
     () => sortTeamsByCurrentRating(data.teams),
     [data.teams],
@@ -257,14 +265,23 @@ export function RatingProgressView({ data }: RatingProgressViewProps) {
         wartości zgodne z pipeline ML
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <LeaderCard title="Największy wzrost" team={data.biggest_rise} />
-        <LeaderCard title="Największy spadek" team={data.biggest_fall} />
+        <LeaderCard
+          title="Największy wzrost"
+          team={data.biggest_rise}
+          teamNameDisplay={teamNameDisplay}
+        />
+        <LeaderCard
+          title="Największy spadek"
+          team={data.biggest_fall}
+          teamNameDisplay={teamNameDisplay}
+        />
       </div>
       <TeamSelector
         teams={rankedTeams}
         selectedIds={selectedIds}
         activePreset={activePreset}
         highlightedTeamId={highlightedTeamId}
+        teamNameDisplay={teamNameDisplay}
         onToggle={toggleTeam}
         onSelectTop={() => {
           setActivePreset("top");
