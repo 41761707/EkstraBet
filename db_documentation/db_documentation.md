@@ -54,7 +54,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
 - [USER_FAVORITE_LEAGUES](#user_favorite_leagues) (Ulubione ligi wybranych użytkowników aplikacji)
-- [USER_PREFERENCES](#user_preferences) (Skalarne preferencje UI konta, m.in. motyw)
+- [USER_PREFERENCES](#user_preferences) (Skalarne preferencje UI konta, m.in. motyw i nazwy drużyn)
 - [USERS](#users) (Konta użytkowników aplikacji web / API)
 
 ## Legenda
@@ -1515,25 +1515,41 @@ Wiersze dodaje i usuwa zalogowany użytkownik przez API (`PUT`/`DELETE /users/me
 (Skalarne preferencje UI konta — relacja 1:1 z `users`; nie mylić z `USER_FAVORITE_LEAGUES`)
 
 
-| POLE            | DOMENA   | ZAKRES                    | UWAGI                                                                 | WARTOŚC DOMYŚLNA  |
-| --------------- | -------- | ------------------------- | --------------------------------------------------------------------- | ----------------- |
-| ***USER_ID***   | INT      | INT                       | Klucz główny i klucz obcy do *users*                                  | NULL              |
-| THEME           | ENUM     | {system, dark, light}     | Preferencja schematu kolorów konta                                    | system            |
-| UPDATED_AT      | DATETIME | DATETIME                  | Moment ostatniego zapisu (last-write-wins per pole)                   | CURRENT_TIMESTAMP |
+| POLE               | DOMENA   | ZAKRES                    | UWAGI                                                                 | WARTOŚC DOMYŚLNA  |
+| ------------------ | -------- | ------------------------- | --------------------------------------------------------------------- | ----------------- |
+| ***USER_ID***      | INT      | INT                       | Klucz główny i klucz obcy do *users*                                  | NULL              |
+| THEME              | ENUM     | {system, dark, light}     | Preferencja schematu kolorów konta                                    | system            |
+| TEAM_NAME_DISPLAY  | VARCHAR(15) | STRING (max 15)           | Preferencja etykiet drużyn w UI ze skrótami; allowlista w API, nie ENUM w DB | full              |
+| UPDATED_AT         | DATETIME | DATETIME                  | Moment ostatniego zapisu (last-write-wins per pole)                   | CURRENT_TIMESTAMP |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `USER_ID` — jeden wiersz na konto
 - Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE** (usunięcie konta kasuje preferencje)
-- Brak wiersza = użytkownik nigdy nie zapisał motywu na koncie (frontend wtedy wypycha cache localStorage)
-- Domyślne `system` w DDL dotyczy bezpośredniego INSERT-a, nie semantyki „użytkownik wybrał system”
+- Brak wiersza = użytkownik nigdy nie zapisał preferencji na koncie (frontend wtedy wypycha cache localStorage)
+- Domyślne `system` / `full` w DDL dotyczą bezpośredniego INSERT-a, nie semantyki „użytkownik wybrał te wartości”
+- Istniejące wiersze przy `ADD COLUMN ... DEFAULT 'full'` otrzymują `full`
+- Kolumna `TEAM_NAME_DISPLAY` to `VARCHAR(15)`, nie ENUM — dopuszczalne tryby (`full`, `shortcut`, ewentualne przyszłe) waliduje warstwa aplikacji (Pydantic + serwis), nie schemat MySQL
 - Kolejne preferencje skalarne (np. `odds_format`) dodaje się **kolumną z DEFAULT**, bez nowej tabeli i bez JSON blob
+- Aplikacja **nie** wykonuje DDL. Kolumnę wgrać ręcznie **przed** backendem, który ją odczytuje:
+
+```sql
+ALTER TABLE user_preferences
+  ADD COLUMN team_name_display VARCHAR(15)
+  NOT NULL DEFAULT 'full'
+  COMMENT 'Preferred team label in abbreviation-capable UI'
+  AFTER theme;
+```
+
+Po wdrożeniu: `SHOW CREATE TABLE user_preferences` oraz agregacja po `team_name_display`.
 
 **Sposób generowania danych do tabeli:**
 
 Wiersz tworzy i aktualizuje zalogowany użytkownik przez API (`GET`/`PUT /users/me/preferences`).
-`PUT` scala tylko podane pola (v1: `{ "theme": "system"|"dark"|"light" }`).
+`GET` zwraca `{ "theme", "team_name_display" }`. `PUT` scala tylko podane pola
+(`{ "theme" }` nie zmienia nazw, `{ "team_name_display" }` nie zmienia motywu).
+Pusty body albo niedozwolona wartość daje 422.
 
 ---
 

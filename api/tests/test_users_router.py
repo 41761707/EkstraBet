@@ -17,7 +17,10 @@ os.environ.setdefault("OPENAPI_ENABLED", "false")
 from backend.config import get_settings
 from backend.services import auth_service
 from backend.services.favorite_league_service import LeagueNotAvailableError
-from backend.services.user_preferences_service import InvalidThemeError
+from backend.services.user_preferences_service import (
+    EmptyPreferencesPatchError,
+    InvalidTeamNameDisplayError,
+    InvalidThemeError)
 
 get_settings.cache_clear()
 
@@ -32,8 +35,8 @@ _REMOVE = (
     "api.routers.users.favorite_league_service.remove_favorite_league")
 _GET_PREFS = (
     "api.routers.users.user_preferences_service.get_preferences")
-_UPDATE_THEME = (
-    "api.routers.users.user_preferences_service.update_theme")
+_UPDATE_PREFS = (
+    "api.routers.users.user_preferences_service.update_preferences")
 _FETCH_UUID = (
     "backend.services.auth_service.user_repository.fetch_user_by_uuid")
 
@@ -308,9 +311,11 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         self.assertNotIn("user_id", payload)
         self.assertNotIn("uuid", payload)
 
-    @patch(_GET_PREFS, return_value={"theme": "light"})
+    @patch(_GET_PREFS, return_value={
+        "theme": "light",
+        "team_name_display": "full"})
     @patch(_FETCH_UUID, return_value=_TEST_USER)
-    def test_get_returns_theme_without_user_id(
+    def test_get_returns_full_document_without_user_id(
             self,
             _mock_fetch: MagicMock,
             mock_get_prefs: MagicMock) -> None:
@@ -319,7 +324,9 @@ class TestUsersPreferencesRouter(unittest.TestCase):
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload, {"theme": "light"})
+        self.assertEqual(payload, {
+            "theme": "light",
+            "team_name_display": "full"})
         self._assert_no_internal_user_id(payload)
         mock_get_prefs.assert_called_once()
         passed_user = mock_get_prefs.call_args.args[0]
@@ -338,9 +345,11 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         self.assertEqual(response.json()["detail"], "Preferences not found")
         mock_get_prefs.assert_called_once()
 
-    @patch(_UPDATE_THEME, return_value={"theme": "light"})
+    @patch(_UPDATE_PREFS, return_value={
+        "theme": "light",
+        "team_name_display": "full"})
     @patch(_FETCH_UUID, return_value=_TEST_USER)
-    def test_put_light_then_returns_light(
+    def test_put_theme_only_does_not_send_team_name_display(
             self,
             _mock_fetch: MagicMock,
             mock_update: MagicMock) -> None:
@@ -350,17 +359,68 @@ class TestUsersPreferencesRouter(unittest.TestCase):
             json={"theme": "light"})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload, {"theme": "light"})
+        self.assertEqual(payload, {
+            "theme": "light",
+            "team_name_display": "full"})
         self._assert_no_internal_user_id(payload)
         mock_update.assert_called_once()
-        passed_user, theme = mock_update.call_args.args
+        passed_user = mock_update.call_args.args[0]
         self.assertEqual(passed_user["id"], 1)
-        self.assertEqual(theme, "light")
+        self.assertEqual(mock_update.call_args.kwargs["theme"], "light")
+        self.assertIsNone(mock_update.call_args.kwargs["team_name_display"])
 
-    @patch(_GET_PREFS, return_value={"theme": "light"})
-    @patch(_UPDATE_THEME, return_value={"theme": "light"})
+    @patch(_UPDATE_PREFS, return_value={
+        "theme": "dark",
+        "team_name_display": "shortcut"})
     @patch(_FETCH_UUID, return_value=_TEST_USER)
-    def test_put_light_then_get_returns_light(
+    def test_put_team_name_display_only_does_not_send_theme(
+            self,
+            _mock_fetch: MagicMock,
+            mock_update: MagicMock) -> None:
+        response = self.client.put(
+            _PREFERENCES_PATH,
+            headers=self._auth_headers(),
+            json={"team_name_display": "shortcut"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "theme": "dark",
+            "team_name_display": "shortcut"})
+        mock_update.assert_called_once()
+        self.assertIsNone(mock_update.call_args.kwargs["theme"])
+        self.assertEqual(
+            mock_update.call_args.kwargs["team_name_display"],
+            "shortcut")
+
+    @patch(_UPDATE_PREFS, return_value={
+        "theme": "dark",
+        "team_name_display": "shortcut"})
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_both_fields(
+            self,
+            _mock_fetch: MagicMock,
+            mock_update: MagicMock) -> None:
+        response = self.client.put(
+            _PREFERENCES_PATH,
+            headers=self._auth_headers(),
+            json={"theme": "dark", "team_name_display": "shortcut"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "theme": "dark",
+            "team_name_display": "shortcut"})
+        mock_update.assert_called_once()
+        self.assertEqual(mock_update.call_args.kwargs["theme"], "dark")
+        self.assertEqual(
+            mock_update.call_args.kwargs["team_name_display"],
+            "shortcut")
+
+    @patch(_GET_PREFS, return_value={
+        "theme": "light",
+        "team_name_display": "full"})
+    @patch(_UPDATE_PREFS, return_value={
+        "theme": "light",
+        "team_name_display": "full"})
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_then_get_returns_full_document(
             self,
             _mock_fetch: MagicMock,
             mock_update: MagicMock,
@@ -374,13 +434,17 @@ class TestUsersPreferencesRouter(unittest.TestCase):
             _PREFERENCES_PATH,
             headers=headers)
         self.assertEqual(put_response.status_code, 200)
-        self.assertEqual(put_response.json(), {"theme": "light"})
+        self.assertEqual(put_response.json(), {
+            "theme": "light",
+            "team_name_display": "full"})
         self.assertEqual(get_response.status_code, 200)
-        self.assertEqual(get_response.json(), {"theme": "light"})
+        self.assertEqual(get_response.json(), {
+            "theme": "light",
+            "team_name_display": "full"})
         mock_update.assert_called_once()
         mock_get_prefs.assert_called_once()
 
-    @patch(_UPDATE_THEME)
+    @patch(_UPDATE_PREFS)
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_put_sepia_returns_422(
             self,
@@ -393,7 +457,20 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         mock_update.assert_not_called()
 
-    @patch(_UPDATE_THEME)
+    @patch(_UPDATE_PREFS)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_invalid_team_name_display_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_update: MagicMock) -> None:
+        response = self.client.put(
+            _PREFERENCES_PATH,
+            headers=self._auth_headers(),
+            json={"team_name_display": "abbrev"})
+        self.assertEqual(response.status_code, 422)
+        mock_update.assert_not_called()
+
+    @patch(_UPDATE_PREFS)
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_put_empty_body_returns_422(
             self,
@@ -407,7 +484,7 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         mock_update.assert_not_called()
 
     @patch(
-        _UPDATE_THEME,
+        _UPDATE_PREFS,
         side_effect=InvalidThemeError("Invalid theme"))
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_put_service_reject_returns_422(
@@ -422,6 +499,43 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         self.assertEqual(response.json()["detail"], "Invalid theme")
         mock_update.assert_called_once()
 
+    @patch(
+        _UPDATE_PREFS,
+        side_effect=InvalidTeamNameDisplayError("Invalid team_name_display"))
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_service_reject_team_name_display_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_update: MagicMock) -> None:
+        response = self.client.put(
+            _PREFERENCES_PATH,
+            headers=self._auth_headers(),
+            json={"team_name_display": "shortcut"})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"],
+            "Invalid team_name_display")
+        mock_update.assert_called_once()
+
+    @patch(
+        _UPDATE_PREFS,
+        side_effect=EmptyPreferencesPatchError(
+            "At least one preference field is required"))
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_service_empty_patch_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_update: MagicMock) -> None:
+        response = self.client.put(
+            _PREFERENCES_PATH,
+            headers=self._auth_headers(),
+            json={"theme": "dark"})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"],
+            "At least one preference field is required")
+        mock_update.assert_called_once()
+
     def test_endpoints_require_token(self) -> None:
         get_response = self.client.get(_PREFERENCES_PATH)
         put_response = self.client.put(
@@ -431,7 +545,7 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         self.assertEqual(put_response.status_code, 401)
 
     @patch(_GET_PREFS)
-    @patch(_UPDATE_THEME)
+    @patch(_UPDATE_PREFS)
     def test_invalid_token_is_rejected(
             self,
             mock_update: MagicMock,
@@ -448,7 +562,7 @@ class TestUsersPreferencesRouter(unittest.TestCase):
         mock_update.assert_not_called()
 
     @patch(_GET_PREFS)
-    @patch(_UPDATE_THEME)
+    @patch(_UPDATE_PREFS)
     @patch(_FETCH_UUID, return_value=_FIRST_LOGIN_USER)
     def test_first_login_is_blocked(
             self,
