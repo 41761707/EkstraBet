@@ -7,6 +7,7 @@ import {
   FOOTBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
   parsePlayerStatKeys,
+  teamsForCountry,
   type PlayersFilterValues,
 } from "@/lib/playerFilterParams";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -88,6 +89,20 @@ function pickTeamId(
     }
   }
   return teams[0]?.id ?? null;
+}
+
+async function loadPlayerFilterTeams(
+  sportId: number,
+  countries: { id: number }[],
+): Promise<Awaited<ReturnType<typeof getPlayerTeams>>["teams"]> {
+  if (sportId === HOCKEY_SPORT_ID) {
+    return (await getPlayerTeams(sportId)).teams;
+  }
+  // wszystkie kraje naraz — zmiana kraju w filtrze nie wymaga „Zastosuj”
+  const responses = await Promise.all(
+    countries.map((country) => getPlayerTeams(sportId, country.id)),
+  );
+  return responses.flatMap((response) => response.teams);
 }
 
 function pickSeasonId(
@@ -186,15 +201,11 @@ export default async function PlayersPage({ searchParams }: PlayersPageProps) {
     const matchLimit = parseMatchLimit(params.match_limit, sportId!);
     const search = params.search?.trim() ?? "";
 
-    if (sportId === HOCKEY_SPORT_ID || countryId) {
-      const teamsResponse = await getPlayerTeams(
-        sportId!,
-        countryId ?? undefined,
-      );
-      teams = teamsResponse.teams;
-    }
+    teams = await loadPlayerFilterTeams(sportId!, countries);
 
-    const teamId = search ? null : pickTeamId(teams, params.team_id);
+    const teamId = search
+      ? null
+      : pickTeamId(teamsForCountry(teams, countryId), params.team_id);
 
     const filters: PlayersFilterValues = {
       sportId: sportId!,

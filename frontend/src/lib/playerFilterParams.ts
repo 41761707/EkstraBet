@@ -1,4 +1,4 @@
-import type { PlayerStatKey } from "@/types/api";
+import type { PlayerStatKey, PlayerTeamOption } from "@/types/api";
 
 export const FOOTBALL_SPORT_ID = 1;
 export const HOCKEY_SPORT_ID = 2;
@@ -10,6 +10,30 @@ export interface PlayersFilterValues {
   seasonId: number | null;
   matchLimit: number;
   search: string;
+}
+
+/** Teams shown in the dropdown for the currently selected country. */
+export function teamsForCountry(
+  teams: PlayerTeamOption[],
+  countryId: number | null,
+): PlayerTeamOption[] {
+  if (countryId == null) {
+    return teams;
+  }
+  return teams.filter((team) => team.country_id === countryId);
+}
+
+/** Keep country and team filters in sync when the country changes. */
+export function selectCountryFilter(
+  current: PlayersFilterValues,
+  countryId: number | null,
+  teams: PlayerTeamOption[],
+): PlayersFilterValues {
+  return {
+    ...current,
+    countryId,
+    teamId: teamsForCountry(teams, countryId)[0]?.id ?? null,
+  };
 }
 
 const FOOTBALL_PLAYER_STAT_KEYS: PlayerStatKey[] = [

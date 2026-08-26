@@ -2,14 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
 import {
   getMatchLimitOptions,
   MATCH_LIMIT_OPTIONS,
 } from "@/components/players/playerStatsConfig";
 import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateSearch } from "@/lib/clientNavigation";
-import type { PlayersFilterValues } from "@/lib/playerFilterParams";
-import { FOOTBALL_SPORT_ID } from "@/lib/playerFilterParams";
+import {
+  FOOTBALL_SPORT_ID,
+  selectCountryFilter,
+  teamsForCountry,
+  type PlayersFilterValues,
+} from "@/lib/playerFilterParams";
 import type {
   PlayerCountryOption,
   PlayerSeasonOption,
@@ -70,16 +75,7 @@ export function PlayersFilters({
   }
 
   function patchState(partial: Partial<PlayersFilterValues>) {
-    setState((current) => {
-      const next = { ...current, ...partial };
-      if (
-        partial.countryId !== undefined &&
-        partial.countryId !== current.countryId
-      ) {
-        next.teamId = null;
-      }
-      return next;
-    });
+    setState((current) => ({ ...current, ...partial }));
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -88,10 +84,11 @@ export function PlayersFilters({
   }
 
   function handleReset() {
+    const defaultCountryId = countries[0]?.id ?? null;
     const resetState: PlayersFilterValues = {
       sportId: state.sportId,
-      countryId: countries[0]?.id ?? null,
-      teamId: teams[0]?.id ?? null,
+      countryId: defaultCountryId,
+      teamId: teamsForCountry(teams, defaultCountryId)[0]?.id ?? null,
       seasonId: seasons[0]?.season_id ?? null,
       matchLimit: defaultMatchLimit(state.sportId),
       search: "",
@@ -103,6 +100,8 @@ export function PlayersFilters({
         : "/players";
     navigateSearch(path, router);
   }
+
+  const visibleTeams = teamsForCountry(teams, state.countryId);
 
   return (
     <form
@@ -117,9 +116,13 @@ export function PlayersFilters({
               className={FILTER_INPUT_CLASS_NAME}
               value={state.countryId ?? ""}
               onChange={(event) =>
-                patchState({
-                  countryId: Number(event.target.value) || null,
-                })
+                setState((current) =>
+                  selectCountryFilter(
+                    current,
+                    Number(event.target.value) || null,
+                    teams,
+                  ),
+                )
               }
             >
               {countries.map((country) => (
@@ -137,14 +140,14 @@ export function PlayersFilters({
           <select
             className={FILTER_INPUT_CLASS_NAME}
             value={state.teamId ?? ""}
-            disabled={teams.length === 0}
+            disabled={visibleTeams.length === 0}
             onChange={(event) =>
               patchState({
                 teamId: Number(event.target.value) || null,
               })
             }
           >
-            {teams.map((team) => (
+            {visibleTeams.map((team) => (
               <option key={team.id} value={team.id}>
                 {team.name}
               </option>
