@@ -47,6 +47,7 @@ export interface PreferencesContextValue {
   preferences: UserPreferencesV1;
   resolvedTheme: ResolvedTheme;
   setTheme(theme: ThemePreference): void;
+  setTeamNameDisplay(preference: TeamNameDisplayPreference): void;
   toggleTheme(): void;
 }
 
