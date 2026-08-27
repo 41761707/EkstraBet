@@ -77,6 +77,7 @@ def build_hockey_team_history(
             "match_id": int(row["id"]),
             "match_date": _to_date_label(row["game_date"]),
             "opponent_shortcut": str(row[f"{opponent_key}_shortcut"] or ""),
+            "opponent_name": str(row[f"{opponent_key}_name"] or ""),
             "team_goals": team_goals,
             "opponent_goals": opponent_goals,
             "total_goals": team_goals + opponent_goals,

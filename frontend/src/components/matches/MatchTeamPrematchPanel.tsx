@@ -7,6 +7,7 @@ import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { computeSplitStatsFromHistory } from "@/components/matches/matchTeamStatsUtils";
 import { StatusMessage } from "@/components/StatusMessage";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { TeamFormStrip } from "@/components/TeamFormStrip";
 import { TeamSplitStatsTable } from "@/components/TeamSplitStatsTable";
 import { TeamTripleStatCharts } from "@/components/teams/TeamTripleStatCharts";
@@ -19,6 +20,8 @@ import {
   type TeamMatchStatPerspective,
 } from "@/components/teams/teamMatchStatsConfig";
 import { formatMatchDateShort } from "@/lib/format";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type { TeamSeasonMatchPoint } from "@/types/api";
 
 interface MatchTeamPrematchPanelProps {
@@ -28,8 +31,16 @@ interface MatchTeamPrematchPanelProps {
   ouLine: number;
 }
 
-function buildChartLabel(match: TeamSeasonMatchPoint): string {
-  return `${match.opponent_shortcut} ${formatMatchDateShort(match.match_date)}`;
+function buildChartLabel(
+  match: TeamSeasonMatchPoint,
+  preference: TeamNameDisplayPreference,
+): string {
+  const opponent = formatTeamName(
+    match.opponent_name,
+    match.opponent_shortcut,
+    preference,
+  );
+  return `${opponent} ${formatMatchDateShort(match.match_date)}`;
 }
 
 export function MatchTeamPrematchPanel({
@@ -38,6 +49,8 @@ export function MatchTeamPrematchPanel({
   lookback,
   ouLine,
 }: MatchTeamPrematchPanelProps) {
+  const { preferences } = usePreferences();
+  const teamNameDisplay = preferences.teamNameDisplay;
   const [statLines, setStatLines] = useState(buildDefaultStatLines);
 
   const analyzedMatches = useMemo(() => {
@@ -155,7 +168,7 @@ export function MatchTeamPrematchPanel({
             playerName={teamName}
             thresholdLine={ouLine}
             points={chartMatches.map((match) => ({
-              label: buildChartLabel(match),
+              label: buildChartLabel(match, teamNameDisplay),
               value: match.total_goals,
             }))}
           />
@@ -163,7 +176,7 @@ export function MatchTeamPrematchPanel({
             title="BTTS w meczach"
             teamName={teamName}
             points={chartMatches.map((match) => ({
-              label: buildChartLabel(match),
+              label: buildChartLabel(match, teamNameDisplay),
               btts: match.btts,
             }))}
           />
@@ -178,7 +191,7 @@ export function MatchTeamPrematchPanel({
           <TeamTripleStatCharts
             teamName={teamName}
             chartMatches={chartMatches}
-            buildLabel={buildChartLabel}
+            buildLabel={(match) => buildChartLabel(match, teamNameDisplay)}
             definition={definition}
             thresholdLines={statLines[definition.key]}
           />

@@ -84,10 +84,17 @@ async def put_preferences(
     user: Annotated[dict[str, Any], Depends(get_current_user)],
     payload: UserPreferencesUpdate
 ) -> UserPreferencesResponse:
-    """Merge provided fields only; v1 body is `{ theme }`."""
+    """Merge provided fields only; omitted columns stay unchanged."""
     try:
-        row = user_preferences_service.update_theme(user, payload.theme)
-    except user_preferences_service.InvalidThemeError as exc:
+        row = user_preferences_service.update_preferences(
+            user,
+            theme=payload.theme,
+            team_name_display=payload.team_name_display)
+    except (
+            user_preferences_service.InvalidThemeError,
+            user_preferences_service.InvalidTeamNameDisplayError,
+            user_preferences_service.EmptyPreferencesPatchError
+    ) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc)) from exc

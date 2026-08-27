@@ -50,6 +50,7 @@ def build_basketball_team_history(
             "match_id": int(row["id"]),
             "match_date": _to_date_label(row["game_date"]),
             "opponent_shortcut": str(row[f"{opponent_key}_shortcut"] or ""),
+            "opponent_name": str(row[f"{opponent_key}_name"] or ""),
             "team_points": team_points,
             "opponent_points": opponent_points,
             "total_points": team_points + opponent_points,

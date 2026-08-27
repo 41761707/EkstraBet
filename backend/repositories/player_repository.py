@@ -209,7 +209,11 @@ def fetch_football_player_match_stats(
             CASE
                 WHEN t1.id = stat.team_id THEN t2.shortcut
                 WHEN t2.id = stat.team_id THEN t1.shortcut
-            END AS opponent_shortcut
+            END AS opponent_shortcut,
+            CASE
+                WHEN t1.id = stat.team_id THEN t2.name
+                WHEN t2.id = stat.team_id THEN t1.name
+            END AS opponent_name
         FROM football_player_stats stat
         JOIN matches m ON stat.match_id = m.id
         JOIN teams t1 ON t1.id = m.home_team
@@ -273,7 +277,11 @@ def fetch_hockey_player_match_stats(
             CASE
                 WHEN t1.id = stat.team_id THEN t2.shortcut
                 WHEN t2.id = stat.team_id THEN t1.shortcut
-            END AS opponent_shortcut
+            END AS opponent_shortcut,
+            CASE
+                WHEN t1.id = stat.team_id THEN t2.name
+                WHEN t2.id = stat.team_id THEN t1.name
+            END AS opponent_name
         FROM hockey_match_player_stats stat
         JOIN matches m ON stat.match_id = m.id
         JOIN teams t1 ON t1.id = m.home_team

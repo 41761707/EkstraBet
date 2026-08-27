@@ -161,31 +161,41 @@ describe("user preferences", () => {
 
   it("GETs preferences through the BFF", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ theme: "light" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({ theme: "light", team_name_display: "full" }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
     );
     stubBrowserFetch(fetchMock);
 
-    await expect(getUserPreferences()).resolves.toEqual({ theme: "light" });
+    await expect(getUserPreferences()).resolves.toEqual({
+      theme: "light",
+      team_name_display: "full",
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const requested = String(fetchMock.mock.calls[0]?.[0]);
     expect(requested).toContain("/api/backend/users/me/preferences");
   });
 
-  it("PUTs preferences through the BFF", async () => {
+  it("PUTs a theme patch through the BFF", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ theme: "dark" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({ theme: "dark", team_name_display: "full" }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
     );
     stubBrowserFetch(fetchMock);
 
     await expect(putUserPreferences({ theme: "dark" })).resolves.toEqual({
       theme: "dark",
+      team_name_display: "full",
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -196,5 +206,31 @@ describe("user preferences", () => {
     expect(requested).toContain("/api/backend/users/me/preferences");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(String(init.body))).toEqual({ theme: "dark" });
+  });
+
+  it("PUTs a team_name_display patch through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ theme: "light", team_name_display: "shortcut" }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      putUserPreferences({ team_name_display: "shortcut" }),
+    ).resolves.toEqual({
+      theme: "light",
+      team_name_display: "shortcut",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({
+      team_name_display: "shortcut",
+    });
   });
 });

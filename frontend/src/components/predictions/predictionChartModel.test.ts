@@ -37,17 +37,25 @@ const sampleResponse: PredictionPreviewResponse = {
 };
 
 describe("teamChartLabel", () => {
-  it("prefers shortcut when present", () => {
-    expect(teamChartLabel({ name: "GKS Katowice", shortcut: "KAT" })).toBe("KAT");
+  it("returns the full name in full mode even when a shortcut exists", () => {
+    expect(
+      teamChartLabel({ name: "GKS Katowice", shortcut: "KAT" }, "full"),
+    ).toBe("GKS Katowice");
+  });
+
+  it("returns the shortcut in shortcut mode", () => {
+    expect(
+      teamChartLabel({ name: "GKS Katowice", shortcut: "KAT" }, "shortcut"),
+    ).toBe("KAT");
   });
 
   it("falls back to full name when shortcut is missing", () => {
-    expect(teamChartLabel({ name: "GKS Katowice", shortcut: null })).toBe(
-      "GKS Katowice",
-    );
-    expect(teamChartLabel({ name: "GKS Katowice", shortcut: "  " })).toBe(
-      "GKS Katowice",
-    );
+    expect(
+      teamChartLabel({ name: "GKS Katowice", shortcut: null }, "shortcut"),
+    ).toBe("GKS Katowice");
+    expect(
+      teamChartLabel({ name: "GKS Katowice", shortcut: "  " }, "shortcut"),
+    ).toBe("GKS Katowice");
   });
 });
 
