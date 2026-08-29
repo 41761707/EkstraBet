@@ -104,3 +104,15 @@ async def get_current_user(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"})
     return user
+
+
+async def require_admin(
+    user: Annotated[dict[str, Any], Depends(get_current_user)]
+) -> dict[str, Any]:
+    """Return the current user when they have the admin role."""
+    # rolę czytamy z wiersza DB przy każdym requestcie, nie z payloadu JWT
+    if not user.get("is_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator role required")
+    return user

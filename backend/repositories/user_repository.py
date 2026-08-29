@@ -8,7 +8,7 @@ from backend.database import get_db_connection
 
 _USER_COLUMNS = (
     "id, uuid, username, password_hash, display_name, is_active, "
-    "first_login, created_at, updated_at")
+    "is_admin, first_login, created_at, updated_at")
 
 
 def fetch_user_by_username(username: str) -> dict[str, Any] | None:

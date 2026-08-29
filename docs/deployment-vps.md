@@ -372,11 +372,18 @@ Zaloguj się jako `root` MySQL (hasło z `mysql.env`) i załóż konta **z hasł
 już zapisanymi** w `api.env` (i później w `backup.env`). Brak skryptów
 bootstrap/migracji w tym wydaniu.
 
-Przykład konta API (SELECT-only; hasło = `DB_PASSWORD` z `api.env`):
+Przykład konta API (odczyt całej bazy + zapis tylko na tabelach konta;
+hasło = `DB_PASSWORD` z `api.env`). Na istniejącym VPS, gdzie konto było
+SELECT-only, uruchom [sql/grant_ekstrabet_api_app_writes.sql](../sql/grant_ekstrabet_api_app_writes.sql):
 
 ```sql
 CREATE USER 'ekstrabet_api'@'%' IDENTIFIED BY '…to_samo_co_DB_PASSWORD_w_api.env…';
 GRANT SELECT, SHOW VIEW ON ekstrabet.* TO 'ekstrabet_api'@'%';
+GRANT UPDATE (username, password_hash, display_name, first_login, updated_at)
+  ON ekstrabet.users TO 'ekstrabet_api'@'%';
+GRANT INSERT, UPDATE ON ekstrabet.user_preferences TO 'ekstrabet_api'@'%';
+GRANT INSERT, UPDATE, DELETE
+  ON ekstrabet.user_favorite_leagues TO 'ekstrabet_api'@'%';
 FLUSH PRIVILEGES;
 ```
 
@@ -871,7 +878,7 @@ Operator / data: ________________ / __________
 
 ### 13.3 Konfiguracja i uprawnienia
 
-- [ ] Granty DB: konto API SELECT-only (`INSERT`/`UPDATE`/`DELETE` odrzucone)
+- [ ] Granty DB: konto API SELECT na całą bazę; zapis tylko `users` (UPDATE first-login), `user_preferences`, `user_favorite_leagues`. Reszta `INSERT`/`UPDATE`/`DELETE` odrzucona
 - [ ] `EKSTRABET_ML_PREVIEW=false` na VPS; start z `true` kończy się błędem fail-closed
 - [ ] Cursor chat wyłączony (`CHAT_ENABLE_CURSOR` /
   `NEXT_PUBLIC_CHAT_ENABLE_CURSOR`); start z `true` kończy się błędem fail-closed

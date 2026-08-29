@@ -53,7 +53,7 @@ class TestAuthPasswordUnicode(unittest.TestCase):
 
 
 class TestToPublicUser(unittest.TestCase):
-    """Public user payload must expose first_login as a boolean."""
+    """Public user payload must expose flags as booleans without ids."""
 
     def test_maps_tinyint_one_to_true(self) -> None:
         public = to_public_user(_FIRST_LOGIN_USER)
@@ -61,6 +61,7 @@ class TestToPublicUser(unittest.TestCase):
         self.assertEqual(public["username"], "alice")
         self.assertEqual(public["display_name"], "Alice")
         self.assertTrue(public["first_login"])
+        self.assertFalse(public["is_admin"])
         self.assertNotIn("id", public)
         self.assertNotIn("password_hash", public)
 
@@ -73,6 +74,17 @@ class TestToPublicUser(unittest.TestCase):
             "display_name": None
         }
         self.assertFalse(to_public_user(missing)["first_login"])
+        self.assertFalse(to_public_user(missing)["is_admin"])
+
+    def test_maps_is_admin_tinyint_one_to_true(self) -> None:
+        admin = {**_FIRST_LOGIN_USER, "is_admin": 1}
+        public = to_public_user(admin)
+        self.assertTrue(public["is_admin"])
+        self.assertNotIn("id", public)
+
+    def test_maps_is_admin_zero_to_false(self) -> None:
+        regular = {**_FIRST_LOGIN_USER, "is_admin": 0}
+        self.assertFalse(to_public_user(regular)["is_admin"])
 
 
 class TestCompleteFirstLogin(unittest.TestCase):

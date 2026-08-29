@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 21.08.2026
+###### Ostatnia data modyfikacji: 29.08.2026
 
 ## Opis struktury bazy
 
@@ -15,6 +15,9 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [BASKETBALL_MATCH_ROSTERS](#basketball_match_rosters) (Składy drużyn koszykarskich w danym spotkaniu)
 - [BETS](#bets) (Wszystkie możliwe do zrealizowania zakłady)
 - [BOOKMAKERS](#bookmakers) (Wszyscy bukmacherzy brani pod uwagę w ramach badania)
+- [CHAMPIONS_LEAGUE_TYPER_MATCHES](#champions_league_typer_matches) (Opublikowane mecze konkursu Typer LM)
+- [CHAMPIONS_LEAGUE_TYPER_PREDICTIONS](#champions_league_typer_predictions) (Bieżące typy 1X2 użytkowników Typera LM)
+- [CHAMPIONS_LEAGUE_TYPER_PREDICTION_CHANGES](#champions_league_typer_prediction_changes) (Append-only audyt zmian typów Typera LM)
 - [CONFERENCE_DIVISIONS](#conference_divisions) (Dywizje przypisane do konferencji (dotyczy lig północnoamerykańskich))
 - [CONFERENCES](#conferences) (Podział lig (głównie północnoamerykańskich) na konferencje)
 - [COUNTRIES](#countries) (Kraje, z których pochodzą analizowane ligi)
@@ -304,6 +307,102 @@ Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.
 **Sposób generowania danych do tabeli**:
 
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
+
+---
+
+### CHAMPIONS_LEAGUE_TYPER_MATCHES
+
+(Opublikowane mecze konkursu Typer LM — rejestr publikacji **bez kursów**)
+
+
+| POLE            | DOMENA                  | ZAKRES              | UWAGI                                                                                          | WARTOŚC DOMYŚLNA         |
+| --------------- | ----------------------- | ------------------- | ---------------------------------------------------------------------------------------------- | ------------------------ |
+| **ID**          | INT                     | INT                 | ID wiersza publikacji                                                                          | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*      | INT                     | INT                 | Klucz obcy, powiązanie z tabelą *matches* (UNIQUE — jeden mecz publikowany raz)                | NULL                     |
+| *SEASON_ID*     | INT                     | INT                 | Klucz obcy, powiązanie z tabelą *seasons*                                                      | NULL                     |
+| ROUND_NUMBER    | INT                     | INT                 | Kolejka fazy ligowej (1–8) albo `matches.round` rundy pucharowej (>= 900). Faza wynika z tej wartości — brak osobnej kolumny. | NULL                     |
+| *PUBLISHED_BY*  | INT                     | INT                 | Klucz obcy, powiązanie z tabelą *users* (administrator, który opublikował zestaw)              | NULL                     |
+| PUBLISHED_AT    | DATETIME                | DATETIME            | Moment publikacji meczu w Typerze                                                              | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `uq_cl_typer_matches_match` (`MATCH_ID`) — jeden mecz może być opublikowany tylko raz
+- Indeks: `idx_cl_typer_matches_season_round` (`SEASON_ID`, `ROUND_NUMBER`)
+- Klucz obcy: `MATCH_ID` → `matches(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `SEASON_ID` → `seasons(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `PUBLISHED_BY` → `users(ID)` **ON DELETE RESTRICT**
+- Tabela **nie przechowuje kursów**. Kursy 1/X/2 Superbet są w `odds` (`bookmaker = 1`, eventy `1/2/3`) i mogą pojawić się po publikacji. Brak kursu nie blokuje publikacji ani typowania.
+
+**Sposób generowania danych do tabeli:**
+
+Wiersze wstawia administrator przez API Typera LM (`POST /typer-lm/admin/publications`) w jednej transakcji dla całego zestawu rundy. Korekta pomyłki (usunięcie publikacji bez typów) to `DELETE /typer-lm/admin/publications/{match_id}`. Aplikacja nie kopiuje kursów do tej tabeli i nie wstawia wierszy do `odds`.
+
+---
+
+### CHAMPIONS_LEAGUE_TYPER_PREDICTIONS
+
+(Bieżący typ 1X2 użytkownika dla opublikowanego meczu Typera LM)
+
+
+| POLE                 | DOMENA   | ZAKRES     | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| -------------------- | -------- | ---------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**               | INT      | INT        | ID bieżącego typu                                                     | AUTOMATYCZNIE GENEROWANY |
+| *TYPER_MATCH_ID*     | INT      | INT        | Klucz obcy, powiązanie z tabelą *champions_league_typer_matches*      | NULL                     |
+| *USER_ID*            | INT      | INT        | Klucz obcy, powiązanie z tabelą *users* (właściciel typu)             | NULL                     |
+| *SELECTED_EVENT_ID*  | INT      | {1, 2, 3}  | Klucz obcy, powiązanie z tabelą *events*; wyłącznie 1 (gospodarz), 2 (remis), 3 (gość) | NULL                     |
+| CREATED_AT           | DATETIME | DATETIME   | Moment pierwszego zapisu typu                                         | CURRENT_TIMESTAMP        |
+| UPDATED_AT           | DATETIME | DATETIME   | Moment ostatniej realnej zmiany typu (`ON UPDATE CURRENT_TIMESTAMP`) | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `uq_cl_typer_pred_match_user` (`TYPER_MATCH_ID`, `USER_ID`) — jeden bieżący typ na użytkownika i opublikowany mecz
+- Indeks: `idx_cl_typer_pred_user_updated` (`USER_ID`, `UPDATED_AT`)
+- Klucz obcy: `TYPER_MATCH_ID` → `champions_league_typer_matches(ID)` **ON DELETE RESTRICT** (nie można usunąć publikacji, gdy istnieją typy)
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT**
+- **CHECK:** `SELECTED_EVENT_ID IN (1, 2, 3)`
+
+**Sposób generowania danych do tabeli:**
+
+Zalogowany użytkownik zapisuje lub zmienia typ przez API (`PUT /typer-lm/predictions/{match_id}`) do chwili `matches.game_date`. Backend wykonuje UPSERT bieżącego wiersza. Identyczny wybór (no-op) nie dodaje wiersza audytu.
+
+---
+
+### CHAMPIONS_LEAGUE_TYPER_PREDICTION_CHANGES
+
+(Append-only audyt zmian typów Typera LM — rozstrzyganie sporów o treść zapisu)
+
+
+| POLE                          | DOMENA   | ZAKRES         | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ----------------------------- | -------- | -------------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**                        | INT      | INT            | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
+| *PREDICTION_ID*               | INT      | INT            | Klucz obcy, powiązanie z tabelą *champions_league_typer_predictions*  | NULL                     |
+| *CHANGED_BY*                  | INT      | INT            | Klucz obcy, powiązanie z tabelą *users* (użytkownik JWT, który zapisał typ; w obecnym API zawsze właściciel typu) | NULL                     |
+| *PREVIOUS_SELECTED_EVENT_ID*  | INT      | {1, 2, 3, NULL}| Klucz obcy, powiązanie z tabelą *events*; `NULL` przy pierwszym typie | NULL                     |
+| *NEW_SELECTED_EVENT_ID*       | INT      | {1, 2, 3}      | Klucz obcy, powiązanie z tabelą *events*; wyłącznie 1/2/3             | NULL                     |
+| CHANGED_AT                    | DATETIME | DATETIME       | Moment pierwszego zapisu albo realnej zmiany typu                     | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Indeks: `idx_cl_typer_chg_pred_at` (`PREDICTION_ID`, `CHANGED_AT`)
+- Indeks: `idx_cl_typer_chg_by_at` (`CHANGED_BY`, `CHANGED_AT`)
+- Klucz obcy: `PREDICTION_ID` → `champions_league_typer_predictions(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `CHANGED_BY` → `users(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `PREVIOUS_SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT** (NULL pomija sprawdzenie FK)
+- Klucz obcy: `NEW_SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT**
+- **CHECK:** `PREVIOUS_SELECTED_EVENT_ID IS NULL OR PREVIOUS_SELECTED_EVENT_ID IN (1, 2, 3)`
+- **CHECK:** `NEW_SELECTED_EVENT_ID IN (1, 2, 3)`
+- Wiersze są tylko dokładane. Aplikacja **nie** wykonuje `UPDATE` ani `DELETE` na tej tabeli. Służą rozstrzyganiu sporów o treść typu (kto, z jakiego eventu na jaki, kiedy).
+
+**Sposób generowania danych do tabeli:**
+
+INSERT w tej samej transakcji co UPSERT bieżącego typu: pierwszy zapis (`PREVIOUS_SELECTED_EVENT_ID = NULL`) oraz każda realna zmiana (np. `1 → 2`). Identyczny wybór nie dodaje wiersza. Użytkownik odczytuje wyłącznie własną historię; cudzy audyt widzi tylko administrator (`GET /typer-lm/admin/prediction-history`).
 
 ---
 
@@ -1079,6 +1178,8 @@ Tabela audytowa utworzona wraz z `MATCH_MODEL_ASSESSMENTS`. Zapis przebiegów je
 
 Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
 
+Typer LM odczytuje kursy 1/X/2 Superbet (`bookmaker = 1`, eventy `1/2/3`) z tej tabeli i **nie tworzy kopii** (brak kolumn kursów w tabelach `champions_league_typer_*` i brak krawędzi FK Typer → `odds`; powiązanie logiczne przez `matches.id`). Dla Ligi Mistrzów wiersz `(match_id, bookmaker, event)` jest zapisany jednokrotnie przez proces zewnętrzny, zwykle w dniu meczu.
+
 ---
 
 ### PARLAY_EVENTS
@@ -1566,6 +1667,7 @@ Pusty body albo niedozwolona wartość daje 422.
 | PASSWORD_HASH   | VARCHAR(255) | STRING  | Hash bcrypt hasła                                                     | NULL                     |
 | DISPLAY_NAME    | VARCHAR(100) | STRING  | Nazwa wyświetlana w UI                                                | NULL                     |
 | IS_ACTIVE       | TINYINT      | INT     | 1 = konto aktywne, 0 = zablokowane                                    | 1                        |
+| IS_ADMIN        | TINYINT      | {0,1}   | 1 = administrator Typera LM (publikacja meczów, odczyt cudzego audytu typów); 0 = zwykły użytkownik | 0                        |
 | FIRST_LOGIN     | TINYINT      | {0,1}   | 1 = należy ustawić hasło, username i display_name po 1. logowaniu     | 0                        |
 | CREATED_AT      | DATETIME     | DATETIME| Data utworzenia konta                                                 | CURRENT_TIMESTAMP        |
 | UPDATED_AT      | DATETIME     | DATETIME| Data ostatniej aktualizacji                                           | CURRENT_TIMESTAMP        |

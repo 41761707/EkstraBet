@@ -68,6 +68,17 @@ class TestLeagueService(unittest.TestCase):
         self.assertEqual(leagues[0]["slug"], "ekstraklasa")
         self.assertTrue(leagues[0]["active"])
 
+    @patch("backend.services.league_service.league_repository.fetch_leagues")
+    def test_get_leagues_allows_null_last_update(
+        self,
+        mock_fetch: unittest.mock.MagicMock) -> None:
+        frame = self._sample_league_frame()
+        frame.loc[0, "last_update"] = pd.NaT
+        mock_fetch.return_value = frame
+        leagues = get_leagues()
+        self.assertEqual(len(leagues), 1)
+        self.assertIsNone(leagues[0]["last_update"])
+
     @patch(
         "backend.services.league_service.league_repository"
         ".fetch_league_match_count")

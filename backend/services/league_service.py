@@ -16,7 +16,8 @@ def build_league_slug(name: str) -> str:
 
 def _to_date(value: object) -> date | None:
     """Convert database date values to plain dates."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
+    # pandas czyta SQL NULL z DATETIME jako NaT; NaT.date() rzuca TypeError
+    if value is None or pd.isna(value):
         return None
     if isinstance(value, date) and not isinstance(value, datetime):
         return value

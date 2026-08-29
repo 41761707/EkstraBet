@@ -135,7 +135,8 @@ def to_public_user(user: dict[str, Any]) -> dict[str, Any]:
         "uuid": str(user["uuid"]),
         "username": str(user["username"]),
         "display_name": user.get("display_name"),
-        "first_login": bool(user.get("first_login"))
+        "first_login": bool(user.get("first_login")),
+        "is_admin": bool(user.get("is_admin"))
     }
 
 

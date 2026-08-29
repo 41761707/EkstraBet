@@ -30,7 +30,7 @@ def _mock_connection(
 
 
 class TestFetchUserColumns(unittest.TestCase):
-    """SELECT must include first_login for auth to see the flag."""
+    """SELECT must include first_login and is_admin for auth flags."""
 
     @patch("backend.repositories.user_repository.get_db_connection")
     def test_fetch_user_by_id_selects_first_login(
@@ -45,6 +45,19 @@ class TestFetchUserColumns(unittest.TestCase):
         query = cursor.execute.call_args.args[0]
         self.assertIn("first_login", query)
         self.assertIn("FROM users", query)
+
+    @patch("backend.repositories.user_repository.get_db_connection")
+    def test_fetch_user_by_id_selects_is_admin(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            row={"id": 1, "is_admin": 1})
+        row = user_repository.fetch_user_by_id(1)
+        self.assertIsNotNone(row)
+        self.assertEqual(row["is_admin"], 1)
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("is_admin", query)
 
 
 class TestIsUsernameTaken(unittest.TestCase):
