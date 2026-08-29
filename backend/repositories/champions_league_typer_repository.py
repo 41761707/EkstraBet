@@ -42,7 +42,9 @@ _RESULT_EVENT_SQL = """
     END
 """
 
-# pozytywne IN: w MySQL NULL NOT IN (...) jest NULL, więc CASE szedłby do o.odds
+# kanoniczna punktacja Typera (tożsama z score_prediction w serwisie):
+# pudło przy result 1/X/2 -> 0 nawet bez kursu; trafienie bez kursu Superbet
+# -> NULL; wyłącznie matches.result, bez dogrywki i karnych.
 _POINTS_SQL = f"""
     CASE
         WHEN m.result IN ('1', 'X', '2') THEN
@@ -86,6 +88,16 @@ _CANDIDATE_SQL = f"""
     ORDER BY m.game_date ASC, m.id ASC
 """
 
+_LOCK_ROUND_MATCHES_SQL = f"""
+    SELECT id, league, season, round
+    FROM matches
+    WHERE league = {CHAMPIONS_LEAGUE_ID}
+      AND season = %s
+      AND round = %s
+    ORDER BY id
+    FOR UPDATE
+"""
+
 _LOCK_MATCHES_SQL = """
     SELECT id, league, season, round
     FROM matches
@@ -94,10 +106,11 @@ _LOCK_MATCHES_SQL = """
     FOR UPDATE
 """
 
-_LOCK_PUBLICATIONS_SQL = """
+_LOCK_ROUND_PUBLICATIONS_SQL = """
     SELECT match_id
     FROM champions_league_typer_matches
-    WHERE match_id IN ({placeholders})
+    WHERE season_id = %s
+      AND round_number = %s
     ORDER BY match_id
     FOR UPDATE
 """
@@ -349,23 +362,35 @@ def publish_matches(
         season_id: int,
         round_number: int,
         match_ids: list[int],
-        admin_id: int) -> list[dict[str, Any]]:
+        admin_id: int,
+        *,
+        group_match_count: int | None = None) -> list[dict[str, Any]]:
     """Insert a round's publications in one locked transaction.
 
     Does not read, insert or update ``odds``. Odds completeness is not
-    required. Selected ``matches`` rows are locked to serialize parallel
-    publishes of the same ids.
+    required. All Champions League ``matches`` of the round are locked
+    first so parallel publishes cannot exceed the group-stage limit or
+    skip knockout completeness.
     """
     _require_positive_ids(
         season_id=season_id, round_number=round_number, admin_id=admin_id)
+    _require_group_match_count(group_match_count)
     unique_ids = _unique_match_ids(match_ids)
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         try:
             _require_season(cursor, season_id)
+            round_rows = _lock_round_matches(
+                cursor, season_id, round_number)
             _lock_matches_for_publish(
                 cursor, unique_ids, season_id, round_number)
-            _assert_no_existing_publications(cursor, unique_ids)
+            published_ids = _lock_round_publications(
+                cursor, season_id, round_number)
+            _assert_phase_publication_rules(
+                unique_ids,
+                round_rows,
+                published_ids,
+                group_match_count)
             _insert_publications(
                 cursor, unique_ids, season_id, round_number, admin_id)
             rows = _fetch_publications_by_match_ids(cursor, unique_ids)
@@ -565,6 +590,72 @@ def _in_placeholders(count: int) -> str:
     return ", ".join(["%s"] * count)
 
 
+def _require_group_match_count(group_match_count: int | None) -> None:
+    if group_match_count is None:
+        return
+    if not isinstance(group_match_count, int) or group_match_count <= 0:
+        raise TyperValidationError(
+            "group_match_count must be a positive integer")
+
+
+def _lock_round_matches(
+        cursor: Any,
+        season_id: int,
+        round_number: int) -> list[dict[str, Any]]:
+    # blokada całej rundy LM serializuje równoległe publikacje zestawów
+    cursor.execute(_LOCK_ROUND_MATCHES_SQL, (season_id, round_number))
+    return list(cursor.fetchall())
+
+
+def _lock_round_publications(
+        cursor: Any, season_id: int, round_number: int) -> set[int]:
+    cursor.execute(
+        _LOCK_ROUND_PUBLICATIONS_SQL, (season_id, round_number))
+    return {int(row["match_id"]) for row in cursor.fetchall()}
+
+
+def _assert_phase_publication_rules(
+        match_ids: list[int],
+        round_rows: list[dict[str, Any]],
+        published_ids: set[int],
+        group_match_count: int | None) -> None:
+    round_ids = {int(row["id"]) for row in round_rows}
+    unpublished_ids = round_ids - published_ids
+    requested_ids = set(match_ids)
+    if requested_ids & published_ids:
+        raise TyperConflictError(
+            "One or more matches are already published")
+    if group_match_count is not None:
+        _assert_group_stage_under_lock(
+            match_ids,
+            unpublished_ids,
+            published_ids,
+            group_match_count)
+        return
+    if not round_ids:
+        raise TyperNotFoundError(
+            "No Champions League matches for this round")
+    if requested_ids != unpublished_ids:
+        raise TyperValidationError(
+            "Knockout publication must include every unpublished "
+            "imported match of the round")
+
+
+def _assert_group_stage_under_lock(
+        match_ids: list[int],
+        unpublished_ids: set[int],
+        published_ids: set[int],
+        group_match_count: int) -> None:
+    if not set(match_ids).issubset(unpublished_ids):
+        raise TyperValidationError(
+            "Group-stage match ids must be unpublished matches "
+            "of the requested round")
+    if len(published_ids) + len(match_ids) != group_match_count:
+        raise TyperValidationError(
+            f"Group-stage round must have exactly {group_match_count} "
+            "published matches")
+
+
 def _lock_matches_for_publish(
         cursor: Any,
         match_ids: list[int],
@@ -589,16 +680,6 @@ def _lock_matches_for_publish(
         if int(row["round"]) != round_number:
             raise TyperValidationError(
                 "Match round does not match the requested round")
-
-
-def _assert_no_existing_publications(
-        cursor: Any, match_ids: list[int]) -> None:
-    query = _LOCK_PUBLICATIONS_SQL.format(
-        placeholders=_in_placeholders(len(match_ids)))
-    cursor.execute(query, tuple(match_ids))
-    existing = cursor.fetchall()
-    if existing:
-        raise TyperConflictError("One or more matches are already published")
 
 
 def _insert_publications(

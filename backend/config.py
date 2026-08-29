@@ -144,6 +144,10 @@ class Settings(BaseSettings):
     ekstrabet_ml_preview: bool = Field(
         default=False,
         description="Whether synchronous ML prediction preview is enabled")
+    typer_lm_group_match_count: int = Field(
+        default=9,
+        ge=1,
+        description="Published group-stage matches per Typer LM round")
 
     @field_validator(
         "cors_origins",

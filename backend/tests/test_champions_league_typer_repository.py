@@ -12,6 +12,8 @@ from mysql.connector.errors import IntegrityError
 from backend.database import DatabaseConnectionError
 from backend.database import get_db_connection
 from backend.repositories import champions_league_typer_repository as repo
+from backend.services.champions_league_typer_service import (
+    EVENT_TO_OUTCOME, score_prediction)
 
 _GET_CONN = (
     "backend.repositories.champions_league_typer_repository"
@@ -191,9 +193,11 @@ class TestPublishMatches(unittest.TestCase):
             mock_get_conn,
             fetchall_results=[
                 locked_rows,
+                locked_rows,
                 existing or [],
                 published])
-        result = repo.publish_matches(13, 1, ids, admin_id=7)
+        result = repo.publish_matches(
+            13, 1, ids, admin_id=7, group_match_count=len(ids))
         return conn, cursor, result
 
     @patch(_GET_CONN)
@@ -213,14 +217,26 @@ class TestPublishMatches(unittest.TestCase):
         cursor.close.assert_called_once()
 
     @patch(_GET_CONN)
-    def test_locks_matches_for_update_with_placeholders(
+    def test_locks_round_then_requested_ids_for_update(
             self, mock_get_conn: MagicMock) -> None:
         _conn, cursor, _result = self._publish(mock_get_conn)
-        lock_sql, lock_params = cursor.execute.call_args_list[1].args
-        self.assertIn("FOR UPDATE", lock_sql)
-        self.assertIn("WHERE id IN (%s, %s)", lock_sql)
-        self.assertNotIn("101", lock_sql)
-        self.assertEqual(lock_params, (101, 102))
+        round_sql, round_params = cursor.execute.call_args_list[1].args
+        self.assertIn("FOR UPDATE", round_sql)
+        self.assertIn("season = %s", round_sql)
+        self.assertIn("round = %s", round_sql)
+        self.assertIn("league = 42", round_sql)
+        self.assertNotIn("101", round_sql)
+        self.assertEqual(round_params, (13, 1))
+        requested_sql, requested_params = (
+            cursor.execute.call_args_list[2].args)
+        self.assertIn("FOR UPDATE", requested_sql)
+        self.assertIn("WHERE id IN (%s, %s)", requested_sql)
+        self.assertEqual(requested_params, (101, 102))
+        pub_sql, pub_params = cursor.execute.call_args_list[3].args
+        self.assertIn("FOR UPDATE", pub_sql)
+        self.assertIn("season_id = %s", pub_sql)
+        self.assertIn("round_number = %s", pub_sql)
+        self.assertEqual(pub_params, (13, 1))
 
     @patch(_GET_CONN)
     def test_does_not_write_odds(
@@ -236,9 +252,11 @@ class TestPublishMatches(unittest.TestCase):
             mock_get_conn,
             fetchall_results=[
                 [_match_row(101)],
+                [_match_row(101)],
                 [{"match_id": 101}]])
         with self.assertRaises(repo.TyperConflictError):
-            repo.publish_matches(13, 1, [101], admin_id=7)
+            repo.publish_matches(
+                13, 1, [101], admin_id=7, group_match_count=1)
         cursor.executemany.assert_not_called()
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
@@ -247,9 +265,11 @@ class TestPublishMatches(unittest.TestCase):
     def test_missing_match_raises_not_found(
             self, mock_get_conn: MagicMock) -> None:
         conn, _cursor = _mock_connection(
-            mock_get_conn, fetchall_results=[[_match_row(101)]])
+            mock_get_conn,
+            fetchall_results=[[_match_row(101)], [_match_row(101)]])
         with self.assertRaises(repo.TyperNotFoundError):
-            repo.publish_matches(13, 1, [101, 102], admin_id=7)
+            repo.publish_matches(
+                13, 1, [101, 102], admin_id=7, group_match_count=2)
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
 
@@ -258,11 +278,15 @@ class TestPublishMatches(unittest.TestCase):
             self, mock_get_conn: MagicMock) -> None:
         conn, cursor = _mock_connection(
             mock_get_conn,
-            fetchall_results=[[_match_row(101)], []])
+            fetchall_results=[
+                [_match_row(101)],
+                [_match_row(101)],
+                []])
         cursor.executemany.side_effect = IntegrityError(
             "Duplicate entry", 1062)
         with self.assertRaises(repo.TyperConflictError):
-            repo.publish_matches(13, 1, [101], admin_id=7)
+            repo.publish_matches(
+                13, 1, [101], admin_id=7, group_match_count=1)
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
 
@@ -275,9 +299,10 @@ class TestPublishMatches(unittest.TestCase):
             self, mock_get_conn: MagicMock) -> None:
         conn, cursor = _mock_connection(
             mock_get_conn,
-            fetchall_results=[[_match_row(101, league=1)]])
+            fetchall_results=[[], [_match_row(101, league=1)]])
         with self.assertRaises(repo.TyperNotFoundError):
-            repo.publish_matches(13, 1, [101], admin_id=7)
+            repo.publish_matches(
+                13, 1, [101], admin_id=7, group_match_count=1)
         cursor.executemany.assert_not_called()
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
@@ -287,9 +312,10 @@ class TestPublishMatches(unittest.TestCase):
             self, mock_get_conn: MagicMock) -> None:
         conn, cursor = _mock_connection(
             mock_get_conn,
-            fetchall_results=[[_match_row(101, round_number=8)]])
+            fetchall_results=[[], [_match_row(101, round_number=8)]])
         with self.assertRaises(repo.TyperValidationError):
-            repo.publish_matches(13, 1, [101], admin_id=7)
+            repo.publish_matches(
+                13, 1, [101], admin_id=7, group_match_count=1)
         cursor.executemany.assert_not_called()
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
@@ -299,12 +325,46 @@ class TestPublishMatches(unittest.TestCase):
             self, mock_get_conn: MagicMock) -> None:
         conn, cursor = _mock_connection(
             mock_get_conn,
-            fetchall_results=[[_match_row(101, season=12)]])
+            fetchall_results=[[], [_match_row(101, season=12)]])
         with self.assertRaises(repo.TyperNotFoundError):
-            repo.publish_matches(13, 1, [101], admin_id=7)
+            repo.publish_matches(
+                13, 1, [101], admin_id=7, group_match_count=1)
         cursor.executemany.assert_not_called()
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_second_disjoint_batch_is_rejected_under_lock(
+            self, mock_get_conn: MagicMock) -> None:
+        first_batch = list(range(101, 110))
+        second_batch = list(range(201, 210))
+        round_rows = [
+            _match_row(match_id) for match_id in first_batch + second_batch]
+        requested_rows = [_match_row(match_id) for match_id in second_batch]
+        existing = [{"match_id": match_id} for match_id in first_batch]
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[round_rows, requested_rows, existing])
+        with self.assertRaises(repo.TyperValidationError):
+            repo.publish_matches(
+                13, 1, second_batch, admin_id=7, group_match_count=9)
+        cursor.executemany.assert_not_called()
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_configured_group_count_is_enforced_under_lock(
+            self, mock_get_conn: MagicMock) -> None:
+        ids = list(range(101, 110))
+        round_rows = [_match_row(match_id) for match_id in ids]
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[round_rows, round_rows, []])
+        with self.assertRaises(repo.TyperValidationError):
+            repo.publish_matches(
+                13, 1, ids, admin_id=7, group_match_count=8)
+        cursor.executemany.assert_not_called()
+        conn.commit.assert_not_called()
 
 
 class TestRemovePublication(unittest.TestCase):
@@ -686,11 +746,31 @@ class TestPointsSqlSemantics(unittest.TestCase):
         for result, event_id, odds, expected in cases:
             with self.subTest(
                     result=result, event_id=event_id, odds=odds):
-                points = self._eval_points(result, event_id, odds)
+                python_points = self._python_points(
+                    result, event_id, odds)
                 if expected is None:
-                    self.assertIsNone(points)
+                    self.assertIsNone(python_points)
                 else:
-                    self.assertEqual(float(points), float(expected))
+                    self.assertEqual(
+                        float(python_points), float(expected))
+                sql_points = self._eval_points(result, event_id, odds)
+                if expected is None:
+                    self.assertIsNone(sql_points)
+                else:
+                    self.assertEqual(float(sql_points), float(expected))
+
+    def _python_points(
+            self,
+            result: str | None,
+            selected_event_id: int,
+            odds: float | None) -> float | None:
+        outcome = EVENT_TO_OUTCOME[selected_event_id]
+        return score_prediction(
+            result,
+            outcome,
+            odds if selected_event_id == 1 else None,
+            odds if selected_event_id == 2 else None,
+            odds if selected_event_id == 3 else None)
 
     def _eval_points(
             self,

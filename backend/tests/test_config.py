@@ -49,6 +49,7 @@ class TestSettings(unittest.TestCase):
             self.assertFalse(current.enable_cache)
             self.assertEqual(current.environment, "development")
             self.assertFalse(current.openapi_enabled)
+            self.assertEqual(current.typer_lm_group_match_count, 9)
 
     def test_parses_cors_origins_from_comma_separated_string(self) -> None:
         env = {
