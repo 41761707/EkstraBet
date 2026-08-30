@@ -15,12 +15,17 @@ import type {
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
   PredictionPreviewResponse,
+  PublishTyperMatchesResponse,
   RatingMetric,
   RatingProgressResponse,
   SeasonProjectionMode,
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
   SportTeamHistoryResponse,
+  SaveTyperPredictionResponse,
+  TyperAdminCandidatesResponse,
+  TyperOutcome,
+  TyperPredictionChange,
   UserPreferencesResponse,
   UserPreferencesUpdate,
 } from "@/types/api";
@@ -59,6 +64,11 @@ async function fetchViaBff<T>(
       window.location.replace(FIRST_LOGIN_PATH);
     }
     throw new ApiError(response.status, message);
+  }
+
+  // DELETE publikacji Typera zwraca 204 bez ciała
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
@@ -191,6 +201,77 @@ export async function getSeasonProjection(
     {
       season_id: seasonId,
       mode,
+    },
+  );
+}
+
+export async function saveTyperPrediction(
+  matchId: number,
+  outcome: TyperOutcome,
+): Promise<SaveTyperPredictionResponse> {
+  return fetchViaBff<SaveTyperPredictionResponse>(
+    `/typer-lm/predictions/${matchId}`,
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome }),
+    },
+  );
+}
+
+export async function getTyperAdminCandidates(
+  seasonId: number,
+  roundNumber: number,
+): Promise<TyperAdminCandidatesResponse> {
+  return fetchViaBff<TyperAdminCandidatesResponse>(
+    "/typer-lm/admin/candidates",
+    {
+      season_id: seasonId,
+      round_number: roundNumber,
+    },
+  );
+}
+
+export async function publishTyperMatches(
+  seasonId: number,
+  roundNumber: number,
+  matchIds: number[],
+): Promise<PublishTyperMatchesResponse> {
+  return fetchViaBff<PublishTyperMatchesResponse>(
+    "/typer-lm/admin/publications",
+    undefined,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        season_id: seasonId,
+        round_number: roundNumber,
+        match_ids: matchIds,
+      }),
+    },
+  );
+}
+
+export async function deleteTyperPublication(matchId: number): Promise<void> {
+  await fetchViaBff<undefined>(
+    `/typer-lm/admin/publications/${matchId}`,
+    undefined,
+    { method: "DELETE" },
+  );
+}
+
+export async function getTyperAdminPredictionHistory(options: {
+  userUuid: string;
+  matchId?: number;
+  seasonId?: number;
+}): Promise<TyperPredictionChange[]> {
+  return fetchViaBff<TyperPredictionChange[]>(
+    "/typer-lm/admin/prediction-history",
+    {
+      user_uuid: options.userUuid,
+      match_id: options.matchId,
+      season_id: options.seasonId,
     },
   );
 }

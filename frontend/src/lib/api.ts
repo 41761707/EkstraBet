@@ -62,6 +62,9 @@ import type {
   RatingMetric,
   RatingProgressResponse,
   TeamsListResponse,
+  TyperAdminCandidatesResponse,
+  TyperDashboardResponse,
+  TyperLeaderboardRow,
   UserPublic,
 } from "@/types/api";
 
@@ -682,4 +685,30 @@ export async function getPlayerMatchStats(
       limit: options.limit ?? 50,
     },
   );
+}
+
+export async function getTyperDashboard(
+  seasonId?: number,
+): Promise<TyperDashboardResponse> {
+  return fetchApi<TyperDashboardResponse>("/typer-lm/dashboard", {
+    season_id: seasonId,
+  });
+}
+
+export async function getTyperLeaderboard(
+  seasonId?: number,
+): Promise<TyperLeaderboardRow[]> {
+  return fetchApi<TyperLeaderboardRow[]>("/typer-lm/leaderboard", {
+    season_id: seasonId,
+  });
+}
+
+export async function getTyperAdminCandidates(
+  seasonId: number,
+  roundNumber: number,
+): Promise<TyperAdminCandidatesResponse> {
+  return fetchApi<TyperAdminCandidatesResponse>("/typer-lm/admin/candidates", {
+    season_id: seasonId,
+    round_number: roundNumber,
+  });
 }

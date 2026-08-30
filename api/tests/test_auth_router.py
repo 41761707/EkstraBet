@@ -5,9 +5,11 @@ from __future__ import annotations
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
+from typing import Annotated, Any
 from unittest.mock import patch
 
 import jwt
+from fastapi import Depends
 from fastapi.testclient import TestClient
 
 os.environ.setdefault("DB_PASSWORD", "test-db-password")
@@ -20,6 +22,7 @@ from backend.services import auth_service
 
 get_settings.cache_clear()
 
+from api.deps import require_admin
 from api.main import create_app
 
 _TEST_USER = {
@@ -98,6 +101,7 @@ class TestAuthRouter(unittest.TestCase):
             algorithms=[get_settings().auth_algorithm])
         self.assertEqual(decoded["sub"], _TEST_USER["uuid"])
         self.assertNotIn("id", decoded)
+        self.assertNotIn("is_admin", decoded)
 
     @patch(
         "backend.services.auth_service.user_repository.fetch_user_by_username",
@@ -179,6 +183,22 @@ class TestAuthRouter(unittest.TestCase):
         self.assertEqual(payload["uuid"], _TEST_USER["uuid"])
         self.assertEqual(payload["username"], "alice")
         self.assertFalse(payload["first_login"])
+        self.assertFalse(payload["is_admin"])
+        self.assertNotIn("id", payload)
+
+    @patch(
+        "backend.services.auth_service.user_repository.fetch_user_by_uuid",
+        return_value={**_TEST_USER, "is_admin": 1})
+    def test_me_returns_is_admin_true_without_id(
+        self,
+        _mock_fetch_uuid: unittest.mock.MagicMock) -> None:
+        response = self.client.get(
+            "/auth/me",
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["is_admin"])
+        self.assertEqual(payload["uuid"], _TEST_USER["uuid"])
         self.assertNotIn("id", payload)
 
     def test_expired_token_is_rejected(self) -> None:
@@ -449,6 +469,77 @@ class TestFirstLoginApi(unittest.TestCase):
         status_response = self.client.get("/auth/status", headers=headers)
         self.assertEqual(status_response.status_code, 200)
         self.assertTrue(status_response.json()["auth_enabled"])
+
+
+_ADMIN_PROBE_PATH = "/__test/admin-only"
+
+
+class TestRequireAdmin(unittest.TestCase):
+    """HTTP contract for require_admin: 401, 403, and admin pass."""
+
+    def setUp(self) -> None:
+        os.environ["AUTH_ENABLED"] = "true"
+        os.environ["OPENAPI_ENABLED"] = "false"
+        get_settings.cache_clear()
+        app = create_app()
+
+        @app.get(_ADMIN_PROBE_PATH)
+        async def admin_only(
+            _user: Annotated[dict[str, Any], Depends(require_admin)]
+        ) -> dict[str, bool]:
+            return {"ok": True}
+
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        os.environ["AUTH_ENABLED"] = "false"
+        os.environ["OPENAPI_ENABLED"] = "false"
+        get_settings.cache_clear()
+
+    def _auth_headers(self) -> dict[str, str]:
+        token, _ = auth_service.create_access_token(_TEST_USER["uuid"])
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_anonymous_request_returns_401(self) -> None:
+        response = self.client.get(_ADMIN_PROBE_PATH)
+        self.assertEqual(response.status_code, 401)
+
+    @patch(
+        "backend.services.auth_service.user_repository.fetch_user_by_uuid",
+        return_value={**_TEST_USER, "is_admin": 0})
+    def test_regular_user_returns_403(
+            self,
+            _mock_fetch: unittest.mock.MagicMock) -> None:
+        response = self.client.get(
+            _ADMIN_PROBE_PATH,
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json()["detail"],
+            "Administrator role required")
+
+    @patch(
+        "backend.services.auth_service.user_repository.fetch_user_by_uuid",
+        return_value=_TEST_USER)
+    def test_missing_is_admin_returns_403(
+            self,
+            _mock_fetch: unittest.mock.MagicMock) -> None:
+        response = self.client.get(
+            _ADMIN_PROBE_PATH,
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 403)
+
+    @patch(
+        "backend.services.auth_service.user_repository.fetch_user_by_uuid",
+        return_value={**_TEST_USER, "is_admin": 1})
+    def test_admin_returns_200(
+            self,
+            _mock_fetch: unittest.mock.MagicMock) -> None:
+        response = self.client.get(
+            _ADMIN_PROBE_PATH,
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
 
 
 class TestSecurityMiddleware(unittest.TestCase):

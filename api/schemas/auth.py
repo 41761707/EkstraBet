@@ -23,6 +23,9 @@ class UserPublic(BaseModel):
     first_login: bool = Field(
         ...,
         description="True when the user must complete first-login")
+    is_admin: bool = Field(
+        ...,
+        description="True when the user may administer Typer LM")
 
 
 class TokenResponse(BaseModel):

@@ -6,6 +6,7 @@ export interface UserPublic {
   username: string;
   display_name: string | null;
   first_login: boolean;
+  is_admin: boolean;
 }
 
 /** Favorite league IDs from GET /users/me/favorite-leagues. */
@@ -1276,4 +1277,123 @@ export interface SeasonProjectionResponse {
   simulated_matches: number;
   is_stale: boolean;
   standings: SeasonProjectionStandingRow[];
+}
+
+/** 1X2 pick stored by Champions League Typer. */
+export type TyperOutcome = "1" | "X" | "2";
+
+/** Team embedded in a Typer match card. */
+export interface TyperTeam {
+  id: number;
+  name: string;
+  shortcut: string;
+}
+
+/** One append-only audit row for the current user's 1X2 pick. */
+export interface TyperPredictionChange {
+  match_id: number;
+  user_uuid: string;
+  display_name: string;
+  previous_outcome: TyperOutcome | null;
+  new_outcome: TyperOutcome;
+  changed_at: string;
+}
+
+/** Published Typer match with private pick, odds and own audit. */
+export interface TyperMatch {
+  match_id: number;
+  season_id: number;
+  round_number: number;
+  game_date: string;
+  published_at: string;
+  is_locked: boolean;
+  result: string | null;
+  home_team: TyperTeam;
+  away_team: TyperTeam;
+  odds_home: number | null;
+  odds_draw: number | null;
+  odds_away: number | null;
+  outcome: TyperOutcome | null;
+  points: number | null;
+  changes: TyperPredictionChange[];
+}
+
+/** Published matches grouped by round. */
+export interface TyperRound {
+  round_number: number;
+  round_label: string;
+  matches: TyperMatch[];
+}
+
+/** Response model for GET /typer-lm/dashboard. */
+export interface TyperDashboardResponse {
+  season_id: number;
+  rounds: TyperRound[];
+}
+
+/** Body for PUT /typer-lm/predictions/{match_id}. */
+export interface SaveTyperPredictionRequest {
+  outcome: TyperOutcome;
+}
+
+/** Result of creating or updating a 1X2 pick. */
+export interface SaveTyperPredictionResponse {
+  match_id: number;
+  outcome: TyperOutcome;
+  previous_outcome: TyperOutcome | null;
+  audit_written: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Ranking row with aggregates only — no other users' picks. */
+export interface TyperLeaderboardRow {
+  place: number;
+  user_uuid: string;
+  display_name: string;
+  total_points: number;
+  correct_predictions: number;
+  settled_predictions: number;
+}
+
+/** Champions League match offered for Typer publication. */
+export interface TyperAdminCandidate {
+  match_id: number;
+  season_id: number;
+  round_number: number;
+  game_date: string;
+  home_team: TyperTeam;
+  away_team: TyperTeam;
+  is_published: boolean;
+  has_complete_superbet_odds: boolean;
+}
+
+/** Response model for GET /typer-lm/admin/candidates. */
+export interface TyperAdminCandidatesResponse {
+  season_id: number;
+  round_number: number;
+  candidates: TyperAdminCandidate[];
+  total_count: number;
+  group_match_count: number;
+}
+
+/** Body for POST /typer-lm/admin/publications. */
+export interface PublishTyperMatchesRequest {
+  season_id: number;
+  round_number: number;
+  match_ids: number[];
+}
+
+/** One published Typer match. */
+export interface TyperPublication {
+  match_id: number;
+  season_id: number;
+  round_number: number;
+  published_at: string;
+}
+
+/** Response model for POST /typer-lm/admin/publications. */
+export interface PublishTyperMatchesResponse {
+  publications: TyperPublication[];
+  total_count: number;
 }

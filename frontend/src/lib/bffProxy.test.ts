@@ -116,6 +116,32 @@ describe("isMethodAllowedForPath", () => {
     expect(isMethodAllowedForPath("users/me/preferences", "POST")).toBe(false);
     expect(isMethodAllowedForPath("users/me/preferences", "PATCH")).toBe(false);
   });
+
+  it("allows GET and PUT for Typer LM participant paths", () => {
+    expect(isMethodAllowedForPath("typer-lm/dashboard", "GET")).toBe(true);
+    expect(isMethodAllowedForPath("typer-lm/leaderboard", "GET")).toBe(true);
+    expect(
+      isMethodAllowedForPath("typer-lm/predictions/101/history", "GET"),
+    ).toBe(true);
+    expect(isMethodAllowedForPath("typer-lm/predictions/101", "PUT")).toBe(
+      true,
+    );
+  });
+
+  it("allows Typer LM admin publication mutations", () => {
+    expect(isMethodAllowedForPath("typer-lm/admin/candidates", "GET")).toBe(
+      true,
+    );
+    expect(
+      isMethodAllowedForPath("typer-lm/admin/prediction-history", "GET"),
+    ).toBe(true);
+    expect(isMethodAllowedForPath("typer-lm/admin/publications", "POST")).toBe(
+      true,
+    );
+    expect(
+      isMethodAllowedForPath("typer-lm/admin/publications/101", "DELETE"),
+    ).toBe(true);
+  });
 });
 
 describe("mutating origin checks", () => {

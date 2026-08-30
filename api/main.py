@@ -15,6 +15,8 @@ from api.deps import require_auth
 from api.routers.analytics import router as analytics_router
 from api.routers.auth import router as auth_router
 from api.routers.bets import router as bets_router
+from api.routers.champions_league_typer import (
+    router as champions_league_typer_router)
 from api.routers.helper import router as helper_router
 from api.routers.leagues import router as leagues_router
 from api.routers.matches import router as matches_router
@@ -85,7 +87,8 @@ def create_app() -> FastAPI:
                 "bets - Bet recommendations and EV",
                 "analytics - Model effectiveness statistics",
                 "players - Player statistics by sport",
-                "standings - League tables via /leagues/{id}/standings"
+                "standings - League tables via /leagues/{id}/standings",
+                "typer-lm - Champions League Typer contest"
             ],
             "documentation": documentation
         }
@@ -128,6 +131,7 @@ def create_app() -> FastAPI:
     app.include_router(bets_router)
     app.include_router(analytics_router)
     app.include_router(players_router)
+    app.include_router(champions_league_typer_router)
 
     @app.exception_handler(mysql.connector.Error)
     async def mysql_exception_handler(
