@@ -128,13 +128,19 @@ describe("isMethodAllowedForPath", () => {
     );
   });
 
-  it("rejects Typer LM publication mutations until the admin panel lands", () => {
+  it("allows Typer LM admin publication mutations", () => {
+    expect(isMethodAllowedForPath("typer-lm/admin/candidates", "GET")).toBe(
+      true,
+    );
+    expect(
+      isMethodAllowedForPath("typer-lm/admin/prediction-history", "GET"),
+    ).toBe(true);
     expect(isMethodAllowedForPath("typer-lm/admin/publications", "POST")).toBe(
-      false,
+      true,
     );
     expect(
       isMethodAllowedForPath("typer-lm/admin/publications/101", "DELETE"),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

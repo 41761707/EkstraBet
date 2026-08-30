@@ -1355,3 +1355,45 @@ export interface TyperLeaderboardRow {
   correct_predictions: number;
   settled_predictions: number;
 }
+
+/** Champions League match offered for Typer publication. */
+export interface TyperAdminCandidate {
+  match_id: number;
+  season_id: number;
+  round_number: number;
+  game_date: string;
+  home_team: TyperTeam;
+  away_team: TyperTeam;
+  is_published: boolean;
+  has_complete_superbet_odds: boolean;
+}
+
+/** Response model for GET /typer-lm/admin/candidates. */
+export interface TyperAdminCandidatesResponse {
+  season_id: number;
+  round_number: number;
+  candidates: TyperAdminCandidate[];
+  total_count: number;
+  group_match_count: number;
+}
+
+/** Body for POST /typer-lm/admin/publications. */
+export interface PublishTyperMatchesRequest {
+  season_id: number;
+  round_number: number;
+  match_ids: number[];
+}
+
+/** One published Typer match. */
+export interface TyperPublication {
+  match_id: number;
+  season_id: number;
+  round_number: number;
+  published_at: string;
+}
+
+/** Response model for POST /typer-lm/admin/publications. */
+export interface PublishTyperMatchesResponse {
+  publications: TyperPublication[];
+  total_count: number;
+}

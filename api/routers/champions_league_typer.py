@@ -20,6 +20,7 @@ from api.schemas.champions_league_typer import (
     TyperLeaderboardRow,
     TyperPredictionChange,
     TyperPublication)
+from backend.config import get_settings
 from backend.services import champions_league_typer_service as typer_service
 
 logger = logging.getLogger(__name__)
@@ -132,7 +133,8 @@ async def get_admin_candidates(
         season_id=season_id,
         round_number=round_number,
         candidates=mapped,
-        total_count=len(mapped))
+        total_count=len(mapped),
+        group_match_count=get_settings().typer_lm_group_match_count)
 
 
 @router.post(

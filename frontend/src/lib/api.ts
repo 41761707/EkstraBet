@@ -62,6 +62,7 @@ import type {
   RatingMetric,
   RatingProgressResponse,
   TeamsListResponse,
+  TyperAdminCandidatesResponse,
   TyperDashboardResponse,
   TyperLeaderboardRow,
   UserPublic,
@@ -699,5 +700,15 @@ export async function getTyperLeaderboard(
 ): Promise<TyperLeaderboardRow[]> {
   return fetchApi<TyperLeaderboardRow[]>("/typer-lm/leaderboard", {
     season_id: seasonId,
+  });
+}
+
+export async function getTyperAdminCandidates(
+  seasonId: number,
+  roundNumber: number,
+): Promise<TyperAdminCandidatesResponse> {
+  return fetchApi<TyperAdminCandidatesResponse>("/typer-lm/admin/candidates", {
+    season_id: seasonId,
+    round_number: roundNumber,
   });
 }

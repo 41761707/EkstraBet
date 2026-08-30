@@ -150,6 +150,10 @@ class TyperAdminCandidatesResponse(BaseModel):
         ...,
         description="Matches available in the round")
     total_count: int = Field(..., description="Number of candidates")
+    group_match_count: int = Field(
+        ...,
+        ge=1,
+        description="Configured group-stage publication size")
 
 
 class PublishMatchesRequest(BaseModel):

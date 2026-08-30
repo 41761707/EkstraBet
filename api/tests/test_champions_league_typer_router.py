@@ -402,9 +402,11 @@ class TestTyperAdminRouter(TyperRouterTestCase):
             params={"season_id": 13, "round_number": 1},
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 200)
-        candidate = response.json()["candidates"][0]
+        payload = response.json()
+        candidate = payload["candidates"][0]
         self.assertFalse(candidate["has_complete_superbet_odds"])
         self.assertFalse(candidate["is_published"])
+        self.assertEqual(payload["group_match_count"], 9)
 
     @patch(f"{_SERVICE}.remove_publication")
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)
