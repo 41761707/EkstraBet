@@ -76,6 +76,7 @@ export function TyperLmMatchCard({
 
       <TyperLmOutcomeButtons
         match={match}
+        teamNameDisplay={teamNameDisplay}
         isPending={isPending}
         isLocked={isLocked}
         onSelect={onSelectOutcome}

@@ -2,6 +2,8 @@
 
 import { ApiError } from "@/lib/apiShared";
 import { formatMatchDateTime, formatOdds } from "@/lib/format";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
+import { formatTeamName } from "@/lib/teamNameDisplay";
 import type {
   SaveTyperPredictionResponse,
   TyperDashboardResponse,
@@ -12,12 +14,35 @@ import type {
 } from "@/types/api";
 
 export const TYPER_LM_ODDS_PLACEHOLDER = "Kurs pojawi się w dniu meczu";
+export const TYPER_DRAW_OUTCOME_LABEL = "Remis";
 export const TYPER_OUTCOMES: readonly TyperOutcome[] = ["1", "X", "2"];
 export const GROUP_STAGE_MAX_ROUND = 8;
 export const SHORT_HISTORY_LIMIT = 3;
 export const TYPER_LOCK_TICK_MS = 1000;
 
 export type TyperPointsStatus = "hit" | "miss" | "unsettled" | "none";
+
+export function formatTyperOutcomeButtonLabel(
+  match: Pick<TyperMatch, "home_team" | "away_team">,
+  outcome: TyperOutcome,
+  teamNameDisplay: TeamNameDisplayPreference,
+): string {
+  if (outcome === "1") {
+    return formatTeamName(
+      match.home_team.name,
+      match.home_team.shortcut,
+      teamNameDisplay,
+    );
+  }
+  if (outcome === "2") {
+    return formatTeamName(
+      match.away_team.name,
+      match.away_team.shortcut,
+      teamNameDisplay,
+    );
+  }
+  return TYPER_DRAW_OUTCOME_LABEL;
+}
 
 export function formatTyperRoundLabel(
   roundNumber: number,

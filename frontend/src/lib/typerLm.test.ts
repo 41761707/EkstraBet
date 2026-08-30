@@ -6,6 +6,7 @@ import {
   applySavedPrediction,
   canSaveTyperOutcome,
   formatOutcomeTransition,
+  formatTyperOutcomeButtonLabel,
   formatTyperPointsLabel,
   formatTyperResultLabel,
   formatTyperRoundLabel,
@@ -17,6 +18,7 @@ import {
   removePendingMatchId,
   selectInitialRoundNumber,
   takeRecentPredictionChanges,
+  TYPER_DRAW_OUTCOME_LABEL,
   typerSaveErrorMessage,
   updateDashboardMatch,
 } from "@/lib/typerLm";
@@ -288,6 +290,33 @@ describe("save helpers", () => {
       "opublikowany",
     );
     expect(typerSaveErrorMessage(new Error("nope"))).toContain("ponownie");
+  });
+});
+
+describe("formatTyperOutcomeButtonLabel", () => {
+  it("uses full team names and Remis for the 1X2 buttons", () => {
+    const match = sampleMatch();
+    expect(formatTyperOutcomeButtonLabel(match, "1", "full")).toBe("Home");
+    expect(formatTyperOutcomeButtonLabel(match, "X", "full")).toBe(
+      TYPER_DRAW_OUTCOME_LABEL,
+    );
+    expect(formatTyperOutcomeButtonLabel(match, "2", "full")).toBe("Away");
+  });
+
+  it("uses team shortcuts when the user prefers them", () => {
+    const match = sampleMatch();
+    expect(formatTyperOutcomeButtonLabel(match, "1", "shortcut")).toBe("HOM");
+    expect(formatTyperOutcomeButtonLabel(match, "X", "shortcut")).toBe(
+      TYPER_DRAW_OUTCOME_LABEL,
+    );
+    expect(formatTyperOutcomeButtonLabel(match, "2", "shortcut")).toBe("AWY");
+  });
+
+  it("falls back to the full name when a shortcut is missing", () => {
+    const match = sampleMatch({
+      home_team: { id: 1, name: "Home", shortcut: "" },
+    });
+    expect(formatTyperOutcomeButtonLabel(match, "1", "shortcut")).toBe("Home");
   });
 });
 

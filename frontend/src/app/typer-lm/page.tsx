@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TyperLmAdminSection } from "@/components/typer-lm/TyperLmAdminPanel";
 import { TyperLmDashboard } from "@/components/typer-lm/TyperLmDashboard";
+import { TyperLmRules } from "@/components/typer-lm/TyperLmRules";
 import {
   ApiError,
   getCurrentUser,
@@ -57,10 +58,10 @@ export default async function TyperLmPage() {
       <section className="space-y-2">
         <h1 className="text-3xl font-bold text-text">Typer LM</h1>
         <p className="text-muted">
-          Typuj regulaminowe 1 / X / 2 w opublikowanych meczach Ligi Mistrzów.
-          Kurs Superbet może pojawić się później — to nie blokuje zapisu typu.
+          Typuj wyniki spotkań w ramach Ligi Mistrzów w sezonie 2026/2027.
         </p>
       </section>
+      <TyperLmRules />
       <TyperLmAdminSection
         isAdmin={page.isAdmin}
         seasonId={page.dashboard.season_id}

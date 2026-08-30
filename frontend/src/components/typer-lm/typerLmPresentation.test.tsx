@@ -15,6 +15,7 @@ import { TyperLmAdminRoundControls } from "@/components/typer-lm/TyperLmAdminRou
 import { TyperLmLeaderboard } from "@/components/typer-lm/TyperLmLeaderboard";
 import { TyperLmMatchCard } from "@/components/typer-lm/TyperLmMatchCard";
 import { TyperLmRoundPicker } from "@/components/typer-lm/TyperLmRoundPicker";
+import { TyperLmRules } from "@/components/typer-lm/TyperLmRules";
 import { TyperLmViewTabs } from "@/components/typer-lm/TyperLmViewTabs";
 import { getTyperAdminPredictionHistory } from "@/lib/apiClient";
 import { formatMatchDateTime } from "@/lib/format";
@@ -25,6 +26,10 @@ import {
 } from "@/lib/preferences";
 import { TYPER_LM_ODDS_PLACEHOLDER } from "@/lib/typerLm";
 import { canPublishSelection } from "@/lib/typerLmAdmin";
+import {
+  TYPER_LM_RULES_SECTIONS,
+  TYPER_LM_RULES_TITLE,
+} from "@/lib/typerLmRules";
 import type {
   TyperAdminCandidate,
   TyperLeaderboardRow,
@@ -102,6 +107,10 @@ describe("TyperLmMatchCard", () => {
     expect(html).toContain("3.40");
     expect(html).toContain("4.20");
     expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('aria-label="Typ Bayern Monachium"');
+    expect(html).toContain('aria-label="Typ Remis"');
+    expect(html).toContain('aria-label="Typ Arsenal"');
+    expect(html).not.toContain('aria-label="Typ 1"');
     expect(html).toContain(formatMatchDateTime("2026-09-16T21:00:00"));
     expect(html).toContain("Nierozstrzygnięte");
     expect(html).toContain("— na 1");
@@ -233,6 +242,37 @@ describe("TyperLmMatchCard", () => {
 
     expect(html).toContain("Mecz już się rozpoczął");
     expect(html).not.toContain("user-2");
+  });
+
+  it("labels 1X2 buttons with full team names from preferences", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmMatchCard
+        match={sampleMatch()}
+        teamNameDisplay="full"
+        isPending={false}
+        onSelectOutcome={() => undefined}
+      />,
+    );
+
+    expect(html).toContain(">Bayern Monachium</button>");
+    expect(html).toContain(">Remis</button>");
+    expect(html).toContain(">Arsenal</button>");
+  });
+
+  it("labels 1X2 buttons with team shortcuts when preferred", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmMatchCard
+        match={sampleMatch()}
+        teamNameDisplay="shortcut"
+        isPending={false}
+        onSelectOutcome={() => undefined}
+      />,
+    );
+
+    expect(html).toContain(">BAY</button>");
+    expect(html).toContain(">Remis</button>");
+    expect(html).toContain(">ARS</button>");
+    expect(html).toContain('aria-label="Typ BAY"');
   });
 });
 
@@ -686,5 +726,41 @@ describe("TyperLmAdminAuditLookup", () => {
     expect(html).toContain("mecz 101");
     expect(html).toContain("1 na X");
     expect(html).toContain(formatMatchDateTime("2026-09-11T18:30:00"));
+  });
+});
+
+describe("TyperLmRules", () => {
+  function detailsOpenAttribute(html: string): string | undefined {
+    return html.match(/<details([^>]*)>/)?.[1];
+  }
+
+  it("renders a collapsed expander with contest, typing and scoring rules", () => {
+    const html = renderToStaticMarkup(<TyperLmRules />);
+    const detailsAttributes = detailsOpenAttribute(html) ?? "";
+
+    expect(html).toContain(TYPER_LM_RULES_TITLE);
+    expect(detailsAttributes).not.toMatch(/\sopen(?:="[^"]*")?(?=[\s>]|$)/);
+
+    for (const section of TYPER_LM_RULES_SECTIONS) {
+      expect(html).toContain(section.heading);
+      for (const item of section.items) {
+        expect(html).toContain(item);
+      }
+    }
+  });
+
+  it("keeps the full rules out of match cards", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmMatchCard
+        match={sampleMatch()}
+        teamNameDisplay="full"
+        isPending={false}
+        onSelectOutcome={() => undefined}
+      />,
+    );
+
+    expect(html).not.toContain(TYPER_LM_RULES_TITLE);
+    expect(html).not.toContain("Regulamin rozgrywek");
+    expect(html).not.toContain("Zasady punktacji");
   });
 });
