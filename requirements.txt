@@ -5,6 +5,7 @@
 
 streamlit
 mysql-connector-python
+tzdata
 mcp
 starlette<0.48.0
 sse-starlette<3.0.0

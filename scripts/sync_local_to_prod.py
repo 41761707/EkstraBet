@@ -30,6 +30,11 @@ from mysql.connector.connection import MySQLConnection
 
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from backend.timezone import apply_mysql_session_timezone
+
 _DEFAULT_DB_NAME = "ekstrabet"
 _DEFAULT_WINDOW_DAYS = 3
 _DEFAULT_BATCH_SIZE = 200
@@ -263,7 +268,7 @@ def _resolve_ssh_transport(file_values: dict[str, str]) -> SshTransportConfig:
 
 def _connect(db: DbConfig) -> MySQLConnection:
     """Open a MySQL connection from DbConfig."""
-    return mysql.connector.connect(
+    conn = mysql.connector.connect(
         host=db.host,
         port=int(db.port),
         user=db.user,
@@ -272,6 +277,8 @@ def _connect(db: DbConfig) -> MySQLConnection:
         charset="utf8mb4",
         use_unicode=True,
         autocommit=False)
+    apply_mysql_session_timezone(conn)
+    return conn
 
 
 class DirectProdMysql:

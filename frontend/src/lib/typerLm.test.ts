@@ -338,8 +338,8 @@ describe("formatTyperResultLabel", () => {
   });
 
   it("treats a passed game_date as locked even when SSR is_locked is false", () => {
-    const kickoff = "2026-09-16T21:00:00.000Z";
-    const afterKickoff = Date.parse(kickoff) + 1;
+    const kickoff = "2026-09-16T21:00:00";
+    const afterKickoff = Date.parse("2026-09-16T19:00:00.000Z");
     expect(
       formatTyperResultLabel(
         sampleMatch({ is_locked: false, game_date: kickoff }),
@@ -350,11 +350,13 @@ describe("formatTyperResultLabel", () => {
 });
 
 describe("presentation deadline lock", () => {
-  const kickoff = "2026-09-16T21:00:00.000Z";
-  const beforeKickoff = Date.parse(kickoff) - 1;
-  const afterKickoff = Date.parse(kickoff) + 1;
+  // 21:00 Warsaw CEST = 19:00 UTC; Finland 21:00 EEST would be 18:00 UTC
+  const kickoff = "2026-09-16T21:00:00";
+  const finlandFalseLock = Date.parse("2026-09-16T18:00:00.000Z");
+  const beforeKickoff = Date.parse("2026-09-16T18:59:59.000Z");
+  const afterKickoff = Date.parse("2026-09-16T19:00:00.000Z");
 
-  it("locks when game_date has passed, independently of is_locked", () => {
+  it("locks when Warsaw wall-clock reaches naive game_date", () => {
     const match = sampleMatch({ is_locked: false, game_date: kickoff });
     expect(isTyperDeadlinePassed(kickoff, beforeKickoff)).toBe(false);
     expect(isTyperDeadlinePassed(kickoff, afterKickoff)).toBe(true);
@@ -363,10 +365,20 @@ describe("presentation deadline lock", () => {
     expect(canSaveTyperOutcome(match, "1", false, afterKickoff)).toBe(false);
   });
 
+  it("does not lock an hour early the way a Finland-local Date.parse would", () => {
+    expect(isTyperDeadlinePassed(kickoff, finlandFalseLock)).toBe(false);
+    expect(
+      isTyperMatchLockedForUi(
+        sampleMatch({ is_locked: false, game_date: kickoff }),
+        finlandFalseLock,
+      ),
+    ).toBe(false);
+  });
+
   it("ignores game_date until a client clock is provided", () => {
     const match = sampleMatch({
       is_locked: false,
-      game_date: "2020-01-01T12:00:00.000Z",
+      game_date: "2020-01-01T12:00:00",
     });
     expect(isTyperMatchLockedForUi(match)).toBe(false);
     expect(isTyperMatchLockedForUi(match, null)).toBe(false);

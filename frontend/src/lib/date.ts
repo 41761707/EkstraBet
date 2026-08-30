@@ -1,6 +1,6 @@
 /** Shared calendar-date helpers for Europe/Warsaw. */
 
-const WARSAW_TIME_ZONE = "Europe/Warsaw";
+export const WARSAW_TIME_ZONE = "Europe/Warsaw";
 
 const NAIVE_DATE_TIME_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;

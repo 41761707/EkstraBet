@@ -5,9 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    UVICORN_WORKERS=2
+    UVICORN_WORKERS=2 \
+    TZ=Europe/Warsaw
 
-RUN groupadd --system --gid 1000 ekstrabet \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1000 ekstrabet \
     && useradd --system --uid 1000 --gid ekstrabet \
         --home-dir /app --shell /usr/sbin/nologin ekstrabet
 

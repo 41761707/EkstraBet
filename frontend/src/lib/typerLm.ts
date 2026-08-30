@@ -1,6 +1,7 @@
 /** Presentation helpers for the Champions League Typer participant UI. */
 
 import { ApiError } from "@/lib/apiShared";
+import { hasWarsawNaiveDateTimePassed } from "@/lib/date";
 import { formatMatchDateTime, formatOdds } from "@/lib/format";
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { formatTeamName } from "@/lib/teamNameDisplay";
@@ -62,11 +63,8 @@ export function isTyperDeadlinePassed(
   gameDate: string,
   nowMs: number,
 ): boolean {
-  const kickoffMs = Date.parse(gameDate);
-  if (Number.isNaN(kickoffMs)) {
-    return false;
-  }
-  return nowMs >= kickoffMs;
+  // naiwny kick-off to wall-clock Warsaw, nie lokalny czas przeglądarki
+  return hasWarsawNaiveDateTimePassed(gameDate, new Date(nowMs));
 }
 
 export function isTyperMatchLockedForUi(

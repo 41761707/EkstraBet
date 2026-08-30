@@ -20,9 +20,11 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    TZ=Europe/Warsaw
 
-RUN addgroup --system --gid 1001 nodejs \
+RUN apk add --no-cache tzdata \
+    && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 --ingroup nodejs nextjs
 
 # standalone: server.js + minimalne node_modules + static

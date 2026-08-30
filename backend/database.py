@@ -6,6 +6,7 @@ from typing import Generator
 import mysql.connector
 from mysql.connector import MySQLConnection
 from backend.config import get_database_config
+from backend.timezone import apply_mysql_session_timezone
 
 
 class DatabaseConnectionError(Exception):
@@ -20,11 +21,20 @@ class ConnectionManager:
         """Open a new MySQL connection."""
         config = get_database_config()
         try:
-            return mysql.connector.connect(**config)
+            conn = mysql.connector.connect(**config)
         except mysql.connector.Error as exc:
             raise DatabaseConnectionError(
                 "Failed to connect to the database"
             ) from exc
+        try:
+            # NOW() ma być czasem polskim, niezależnie od strefy hosta
+            apply_mysql_session_timezone(conn)
+        except mysql.connector.Error as exc:
+            conn.close()
+            raise DatabaseConnectionError(
+                "Failed to set database session timezone"
+            ) from exc
+        return conn
 
     @classmethod
     @contextmanager

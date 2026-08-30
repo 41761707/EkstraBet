@@ -19,6 +19,8 @@ import mysql.connector
 from mysql.connector import Error as MySqlError
 from mysql.connector import MySQLConnection
 
+from backend.timezone import apply_mysql_session_timezone
+
 
 DEFAULT_MAX_ROWS = 100
 DEFAULT_QUERY_TIMEOUT_SECONDS = 10
@@ -288,6 +290,7 @@ class MySqlReadOnlyClient:
         """Yield a MySQL connection and close it afterwards."""
         conn = mysql.connector.connect(**self.settings.connection_kwargs())
         try:
+            apply_mysql_session_timezone(conn)
             self._apply_session_timeout(conn)
             yield conn
         finally:

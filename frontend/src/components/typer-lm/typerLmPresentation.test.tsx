@@ -185,14 +185,14 @@ describe("TyperLmMatchCard", () => {
     expect(html.match(/disabled=""/g)?.length).toBe(3);
   });
 
-  it("disables 1X2 buttons after the local kick-off time without is_locked", () => {
-    const kickoff = "2020-01-01T12:00:00.000Z";
+  it("disables 1X2 buttons after the Warsaw kick-off without is_locked", () => {
+    const kickoff = "2026-09-16T21:00:00";
     const html = renderToStaticMarkup(
       <TyperLmMatchCard
         match={sampleMatch({ is_locked: false, game_date: kickoff })}
         teamNameDisplay="full"
         isPending={false}
-        nowMs={Date.parse(kickoff) + 1}
+        nowMs={Date.parse("2026-09-16T19:00:00.000Z")}
         onSelectOutcome={() => undefined}
       />,
     );
@@ -206,7 +206,7 @@ describe("TyperLmMatchCard", () => {
       <TyperLmMatchCard
         match={sampleMatch({
           is_locked: false,
-          game_date: "2020-01-01T12:00:00.000Z",
+          game_date: "2020-01-01T12:00:00",
         })}
         teamNameDisplay="full"
         isPending={false}

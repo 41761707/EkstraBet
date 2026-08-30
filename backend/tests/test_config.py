@@ -88,6 +88,8 @@ class TestSettings(unittest.TestCase):
             self.assertEqual(config["database"], "ekstrabet_test")
             self.assertEqual(config["port"], 3307)
             self.assertEqual(config["charset"], "utf8mb4")
+            self.assertEqual(config["collation"], "utf8mb4_unicode_ci")
+            self.assertNotIn("time_zone", config)
 
     def test_settings_model_can_be_instantiated_directly(self) -> None:
         current = Settings(

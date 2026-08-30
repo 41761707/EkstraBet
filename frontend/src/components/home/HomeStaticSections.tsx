@@ -83,6 +83,10 @@ const faqItems: { question: string; answer: ReactNode }[] = [
     answer:
       "Dokładność modeli różni się w zależności od ligi i typu prognozy. Szczegółowe statystyki wydajności każdego modelu znajdziesz w „Kąciku statystycznym”. Pamiętaj, że żaden model nie jest w 100% dokładny i wszystkie prognozy są hipotetyczne.",
   },
+  {
+    question: "Jak zaprosić znajomego do korzystania z Ekstrabet?",
+    answer: "Serwer aktualnie działa w trybie invite-only - zaproszenie do serwisu można uzyskać poprzez kontakt z autorem projektu. Więcej w sekcji 'Kontakt'"
+  }
 ];
 
 export function HomeStaticSections() {

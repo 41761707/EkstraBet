@@ -28,6 +28,10 @@ from api.routers.teams import router as teams_router
 from api.routers.users import router as users_router
 from backend.config import get_settings
 from backend.database import test_connection
+from backend.timezone import apply_process_timezone
+
+# zegar procesu musi być warszawski zanim ruszą requesty
+apply_process_timezone()
 
 logger = logging.getLogger(__name__)
 
