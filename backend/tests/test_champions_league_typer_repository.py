@@ -799,5 +799,74 @@ class TestPointsSqlSemantics(unittest.TestCase):
         return row["points"]
 
 
+_SCHEMA_REVIEW_TABLES = {
+    "champions_league_typer_matches",
+    "champions_league_typer_predictions",
+    "champions_league_typer_prediction_changes"
+}
+
+
+class TestDeployedTyperSchema(unittest.TestCase):
+    """Live schema review: skip when the database is unavailable."""
+
+    def _show_create(self, table_name: str) -> str:
+        if table_name not in _SCHEMA_REVIEW_TABLES:
+            raise ValueError(f"Unexpected table {table_name}")
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor(dictionary=True)
+                try:
+                    cursor.execute(
+                        "SHOW CREATE TABLE `" + table_name + "`")
+                    row = cursor.fetchone()
+                finally:
+                    cursor.close()
+        except DatabaseConnectionError as exc:
+            self.skipTest(str(exc))
+        if row is None:
+            self.skipTest(f"Table {table_name} is missing")
+        ddl = row.get("Create Table") or row.get("Create table")
+        return str(ddl)
+
+    def test_publication_table_has_no_odds_columns(self) -> None:
+        ddl = self._show_create("champions_league_typer_matches").lower()
+        self.assertNotIn("`odds`", ddl)
+        self.assertNotIn("odds_home", ddl)
+        self.assertNotIn("odds_draw", ddl)
+        self.assertNotIn("odds_away", ddl)
+        self.assertIn("uq_cl_typer_matches_match", ddl)
+        self.assertIn("idx_cl_typer_matches_season_round", ddl)
+
+    def test_prediction_and_audit_keep_one_x_two_checks(self) -> None:
+        predictions = self._show_create(
+            "champions_league_typer_predictions")
+        changes = self._show_create(
+            "champions_league_typer_prediction_changes")
+        self.assertIn("chk_cl_typer_pred_event", predictions)
+        self.assertIn("chk_cl_typer_chg_new_event", changes)
+        self.assertIn("chk_cl_typer_chg_prev_event", changes)
+        self.assertIn(
+            "uq_cl_typer_pred_match_user", predictions.lower())
+
+    def test_users_is_admin_is_tinyint_not_null_default_zero(self) -> None:
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor(dictionary=True)
+                try:
+                    cursor.execute(
+                        "SHOW COLUMNS FROM users LIKE %s",
+                        ("is_admin",))
+                    row = cursor.fetchone()
+                finally:
+                    cursor.close()
+        except DatabaseConnectionError as exc:
+            self.skipTest(str(exc))
+        if row is None:
+            self.skipTest("users.is_admin is missing")
+        self.assertIn("tinyint", str(row["Type"]).lower())
+        self.assertEqual(row["Null"], "NO")
+        self.assertEqual(str(row["Default"]), "0")
+
+
 if __name__ == "__main__":
     unittest.main()

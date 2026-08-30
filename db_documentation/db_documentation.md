@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 29.08.2026
+###### Ostatnia data modyfikacji: 30.08.2026
 
 ## Opis struktury bazy
 
@@ -364,7 +364,7 @@ Wiersze wstawia administrator przez API Typera LM (`POST /typer-lm/admin/publica
 - Klucz obcy: `TYPER_MATCH_ID` → `champions_league_typer_matches(ID)` **ON DELETE RESTRICT** (nie można usunąć publikacji, gdy istnieją typy)
 - Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT**
-- **CHECK:** `SELECTED_EVENT_ID IN (1, 2, 3)`
+- **CHECK:** `chk_cl_typer_pred_event` — `SELECTED_EVENT_ID IN (1, 2, 3)`
 
 **Sposób generowania danych do tabeli:**
 
@@ -396,8 +396,8 @@ Zalogowany użytkownik zapisuje lub zmienia typ przez API (`PUT /typer-lm/predic
 - Klucz obcy: `CHANGED_BY` → `users(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `PREVIOUS_SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT** (NULL pomija sprawdzenie FK)
 - Klucz obcy: `NEW_SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT**
-- **CHECK:** `PREVIOUS_SELECTED_EVENT_ID IS NULL OR PREVIOUS_SELECTED_EVENT_ID IN (1, 2, 3)`
-- **CHECK:** `NEW_SELECTED_EVENT_ID IN (1, 2, 3)`
+- **CHECK:** `chk_cl_typer_chg_prev_event` — `PREVIOUS_SELECTED_EVENT_ID IS NULL OR PREVIOUS_SELECTED_EVENT_ID IN (1, 2, 3)`
+- **CHECK:** `chk_cl_typer_chg_new_event` — `NEW_SELECTED_EVENT_ID IN (1, 2, 3)`
 - Wiersze są tylko dokładane. Aplikacja **nie** wykonuje `UPDATE` ani `DELETE` na tej tabeli. Służą rozstrzyganiu sporów o treść typu (kto, z jakiego eventu na jaki, kiedy).
 
 **Sposób generowania danych do tabeli:**
@@ -1667,7 +1667,7 @@ Pusty body albo niedozwolona wartość daje 422.
 | PASSWORD_HASH   | VARCHAR(255) | STRING  | Hash bcrypt hasła                                                     | NULL                     |
 | DISPLAY_NAME    | VARCHAR(100) | STRING  | Nazwa wyświetlana w UI                                                | NULL                     |
 | IS_ACTIVE       | TINYINT      | INT     | 1 = konto aktywne, 0 = zablokowane                                    | 1                        |
-| IS_ADMIN        | TINYINT      | {0,1}   | 1 = administrator Typera LM (publikacja meczów, odczyt cudzego audytu typów); 0 = zwykły użytkownik | 0                        |
+| IS_ADMIN        | TINYINT(1)   | {0,1}   | NOT NULL; 1 = administrator; 0 = zwykły użytkownik | 0                        |
 | FIRST_LOGIN     | TINYINT      | {0,1}   | 1 = należy ustawić hasło, username i display_name po 1. logowaniu     | 0                        |
 | CREATED_AT      | DATETIME     | DATETIME| Data utworzenia konta                                                 | CURRENT_TIMESTAMP        |
 | UPDATED_AT      | DATETIME     | DATETIME| Data ostatniej aktualizacji                                           | CURRENT_TIMESTAMP        |

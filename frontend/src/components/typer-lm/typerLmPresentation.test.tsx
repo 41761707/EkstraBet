@@ -12,6 +12,7 @@ import {
   TyperLmAdminSection,
 } from "@/components/typer-lm/TyperLmAdminPanel";
 import { TyperLmAdminRoundControls } from "@/components/typer-lm/TyperLmAdminRoundControls";
+import { TyperLmDashboard } from "@/components/typer-lm/TyperLmDashboard";
 import { TyperLmLeaderboard } from "@/components/typer-lm/TyperLmLeaderboard";
 import { TyperLmMatchCard } from "@/components/typer-lm/TyperLmMatchCard";
 import { TyperLmRoundPicker } from "@/components/typer-lm/TyperLmRoundPicker";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/typerLmRules";
 import type {
   TyperAdminCandidate,
+  TyperDashboardResponse,
   TyperLeaderboardRow,
   TyperMatch,
 } from "@/types/api";
@@ -88,6 +90,40 @@ function sampleMatch(overrides: Partial<TyperMatch> = {}): TyperMatch {
     ],
     ...overrides,
   };
+}
+
+function sampleDashboard(): TyperDashboardResponse {
+  return {
+    season_id: 13,
+    rounds: [
+      {
+        round_number: 1,
+        round_label: "1",
+        matches: [sampleMatch()],
+      },
+    ],
+  };
+}
+
+function sampleLeaderboardRows(): TyperLeaderboardRow[] {
+  return [
+    {
+      place: 1,
+      user_uuid: "user-1",
+      display_name: "Ala",
+      total_points: 12.5,
+      correct_predictions: 4,
+      settled_predictions: 6,
+    },
+    {
+      place: 2,
+      user_uuid: "user-2",
+      display_name: "Bartek",
+      total_points: 8,
+      correct_predictions: 2,
+      settled_predictions: 6,
+    },
+  ];
 }
 
 describe("TyperLmMatchCard", () => {
@@ -762,5 +798,74 @@ describe("TyperLmRules", () => {
     expect(html).not.toContain(TYPER_LM_RULES_TITLE);
     expect(html).not.toContain("Regulamin rozgrywek");
     expect(html).not.toContain("Zasady punktacji");
+  });
+});
+
+describe("Typer LM page smoke", () => {
+  it("places collapsed rules above the participant round and hides admin", () => {
+    const html = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <div>
+          <TyperLmRules />
+          <TyperLmAdminSection isAdmin={false} seasonId={13} />
+          <TyperLmDashboard
+            dashboard={sampleDashboard()}
+            leaderboard={sampleLeaderboardRows()}
+            currentUserUuid="user-1"
+            currentUserDisplayName="Ala"
+          />
+        </div>
+      </PreferencesProvider>,
+    );
+    const rulesAt = html.indexOf(TYPER_LM_RULES_TITLE);
+    const roundAt = html.indexOf("Kolejka");
+    const historyAt = html.indexOf("— na 1");
+
+    expect(rulesAt).toBeGreaterThan(-1);
+    expect(roundAt).toBeGreaterThan(rulesAt);
+    expect(historyAt).toBeGreaterThan(roundAt);
+    expect(html.match(/<details([^>]*)>/)?.[1] ?? "").not.toMatch(
+      /\sopen(?:="[^"]*")?(?=[\s>]|$)/,
+    );
+    expect(html).not.toContain("Panel administratora");
+    expect(html).toContain("Bayern Monachium");
+    expect(html).toContain("1.85");
+  });
+
+  it("shows the admin panel after the rules for an administrator", () => {
+    const html = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <div>
+          <TyperLmRules />
+          <TyperLmAdminSection
+            isAdmin={true}
+            seasonId={13}
+            initialCandidates={groupCandidates()}
+          />
+          <TyperLmDashboard
+            dashboard={sampleDashboard()}
+            leaderboard={sampleLeaderboardRows()}
+            currentUserUuid="user-1"
+            currentUserDisplayName="Ala"
+          />
+        </div>
+      </PreferencesProvider>,
+    );
+    const rulesAt = html.indexOf(TYPER_LM_RULES_TITLE);
+    const adminAt = html.indexOf("Panel administratora");
+    const roundAt = html.indexOf("Kolejka");
+
+    expect(adminAt).toBeGreaterThan(rulesAt);
+    expect(roundAt).toBeGreaterThan(adminAt);
+    expect(html).toContain("Audyt typów");
+    expect(html).toContain("0/9");
   });
 });

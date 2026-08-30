@@ -127,6 +127,17 @@ class TestTyperParticipantRouter(TyperRouterTestCase):
         self.assertEqual(response.status_code, 401)
         mock_dashboard.assert_not_called()
 
+    def test_participant_mutations_and_reads_require_token(self) -> None:
+        cases = [
+            ("PUT", "/typer-lm/predictions/101", {"outcome": "1"}),
+            ("GET", "/typer-lm/predictions/101/history", None),
+            ("GET", "/typer-lm/leaderboard", None)]
+        for method, path, body in cases:
+            with self.subTest(method=method, path=path):
+                kwargs = {"json": body} if body is not None else {}
+                response = self.client.request(method, path, **kwargs)
+                self.assertEqual(response.status_code, 401)
+
     @patch(
         f"{_SERVICE}.get_dashboard",
         return_value=_dashboard_payload())
@@ -281,6 +292,39 @@ class TestTyperAdminRouter(TyperRouterTestCase):
             },
             headers={"Authorization": f"Bearer {token}"})
         self.assertEqual(response.status_code, 403)
+
+    def test_admin_endpoints_require_token(self) -> None:
+        cases = [
+            ("GET", "/typer-lm/admin/candidates?season_id=13&round_number=1"),
+            ("POST", "/typer-lm/admin/publications"),
+            ("DELETE", "/typer-lm/admin/publications/101"),
+            ("GET", "/typer-lm/admin/prediction-history?user_uuid=u-1")]
+        for method, path in cases:
+            with self.subTest(method=method, path=path):
+                body = None
+                if method == "POST":
+                    body = {
+                        "season_id": 13,
+                        "round_number": 1,
+                        "match_ids": list(range(101, 110))
+                    }
+                response = self.client.request(method, path, json=body)
+                self.assertEqual(response.status_code, 401)
+
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_regular_user_cannot_list_candidates_or_delete(
+            self, _mock_fetch: MagicMock) -> None:
+        token, _ = auth_service.create_access_token(_TEST_USER["uuid"])
+        headers = {"Authorization": f"Bearer {token}"}
+        candidates = self.client.get(
+            "/typer-lm/admin/candidates",
+            params={"season_id": 13, "round_number": 1},
+            headers=headers)
+        self.assertEqual(candidates.status_code, 403)
+        deleted = self.client.delete(
+            "/typer-lm/admin/publications/101",
+            headers=headers)
+        self.assertEqual(deleted.status_code, 403)
 
     @patch(f"{_SERVICE}.publish_matches")
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)
