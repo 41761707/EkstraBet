@@ -88,22 +88,22 @@ _CANDIDATE_SQL = f"""
     ORDER BY m.game_date ASC, m.id ASC
 """
 
-_LOCK_ROUND_MATCHES_SQL = f"""
+# odczyt bez FOR UPDATE: ekstrabet_api nie ma UPDATE na matches,
+# a MySQL wymaga tego prawa przy SELECT ... FOR UPDATE
+_SELECT_ROUND_MATCHES_SQL = f"""
     SELECT id, league, season, round
     FROM matches
     WHERE league = {CHAMPIONS_LEAGUE_ID}
       AND season = %s
       AND round = %s
     ORDER BY id
-    FOR UPDATE
 """
 
-_LOCK_MATCHES_SQL = """
+_SELECT_MATCHES_SQL = """
     SELECT id, league, season, round
     FROM matches
     WHERE id IN ({placeholders})
     ORDER BY id
-    FOR UPDATE
 """
 
 _LOCK_ROUND_PUBLICATIONS_SQL = """
@@ -134,6 +134,7 @@ _FETCH_PUBLICATIONS_SQL = """
     ORDER BY tm.match_id
 """
 
+# FOR UPDATE OF tm, p: bez blokady matches (konto API ma tylko SELECT)
 _LOCK_PREDICTION_SQL = f"""
     SELECT
         tm.id AS typer_match_id,
@@ -150,7 +151,7 @@ _LOCK_PREDICTION_SQL = f"""
        AND p.user_id = %s
     WHERE tm.match_id = %s
       AND m.league = {CHAMPIONS_LEAGUE_ID}
-    FOR UPDATE
+    FOR UPDATE OF tm, p
 """
 
 _INSERT_PREDICTION_SQL = """
@@ -207,7 +208,7 @@ _LOCK_PUBLICATION_FOR_DELETE_SQL = f"""
     JOIN matches m ON m.id = tm.match_id
     WHERE tm.match_id = %s
       AND m.league = {CHAMPIONS_LEAGUE_ID}
-    FOR UPDATE
+    FOR UPDATE OF tm
 """
 
 _DELETE_PUBLICATION_SQL = """
@@ -368,9 +369,8 @@ def publish_matches(
     """Insert a round's publications in one locked transaction.
 
     Does not read, insert or update ``odds``. Odds completeness is not
-    required. All Champions League ``matches`` of the round are locked
-    first so parallel publishes cannot exceed the group-stage limit or
-    skip knockout completeness.
+    required. Publications of the round are locked with ``FOR UPDATE``;
+    ``matches`` are only read so the API user does not need UPDATE there.
     """
     _require_positive_ids(
         season_id=season_id, round_number=round_number, admin_id=admin_id)
@@ -602,8 +602,7 @@ def _lock_round_matches(
         cursor: Any,
         season_id: int,
         round_number: int) -> list[dict[str, Any]]:
-    # blokada całej rundy LM serializuje równoległe publikacje zestawów
-    cursor.execute(_LOCK_ROUND_MATCHES_SQL, (season_id, round_number))
+    cursor.execute(_SELECT_ROUND_MATCHES_SQL, (season_id, round_number))
     return list(cursor.fetchall())
 
 
@@ -661,9 +660,8 @@ def _lock_matches_for_publish(
         match_ids: list[int],
         season_id: int,
         round_number: int) -> None:
-    query = _LOCK_MATCHES_SQL.format(
+    query = _SELECT_MATCHES_SQL.format(
         placeholders=_in_placeholders(len(match_ids)))
-    # ORDER BY id + FOR UPDATE: ta sama kolejność blokad przy równoległym publish
     cursor.execute(query, tuple(match_ids))
     rows = cursor.fetchall()
     found_ids = {int(row["id"]) for row in rows}

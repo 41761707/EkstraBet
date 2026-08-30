@@ -217,11 +217,11 @@ class TestPublishMatches(unittest.TestCase):
         cursor.close.assert_called_once()
 
     @patch(_GET_CONN)
-    def test_locks_round_then_requested_ids_for_update(
+    def test_reads_matches_then_locks_publications_for_update(
             self, mock_get_conn: MagicMock) -> None:
         _conn, cursor, _result = self._publish(mock_get_conn)
         round_sql, round_params = cursor.execute.call_args_list[1].args
-        self.assertIn("FOR UPDATE", round_sql)
+        self.assertNotIn("FOR UPDATE", round_sql)
         self.assertIn("season = %s", round_sql)
         self.assertIn("round = %s", round_sql)
         self.assertIn("league = 42", round_sql)
@@ -229,7 +229,7 @@ class TestPublishMatches(unittest.TestCase):
         self.assertEqual(round_params, (13, 1))
         requested_sql, requested_params = (
             cursor.execute.call_args_list[2].args)
-        self.assertIn("FOR UPDATE", requested_sql)
+        self.assertNotIn("FOR UPDATE", requested_sql)
         self.assertIn("WHERE id IN (%s, %s)", requested_sql)
         self.assertEqual(requested_params, (101, 102))
         pub_sql, pub_params = cursor.execute.call_args_list[3].args
@@ -381,6 +381,8 @@ class TestRemovePublication(unittest.TestCase):
                 "is_open": 1,
                 "prediction_count": 0}])
         repo.remove_publication(101)
+        lock_sql = cursor.execute.call_args_list[0].args[0]
+        self.assertIn("FOR UPDATE OF tm", lock_sql)
         delete_sql, delete_params = cursor.execute.call_args_list[-1].args
         self.assertIn("DELETE FROM champions_league_typer_matches", delete_sql)
         self.assertEqual(delete_params, (50,))
@@ -527,7 +529,8 @@ class TestSavePrediction(unittest.TestCase):
                 _lock_open_row(prediction_id=10, selected_event_id=1)])
         repo.save_prediction(4, 101, 1)
         lock_sql, lock_params = cursor.execute.call_args_list[0].args
-        self.assertIn("FOR UPDATE", lock_sql)
+        self.assertIn("FOR UPDATE OF tm, p", lock_sql)
+        self.assertNotIn("FOR UPDATE\n", lock_sql)
         self.assertIn("NOW() < m.game_date", lock_sql)
         self.assertEqual(lock_params, (4, 101))
 

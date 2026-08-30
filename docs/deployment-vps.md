@@ -384,8 +384,26 @@ GRANT UPDATE (username, password_hash, display_name, first_login, updated_at)
 GRANT INSERT, UPDATE ON ekstrabet.user_preferences TO 'ekstrabet_api'@'%';
 GRANT INSERT, UPDATE, DELETE
   ON ekstrabet.user_favorite_leagues TO 'ekstrabet_api'@'%';
+GRANT INSERT, UPDATE, DELETE
+  ON ekstrabet.champions_league_typer_matches TO 'ekstrabet_api'@'%';
+GRANT INSERT, UPDATE
+  ON ekstrabet.champions_league_typer_predictions TO 'ekstrabet_api'@'%';
+GRANT INSERT
+  ON ekstrabet.champions_league_typer_prediction_changes TO 'ekstrabet_api'@'%';
 FLUSH PRIVILEGES;
 ```
+
+Rola administratora Typera LM (`users.is_admin`) **nie** jest w GRANT-ach
+aplikacji i nie ma ekranu do jej nadania. Ustawia ją właściciel bazy jako
+`root`:
+
+```sql
+UPDATE users SET is_admin = 1 WHERE username = 'Radikey';
+```
+
+Po `GRANT` zrestartuj kontener API, żeby pule połączeń wzięły nowe uprawnienia.
+Po `UPDATE is_admin` wystarczy odświeżyć `/typer-lm` (rola jest czytana z bazy
+przy każdym requeście, nie z JWT).
 
 - konto modeli — odczyt + ograniczony zapis na tabelach pipeline; osobne hasło
   (nie w `api.env` produkcyjnym, jeśli job idzie poza Compose API);
