@@ -15,6 +15,9 @@ from backend.repositories import champions_league_typer_repository as repo
 from backend.services import champions_league_typer_service as service
 
 _REPO = "backend.services.champions_league_typer_service.repository"
+_SPECIAL_ROUNDS = (
+    "backend.services.champions_league_typer_service"
+    ".league_repository.fetch_special_round_names")
 _GAME_DATE = datetime(2026, 9, 16, 21, 0)
 _PUBLISHED_AT = datetime(2026, 9, 10, 12, 0)
 _CHANGED_AT = datetime(2026, 9, 11, 18, 30)
@@ -468,9 +471,12 @@ class TestSavePrediction(unittest.TestCase):
 class TestDashboardAndHistory(unittest.TestCase):
     """Dashboard is private, grouped by round, and scores regulation 1X2."""
 
+    @patch(_SPECIAL_ROUNDS, return_value={})
     @patch(f"{_REPO}.fetch_dashboard")
     def test_groups_rounds_and_attaches_private_changes(
-            self, mock_fetch: MagicMock) -> None:
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
         mock_fetch.return_value = {
             "season_id": 13,
             "matches": [
@@ -495,9 +501,12 @@ class TestDashboardAndHistory(unittest.TestCase):
         self.assertEqual(first["changes"][0]["new_outcome"], "X")
         self.assertIsNone(document["rounds"][1]["matches"][0]["odds_home"])
 
+    @patch(_SPECIAL_ROUNDS, return_value={})
     @patch(f"{_REPO}.fetch_dashboard")
     def test_wrong_pick_scores_zero_and_hit_without_odds_is_unsettled(
-            self, mock_fetch: MagicMock) -> None:
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
         mock_fetch.return_value = {
             "season_id": 13,
             "matches": [
@@ -512,6 +521,32 @@ class TestDashboardAndHistory(unittest.TestCase):
         matches = document["rounds"][0]["matches"]
         self.assertEqual(matches[0]["points"], 0.0)
         self.assertIsNone(matches[1]["points"])
+
+    @patch(
+        _SPECIAL_ROUNDS,
+        return_value={
+            973: "1/8-FINAŁU",
+            972: "ĆWIERĆFINAŁ",
+            900: "Baraże"
+        })
+    @patch(f"{_REPO}.fetch_dashboard")
+    def test_dashboard_round_labels_keep_knockout_rounds_distinct(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = {
+            "season_id": 13,
+            "matches": [
+                _dashboard_match_row(101, round_number=973),
+                _dashboard_match_row(201, round_number=972),
+                _dashboard_match_row(301, round_number=900)
+            ],
+            "changes": []
+        }
+        document = service.get_dashboard(4, 13)
+        labels = [row["round_label"] for row in document["rounds"]]
+        self.assertEqual(
+            labels, ["1/8-FINAŁU", "ĆWIERĆFINAŁ", "Baraże"])
 
     @patch(f"{_REPO}.fetch_own_prediction_history")
     def test_own_history_maps_events_to_outcomes(

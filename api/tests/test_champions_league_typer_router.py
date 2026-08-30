@@ -67,6 +67,7 @@ def _dashboard_payload() -> dict[str, object]:
         "season_id": 13,
         "rounds": [{
             "round_number": 1,
+            "round_label": "1",
             "matches": [{
                 "match_id": 101,
                 "season_id": 13,

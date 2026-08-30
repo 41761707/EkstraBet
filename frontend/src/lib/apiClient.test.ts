@@ -7,6 +7,7 @@ import {
   getUserPreferences,
   putUserPreferences,
   removeFavoriteLeague,
+  saveTyperPrediction,
 } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiShared";
 
@@ -232,5 +233,47 @@ describe("user preferences", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       team_name_display: "shortcut",
     });
+  });
+});
+
+describe("typer LM participant client", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("PUTs a 1X2 pick through the BFF", async () => {
+    const payload = {
+      match_id: 101,
+      outcome: "X",
+      previous_outcome: "1",
+      audit_written: true,
+      created_at: "2026-09-11T18:00:00",
+      updated_at: "2026-09-11T19:00:00",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(saveTyperPrediction(101, "X")).resolves.toEqual(payload);
+
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/typer-lm/predictions/101");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({ outcome: "X" });
   });
 });

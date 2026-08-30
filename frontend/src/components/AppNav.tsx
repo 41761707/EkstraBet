@@ -6,20 +6,14 @@ import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
-
-const NAV_LINKS = [
-  { href: "/", label: "Strona główna" },
-  { href: "/stats", label: "Kącik statystyczny" },
-  { href: "/bets", label: "Kącik bukmacherski" },
-  { href: "/players", label: "Zawodnicy" },
-  { href: "/predictions/simulate", label: "Symulacja" },
-  { href: "/o-modelach", label: "O modelach" },
-  { href: "/chat", label: "Asystent" },
-] as const;
-
-const PROFILE_LINK = { href: "/profile", label: "Profil" } as const;
-
-type NavLink = (typeof NAV_LINKS)[number] | typeof PROFILE_LINK;
+import { NavMoreMenu } from "@/components/NavMoreMenu";
+import {
+  getAllNavLinks,
+  MORE_NAV_LINKS,
+  PRIMARY_NAV_LINKS,
+  PROFILE_LINK,
+  type AppNavLink,
+} from "@/lib/appNavLinks";
 
 type AppNavProps = {
   showLogout: boolean;
@@ -31,12 +25,9 @@ const HAMBURGER_CLASS_NAME =
   "inline-flex items-center justify-center rounded-md p-2 text-muted " +
   "transition hover:bg-surface-raised hover:text-text";
 
-function getNavLinks(showProfile: boolean): NavLink[] {
-  if (!showProfile) {
-    return [...NAV_LINKS];
-  }
-  return [...NAV_LINKS, PROFILE_LINK];
-}
+const DESKTOP_LINK_CLASS_NAME =
+  "whitespace-nowrap rounded-md px-2.5 py-1.5 transition " +
+  "hover:bg-surface-raised hover:text-text";
 
 function useMobileMenu() {
   const pathname = usePathname();
@@ -93,9 +84,7 @@ export function AppNav({
 }: AppNavProps) {
   const { isOpen, setIsOpen, isMounted, menuId, toggleRef, panelRef, closeMenu } =
     useMobileMenu();
-  const links = getNavLinks(showProfile);
-  const linkClassName =
-    "rounded-md px-3 py-1.5 transition hover:bg-surface-raised hover:text-text";
+  const mobileLinks = getAllNavLinks(showProfile);
   const mobileLinkClassName =
     "block rounded-md px-3 py-3 text-base transition hover:bg-surface-raised hover:text-text";
 
@@ -105,7 +94,7 @@ export function AppNav({
           <MobileNavPanel
             menuId={menuId}
             panelRef={panelRef}
-            links={links}
+            links={mobileLinks}
             showLinks={showLinks}
             showLogout={showLogout}
             mobileLinkClassName={mobileLinkClassName}
@@ -119,16 +108,31 @@ export function AppNav({
   return (
     <>
       <nav
-        className="hidden items-center justify-end gap-1 text-sm text-muted lg:flex"
+        className="hidden items-center justify-end gap-0.5 text-sm text-muted lg:flex"
         aria-label="Główna nawigacja"
       >
-        {showLinks
-          ? links.map((link) => (
-              <Link key={link.href} href={link.href} className={linkClassName}>
+        {showLinks ? (
+          <>
+            {PRIMARY_NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={DESKTOP_LINK_CLASS_NAME}
+              >
                 {link.label}
               </Link>
-            ))
-          : null}
+            ))}
+            <NavMoreMenu
+              links={MORE_NAV_LINKS}
+              linkClassName={DESKTOP_LINK_CLASS_NAME}
+            />
+            {showProfile ? (
+              <Link href={PROFILE_LINK.href} className={DESKTOP_LINK_CLASS_NAME}>
+                {PROFILE_LINK.label}
+              </Link>
+            ) : null}
+          </>
+        ) : null}
         {showLogout ? <LogoutButton /> : null}
       </nav>
 
@@ -159,7 +163,7 @@ export function AppNav({
 interface MobileNavPanelProps {
   menuId: string;
   panelRef: RefObject<HTMLDivElement | null>;
-  links: NavLink[];
+  links: AppNavLink[];
   showLinks: boolean;
   showLogout: boolean;
   mobileLinkClassName: string;

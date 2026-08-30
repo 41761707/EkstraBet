@@ -21,6 +21,8 @@ import type {
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
   SportTeamHistoryResponse,
+  SaveTyperPredictionResponse,
+  TyperOutcome,
   UserPreferencesResponse,
   UserPreferencesUpdate,
 } from "@/types/api";
@@ -191,6 +193,21 @@ export async function getSeasonProjection(
     {
       season_id: seasonId,
       mode,
+    },
+  );
+}
+
+export async function saveTyperPrediction(
+  matchId: number,
+  outcome: TyperOutcome,
+): Promise<SaveTyperPredictionResponse> {
+  return fetchViaBff<SaveTyperPredictionResponse>(
+    `/typer-lm/predictions/${matchId}`,
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome }),
     },
   );
 }

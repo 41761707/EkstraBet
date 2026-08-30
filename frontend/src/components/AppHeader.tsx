@@ -16,7 +16,7 @@ export async function AppHeader() {
   return (
     <header className="border-b border-border bg-page/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link href={homeHref} className="group flex items-center gap-2">
+        <Link href={homeHref} className="group flex shrink-0 items-center gap-2">
           <span className="text-2xl" aria-hidden="true">
             ⚽
           </span>

@@ -76,6 +76,10 @@ class TyperRound(BaseModel):
     """Published matches grouped by round."""
 
     round_number: int = Field(..., description="Round number")
+    round_label: str = Field(
+        ...,
+        description=(
+            "Display label; knockout rounds use special_rounds names"))
     matches: list[TyperMatch] = Field(..., description="Published matches")
 
 

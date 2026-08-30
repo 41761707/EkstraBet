@@ -6,8 +6,10 @@ from contextlib import contextmanager
 from typing import Any, Iterator, Literal
 
 from backend.config import get_settings
+from backend.repositories import league_repository
 from backend.repositories import (
     champions_league_typer_repository as repository)
+from backend.services.round_label import resolve_round_label
 
 
 CHAMPIONS_LEAGUE_ID = 42
@@ -157,10 +159,13 @@ def get_dashboard(
     """Return published rounds, private picks, odds and own audit."""
     with _repository_errors():
         document = repository.fetch_dashboard(user_id, season_id)
+    special_rounds = league_repository.fetch_special_round_names()
     return {
         "season_id": int(document["season_id"]),
         "rounds": _group_dashboard_rounds(
-            document["matches"], document["changes"])
+            document["matches"],
+            document["changes"],
+            special_rounds)
     }
 
 
@@ -291,9 +296,17 @@ def _assert_complete_knockout_set(
             "imported match of the round")
 
 
+def _typer_round_label(
+        round_number: int,
+        special_rounds: dict[int, str]) -> str:
+    label = resolve_round_label(round_number, special_rounds)
+    return label if label else str(round_number)
+
+
 def _group_dashboard_rounds(
         match_rows: list[dict[str, Any]],
-        change_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        change_rows: list[dict[str, Any]],
+        special_rounds: dict[int, str]) -> list[dict[str, Any]]:
     changes_by_match: dict[int, list[dict[str, Any]]] = {}
     for row in change_rows:
         match_id = int(row["match_id"])
@@ -311,6 +324,8 @@ def _group_dashboard_rounds(
                 or current_round["round_number"] != round_number):
             current_round = {
                 "round_number": round_number,
+                "round_label": _typer_round_label(
+                    round_number, special_rounds),
                 "matches": []
             }
             rounds.append(current_round)
