@@ -567,5 +567,212 @@ class TestTeamIdsCsv(unittest.TestCase):
         self.assertIsNone(repo._parse_team_ids_csv(None))
 
 
+_ADMIN_ID = 7
+_SETTLED_AT = datetime(2026, 12, 1, 23, 0)
+
+
+def _standing_row(
+        team_id: int,
+        *,
+        played: int = 8,
+        points: int = 12,
+        goal_difference: int = 4,
+        goals_for: int = 20) -> dict[str, object]:
+    return {
+        "team_id": team_id,
+        "team_name": f"Team {team_id}",
+        "team_shortcut": f"T{team_id}",
+        "played": played,
+        "points": points,
+        "goal_difference": goal_difference,
+        "goals_for": goals_for
+    }
+
+
+def _settled_market_row() -> dict[str, object]:
+    row = _market_lock_row(is_open=0)
+    row["settled_at"] = _SETTLED_AT
+    row["settled_by"] = _ADMIN_ID
+    return row
+
+
+class TestFetchAutoResult(unittest.TestCase):
+    """Auto TOP 8 is a read-only proposal from points, GD and goals."""
+
+    @patch(_GET_CONN)
+    def test_standings_sql_sorts_points_gd_goals_and_does_not_write(
+            self, mock_get_conn: MagicMock) -> None:
+        standings = [
+            _standing_row(12, points=20, goal_difference=10, goals_for=30),
+            _standing_row(45, points=20, goal_difference=10, goals_for=28)]
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row()],
+            fetchall_results=[standings])
+        document = repo.fetch_auto_result(_MARKET_ID)
+        self.assertEqual(document["market_id"], _MARKET_ID)
+        self.assertEqual(document["participant_count"], 2)
+        self.assertEqual(document["settled_match_count"], 8)
+        self.assertEqual(document["min_matches_per_team"], 8)
+        self.assertEqual(document["max_matches_per_team"], 8)
+        self.assertEqual(document["standings"][0]["team_id"], 12)
+        self.assertIsNone(document["settled_at"])
+        market_sql = cursor.execute.call_args_list[0].args[0]
+        self.assertNotIn("FOR UPDATE", market_sql)
+        query, params = cursor.execute.call_args_list[-1].args
+        self.assertIn("ORDER BY", query)
+        self.assertIn("s.points, 0) DESC", query)
+        self.assertIn("s.goal_difference, 0) DESC", query)
+        self.assertIn("s.goals_for, 0) DESC", query)
+        self.assertIn("BETWEEN 1", query)
+        self.assertIn("result IN ('1', 'X', '2')", query)
+        self.assertEqual(
+            params, (repo.CHAMPIONS_LEAGUE_ID, _SEASON_ID))
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_results", combined)
+        self.assertNotIn("UPDATE typer_long_term_markets", combined)
+        self.assertNotIn("DELETE FROM typer_long_term_results", combined)
+        conn.commit.assert_not_called()
+        _assert_no_inlined_values(
+            self, query, _MARKET_ID, _SEASON_ID, repo.CHAMPIONS_LEAGUE_ID)
+        _assert_long_term_table_names(
+            self, cursor.execute.call_args_list[0].args[0])
+
+    @patch(_GET_CONN)
+    def test_missing_market_is_not_found(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, fetchone_results=[None])
+        with self.assertRaises(repo.TyperNotFoundError):
+            repo.fetch_auto_result(_MARKET_ID)
+        combined = _combined_sql(cursor)
+        self.assertNotIn("phase_matches", combined)
+        conn.commit.assert_not_called()
+
+
+class TestSettleMarket(unittest.TestCase):
+    """Admin settlement replaces results without touching stored picks."""
+
+    def _settle(
+            self,
+            mock_get_conn: MagicMock,
+            *,
+            team_ids: list[int] | None = None,
+            candidates: list[dict[str, object]] | None = None,
+            is_open: int = 0,
+            rowcount: int = 8
+            ) -> tuple[MagicMock, MagicMock, dict[str, object]]:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[
+                _market_lock_row(is_open=is_open),
+                _settled_market_row()],
+            fetchall_results=[
+                candidates if candidates is not None else _candidate_rows()],
+            rowcount=rowcount)
+        result = repo.settle_market(
+            _MARKET_ID, team_ids or list(_TEAM_IDS), _ADMIN_ID)
+        return conn, cursor, result
+
+    @patch(_GET_CONN)
+    def test_replaces_results_and_stamps_market_after_deadline(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._settle(mock_get_conn)
+        self.assertEqual(result["team_ids"], list(_TEAM_IDS))
+        self.assertEqual(result["settled_by"], _ADMIN_ID)
+        self.assertEqual(result["settled_at"], _SETTLED_AT)
+        statements = _sql_statements(cursor)
+        self.assertTrue(
+            any("FOR UPDATE" in sql for sql in statements))
+        delete_sql = next(
+            sql for sql in statements
+            if "DELETE FROM typer_long_term_results" in sql)
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_results" in call.args[0])
+        update_sql, update_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "UPDATE typer_long_term_markets" in call.args[0])
+        self.assertIn("DELETE FROM typer_long_term_results", delete_sql)
+        self.assertEqual(
+            insert_params, (_MARKET_ID, *_TEAM_IDS))
+        self.assertEqual(
+            update_params,
+            (_ADMIN_ID, _MARKET_ID, repo.CHAMPIONS_LEAGUE_ID))
+        self.assertIn("settled_at = NOW()", update_sql)
+        combined = _combined_sql(cursor)
+        self.assertNotIn("DELETE FROM typer_long_term_picks", combined)
+        self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
+        self.assertNotIn(
+            "INSERT INTO typer_long_term_pick_changes", combined)
+        _assert_long_term_table_names(self, insert_sql)
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+
+    @patch(_GET_CONN)
+    def test_correction_deletes_previous_results(
+            self, mock_get_conn: MagicMock) -> None:
+        new_ids = [12, 45, 101, 200, 201, 202, 203, 205]
+        conn, cursor, result = self._settle(
+            mock_get_conn,
+            team_ids=new_ids,
+            candidates=_candidate_rows([205]))
+        self.assertEqual(result["team_ids"], new_ids)
+        combined = _combined_sql(cursor)
+        self.assertIn("DELETE FROM typer_long_term_results", combined)
+        self.assertIn("INSERT INTO typer_long_term_results", combined)
+        self.assertNotIn("DELETE FROM typer_long_term_picks", combined)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_seven_teams_are_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row(is_open=0)])
+        with self.assertRaises(repo.TyperValidationError):
+            repo.settle_market(_MARKET_ID, _TEAM_IDS[:7], _ADMIN_ID)
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_results", combined)
+        self.assertNotIn("UPDATE typer_long_term_markets", combined)
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_team_outside_league_phase_is_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        outsider = [12, 45, 101, 200, 201, 202, 203, 999]
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row(is_open=0)],
+            fetchall_results=[_candidate_rows()])
+        with self.assertRaises(repo.TyperValidationError):
+            repo.settle_market(_MARKET_ID, outsider, _ADMIN_ID)
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_results", combined)
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_integrity_error_rolls_back_without_commit(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row(is_open=0)],
+            fetchall_results=[_candidate_rows()])
+        cursor.execute.side_effect = [
+            None,
+            None,
+            None,
+            IntegrityError("Duplicate entry", 1062)]
+        with self.assertRaises(repo.TyperConflictError):
+            repo.settle_market(
+                _MARKET_ID, list(_TEAM_IDS), _ADMIN_ID)
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called()
+
+
 if __name__ == "__main__":
     unittest.main()

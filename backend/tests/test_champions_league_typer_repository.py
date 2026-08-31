@@ -662,12 +662,16 @@ class TestFetchLeaderboard(unittest.TestCase):
                 "place": 1,
                 "user_uuid": "u-1",
                 "display_name": "Ada",
+                "match_points": 5.5,
+                "long_term_points": 0,
                 "total_points": 5.5,
                 "correct_predictions": 2,
                 "settled_predictions": 3
             }]])
         rows = repo.fetch_leaderboard(13)
         self.assertEqual(rows[0]["total_points"], 5.5)
+        self.assertEqual(rows[0]["match_points"], 5.5)
+        self.assertEqual(rows[0]["long_term_points"], 0.0)
         query, params = cursor.execute.call_args_list[-1].args
         self.assertIn("o.odds", query)
         self.assertIn("LEFT JOIN odds o", query)
@@ -678,7 +682,8 @@ class TestFetchLeaderboard(unittest.TestCase):
         self.assertIn("correct_predictions DESC", query)
         self.assertIn("display_name ASC", query)
         self.assertNotIn("football_special_round_add", query)
-        self.assertEqual(params, (13,))
+        self.assertEqual(
+            params, (13, 13, repo.CHAMPIONS_LEAGUE_ID))
         _assert_no_odds_mutation(self, _sql_statements(cursor))
         _assert_no_inlined_values(self, query, 13)
 
@@ -695,7 +700,44 @@ class TestFetchLeaderboard(unittest.TestCase):
         self.assertIn("current_season_id", season_sql)
         self.assertEqual(season_params, (repo.CHAMPIONS_LEAGUE_ID,))
         _query, params = cursor.execute.call_args_list[-1].args
-        self.assertEqual(params, (13,))
+        self.assertEqual(params, (13, 13, repo.CHAMPIONS_LEAGUE_ID))
+
+    @patch(_GET_CONN)
+    def test_includes_long_term_only_users_and_point_split(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[{
+                "place": 1,
+                "user_uuid": "u-2",
+                "display_name": "Bea",
+                "match_points": 0,
+                "long_term_points": 16,
+                "total_points": 16,
+                "correct_predictions": 0,
+                "settled_predictions": 0
+            }]])
+        rows = repo.fetch_leaderboard(13)
+        self.assertEqual(rows[0]["match_points"], 0.0)
+        self.assertEqual(rows[0]["long_term_points"], 16.0)
+        self.assertEqual(rows[0]["total_points"], 16.0)
+        self.assertEqual(rows[0]["correct_predictions"], 0)
+        query, params = cursor.execute.call_args_list[-1].args
+        self.assertIn("UNION", query)
+        self.assertIn("typer_long_term_picks", query)
+        self.assertIn("typer_long_term_markets", query)
+        self.assertIn("typer_long_term_results", query)
+        self.assertIn("mkt.settled_at IS NOT NULL", query)
+        self.assertIn("mkt.points_per_correct", query)
+        self.assertIn("mkt.league_id = %s", query)
+        self.assertNotIn(
+            f"mkt.league_id = {repo.CHAMPIONS_LEAGUE_ID}", query)
+        self.assertIn("match_points", query)
+        self.assertIn("long_term_points", query)
+        self.assertEqual(
+            params, (13, 13, repo.CHAMPIONS_LEAGUE_ID))
+        _assert_no_inlined_values(
+            self, query, 13, repo.CHAMPIONS_LEAGUE_ID)
 
 
 class TestPredictionHistory(unittest.TestCase):

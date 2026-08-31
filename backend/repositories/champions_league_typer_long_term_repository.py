@@ -17,6 +17,9 @@ from backend.repositories.champions_league_typer_repository import (
 CHAMPIONS_LEAGUE_ID = 42
 LEAGUE_PHASE_MIN_ROUND = 1
 LEAGUE_PHASE_MAX_ROUND = 8
+LEAGUE_PHASE_TEAM_COUNT = 36
+LEAGUE_PHASE_MATCHES_PER_TEAM = 8
+LEAGUE_PHASE_SETTLED_MATCH_COUNT = 144
 
 # deadline fazy ligowej: MIN(game_date) dla ligi i sezonu rynku, rund 1-8
 _DEADLINE_SQL = f"""
@@ -28,8 +31,8 @@ _DEADLINE_SQL = f"""
           AND {LEAGUE_PHASE_MAX_ROUND}
 """
 
-# FOR UPDATE tylko na rynku: konto API nie ma UPDATE na matches
-_LOCK_MARKET_SQL = f"""
+# odczyt rynku bez locka (auto-wynik); FOR UPDATE tylko przy zapisie
+_SELECT_MARKET_SQL = f"""
     SELECT
         m.id AS market_id,
         m.league_id,
@@ -46,8 +49,10 @@ _LOCK_MARKET_SQL = f"""
     FROM typer_long_term_markets m
     WHERE m.id = %s
       AND m.league_id = %s
-    FOR UPDATE
 """
+
+# FOR UPDATE tylko na rynku: konto API nie ma UPDATE na matches
+_LOCK_MARKET_SQL = _SELECT_MARKET_SQL + "    FOR UPDATE"
 
 _CANDIDATE_TEAMS_SQL = f"""
     SELECT
@@ -168,6 +173,101 @@ _DASHBOARD_HISTORY_SQL = _CHANGES_SELECT_SQL + """
     ORDER BY c.market_id ASC, c.changed_at ASC, c.id ASC
 """
 
+# tabela fazy ligowej: punkty, różnica bramek, gole; dalsze kryteria UEFA
+# nie są tutaj — wynik zostaje propozycją do zatwierdzenia przez admina
+_LEAGUE_PHASE_STANDINGS_SQL = f"""
+    WITH phase_matches AS (
+        SELECT
+            m.home_team,
+            m.away_team,
+            m.home_team_goals,
+            m.away_team_goals,
+            m.result
+        FROM matches m
+        WHERE m.league = %s
+          AND m.season = %s
+          AND m.round BETWEEN {LEAGUE_PHASE_MIN_ROUND}
+              AND {LEAGUE_PHASE_MAX_ROUND}
+    ),
+    participants AS (
+        SELECT home_team AS team_id
+        FROM phase_matches
+        UNION
+        SELECT away_team
+        FROM phase_matches
+    ),
+    team_stats AS (
+        SELECT
+            team_id,
+            COUNT(*) AS played,
+            SUM(match_points) AS points,
+            SUM(goals_for) - SUM(goals_against) AS goal_difference,
+            SUM(goals_for) AS goals_for
+        FROM (
+            SELECT
+                home_team AS team_id,
+                CASE result
+                    WHEN '1' THEN 3
+                    WHEN 'X' THEN 1
+                    ELSE 0
+                END AS match_points,
+                COALESCE(home_team_goals, 0) AS goals_for,
+                COALESCE(away_team_goals, 0) AS goals_against
+            FROM phase_matches
+            WHERE result IN ('1', 'X', '2')
+            UNION ALL
+            SELECT
+                away_team AS team_id,
+                CASE result
+                    WHEN '2' THEN 3
+                    WHEN 'X' THEN 1
+                    ELSE 0
+                END AS match_points,
+                COALESCE(away_team_goals, 0) AS goals_for,
+                COALESCE(home_team_goals, 0) AS goals_against
+            FROM phase_matches
+            WHERE result IN ('1', 'X', '2')
+        ) appearances
+        GROUP BY team_id
+    )
+    SELECT
+        t.id AS team_id,
+        t.name AS team_name,
+        t.shortcut AS team_shortcut,
+        COALESCE(s.played, 0) AS played,
+        COALESCE(s.points, 0) AS points,
+        COALESCE(s.goal_difference, 0) AS goal_difference,
+        COALESCE(s.goals_for, 0) AS goals_for
+    FROM participants p
+    JOIN teams t ON t.id = p.team_id
+    LEFT JOIN team_stats s ON s.team_id = t.id
+    ORDER BY
+        COALESCE(s.points, 0) DESC,
+        COALESCE(s.goal_difference, 0) DESC,
+        COALESCE(s.goals_for, 0) DESC,
+        t.id ASC
+"""
+
+_DELETE_RESULTS_SQL = """
+    DELETE FROM typer_long_term_results
+    WHERE market_id = %s
+"""
+
+_INSERT_RESULTS_SQL = """
+    INSERT INTO typer_long_term_results (
+        market_id, team_id)
+    SELECT %s, t.team_id
+    FROM ({union_sql}) t
+"""
+
+_UPDATE_MARKET_SETTLED_SQL = """
+    UPDATE typer_long_term_markets
+    SET settled_at = NOW(),
+        settled_by = %s
+    WHERE id = %s
+      AND league_id = %s
+"""
+
 
 def fetch_long_term_dashboard(
         user_id: int,
@@ -269,6 +369,60 @@ def fetch_admin_long_term_history(
     return [_map_change_row(row) for row in rows]
 
 
+def fetch_auto_result(market_id: int) -> dict[str, Any]:
+    """Return league-phase standings and completeness counts.
+
+    Does not write results or award points. The ranking is a proposal
+    because UEFA tie-breakers beyond points, GD and goals are omitted.
+    """
+    _require_positive_ids(market_id=market_id)
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            market = _fetch_market(cursor, market_id)
+            standings = _fetch_league_phase_standings(
+                cursor,
+                int(market["league_id"]),
+                int(market["season_id"]))
+        finally:
+            cursor.close()
+    return _auto_result_document(market, standings)
+
+
+def settle_market(
+        market_id: int,
+        team_ids: list[int],
+        admin_id: int) -> dict[str, Any]:
+    """Replace the approved result set and stamp the market as settled.
+
+    Does not modify stored picks. Rankings are recalculated on read.
+    Deadline is not required: settlement happens after kickoff.
+    """
+    _require_positive_ids(market_id=market_id, admin_id=admin_id)
+    unique_ids = _unique_team_ids(team_ids)
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            market = _fetch_locked_market(cursor, market_id)
+            result = _replace_results(
+                cursor, market, unique_ids, admin_id)
+            # mysql-connector bez autocommit — close bez commit cofa zapis
+            conn.commit()
+        except TyperRepositoryError:
+            conn.rollback()
+            raise
+        except IntegrityError as exc:
+            conn.rollback()
+            raise TyperConflictError(
+                "Long-term result could not be saved") from exc
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+    return result
+
+
 def _build_dashboard_document(
         cursor: Any,
         user_id: int,
@@ -347,15 +501,94 @@ def _fetch_dashboard_changes(
 
 
 def _lock_market(cursor: Any, market_id: int) -> dict[str, Any]:
-    cursor.execute(
-        _LOCK_MARKET_SQL, (market_id, CHAMPIONS_LEAGUE_ID))
-    row = cursor.fetchone()
-    if row is None:
-        raise TyperNotFoundError("Long-term market not found")
+    row = _fetch_locked_market(cursor, market_id)
     if not _as_bool(row["is_open"]):
         raise TyperConflictError(
             "Picks cannot be saved after kickoff")
     return row
+
+
+def _fetch_locked_market(cursor: Any, market_id: int) -> dict[str, Any]:
+    return _fetch_market(cursor, market_id, for_update=True)
+
+
+def _fetch_market(
+        cursor: Any,
+        market_id: int,
+        *,
+        for_update: bool = False) -> dict[str, Any]:
+    query = _LOCK_MARKET_SQL if for_update else _SELECT_MARKET_SQL
+    cursor.execute(query, (market_id, CHAMPIONS_LEAGUE_ID))
+    row = cursor.fetchone()
+    if row is None:
+        raise TyperNotFoundError("Long-term market not found")
+    return row
+
+
+def _fetch_league_phase_standings(
+        cursor: Any,
+        league_id: int,
+        season_id: int) -> list[dict[str, Any]]:
+    cursor.execute(
+        _LEAGUE_PHASE_STANDINGS_SQL, (league_id, season_id))
+    return [_map_standing_row(row) for row in cursor.fetchall()]
+
+
+def _auto_result_document(
+        market: dict[str, Any],
+        standings: list[dict[str, Any]]) -> dict[str, Any]:
+    played = [int(row["played"]) for row in standings]
+    return {
+        "market_id": int(market["market_id"]),
+        "league_id": int(market["league_id"]),
+        "season_id": int(market["season_id"]),
+        "market_key": str(market["market_key"]),
+        "selection_size": int(market["selection_size"]),
+        "points_per_correct": float(market["points_per_correct"]),
+        "settled_at": market["settled_at"],
+        "settled_by": _as_optional_int(market["settled_by"]),
+        "participant_count": len(standings),
+        "settled_match_count": sum(played) // 2,
+        "min_matches_per_team": min(played) if played else 0,
+        "max_matches_per_team": max(played) if played else 0,
+        "standings": standings
+    }
+
+
+def _replace_results(
+        cursor: Any,
+        market: dict[str, Any],
+        team_ids: list[int],
+        admin_id: int) -> dict[str, Any]:
+    market_id = int(market["market_id"])
+    _assert_selection_size(market, team_ids)
+    _assert_candidate_membership(cursor, market, team_ids)
+    cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
+    _insert_results(cursor, market_id, team_ids)
+    cursor.execute(
+        _UPDATE_MARKET_SETTLED_SQL,
+        (admin_id, market_id, CHAMPIONS_LEAGUE_ID))
+    updated = _fetch_market(cursor, market_id)
+    return {
+        "market_id": market_id,
+        "team_ids": sorted(team_ids),
+        "settled_by": admin_id,
+        "settled_at": updated["settled_at"],
+        "result_team_ids": sorted(team_ids)
+    }
+
+
+def _insert_results(
+        cursor: Any,
+        market_id: int,
+        team_ids: list[int]) -> None:
+    union_sql = " UNION ALL ".join(
+        ["SELECT %s AS team_id"] * len(team_ids))
+    query = _INSERT_RESULTS_SQL.format(union_sql=union_sql)
+    cursor.execute(query, (market_id, *sorted(team_ids)))
+    if cursor.rowcount != len(team_ids):
+        raise TyperConflictError(
+            "Long-term result could not be saved")
 
 
 def _replace_picks_with_audit(
@@ -576,6 +809,18 @@ def _map_candidate_row(row: dict[str, Any]) -> dict[str, Any]:
         "team_id": int(row["team_id"]),
         "team_name": str(row["team_name"]),
         "team_shortcut": str(row["team_shortcut"])
+    }
+
+
+def _map_standing_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "team_id": int(row["team_id"]),
+        "team_name": str(row["team_name"]),
+        "team_shortcut": str(row["team_shortcut"]),
+        "played": int(row["played"]),
+        "points": int(row["points"]),
+        "goal_difference": int(row["goal_difference"]),
+        "goals_for": int(row["goals_for"])
     }
 
 
