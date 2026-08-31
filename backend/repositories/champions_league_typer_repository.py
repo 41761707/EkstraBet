@@ -289,22 +289,11 @@ _DASHBOARD_HISTORY_SQL = _CHANGES_SELECT_SQL + """
 """
 
 _LEADERBOARD_SQL = f"""
-    SELECT
-        ROW_NUMBER() OVER (
-            ORDER BY ranked.total_points DESC,
-                     ranked.correct_predictions DESC,
-                     ranked.display_name ASC
-        ) AS place,
-        ranked.user_uuid,
-        ranked.display_name,
-        ranked.total_points,
-        ranked.correct_predictions,
-        ranked.settled_predictions
-    FROM (
+    WITH match_agg AS (
         SELECT
-            scored.user_uuid,
-            scored.display_name,
-            COALESCE(SUM(COALESCE(scored.points, 0)), 0) AS total_points,
+            scored.user_id,
+            COALESCE(SUM(COALESCE(scored.points, 0)), 0)
+                AS match_points,
             COALESCE(SUM(
                 CASE
                     WHEN scored.points IS NOT NULL
@@ -320,22 +309,75 @@ _LEADERBOARD_SQL = f"""
             ), 0) AS settled_predictions
         FROM (
             SELECT
-                u.id AS user_id,
-                u.uuid AS user_uuid,
-                u.display_name,
+                p.user_id,
                 {_POINTS_SQL} AS points
             FROM champions_league_typer_predictions p
             JOIN champions_league_typer_matches tm
                 ON tm.id = p.typer_match_id
             JOIN matches m ON m.id = tm.match_id
-            JOIN users u ON u.id = p.user_id
             LEFT JOIN odds o
                 ON o.match_id = m.id
                AND o.bookmaker = {SUPERBET_BOOKMAKER_ID}
                AND o.event = p.selected_event_id
             WHERE tm.season_id = %s
         ) scored
-        GROUP BY scored.user_id, scored.user_uuid, scored.display_name
+        GROUP BY scored.user_id
+    ),
+    lt_agg AS (
+        SELECT
+            p.user_id,
+            COALESCE(SUM(
+                CASE
+                    WHEN mkt.settled_at IS NOT NULL
+                     AND res.team_id IS NOT NULL
+                    THEN mkt.points_per_correct
+                    ELSE 0
+                END
+            ), 0) AS long_term_points
+        FROM typer_long_term_picks p
+        JOIN typer_long_term_markets mkt
+            ON mkt.id = p.market_id
+        LEFT JOIN typer_long_term_results res
+            ON res.market_id = p.market_id
+           AND res.team_id = p.team_id
+        WHERE mkt.season_id = %s
+          AND mkt.league_id = %s
+        GROUP BY p.user_id
+    ),
+    contestants AS (
+        SELECT user_id FROM match_agg
+        UNION
+        SELECT user_id FROM lt_agg
+    )
+    SELECT
+        ROW_NUMBER() OVER (
+            ORDER BY ranked.total_points DESC,
+                     ranked.correct_predictions DESC,
+                     ranked.display_name ASC
+        ) AS place,
+        ranked.user_uuid,
+        ranked.display_name,
+        ranked.match_points,
+        ranked.long_term_points,
+        ranked.total_points,
+        ranked.correct_predictions,
+        ranked.settled_predictions
+    FROM (
+        SELECT
+            u.uuid AS user_uuid,
+            u.display_name,
+            COALESCE(match_agg.match_points, 0) AS match_points,
+            COALESCE(lt_agg.long_term_points, 0) AS long_term_points,
+            COALESCE(match_agg.match_points, 0)
+                + COALESCE(lt_agg.long_term_points, 0) AS total_points,
+            COALESCE(match_agg.correct_predictions, 0)
+                AS correct_predictions,
+            COALESCE(match_agg.settled_predictions, 0)
+                AS settled_predictions
+        FROM contestants c
+        JOIN users u ON u.id = c.user_id
+        LEFT JOIN match_agg ON match_agg.user_id = c.user_id
+        LEFT JOIN lt_agg ON lt_agg.user_id = c.user_id
     ) ranked
     ORDER BY ranked.total_points DESC,
              ranked.correct_predictions DESC,
@@ -495,14 +537,19 @@ def fetch_dashboard(
 
 
 def fetch_leaderboard(season_id: int | None) -> list[dict[str, Any]]:
-    """Return ranking scored from ``matches.result`` and ``odds.odds``."""
+    """Return ranking scored from match picks plus settled long-term."""
     if season_id is not None:
         _require_positive_ids(season_id=season_id)
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         try:
             resolved_season_id = _resolve_season_id(cursor, season_id)
-            cursor.execute(_LEADERBOARD_SQL, (resolved_season_id,))
+            cursor.execute(
+                _LEADERBOARD_SQL,
+                (
+                    resolved_season_id,
+                    resolved_season_id,
+                    CHAMPIONS_LEAGUE_ID))
             rows = cursor.fetchall()
         finally:
             cursor.close()
@@ -954,6 +1001,8 @@ def _map_leaderboard_row(row: dict[str, Any]) -> dict[str, Any]:
         "place": int(row["place"]),
         "user_uuid": str(row["user_uuid"]),
         "display_name": str(row["display_name"]),
+        "match_points": float(row["match_points"]),
+        "long_term_points": float(row["long_term_points"]),
         "total_points": float(row["total_points"]),
         "correct_predictions": int(row["correct_predictions"]),
         "settled_predictions": int(row["settled_predictions"])
