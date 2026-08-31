@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 30.08.2026
+###### Ostatnia data modyfikacji: 31.08.2026
 
 ## Opis struktury bazy
 
@@ -56,6 +56,10 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
+- [TYPER_LONG_TERM_MARKETS](#typer_long_term_markets) (Rynki długoterminowe Typera — niezależne od ligi)
+- [TYPER_LONG_TERM_PICK_CHANGES](#typer_long_term_pick_changes) (Append-only audyt zestawów wyborów długoterminowych Typera)
+- [TYPER_LONG_TERM_PICKS](#typer_long_term_picks) (Bieżące wybory drużyn na rynkach długoterminowych Typera)
+- [TYPER_LONG_TERM_RESULTS](#typer_long_term_results) (Zatwierdzony wynik rynku długoterminowego Typera)
 - [USER_FAVORITE_LEAGUES](#user_favorite_leagues) (Ulubione ligi wybranych użytkowników aplikacji)
 - [USER_PREFERENCES](#user_preferences) (Skalarne preferencje UI konta, m.in. motyw i nazwy drużyn)
 - [USERS](#users) (Konta użytkowników aplikacji web / API)
@@ -1391,6 +1395,8 @@ DDL i wypełnienie terminarza — **ręcznie** / osobnym procesem operacyjnym
 
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
 
+Typer LM Długoterminowe: `champions_league_typer_long_term_markets.season_id` → `seasons.id` (sezon 13 = 2026/27 dla seedu `top8_direct_r16`).
+
 ---
 
 ### SEASON_PROJECTION_RUNS
@@ -1580,6 +1586,139 @@ Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. 
 **Sposób generowania danych do tabeli**:  
 
 Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencjalne rozszerzenia wkrótce)
+
+---
+
+### TYPER_LONG_TERM_MARKETS
+
+(Rynki długoterminowe Typera — niezależne od ligi; definicja rynku, stawki i status rozliczenia)
+
+
+| POLE                  | DOMENA       | ZAKRES                         | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| --------------------- | ------------ | ------------------------------ | --------------------------------------------------------------------- | ------------------------ |
+| **ID**                | INT          | INT                            | ID rynku długoterminowego                                            | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*           | INT          | INT                            | Klucz obcy, powiązanie z tabelą *leagues*                            | NULL                     |
+| *SEASON_ID*           | INT          | INT                            | Klucz obcy, powiązanie z tabelą *seasons*                            | NULL                     |
+| MARKET_KEY            | VARCHAR(64)  | STRING                         | Stabilny klucz rynku w lidze i sezonie (np. `top8_direct_r16`)    | NULL                     |
+| TITLE                 | VARCHAR(160) | STRING                         | Tytuł prezentowany w UI                                              | NULL                     |
+| DESCRIPTION           | VARCHAR(512) | STRING                         | Opis zasad punktacji prezentowany w UI                              | NULL                     |
+| SELECTION_SIZE        | INT          | INT > 0                        | Wymagana liczba różnych drużyn w zestawie wyborów                    | NULL                     |
+| POINTS_PER_CORRECT    | DECIMAL(6,2) | >= 0                           | Punkty za każdą trafioną drużynę; wynik = liczba trafień × ta stawka | NULL                     |
+| SETTLED_AT            | DATETIME     | DATETIME / NULL                | Moment zatwierdzenia wyniku przez administratora; `NULL` do rozliczenia | NULL                     |
+| *SETTLED_BY*          | INT          | INT / NULL                     | Klucz obcy, powiązanie z tabelą *users* (administrator, który zatwierdził wynik); `NULL` do rozliczenia | NULL                     |
+| *CREATED_BY*          | INT          | INT                            | Klucz obcy, powiązanie z tabelą *users* (administrator, który utworzył rynek) | NULL                     |
+| CREATED_AT            | DATETIME     | DATETIME                       | Moment utworzenia wiersza rynku                                       | CURRENT_TIMESTAMP        |
+| UPDATED_AT            | DATETIME     | DATETIME                       | Moment ostatniej zmiany wiersza (`ON UPDATE CURRENT_TIMESTAMP`)      | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `uq_typer_lt_markets_league_season_key` (`LEAGUE_ID`, `SEASON_ID`, `MARKET_KEY`) — jeden klucz rynku na ligę i sezon
+- Klucz obcy: `LEAGUE_ID` → `leagues(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `SEASON_ID` → `seasons(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `CREATED_BY` → `users(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `SETTLED_BY` → `users(ID)` **ON DELETE RESTRICT** (NULL pomija sprawdzenie FK)
+- **CHECK:** `chk_typer_lt_markets_size` — `SELECTION_SIZE > 0`
+- **CHECK:** `chk_typer_lt_markets_points` — `POINTS_PER_CORRECT >= 0`
+- **CHECK:** `chk_typer_lt_markets_settled` — `SETTLED_AT` i `SETTLED_BY` są jednocześnie `NULL` albo jednocześnie niepuste
+- Deadline typowania **nie** jest kolumną rynku. Źródłem prawdy jest `MIN(matches.game_date)` dla `league_id` i `season_id` rynku (dla seedu LM: liga 42, rundy 1–8), egzekwowane przez MySQL w warstwie zapisu (SZP-159).
+- Auto-propozycja wyniku nie ustawia `SETTLED_AT` / `SETTLED_BY`. Punkty pojawiają się dopiero po zapisie administratora do tabeli wyników: `liczba trafionych drużyn * points_per_correct`.
+
+**Sposób generowania danych do tabeli:**
+
+Pierwszy rynek `top8_direct_r16` (liga 42, sezon 13, `selection_size = 8`, `points_per_correct = 2.00`) wstawia ręczny skrypt `sql/typer_lm_long_term_schema.sql`. Skrypt wymaga loginu dokładnie jednego aktywnego administratora (`created_by`). Ponowne uruchomienie nie nadpisuje istniejącego wiersza. Analogiczny rynek innej ligi (np. ME) to kolejny wiersz z innym `league_id`. Rozliczenie (`SETTLED_AT`, `SETTLED_BY`) ustawia API administratora (`POST /typer-lm/long-term/admin/markets/{market_id}/settle`). Po ręcznym wdrożeniu skrypt SQL może zostać usunięty z repozytorium.
+
+---
+
+### TYPER_LONG_TERM_PICK_CHANGES
+
+(Append-only audyt całego zestawu wyborów długoterminowych — rozstrzyganie sporów o treść zapisu)
+
+
+| POLE                | DOMENA   | ZAKRES              | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ------------------- | -------- | ------------------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**              | INT      | INT                 | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*         | INT      | INT                 | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
+| *USER_ID*           | INT      | INT                 | Klucz obcy, powiązanie z tabelą *users* (właściciel zestawu)         | NULL                     |
+| *CHANGED_BY*        | INT      | INT                 | Klucz obcy, powiązanie z tabelą *users* (użytkownik JWT, który zapisał zestaw; w obecnym API zawsze właściciel) | NULL                     |
+| PREVIOUS_TEAM_IDS   | VARCHAR(512) | CSV / NULL         | Snapshot `team_id` sprzed zapisu, posortowane rosnąco bez spacji (np. `12,45,101`); `NULL` przy pierwszym zestawie | NULL                     |
+| NEW_TEAM_IDS        | VARCHAR(512) | CSV                | Snapshot `team_id` po zapisie, posortowane rosnąco bez spacji; kolejność w liście nie wpływa na punktację | NULL                     |
+| CHANGED_AT          | DATETIME | DATETIME            | Moment pierwszego zapisu albo realnej zmiany zestawu                 | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Indeks: `idx_typer_lt_chg_market_user_at` (`MARKET_ID`, `USER_ID`, `CHANGED_AT`)
+- Indeks: `idx_typer_lt_chg_user_at` (`USER_ID`, `CHANGED_AT`)
+- Indeks: `idx_typer_lt_chg_by_at` (`CHANGED_BY`, `CHANGED_AT`)
+- Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `CHANGED_BY` → `users(ID)` **ON DELETE RESTRICT**
+- **CHECK:** `chk_typer_lt_chg_prev_ids` — `PREVIOUS_TEAM_IDS IS NULL OR PREVIOUS_TEAM_IDS REGEXP '^[0-9]+(,[0-9]+)*$'`
+- **CHECK:** `chk_typer_lt_chg_new_ids` — `NEW_TEAM_IDS REGEXP '^[0-9]+(,[0-9]+)*$'`
+- Snapshot to celowo zdenormalizowany CSV (bez FK do `teams`). Integralność bieżącego zestawu jest w tabeli `picks`. Aplikacja zapisuje ID posortowane rosnąco, bez spacji, żeby porównanie no-op było porównaniem napisów. Snapshot zachowuje historyczny skład nawet po późniejszej zmianie wyborów.
+- Wiersze są tylko dokładane. Aplikacja **nie** wykonuje `UPDATE` ani `DELETE` na tej tabeli. Identyczny zbiór drużyn (bez względu na kolejność) nie tworzy nowego wpisu.
+
+**Sposób generowania danych do tabeli:**
+
+INSERT w tej samej transakcji co zastąpienie zestawu w `typer_long_term_picks`: pierwszy zapis (`PREVIOUS_TEAM_IDS = NULL`) oraz każda realna zmiana zbioru. Użytkownik odczytuje wyłącznie własną historię (`GET /typer-lm/long-term/markets/{market_id}/history`); cudzy audyt widzi tylko administrator (`GET /typer-lm/long-term/admin/prediction-history`).
+
+---
+
+### TYPER_LONG_TERM_PICKS
+
+(Bieżący zestaw wyborów użytkownika na rynku długoterminowym — jeden wiersz na wybraną drużynę)
+
+
+| POLE          | DOMENA | ZAKRES | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ------------- | ------ | ------ | --------------------------------------------------------------------- | ------------------------ |
+| **ID**        | INT    | INT    | ID wiersza wyboru                                                     | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
+| *USER_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *users* (właściciel wyboru)          | NULL                     |
+| *TEAM_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams* (jedna drużyna z zestawu)    | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `uq_typer_lt_picks_market_user_team` (`MARKET_ID`, `USER_ID`, `TEAM_ID`) — ta sama drużyna nie może wystąpić dwa razy w zestawie użytkownika
+- Indeks: `idx_typer_lt_picks_user` (`USER_ID`) — ranking użytkowników z typem wyłącznie długoterminowym
+- Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `TEAM_ID` → `teams(ID)` **ON DELETE RESTRICT**
+- Kompletność zestawu (dokładnie `SELECTION_SIZE` drużyn, wyłącznie uczestnicy fazy ligowej) egzekwuje aplikacja w transakcji zapisu, nie CHECK na liczbie wierszy.
+
+**Sposób generowania danych do tabeli:**
+
+Zalogowany użytkownik zapisuje cały zestaw przez API (`PUT /typer-lm/long-term/markets/{market_id}/picks`) do chwili `MIN(matches.game_date)` fazy ligowej. Backend w jednej transakcji zastępuje wiersze użytkownika na danym rynku i dopisuje snapshot audytu. Cudze wybory nie są publiczne.
+
+---
+
+### TYPER_LONG_TERM_RESULTS
+
+(Zatwierdzone poprawne drużyny rynku długoterminowego — relacyjny wynik, nie JSON)
+
+
+| POLE          | DOMENA | ZAKRES | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ------------- | ------ | ------ | --------------------------------------------------------------------- | ------------------------ |
+| **ID**        | INT    | INT    | ID wiersza zatwierdzonego wyniku                                      | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
+| *TEAM_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams* (zatwierdzona poprawna drużyna) | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- **Unikalny indeks:** `uq_typer_lt_results_market_team` (`MARKET_ID`, `TEAM_ID`) — drużyna występuje w wyniku rynku co najwyżej raz
+- Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
+- Klucz obcy: `TEAM_ID` → `teams(ID)` **ON DELETE RESTRICT**
+- Komplet wyniku (dokładnie `SELECTION_SIZE` drużyn) egzekwuje aplikacja przy settle. Ponowne rozliczenie zastępuje wiersze transakcyjnie; zapisane typy użytkowników nie są modyfikowane.
+
+**Sposób generowania danych do tabeli:**
+
+Wiersze wstawia wyłącznie administrator przez API (`POST /typer-lm/long-term/admin/markets/{market_id}/settle`), na podstawie ręcznej korekty albo potwierdzenia auto-propozycji TOP 8. Sama auto-propozycja **nie** zapisuje tej tabeli i **nie** przyznaje punktów.
 
 ---
 
