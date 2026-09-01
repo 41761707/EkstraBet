@@ -22,7 +22,11 @@ import type {
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
   SportTeamHistoryResponse,
+  SaveLongTermPicksResponse,
   SaveTyperPredictionResponse,
+  SettleLongTermResponse,
+  LongTermAutoResultResponse,
+  LongTermPickChange,
   TyperAdminCandidatesResponse,
   TyperOutcome,
   TyperPredictionChange,
@@ -272,6 +276,67 @@ export async function getTyperAdminPredictionHistory(options: {
       user_uuid: options.userUuid,
       match_id: options.matchId,
       season_id: options.seasonId,
+    },
+  );
+}
+
+export async function saveTyperLongTermPicks(
+  marketId: number,
+  teamIds: number[],
+): Promise<SaveLongTermPicksResponse> {
+  return fetchViaBff<SaveLongTermPicksResponse>(
+    `/typer-lm/long-term/markets/${marketId}/picks`,
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team_ids: teamIds }),
+    },
+  );
+}
+
+export async function getTyperLongTermHistory(
+  marketId: number,
+): Promise<LongTermPickChange[]> {
+  return fetchViaBff<LongTermPickChange[]>(
+    `/typer-lm/long-term/markets/${marketId}/history`,
+  );
+}
+
+export async function getTyperLongTermAdminHistory(options: {
+  userUuid: string;
+  marketId?: number;
+  seasonId?: number;
+}): Promise<LongTermPickChange[]> {
+  return fetchViaBff<LongTermPickChange[]>(
+    "/typer-lm/long-term/admin/prediction-history",
+    {
+      user_uuid: options.userUuid,
+      market_id: options.marketId,
+      season_id: options.seasonId,
+    },
+  );
+}
+
+export async function getTyperLongTermAutoResult(
+  marketId: number,
+): Promise<LongTermAutoResultResponse> {
+  return fetchViaBff<LongTermAutoResultResponse>(
+    `/typer-lm/long-term/admin/markets/${marketId}/auto-result`,
+  );
+}
+
+export async function settleTyperLongTermMarket(
+  marketId: number,
+  teamIds: number[],
+): Promise<SettleLongTermResponse> {
+  return fetchViaBff<SettleLongTermResponse>(
+    `/typer-lm/long-term/admin/markets/${marketId}/settle`,
+    undefined,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team_ids: teamIds }),
     },
   );
 }

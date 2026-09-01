@@ -37,8 +37,19 @@ export const TYPER_LM_RULES_SECTIONS: readonly TyperLmRulesSection[] = [
         "kursów.",
       "Nietrafiony typ: 0 punktów.",
       "Zablokowanie kursów (czyli również punktacji) odbywa się nie później niż 30 minut przed rozpoczęciem spotkania",
-      "Ranking: suma punktów, potem liczba trafień, potem nazwa " +
-        "wyświetlana. Typy innych osób nie są publiczne.",
+      "Ranking: suma punktów meczowych i długoterminowych, potem liczba " +
+        "trafień 1X2, potem nazwa wyświetlana. Typy innych osób nie są publiczne.",
+    ],
+  },
+  {
+    heading: "Długoterminowe — TOP 8",
+    items: [
+      "Wskaż dokładnie 8 różnych drużyn fazy ligowej. Kolejność wyboru nie ma znaczenia.",
+      "Każda trafiona drużyna daje 2 punkty, doliczane do wspólnego rankingu.",
+      "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
+        "Po tym terminie zapis jest zablokowany.",
+      "Punkty pojawiają się dopiero po zatwierdzeniu wyniku przez administratora.",
+      "Wybory innych uczestników nie są publiczne.",
     ],
   },
 ];

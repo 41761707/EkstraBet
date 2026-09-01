@@ -65,6 +65,8 @@ import type {
   TyperAdminCandidatesResponse,
   TyperDashboardResponse,
   TyperLeaderboardRow,
+  LongTermAutoResultResponse,
+  LongTermDashboardResponse,
   UserPublic,
 } from "@/types/api";
 
@@ -711,4 +713,20 @@ export async function getTyperAdminCandidates(
     season_id: seasonId,
     round_number: roundNumber,
   });
+}
+
+export async function getTyperLongTermDashboard(
+  seasonId?: number,
+): Promise<LongTermDashboardResponse> {
+  return fetchApi<LongTermDashboardResponse>("/typer-lm/long-term", {
+    season_id: seasonId,
+  });
+}
+
+export async function getTyperLongTermAutoResult(
+  marketId: number,
+): Promise<LongTermAutoResultResponse> {
+  return fetchApi<LongTermAutoResultResponse>(
+    `/typer-lm/long-term/admin/markets/${marketId}/auto-result`,
+  );
 }
