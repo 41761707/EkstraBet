@@ -119,7 +119,15 @@ class TyperLeaderboardRow(BaseModel):
     place: int = Field(..., description="1-based rank")
     user_uuid: str = Field(..., description="Public user UUID")
     display_name: str = Field(..., description="Display name")
-    total_points: float = Field(..., description="Sum of settled points")
+    match_points: float = Field(
+        ...,
+        description="Settled 1X2 pick points")
+    long_term_points: float = Field(
+        ...,
+        description="Settled long-term market points")
+    total_points: float = Field(
+        ...,
+        description="match_points plus long_term_points")
     correct_predictions: int = Field(..., description="Number of hits")
     settled_predictions: int = Field(
         ...,

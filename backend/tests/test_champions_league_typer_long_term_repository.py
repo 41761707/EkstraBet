@@ -608,7 +608,7 @@ class TestFetchAutoResult(unittest.TestCase):
         conn, cursor = _mock_connection(
             mock_get_conn,
             fetchone_results=[_market_lock_row()],
-            fetchall_results=[standings])
+            fetchall_results=[standings, []])
         document = repo.fetch_auto_result(_MARKET_ID)
         self.assertEqual(document["market_id"], _MARKET_ID)
         self.assertEqual(document["participant_count"], 2)
@@ -616,10 +616,11 @@ class TestFetchAutoResult(unittest.TestCase):
         self.assertEqual(document["min_matches_per_team"], 8)
         self.assertEqual(document["max_matches_per_team"], 8)
         self.assertEqual(document["standings"][0]["team_id"], 12)
+        self.assertEqual(document["result_team_ids"], [])
         self.assertIsNone(document["settled_at"])
         market_sql = cursor.execute.call_args_list[0].args[0]
         self.assertNotIn("FOR UPDATE", market_sql)
-        query, params = cursor.execute.call_args_list[-1].args
+        query, params = cursor.execute.call_args_list[1].args
         self.assertIn("ORDER BY", query)
         self.assertIn("s.points, 0) DESC", query)
         self.assertIn("s.goal_difference, 0) DESC", query)
@@ -637,6 +638,24 @@ class TestFetchAutoResult(unittest.TestCase):
             self, query, _MARKET_ID, _SEASON_ID, repo.CHAMPIONS_LEAGUE_ID)
         _assert_long_term_table_names(
             self, cursor.execute.call_args_list[0].args[0])
+        results_sql = cursor.execute.call_args_list[2].args[0]
+        self.assertIn("FROM typer_long_term_results", results_sql)
+        _assert_long_term_table_names(self, results_sql)
+
+    @patch(_GET_CONN)
+    def test_includes_approved_result_ids_when_settled(
+            self, mock_get_conn: MagicMock) -> None:
+        standings = [_standing_row(team_id) for team_id in _TEAM_IDS]
+        result_rows = [
+            {"market_id": _MARKET_ID, "team_id": team_id}
+            for team_id in _TEAM_IDS]
+        _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_settled_market_row()],
+            fetchall_results=[standings, result_rows])
+        document = repo.fetch_auto_result(_MARKET_ID)
+        self.assertEqual(document["result_team_ids"], list(_TEAM_IDS))
+        self.assertEqual(document["settled_by"], _ADMIN_ID)
 
     @patch(_GET_CONN)
     def test_missing_market_is_not_found(

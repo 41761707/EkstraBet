@@ -245,6 +245,8 @@ class TestTyperParticipantRouter(TyperRouterTestCase):
             "place": 1,
             "user_uuid": "u-1",
             "display_name": "Ada",
+            "match_points": 5.5,
+            "long_term_points": 0.0,
             "total_points": 5.5,
             "correct_predictions": 2,
             "settled_predictions": 3
@@ -260,8 +262,11 @@ class TestTyperParticipantRouter(TyperRouterTestCase):
         self.assertEqual(response.status_code, 200)
         row = response.json()[0]
         self.assertEqual(row["total_points"], 5.5)
+        self.assertEqual(row["match_points"], 5.5)
+        self.assertEqual(row["long_term_points"], 0.0)
         self.assertNotIn("outcome", row)
         self.assertNotIn("selected_event_id", row)
+        self.assertNotIn("picked_team_ids", row)
 
 
 class TestTyperAdminRouter(TyperRouterTestCase):
