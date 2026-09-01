@@ -7,11 +7,16 @@ import {
   getSeasonProjectionModes,
   getTyperAdminCandidates,
   getTyperAdminPredictionHistory,
+  getTyperLongTermAutoResult,
+  getTyperLongTermHistory,
+  getTyperLongTermAdminHistory,
   getUserPreferences,
   publishTyperMatches,
   putUserPreferences,
   removeFavoriteLeague,
+  saveTyperLongTermPicks,
   saveTyperPrediction,
+  settleTyperLongTermMarket,
 } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiShared";
 
@@ -385,5 +390,139 @@ describe("typer LM admin client", () => {
     expect(requested).toContain("user_uuid=user-2");
     expect(requested).toContain("match_id=101");
     expect(requested).toContain("season_id=13");
+  });
+});
+
+describe("typer LM long-term client", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("PUTs a long-term pick set through the BFF", async () => {
+    const payload = {
+      market_id: 1,
+      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      previous_team_ids: null,
+      audit_written: true,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      saveTyperLongTermPicks(1, [1, 2, 3, 4, 5, 6, 7, 8]),
+    ).resolves.toEqual(payload);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/typer-lm/long-term/markets/1/picks");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({
+      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
+  });
+
+  it("GETs own long-term history through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(getTyperLongTermHistory(1)).resolves.toEqual([]);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/api/backend/typer-lm/long-term/markets/1/history",
+    );
+  });
+
+  it("GETs another user's long-term audit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      getTyperLongTermAdminHistory({
+        userUuid: "user-2",
+        marketId: 1,
+        seasonId: 13,
+      }),
+    ).resolves.toEqual([]);
+    const requested = String(fetchMock.mock.calls[0]?.[0]);
+    expect(requested).toContain(
+      "/api/backend/typer-lm/long-term/admin/prediction-history",
+    );
+    expect(requested).toContain("user_uuid=user-2");
+    expect(requested).toContain("market_id=1");
+    expect(requested).toContain("season_id=13");
+  });
+
+  it("GETs the admin auto-result through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ market_id: 1, is_complete: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(getTyperLongTermAutoResult(1)).resolves.toEqual({
+      market_id: 1,
+      is_complete: false,
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/api/backend/typer-lm/long-term/admin/markets/1/auto-result",
+    );
+  });
+
+  it("POSTs a long-term settlement through the BFF", async () => {
+    const payload = {
+      market_id: 1,
+      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      settled_by_uuid: "admin-1",
+      settled_by_display_name: "Admin",
+      settled_at: "2027-01-30T12:00:00",
+      result_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      settleTyperLongTermMarket(1, [1, 2, 3, 4, 5, 6, 7, 8]),
+    ).resolves.toEqual(payload);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain(
+      "/api/backend/typer-lm/long-term/admin/markets/1/settle",
+    );
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({
+      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
   });
 });

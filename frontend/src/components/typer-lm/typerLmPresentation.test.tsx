@@ -14,11 +14,23 @@ import {
 import { TyperLmAdminRoundControls } from "@/components/typer-lm/TyperLmAdminRoundControls";
 import { TyperLmDashboard } from "@/components/typer-lm/TyperLmDashboard";
 import { TyperLmLeaderboard } from "@/components/typer-lm/TyperLmLeaderboard";
+import { TyperLmLongTermAdminPanel } from "@/components/typer-lm/TyperLmLongTermAdminPanel";
+import {
+  TyperLmLongTermAdminAuditLookup,
+  TyperLmLongTermAdminAuditResults,
+} from "@/components/typer-lm/TyperLmLongTermAdminAuditLookup";
+import {
+  TyperLmLongTermMarketCard,
+  TyperLmLongTermMarketFooter,
+  TyperLmLongTermTab,
+} from "@/components/typer-lm/TyperLmLongTermTab";
 import { TyperLmMatchCard } from "@/components/typer-lm/TyperLmMatchCard";
 import { TyperLmRoundPicker } from "@/components/typer-lm/TyperLmRoundPicker";
 import { TyperLmRules } from "@/components/typer-lm/TyperLmRules";
 import { TyperLmViewTabs } from "@/components/typer-lm/TyperLmViewTabs";
 import { getTyperAdminPredictionHistory } from "@/lib/apiClient";
+import { getTyperLongTermAdminHistory } from "@/lib/apiClient";
+import { ApiError } from "@/lib/apiShared";
 import { formatMatchDateTime } from "@/lib/format";
 import {
   DEFAULT_PREFERENCES,
@@ -27,11 +39,15 @@ import {
 } from "@/lib/preferences";
 import { TYPER_LM_ODDS_PLACEHOLDER } from "@/lib/typerLm";
 import { canPublishSelection } from "@/lib/typerLmAdmin";
+import { longTermSaveErrorMessage } from "@/lib/typerLmLongTerm";
 import {
   TYPER_LM_RULES_SECTIONS,
   TYPER_LM_RULES_TITLE,
 } from "@/lib/typerLmRules";
 import type {
+  LongTermAutoResultResponse,
+  LongTermMarketCard,
+  LongTermTeam,
   TyperAdminCandidate,
   TyperDashboardResponse,
   TyperLeaderboardRow,
@@ -56,6 +72,17 @@ vi.mock("@/lib/apiClient", async (importOriginal) => {
         display_name: "Bartek",
         previous_outcome: "1",
         new_outcome: "X",
+        changed_at: "2026-09-11T18:30:00",
+      },
+    ]),
+    getTyperLongTermAdminHistory: vi.fn(async () => [
+      {
+        id: 21,
+        market_id: 1,
+        user_uuid: "user-2",
+        display_name: "Bartek",
+        previous_team_ids: null,
+        new_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
         changed_at: "2026-09-11T18:30:00",
       },
     ]),
@@ -111,6 +138,8 @@ function sampleLeaderboardRows(): TyperLeaderboardRow[] {
       place: 1,
       user_uuid: "user-1",
       display_name: "Ala",
+      match_points: 10,
+      long_term_points: 2.5,
       total_points: 12.5,
       correct_predictions: 4,
       settled_predictions: 6,
@@ -119,6 +148,8 @@ function sampleLeaderboardRows(): TyperLeaderboardRow[] {
       place: 2,
       user_uuid: "user-2",
       display_name: "Bartek",
+      match_points: 8,
+      long_term_points: 0,
       total_points: 8,
       correct_predictions: 2,
       settled_predictions: 6,
@@ -345,6 +376,8 @@ describe("TyperLmLeaderboard", () => {
       place: 1,
       user_uuid: "user-1",
       display_name: "Ala",
+      match_points: 10,
+      long_term_points: 2.5,
       total_points: 12.5,
       correct_predictions: 4,
       settled_predictions: 6,
@@ -353,6 +386,8 @@ describe("TyperLmLeaderboard", () => {
       place: 2,
       user_uuid: "user-2",
       display_name: "Bartek",
+      match_points: 8,
+      long_term_points: 0,
       total_points: 8,
       correct_predictions: 2,
       settled_predictions: 6,
@@ -367,6 +402,11 @@ describe("TyperLmLeaderboard", () => {
     expect(html).toContain("Ala");
     expect(html).toContain("Bartek");
     expect(html).toContain("12.50");
+    expect(html).toContain("10.00");
+    expect(html).toContain("2.50");
+    expect(html).toContain("Mecze");
+    expect(html).toContain("Długoterminowe");
+    expect(html).toContain("Suma");
     expect(html).toContain("user-2");
     expect(html).not.toContain("aria-pressed");
     expect(html).not.toContain("outcome");
@@ -386,6 +426,8 @@ describe("TyperLmLeaderboard", () => {
         place: 1,
         user_uuid: "user-2",
         display_name: "Bartek",
+        match_points: 8,
+        long_term_points: 0,
         total_points: 8,
         correct_predictions: 2,
         settled_predictions: 6,
@@ -394,6 +436,8 @@ describe("TyperLmLeaderboard", () => {
         place: 2,
         user_uuid: "user-1",
         display_name: "Ala",
+        match_points: 10,
+        long_term_points: 2.5,
         total_points: 12.5,
         correct_predictions: 4,
         settled_predictions: 6,
@@ -417,6 +461,7 @@ describe("TyperLmViewTabs", () => {
     );
 
     expect(html).toContain("Kolejka");
+    expect(html).toContain("Długoterminowe");
     expect(html).toContain("Ranking");
     expect(html).not.toContain("role=\"tablist\"");
     expect(html).not.toContain("role=\"tab\"");
@@ -497,6 +542,88 @@ function renderAdminList(
   );
 }
 
+function sampleLongTermTeams(count = 36): LongTermTeam[] {
+  return Array.from({ length: count }, (_, index) => ({
+    team_id: index + 1,
+    team_name: `Team ${index + 1}`,
+    team_shortcut: `T${index + 1}`,
+  }));
+}
+
+function sampleLongTermMarket(
+  overrides: Partial<LongTermMarketCard> = {},
+): LongTermMarketCard {
+  return {
+    market_id: 1,
+    league_id: 42,
+    season_id: 13,
+    market_key: "top8_direct_r16",
+    title: "TOP 8 fazy ligowej",
+    description: "Wskaż 8 drużyn bez kolejności",
+    selection_size: 8,
+    points_per_correct: 2,
+    settled_at: null,
+    deadline_at: "2026-09-16T21:00:00",
+    is_locked: false,
+    candidates: sampleLongTermTeams(),
+    picked_team_ids: [],
+    result_team_ids: [],
+    points: null,
+    changes: [
+      {
+        id: 11,
+        market_id: 1,
+        user_uuid: "user-1",
+        display_name: "Ala",
+        previous_team_ids: null,
+        new_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+        changed_at: "2026-09-11T18:30:00",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function sampleAutoResult(
+  overrides: Partial<LongTermAutoResultResponse> = {},
+): LongTermAutoResultResponse {
+  return {
+    market_id: 1,
+    league_id: 42,
+    season_id: 13,
+    market_key: "top8_direct_r16",
+    selection_size: 8,
+    points_per_correct: 2,
+    settled_at: null,
+    settled_by_uuid: null,
+    settled_by_display_name: null,
+    is_complete: true,
+    is_proposal: true,
+    participant_count: 36,
+    settled_match_count: 144,
+    min_matches_per_team: 8,
+    max_matches_per_team: 8,
+    required_participant_count: 36,
+    required_matches_per_team: 8,
+    required_settled_match_count: 144,
+    proposed_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    proposed_teams: [
+      {
+        team_id: 1,
+        team_name: "Team 1",
+        team_shortcut: "T1",
+        played: 8,
+        points: 18,
+        goal_difference: 12,
+        goals_for: 30,
+      },
+    ],
+    result_team_ids: [],
+    standings: [],
+    ...overrides,
+  };
+}
+
 describe("TyperLmAdminSection", () => {
   it("hides the admin panel from a regular user", () => {
     const html = renderToStaticMarkup(
@@ -523,6 +650,28 @@ describe("TyperLmAdminSection", () => {
     expect(html).toContain("Panel administratora");
     expect(html).toContain("Audyt typów");
     expect(html).toContain("0/9");
+  });
+
+  it("hosts long-term settlement and audit inside the admin panel", () => {
+    const html = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <TyperLmAdminSection
+          isAdmin={true}
+          seasonId={13}
+          initialCandidates={groupCandidates()}
+          longTermMarkets={[sampleLongTermMarket()]}
+          longTermAutoResults={{ 1: sampleAutoResult() }}
+        />
+      </PreferencesProvider>,
+    );
+    expect(html).toContain("Panel administratora");
+    expect(html).toContain("Rozliczenie — TOP 8 fazy ligowej");
+    expect(html).toContain("Zatwierdź wynik");
+    expect(html).toContain("Audyt typów długoterminowych");
   });
 });
 
@@ -832,6 +981,7 @@ describe("Typer LM page smoke", () => {
       /\sopen(?:="[^"]*")?(?=[\s>]|$)/,
     );
     expect(html).not.toContain("Panel administratora");
+    expect(html).not.toContain("Rozliczenie —");
     expect(html).toContain("Bayern Monachium");
     expect(html).toContain("1.85");
   });
@@ -849,12 +999,18 @@ describe("Typer LM page smoke", () => {
             isAdmin={true}
             seasonId={13}
             initialCandidates={groupCandidates()}
+            longTermMarkets={[sampleLongTermMarket()]}
+            longTermAutoResults={{ 1: sampleAutoResult() }}
           />
           <TyperLmDashboard
             dashboard={sampleDashboard()}
             leaderboard={sampleLeaderboardRows()}
             currentUserUuid="user-1"
             currentUserDisplayName="Ala"
+            longTermDashboard={{
+              season_id: 13,
+              markets: [sampleLongTermMarket()],
+            }}
           />
         </div>
       </PreferencesProvider>,
@@ -867,5 +1023,250 @@ describe("Typer LM page smoke", () => {
     expect(roundAt).toBeGreaterThan(adminAt);
     expect(html).toContain("Audyt typów");
     expect(html).toContain("0/9");
+    expect(html).toContain("Rozliczenie — TOP 8 fazy ligowej");
+    expect(html).toContain("Audyt typów długoterminowych");
+  });
+});
+
+describe("TyperLmLongTermTab", () => {
+  it("renders empty and error states", () => {
+    const empty = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <TyperLmLongTermTab
+          dashboard={{ season_id: 13, markets: [] }}
+        />
+      </PreferencesProvider>,
+    );
+    const failed = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <TyperLmLongTermTab
+          dashboard={null}
+          errorMessage="Brak połączenia"
+        />
+      </PreferencesProvider>,
+    );
+    expect(empty).toContain("Brak rynków długoterminowych");
+    expect(failed).toContain("Nie udało się załadować długoterminowych");
+    expect(failed).toContain("Brak połączenia");
+  });
+
+  it("keeps settlement and audit out of the participant long-term tab", () => {
+    const html = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <TyperLmLongTermTab
+          dashboard={{ season_id: 13, markets: [sampleLongTermMarket()] }}
+        />
+      </PreferencesProvider>,
+    );
+    expect(html).toContain("TOP 8 fazy ligowej");
+    expect(html).toContain("Zapisz typ");
+    expect(html).not.toContain("Rozliczenie —");
+    expect(html).not.toContain("Zatwierdź wynik");
+    expect(html).not.toContain("Audyt typów długoterminowych");
+    expect(html).not.toContain("Panel administratora");
+  });
+});
+
+describe("TyperLmLongTermMarketCard", () => {
+  it("lists 36 candidates and the 0/8 counter", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketCard
+        market={sampleLongTermMarket()}
+        nowMs={null}
+        teamNameDisplay="full"
+        onMarketChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("Wybrane 0/8");
+    expect(html).toContain("Team 1");
+    expect(html).toContain("Team 36");
+    expect(html).toContain("Zapisz typ");
+    expect(html).toContain("pierwszy zapis");
+    expect(html).toContain("Szukaj drużyny");
+  });
+
+  it("locks saving after the deadline", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketCard
+        market={sampleLongTermMarket({ is_locked: true })}
+        nowMs={null}
+        teamNameDisplay="full"
+        onMarketChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("Typowanie zablokowane");
+    expect(html).not.toContain("Zapisz typ");
+  });
+
+  it("shows hits, misses and points after settlement", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketCard
+        market={sampleLongTermMarket({
+          picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+          result_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
+          settled_at: "2027-01-30T12:00:00",
+          points: 14,
+        })}
+        nowMs={null}
+        teamNameDisplay="full"
+        onMarketChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("7/8 trafień");
+    expect(html).toContain("14.00 pkt");
+    expect(html).toContain("Wybrane 8/8");
+    expect(html).toContain("trafienie");
+    expect(html).toContain("pudło");
+    expect(html).toContain("Oficjalny TOP 8");
+    expect(html).toContain("Team 1, Team 2, Team 3, Team 4, Team 5, Team 6, Team 7, Team 9");
+    expect(html).not.toContain("Zapisz typ");
+  });
+
+  it("uses shortcut labels in the official TOP 8 when preferred", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketCard
+        market={sampleLongTermMarket({
+          picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+          result_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
+          settled_at: "2027-01-30T12:00:00",
+          points: 14,
+        })}
+        nowMs={null}
+        teamNameDisplay="shortcut"
+        onMarketChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("Oficjalny TOP 8: T1, T2, T3, T4, T5, T6, T7, T9");
+    expect(html).not.toContain("Oficjalny TOP 8: Team 1");
+  });
+});
+
+describe("TyperLmLongTermAdminPanel", () => {
+  it("shows the TOP 8 proposal and a correction path", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleLongTermMarket()}
+        initialAutoResult={sampleAutoResult()}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("Propozycja TOP 8");
+    expect(html).toContain("Team 1 · 18 pkt · +12 · 30 bramek");
+    expect(html).toContain("Zatwierdź wynik");
+    expect(html).toContain("Audyt typów długoterminowych");
+  });
+
+  it("blocks settlement when the league phase is incomplete", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleLongTermMarket()}
+        initialAutoResult={sampleAutoResult({
+          is_complete: false,
+          proposed_team_ids: [],
+          proposed_teams: [],
+          participant_count: 30,
+          min_matches_per_team: 4,
+          settled_match_count: 120,
+        })}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("Faza niekompletna");
+    expect(html).toContain("30/36");
+    expect(html).toContain("disabled");
+  });
+
+  it("relabels the action after the market is already settled", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleLongTermMarket()}
+        initialAutoResult={sampleAutoResult({
+          settled_at: "2027-01-30T12:00:00",
+          result_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+        })}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("Skoryguj wynik");
+    expect(html).not.toContain("Zatwierdź wynik");
+  });
+});
+
+describe("TyperLmLongTermMarketFooter pending and errors", () => {
+  it("renders the pending save status", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketFooter
+        market={sampleLongTermMarket()}
+        isLocked={false}
+        isSettled={false}
+        canSave={false}
+        isPending={true}
+        errorMessage={null}
+        onSave={() => undefined}
+      />,
+    );
+    expect(html).toContain("Zapisywanie typu…");
+  });
+
+  it("renders 409 and 422 save error messages", () => {
+    const conflict = renderToStaticMarkup(
+      <TyperLmLongTermMarketFooter
+        market={sampleLongTermMarket()}
+        isLocked={false}
+        isSettled={false}
+        canSave={true}
+        isPending={false}
+        errorMessage={longTermSaveErrorMessage(new ApiError(409, "locked"))}
+        onSave={() => undefined}
+      />,
+    );
+    const invalid = renderToStaticMarkup(
+      <TyperLmLongTermMarketFooter
+        market={sampleLongTermMarket()}
+        isLocked={false}
+        isSettled={false}
+        canSave={true}
+        isPending={false}
+        errorMessage={longTermSaveErrorMessage(new ApiError(422, "size"))}
+        onSave={() => undefined}
+      />,
+    );
+    expect(conflict).toContain("Faza ligowa już się rozpoczęła");
+    expect(conflict).toContain("Zapisz typ");
+    expect(invalid).toContain("wymaganą liczbę różnych drużyn");
+  });
+});
+
+describe("TyperLmLongTermAdminAuditLookup", () => {
+  it("renders an audit row from the mocked history client", async () => {
+    const rows = await getTyperLongTermAdminHistory({
+      userUuid: "user-2",
+      marketId: 1,
+      seasonId: 13,
+    });
+    const html = renderToStaticMarkup(
+      <>
+        <TyperLmLongTermAdminAuditLookup seasonId={13} marketId={1} />
+        <TyperLmLongTermAdminAuditResults rows={rows} isLoading={false} />
+      </>,
+    );
+    expect(html).toContain("Audyt typów długoterminowych");
+    expect(html).toContain("Bartek");
+    expect(html).toContain("user-2");
+    expect(html).toContain("rynek 1");
+    expect(html).toContain("pierwszy zapis");
+    expect(html).toContain(formatMatchDateTime("2026-09-11T18:30:00"));
   });
 });

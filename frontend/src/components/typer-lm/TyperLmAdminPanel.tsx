@@ -4,12 +4,19 @@ import { useState } from "react";
 
 import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
+import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { GROUP_STAGE_MATCH_COUNT } from "@/lib/typerLmAdmin";
-import type { LeagueRound, TyperAdminCandidate } from "@/types/api";
+import type {
+  LeagueRound,
+  LongTermAutoResultResponse,
+  LongTermMarketCard,
+  TyperAdminCandidate,
+} from "@/types/api";
 
 import { TyperLmAdminAuditLookup } from "./TyperLmAdminAuditLookup";
 import { TyperLmAdminCandidateList } from "./TyperLmAdminCandidateList";
 import { TyperLmAdminRoundControls } from "./TyperLmAdminRoundControls";
+import { TyperLmLongTermAdminPanel } from "./TyperLmLongTermAdminPanel";
 import { useTyperLmAdminPublications } from "./useTyperLmAdminPublications";
 
 interface TyperLmAdminPanelProps {
@@ -19,6 +26,8 @@ interface TyperLmAdminPanelProps {
   initialGroupMatchCount?: number;
   knockoutRounds?: readonly LeagueRound[];
   knockoutRoundsError?: string;
+  longTermMarkets?: readonly LongTermMarketCard[];
+  longTermAutoResults?: Record<number, LongTermAutoResultResponse | null>;
 }
 
 export function TyperLmAdminPanel({
@@ -28,6 +37,8 @@ export function TyperLmAdminPanel({
   initialGroupMatchCount = GROUP_STAGE_MATCH_COUNT,
   knockoutRounds = [],
   knockoutRoundsError,
+  longTermMarkets = [],
+  longTermAutoResults = {},
 }: TyperLmAdminPanelProps) {
   const { preferences } = usePreferences();
   const publications = useTyperLmAdminPublications({
@@ -87,7 +98,38 @@ export function TyperLmAdminPanel({
         onCancelUnpublish={() => setPendingUnpublishId(null)}
       />
       <TyperLmAdminAuditLookup seasonId={seasonId} />
+      <TyperLmLongTermAdminBlocks
+        markets={longTermMarkets}
+        autoResults={longTermAutoResults}
+        teamNameDisplay={preferences.teamNameDisplay}
+      />
     </section>
+  );
+}
+
+function TyperLmLongTermAdminBlocks({
+  markets,
+  autoResults,
+  teamNameDisplay,
+}: {
+  markets: readonly LongTermMarketCard[];
+  autoResults: Record<number, LongTermAutoResultResponse | null>;
+  teamNameDisplay: TeamNameDisplayPreference;
+}) {
+  if (markets.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {markets.map((market) => (
+        <TyperLmLongTermAdminPanel
+          key={market.market_id}
+          market={market}
+          initialAutoResult={autoResults[market.market_id] ?? null}
+          teamNameDisplay={teamNameDisplay}
+        />
+      ))}
+    </>
   );
 }
 
@@ -99,6 +141,8 @@ interface TyperLmAdminSectionProps {
   initialGroupMatchCount?: number;
   knockoutRounds?: readonly LeagueRound[];
   knockoutRoundsError?: string;
+  longTermMarkets?: readonly LongTermMarketCard[];
+  longTermAutoResults?: Record<number, LongTermAutoResultResponse | null>;
 }
 
 export function TyperLmAdminSection({
@@ -109,6 +153,8 @@ export function TyperLmAdminSection({
   initialGroupMatchCount,
   knockoutRounds,
   knockoutRoundsError,
+  longTermMarkets,
+  longTermAutoResults,
 }: TyperLmAdminSectionProps) {
   if (!isAdmin) {
     return null;
@@ -121,6 +167,8 @@ export function TyperLmAdminSection({
       initialGroupMatchCount={initialGroupMatchCount}
       knockoutRounds={knockoutRounds}
       knockoutRoundsError={knockoutRoundsError}
+      longTermMarkets={longTermMarkets}
+      longTermAutoResults={longTermAutoResults}
     />
   );
 }

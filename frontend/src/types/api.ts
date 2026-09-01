@@ -1351,6 +1351,8 @@ export interface TyperLeaderboardRow {
   place: number;
   user_uuid: string;
   display_name: string;
+  match_points: number;
+  long_term_points: number;
   total_points: number;
   correct_predictions: number;
   settled_predictions: number;
@@ -1396,4 +1398,100 @@ export interface TyperPublication {
 export interface PublishTyperMatchesResponse {
   publications: TyperPublication[];
   total_count: number;
+}
+
+/** League-phase participant offered as a long-term pick. */
+export interface LongTermTeam {
+  team_id: number;
+  team_name: string;
+  team_shortcut: string;
+}
+
+/** League-phase table row used in the admin TOP 8 proposal. */
+export interface LongTermStandingTeam extends LongTermTeam {
+  played: number;
+  points: number;
+  goal_difference: number;
+  goals_for: number;
+}
+
+/** One append-only audit snapshot of a full long-term pick set. */
+export interface LongTermPickChange {
+  id: number;
+  market_id: number;
+  user_uuid: string;
+  display_name: string;
+  previous_team_ids: number[] | null;
+  new_team_ids: number[];
+  changed_at: string;
+}
+
+/** One long-term market with private picks and own audit. */
+export interface LongTermMarketCard {
+  market_id: number;
+  league_id: number;
+  season_id: number;
+  market_key: string;
+  title: string;
+  description: string | null;
+  selection_size: number;
+  points_per_correct: number;
+  settled_at: string | null;
+  deadline_at: string | null;
+  is_locked: boolean;
+  candidates: LongTermTeam[];
+  picked_team_ids: number[];
+  result_team_ids: number[];
+  points: number | null;
+  changes: LongTermPickChange[];
+}
+
+/** Response model for GET /typer-lm/long-term. */
+export interface LongTermDashboardResponse {
+  season_id: number;
+  markets: LongTermMarketCard[];
+}
+
+/** Result of creating or replacing a long-term pick set. */
+export interface SaveLongTermPicksResponse {
+  market_id: number;
+  team_ids: number[];
+  previous_team_ids: number[] | null;
+  audit_written: boolean;
+}
+
+/** Admin TOP 8 proposal; never awards points by itself. */
+export interface LongTermAutoResultResponse {
+  market_id: number;
+  league_id: number;
+  season_id: number;
+  market_key: string;
+  selection_size: number;
+  points_per_correct: number;
+  settled_at: string | null;
+  settled_by_uuid: string | null;
+  settled_by_display_name: string | null;
+  is_complete: boolean;
+  is_proposal: boolean;
+  participant_count: number;
+  settled_match_count: number;
+  min_matches_per_team: number;
+  max_matches_per_team: number;
+  required_participant_count: number;
+  required_matches_per_team: number;
+  required_settled_match_count: number;
+  proposed_team_ids: number[];
+  proposed_teams: LongTermStandingTeam[];
+  result_team_ids: number[];
+  standings: LongTermStandingTeam[];
+}
+
+/** Approved or corrected long-term result set. */
+export interface SettleLongTermResponse {
+  market_id: number;
+  team_ids: number[];
+  settled_by_uuid: string | null;
+  settled_by_display_name: string | null;
+  settled_at: string;
+  result_team_ids: number[];
 }

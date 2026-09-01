@@ -31,7 +31,9 @@ export function TyperLmLeaderboard({
             <tr>
               <th className="px-3 py-2 font-medium">Miejsce</th>
               <th className="px-3 py-2 font-medium">Gracz</th>
-              <th className="px-3 py-2 font-medium">Punkty</th>
+              <th className="px-3 py-2 font-medium">Mecze</th>
+              <th className="px-3 py-2 font-medium">Długoterminowe</th>
+              <th className="px-3 py-2 font-medium">Suma</th>
               <th className="px-3 py-2 font-medium">Trafienia</th>
               <th className="px-3 py-2 font-medium">Rozstrzygnięte</th>
             </tr>
@@ -71,6 +73,8 @@ function LeaderboardRow({
         <span className="font-medium">{row.display_name}</span>
         <span className="mt-0.5 block text-xs text-subtle">{row.user_uuid}</span>
       </td>
+      <td className="px-3 py-2">{formatOdds(row.match_points)}</td>
+      <td className="px-3 py-2">{formatOdds(row.long_term_points)}</td>
       <td className="px-3 py-2">{formatOdds(row.total_points)}</td>
       <td className="px-3 py-2">{row.correct_predictions}</td>
       <td className="px-3 py-2">{row.settled_predictions}</td>

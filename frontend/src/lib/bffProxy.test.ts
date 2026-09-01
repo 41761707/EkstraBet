@@ -126,6 +126,13 @@ describe("isMethodAllowedForPath", () => {
     expect(isMethodAllowedForPath("typer-lm/predictions/101", "PUT")).toBe(
       true,
     );
+    expect(isMethodAllowedForPath("typer-lm/long-term", "GET")).toBe(true);
+    expect(
+      isMethodAllowedForPath("typer-lm/long-term/markets/1/picks", "PUT"),
+    ).toBe(true);
+    expect(
+      isMethodAllowedForPath("typer-lm/long-term/markets/1/history", "GET"),
+    ).toBe(true);
   });
 
   it("allows Typer LM admin publication mutations", () => {
@@ -140,6 +147,21 @@ describe("isMethodAllowedForPath", () => {
     );
     expect(
       isMethodAllowedForPath("typer-lm/admin/publications/101", "DELETE"),
+    ).toBe(true);
+    expect(
+      isMethodAllowedForPath(
+        "typer-lm/long-term/admin/markets/1/auto-result",
+        "GET",
+      ),
+    ).toBe(true);
+    expect(
+      isMethodAllowedForPath("typer-lm/long-term/admin/markets/1/settle", "POST"),
+    ).toBe(true);
+    expect(
+      isMethodAllowedForPath(
+        "typer-lm/long-term/admin/prediction-history",
+        "GET",
+      ),
     ).toBe(true);
   });
 });
