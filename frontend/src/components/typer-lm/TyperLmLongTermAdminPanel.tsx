@@ -31,7 +31,7 @@ interface TyperLmLongTermAdminPanelProps {
   market: LongTermMarketCard;
   initialAutoResult: LongTermAutoResultResponse | null;
   teamNameDisplay: TeamNameDisplayPreference;
-  onSettled: (settled: SettleLongTermResponse) => void;
+  onSettled?: (settled: SettleLongTermResponse) => void;
 }
 
 export function TyperLmLongTermAdminPanel({
@@ -47,7 +47,7 @@ export function TyperLmLongTermAdminPanel({
   );
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
+    <section className="space-y-4 border-t border-border pt-6">
       <header className="space-y-1">
         <h3 className="text-sm font-semibold text-text">
           Rozliczenie — {market.title}
@@ -278,7 +278,7 @@ function SettleActions({
 function useLongTermSettlement(
   market: LongTermMarketCard,
   initialAutoResult: LongTermAutoResultResponse | null,
-  onSettled: (settled: SettleLongTermResponse) => void,
+  onSettled?: (settled: SettleLongTermResponse) => void,
 ) {
   const router = useRouter();
   const [autoResult, setAutoResult] = useState(initialAutoResult);
@@ -335,7 +335,7 @@ function useLongTermSettlement(
         result_team_ids: settled.result_team_ids,
       });
       setIsConfirming(false);
-      onSettled(settled);
+      onSettled?.(settled);
       router.refresh();
     } catch (error) {
       setErrorMessage(longTermSettleErrorMessage(error));

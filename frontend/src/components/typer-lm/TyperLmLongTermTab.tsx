@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
@@ -13,7 +13,6 @@ import {
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import {
   applySavedLongTermPicks,
-  applySettledLongTermResult,
   canSaveLongTermPicks,
   formatLongTermChangeLine,
   formatLongTermHitsLabel,
@@ -29,31 +28,29 @@ import {
   updateLongTermDashboardMarket,
 } from "@/lib/typerLmLongTerm";
 import type {
-  LongTermAutoResultResponse,
   LongTermDashboardResponse,
   LongTermMarketCard,
 } from "@/types/api";
 
-import { TyperLmLongTermAdminPanel } from "./TyperLmLongTermAdminPanel";
 import { TyperLmLongTermTeamPicker } from "./TyperLmLongTermTeamPicker";
 
 interface TyperLmLongTermTabProps {
   dashboard: LongTermDashboardResponse | null;
   errorMessage?: string;
-  isAdmin: boolean;
-  autoResults: Record<number, LongTermAutoResultResponse | null>;
   nowMs?: number | null;
 }
 
 export function TyperLmLongTermTab({
   dashboard: initialDashboard,
   errorMessage,
-  isAdmin,
-  autoResults,
   nowMs = null,
 }: TyperLmLongTermTabProps) {
   const { preferences } = usePreferences();
   const [dashboard, setDashboard] = useState(initialDashboard);
+
+  useEffect(() => {
+    setDashboard(initialDashboard);
+  }, [initialDashboard]);
 
   if (errorMessage) {
     return (
@@ -94,24 +91,6 @@ export function TyperLmLongTermTab({
               )
             }
           />
-          {isAdmin ? (
-            <TyperLmLongTermAdminPanel
-              market={market}
-              initialAutoResult={autoResults[market.market_id] ?? null}
-              teamNameDisplay={preferences.teamNameDisplay}
-              onSettled={(settled) =>
-                setDashboard((current) =>
-                  current
-                    ? updateLongTermDashboardMarket(
-                        current,
-                        market.market_id,
-                        (row) => applySettledLongTermResult(row, settled),
-                      )
-                    : current,
-                )
-              }
-            />
-          ) : null}
         </article>
       ))}
     </div>

@@ -19,7 +19,6 @@ import {
   updateDashboardMatch,
 } from "@/lib/typerLm";
 import type {
-  LongTermAutoResultResponse,
   LongTermDashboardResponse,
   TyperDashboardResponse,
   TyperLeaderboardRow,
@@ -39,10 +38,8 @@ interface TyperLmDashboardProps {
   leaderboardError?: string;
   currentUserUuid: string;
   currentUserDisplayName: string;
-  isAdmin?: boolean;
   longTermDashboard?: LongTermDashboardResponse | null;
   longTermError?: string;
-  longTermAutoResults?: Record<number, LongTermAutoResultResponse | null>;
 }
 
 function useNowMs(intervalMs: number = TYPER_LOCK_TICK_MS): number | null {
@@ -65,10 +62,8 @@ export function TyperLmDashboard({
   leaderboardError,
   currentUserUuid,
   currentUserDisplayName,
-  isAdmin = false,
   longTermDashboard = null,
   longTermError,
-  longTermAutoResults = {},
 }: TyperLmDashboardProps) {
   const [tab, setTab] = useState<TyperLmTab>("round");
   const nowMs = useNowMs();
@@ -98,8 +93,6 @@ export function TyperLmDashboard({
         <TyperLmLongTermTab
           dashboard={longTermDashboard}
           errorMessage={longTermError}
-          isAdmin={isAdmin}
-          autoResults={longTermAutoResults}
           nowMs={nowMs}
         />
       ) : (

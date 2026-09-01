@@ -74,6 +74,8 @@ export default async function TyperLmPage() {
         initialGroupMatchCount={page.groupMatchCount}
         knockoutRounds={page.knockoutRounds}
         knockoutRoundsError={page.knockoutRoundsError}
+        longTermMarkets={page.longTermDashboard?.markets ?? []}
+        longTermAutoResults={page.longTermAutoResults}
       />
       <TyperLmDashboard
         dashboard={page.dashboard}
@@ -81,10 +83,8 @@ export default async function TyperLmPage() {
         leaderboardError={page.leaderboardError}
         currentUserUuid={page.userUuid}
         currentUserDisplayName={page.displayName}
-        isAdmin={page.isAdmin}
         longTermDashboard={page.longTermDashboard}
         longTermError={page.longTermError}
-        longTermAutoResults={page.longTermAutoResults}
       />
     </div>
   );
@@ -263,7 +263,7 @@ async function loadLongTermAutoResults(
         const payload = await getTyperLongTermAutoResult(market.market_id);
         return [market.market_id, payload] as const;
       } catch {
-        // błąd propozycji nie może zablokować zakładki uczestnika
+        // błąd propozycji nie może zablokować panelu administratora
         return [market.market_id, null] as const;
       }
     }),
