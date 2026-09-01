@@ -370,7 +370,7 @@ def fetch_admin_long_term_history(
 
 
 def fetch_auto_result(market_id: int) -> dict[str, Any]:
-    """Return league-phase standings and completeness counts.
+    """Return league-phase standings, completeness and the approved set.
 
     Does not write results or award points. The ranking is a proposal
     because UEFA tie-breakers beyond points, GD and goals are omitted.
@@ -384,9 +384,11 @@ def fetch_auto_result(market_id: int) -> dict[str, Any]:
                 cursor,
                 int(market["league_id"]),
                 int(market["season_id"]))
+            result_team_ids = _fetch_result_team_ids(
+                cursor, int(market["market_id"]))
         finally:
             cursor.close()
-    return _auto_result_document(market, standings)
+    return _auto_result_document(market, standings, result_team_ids)
 
 
 def settle_market(
@@ -490,6 +492,12 @@ def _fetch_grouped_team_ids(
     return grouped
 
 
+def _fetch_result_team_ids(cursor: Any, market_id: int) -> list[int]:
+    grouped = _fetch_grouped_team_ids(
+        cursor, _DASHBOARD_RESULTS_SQL, [market_id])
+    return grouped.get(market_id, [])
+
+
 def _fetch_dashboard_changes(
         cursor: Any,
         user_id: int,
@@ -536,7 +544,8 @@ def _fetch_league_phase_standings(
 
 def _auto_result_document(
         market: dict[str, Any],
-        standings: list[dict[str, Any]]) -> dict[str, Any]:
+        standings: list[dict[str, Any]],
+        result_team_ids: list[int]) -> dict[str, Any]:
     played = [int(row["played"]) for row in standings]
     return {
         "market_id": int(market["market_id"]),
@@ -551,7 +560,8 @@ def _auto_result_document(
         "settled_match_count": sum(played) // 2,
         "min_matches_per_team": min(played) if played else 0,
         "max_matches_per_team": max(played) if played else 0,
-        "standings": standings
+        "standings": standings,
+        "result_team_ids": [int(team_id) for team_id in result_team_ids]
     }
 
 
