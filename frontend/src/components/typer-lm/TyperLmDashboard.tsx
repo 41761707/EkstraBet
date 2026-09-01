@@ -19,6 +19,8 @@ import {
   updateDashboardMatch,
 } from "@/lib/typerLm";
 import type {
+  LongTermAutoResultResponse,
+  LongTermDashboardResponse,
   TyperDashboardResponse,
   TyperLeaderboardRow,
   TyperMatch,
@@ -26,6 +28,7 @@ import type {
 } from "@/types/api";
 
 import { TyperLmLeaderboard } from "./TyperLmLeaderboard";
+import { TyperLmLongTermTab } from "./TyperLmLongTermTab";
 import { TyperLmMatchCard } from "./TyperLmMatchCard";
 import { TyperLmRoundPicker } from "./TyperLmRoundPicker";
 import { TyperLmViewTabs, type TyperLmTab } from "./TyperLmViewTabs";
@@ -36,6 +39,10 @@ interface TyperLmDashboardProps {
   leaderboardError?: string;
   currentUserUuid: string;
   currentUserDisplayName: string;
+  isAdmin?: boolean;
+  longTermDashboard?: LongTermDashboardResponse | null;
+  longTermError?: string;
+  longTermAutoResults?: Record<number, LongTermAutoResultResponse | null>;
 }
 
 function useNowMs(intervalMs: number = TYPER_LOCK_TICK_MS): number | null {
@@ -58,6 +65,10 @@ export function TyperLmDashboard({
   leaderboardError,
   currentUserUuid,
   currentUserDisplayName,
+  isAdmin = false,
+  longTermDashboard = null,
+  longTermError,
+  longTermAutoResults = {},
 }: TyperLmDashboardProps) {
   const [tab, setTab] = useState<TyperLmTab>("round");
   const nowMs = useNowMs();
@@ -78,18 +89,19 @@ export function TyperLmDashboard({
     <div className="space-y-6">
       <TyperLmViewTabs activeTab={tab} onChange={setTab} />
       {tab === "ranking" ? (
-        leaderboardError ? (
-          <StatusMessage
-            variant="error"
-            title="Nie udało się załadować rankingu"
-            message={leaderboardError}
-          />
-        ) : (
-          <TyperLmLeaderboard
-            rows={leaderboard}
-            currentUserUuid={currentUserUuid}
-          />
-        )
+        <RankingPanel
+          leaderboard={leaderboard}
+          leaderboardError={leaderboardError}
+          currentUserUuid={currentUserUuid}
+        />
+      ) : tab === "long_term" ? (
+        <TyperLmLongTermTab
+          dashboard={longTermDashboard}
+          errorMessage={longTermError}
+          isAdmin={isAdmin}
+          autoResults={longTermAutoResults}
+          nowMs={nowMs}
+        />
       ) : (
         <RoundPanel
           dashboard={predictions.dashboard}
@@ -104,6 +116,32 @@ export function TyperLmDashboard({
         />
       )}
     </div>
+  );
+}
+
+function RankingPanel({
+  leaderboard,
+  leaderboardError,
+  currentUserUuid,
+}: {
+  leaderboard: TyperLeaderboardRow[];
+  leaderboardError?: string;
+  currentUserUuid: string;
+}) {
+  if (leaderboardError) {
+    return (
+      <StatusMessage
+        variant="error"
+        title="Nie udało się załadować rankingu"
+        message={leaderboardError}
+      />
+    );
+  }
+  return (
+    <TyperLmLeaderboard
+      rows={leaderboard}
+      currentUserUuid={currentUserUuid}
+    />
   );
 }
 
