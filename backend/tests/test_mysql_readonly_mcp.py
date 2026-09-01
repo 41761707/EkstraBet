@@ -6,7 +6,11 @@ from datetime import date
 from datetime import datetime
 from decimal import Decimal
 from contextlib import redirect_stdout
+from pathlib import Path
 import io
+import os
+import subprocess
+import sys
 import unittest
 
 from mcp_servers.mysql_readonly_server import IdentifierValidator
@@ -169,6 +173,28 @@ class TestCommandLineHelp(unittest.TestCase):
         self.assertIn("Usage:", output)
         self.assertIn("python mcp_servers/mysql_readonly_server.py", output)
         self.assertIn("Available tools:", output)
+
+
+class TestScriptLaunch(unittest.TestCase):
+    """Unit tests for launching the MCP file as a standalone script."""
+
+    def test_help_works_when_launched_as_script(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        script = repo_root / "mcp_servers" / "mysql_readonly_server.py"
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+
+        result = subprocess.run(
+            [sys.executable, str(script), "--help"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Usage:", result.stdout)
+        self.assertNotIn("ModuleNotFoundError", result.stderr)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,12 @@ import mysql.connector
 from mysql.connector import Error as MySqlError
 from mysql.connector import MySQLConnection
 
+# Cursor odpala ten plik jako skrypt, wiec katalog mcp_servers/ jest na
+# sys.path zamiast korzenia repozytorium.
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 from backend.timezone import apply_mysql_session_timezone
 
 
