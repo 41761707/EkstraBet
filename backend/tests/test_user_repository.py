@@ -11,14 +11,31 @@ from mysql.connector.errors import IntegrityError
 from backend.repositories import user_repository
 
 
+_ADMIN_USER_ROW = {
+    "id": 8,
+    "uuid": "11111111-1111-1111-1111-111111111111",
+    "username": "alice",
+    "display_name": "Alice",
+    "is_active": 1,
+    "is_admin": 0,
+    "first_login": 1,
+    "created_at": None,
+    "updated_at": None
+}
+
+_GET_CONN = "backend.repositories.user_repository.get_db_connection"
+
+
 def _mock_connection(
         mock_get_conn: MagicMock,
         *,
         row: dict[str, object] | None = None,
+        rows: list[dict[str, object]] | None = None,
         rowcount: int = 1) -> tuple[MagicMock, MagicMock]:
     """Return mocked connection and cursor wired to get_db_connection."""
     cursor = MagicMock()
     cursor.fetchone.return_value = row
+    cursor.fetchall.return_value = rows if rows is not None else []
     cursor.rowcount = rowcount
     conn = MagicMock()
     conn.cursor.return_value = cursor
@@ -142,6 +159,174 @@ class TestUpdateUserCredentialsAfterFirstLogin(unittest.TestCase):
         # IntegrityError przed commit — rollback przy close połączenia
         conn.rollback.assert_not_called()
         cursor.close.assert_called_once()
+
+
+class TestFetchAllUsers(unittest.TestCase):
+    """Admin list must omit password_hash and order by username."""
+
+    @patch(_GET_CONN)
+    def test_select_omits_password_hash_and_returns_rows(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, rows=[_ADMIN_USER_ROW])
+        users = user_repository.fetch_all_users()
+        self.assertEqual(users, [_ADMIN_USER_ROW])
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("FROM users", query)
+        self.assertIn("ORDER BY username, id", query)
+        self.assertNotIn("password_hash", query)
+        self.assertNotIn("password_hash", users[0])
+        cursor.close.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_empty_result_returns_empty_list(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _mock_connection(mock_get_conn, rows=[])
+        self.assertEqual(user_repository.fetch_all_users(), [])
+
+
+class TestCreateUser(unittest.TestCase):
+    """INSERT must persist flags, commit and hide the password hash."""
+
+    @patch(_GET_CONN)
+    def test_inserts_commits_and_returns_row_without_hash(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, row=_ADMIN_USER_ROW)
+        created = user_repository.create_user(
+            "11111111-1111-1111-1111-111111111111",
+            "alice",
+            "hashed-secret",
+            "Alice",
+            is_admin=False)
+        self.assertEqual(created, _ADMIN_USER_ROW)
+        self.assertNotIn("password_hash", created)
+        insert_query, insert_params = cursor.execute.call_args_list[0].args
+        self.assertIn("INSERT INTO users", insert_query)
+        self.assertIn("password_hash", insert_query)
+        self.assertEqual(
+            insert_params,
+            (
+                "11111111-1111-1111-1111-111111111111",
+                "alice",
+                "hashed-secret",
+                "Alice",
+                0,
+                1,
+                1))
+        select_query = cursor.execute.call_args_list[1].args[0]
+        self.assertNotIn("password_hash", select_query)
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        self.assertEqual(cursor.close.call_count, 2)
+
+    @patch(_GET_CONN)
+    def test_duplicate_username_integrity_error_propagates(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(mock_get_conn)
+        error = IntegrityError(
+            "Duplicate entry 'alice' for key 'username_UNIQUE'",
+            1062)
+        cursor.execute.side_effect = error
+        with self.assertRaises(IntegrityError) as ctx:
+            user_repository.create_user(
+                "11111111-1111-1111-1111-111111111111",
+                "alice",
+                "hashed-secret",
+                "Alice")
+        self.assertIs(ctx.exception, error)
+        conn.commit.assert_not_called()
+        cursor.close.assert_called_once()
+
+
+class TestSetUserActive(unittest.TestCase):
+    """Toggle is_active must commit and skip missing users."""
+
+    @patch(_GET_CONN)
+    def test_updates_commits_and_returns_row_without_hash(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, row=_ADMIN_USER_ROW, rowcount=1)
+        updated = user_repository.set_user_active(
+            "11111111-1111-1111-1111-111111111111", False)
+        self.assertEqual(updated, _ADMIN_USER_ROW)
+        self.assertNotIn("password_hash", updated)
+        query, params = cursor.execute.call_args_list[0].args
+        self.assertIn("UPDATE users", query)
+        self.assertIn("is_active = %s", query)
+        self.assertIn("WHERE uuid = %s", query)
+        self.assertEqual(
+            params, (0, "11111111-1111-1111-1111-111111111111"))
+        select_query = cursor.execute.call_args_list[1].args[0]
+        self.assertNotIn("password_hash", select_query)
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        self.assertEqual(cursor.close.call_count, 2)
+
+    @patch(_GET_CONN)
+    def test_noop_update_on_existing_uuid_still_returns_row(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, row=_ADMIN_USER_ROW, rowcount=0)
+        updated = user_repository.set_user_active(
+            "11111111-1111-1111-1111-111111111111", True)
+        self.assertEqual(updated, _ADMIN_USER_ROW)
+        self.assertNotIn("password_hash", updated)
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        self.assertEqual(cursor.close.call_count, 2)
+
+    @patch(_GET_CONN)
+    def test_missing_user_returns_none_after_select(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, row=None, rowcount=0)
+        result = user_repository.set_user_active(
+            "missing-uuid", False)
+        self.assertIsNone(result)
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        self.assertEqual(cursor.close.call_count, 2)
+
+
+class TestSetUserAdmin(unittest.TestCase):
+    """Toggle is_admin must commit and skip missing users."""
+
+    @patch(_GET_CONN)
+    def test_updates_commits_and_returns_row_without_hash(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, row=_ADMIN_USER_ROW, rowcount=1)
+        updated = user_repository.set_user_admin(
+            "11111111-1111-1111-1111-111111111111", True)
+        self.assertEqual(updated, _ADMIN_USER_ROW)
+        query, params = cursor.execute.call_args_list[0].args
+        self.assertIn("UPDATE users", query)
+        self.assertIn("is_admin = %s", query)
+        self.assertEqual(
+            params, (1, "11111111-1111-1111-1111-111111111111"))
+        conn.commit.assert_called_once()
+        self.assertEqual(cursor.close.call_count, 2)
+
+    @patch(_GET_CONN)
+    def test_missing_user_returns_none_after_select(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn, row=None, rowcount=0)
+        result = user_repository.set_user_admin("missing-uuid", True)
+        self.assertIsNone(result)
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+        self.assertEqual(cursor.close.call_count, 2)
 
 
 if __name__ == "__main__":

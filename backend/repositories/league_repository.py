@@ -1,8 +1,32 @@
 """SQL queries for league navigation data."""
 
 from __future__ import annotations
+
+from typing import Any
+
 import pandas as pd
+
 from backend.database import get_db_connection
+
+_ADMIN_LEAGUE_SELECT = """
+    SELECT
+        l.id,
+        l.name,
+        l.country AS country_id,
+        c.name AS country_name,
+        c.emoji AS country_emoji,
+        l.sport_id,
+        s.name AS sport_name,
+        l.active,
+        l.last_update,
+        l.current_season_id,
+        l.tier,
+        l.has_player_stats
+    FROM leagues l
+    LEFT JOIN countries c ON l.country = c.id
+    LEFT JOIN sports s ON l.sport_id = s.id
+"""
+
 
 def fetch_leagues(
     active: bool | None = True,
@@ -132,3 +156,99 @@ def fetch_special_round_names() -> dict[int, str]:
         int(row["id"]): str(row["name"])
         for _, row in frame.iterrows()
     }
+
+
+def fetch_all_leagues() -> list[dict[str, Any]]:
+    """Return all leagues including inactive ones, by country then name."""
+    query = f"""
+        {_ADMIN_LEAGUE_SELECT}
+        ORDER BY l.country, l.name
+    """
+    return _fetch_all(query, ())
+
+
+def create_league(
+        name: str,
+        country_id: int,
+        sport_id: int,
+        current_season_id: int | None = None,
+        tier: int | None = None,
+        has_player_stats: bool = False,
+        active: bool = True) -> dict[str, Any]:
+    """Insert a league and return the joined admin row."""
+    query = """
+        INSERT INTO leagues (
+            name, country, sport_id, current_season_id,
+            tier, has_player_stats, active)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+    params = (
+        name,
+        country_id,
+        sport_id,
+        current_season_id,
+        tier,
+        _as_int_flag(has_player_stats),
+        _as_int_flag(active))
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(query, params)
+            league_id = int(cursor.lastrowid)
+            # mysql-connector bez autocommit — close bez commit cofa INSERT
+            conn.commit()
+        finally:
+            cursor.close()
+    created = _fetch_admin_league_by_id(league_id)
+    if created is None:
+        raise RuntimeError("Inserted league could not be read back")
+    return created
+
+
+def set_league_active(
+        league_id: int, active: bool) -> dict[str, Any] | None:
+    """Set active and return the league, or None when the id is missing."""
+    query = """
+        UPDATE leagues
+        SET active = %s
+        WHERE id = %s
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(query, (_as_int_flag(active), league_id))
+            # rowcount bez CLIENT_FOUND_ROWS nie odróżnia braku wiersza
+            # od no-op UPDATE tej samej flagi — istnienie sprawdza SELECT
+            conn.commit()
+        finally:
+            cursor.close()
+    return _fetch_admin_league_by_id(league_id)
+
+
+def _as_int_flag(value: bool) -> int:
+    return 1 if value else 0
+
+
+def _fetch_admin_league_by_id(league_id: int) -> dict[str, Any] | None:
+    query = f"""
+        {_ADMIN_LEAGUE_SELECT}
+        WHERE l.id = %s
+        LIMIT 1
+    """
+    rows = _fetch_all(query, (league_id,))
+    if not rows:
+        return None
+    return rows[0]
+
+
+def _fetch_all(
+        query: str,
+        params: tuple[object, ...]) -> list[dict[str, Any]]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+        finally:
+            cursor.close()
+    return [dict(row) for row in rows]
