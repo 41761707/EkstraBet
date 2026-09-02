@@ -9,7 +9,7 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { NavMoreMenu } from "@/components/NavMoreMenu";
 import {
   getAllNavLinks,
-  MORE_NAV_LINKS,
+  getMoreNavLinks,
   PRIMARY_NAV_LINKS,
   PROFILE_LINK,
   type AppNavLink,
@@ -19,6 +19,7 @@ type AppNavProps = {
   showLogout: boolean;
   showLinks?: boolean;
   showProfile?: boolean;
+  showAdmin?: boolean;
 };
 
 const HAMBURGER_CLASS_NAME =
@@ -81,10 +82,12 @@ export function AppNav({
   showLogout,
   showLinks = true,
   showProfile = false,
+  showAdmin = false,
 }: AppNavProps) {
   const { isOpen, setIsOpen, isMounted, menuId, toggleRef, panelRef, closeMenu } =
     useMobileMenu();
-  const mobileLinks = getAllNavLinks(showProfile);
+  const mobileLinks = getAllNavLinks(showProfile, showAdmin);
+  const moreLinks = getMoreNavLinks(showAdmin);
   const mobileLinkClassName =
     "block rounded-md px-3 py-3 text-base transition hover:bg-surface-raised hover:text-text";
 
@@ -123,7 +126,7 @@ export function AppNav({
               </Link>
             ))}
             <NavMoreMenu
-              links={MORE_NAV_LINKS}
+              links={moreLinks}
               linkClassName={DESKTOP_LINK_CLASS_NAME}
             />
             {showProfile ? (

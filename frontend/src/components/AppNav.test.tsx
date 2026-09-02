@@ -20,4 +20,18 @@ describe("AppNav overflow", () => {
     expect(html).not.toContain("O modelach");
     expect(html).not.toContain("Asystent");
   });
+
+  it("keeps Panel admina behind Więcej even when the admin link is enabled", () => {
+    const html = renderToStaticMarkup(
+      <AppNav
+        showLogout={false}
+        showLinks={true}
+        showProfile={false}
+        showAdmin={true}
+      />,
+    );
+
+    expect(html).toContain("Więcej");
+    expect(html).not.toContain("Panel admina");
+  });
 });

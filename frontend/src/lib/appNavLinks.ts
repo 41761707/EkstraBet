@@ -12,16 +12,33 @@ export const MORE_NAV_LINKS = [
   { href: "/chat", label: "Asystent" },
 ] as const;
 
+export const ADMIN_NAV_LINK = { href: "/admin", label: "Panel admina" } as const;
+
 export const PROFILE_LINK = { href: "/profile", label: "Profil" } as const;
 
 export type AppNavLink =
   | (typeof PRIMARY_NAV_LINKS)[number]
   | (typeof MORE_NAV_LINKS)[number]
+  | typeof ADMIN_NAV_LINK
   | typeof PROFILE_LINK;
 
+/** Overflow destinations, with the admin panel only when the caller is an admin. */
+export function getMoreNavLinks(showAdmin: boolean): AppNavLink[] {
+  if (!showAdmin) {
+    return [...MORE_NAV_LINKS];
+  }
+  return [...MORE_NAV_LINKS, ADMIN_NAV_LINK];
+}
+
 /** Flat list for the mobile drawer — same destinations, original order. */
-export function getAllNavLinks(showProfile: boolean): AppNavLink[] {
-  const links: AppNavLink[] = [...PRIMARY_NAV_LINKS, ...MORE_NAV_LINKS];
+export function getAllNavLinks(
+  showProfile: boolean,
+  showAdmin = false,
+): AppNavLink[] {
+  const links: AppNavLink[] = [
+    ...PRIMARY_NAV_LINKS,
+    ...getMoreNavLinks(showAdmin),
+  ];
   if (!showProfile) {
     return links;
   }

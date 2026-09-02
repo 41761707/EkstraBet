@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from api.deps import require_auth
+from api.routers.admin import router as admin_router
 from api.routers.analytics import router as analytics_router
 from api.routers.auth import router as auth_router
 from api.routers.bets import router as bets_router
@@ -95,7 +96,8 @@ def create_app() -> FastAPI:
                 "players - Player statistics by sport",
                 "standings - League tables via /leagues/{id}/standings",
                 "typer-lm - Champions League Typer contest "
-                "and long-term markets"
+                "and long-term markets",
+                "admin - User and league administration"
             ],
             "documentation": documentation
         }
@@ -140,6 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(players_router)
     app.include_router(champions_league_typer_router)
     app.include_router(champions_league_typer_long_term_router)
+    app.include_router(admin_router)
 
     @app.exception_handler(mysql.connector.Error)
     async def mysql_exception_handler(

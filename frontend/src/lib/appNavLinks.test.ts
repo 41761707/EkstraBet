@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ADMIN_NAV_LINK,
   getAllNavLinks,
+  getMoreNavLinks,
   isMoreNavActive,
   MORE_NAV_LINKS,
   PRIMARY_NAV_LINKS,
@@ -23,6 +25,28 @@ describe("getAllNavLinks", () => {
     expect(getAllNavLinks(false)).not.toContainEqual(PROFILE_LINK);
     expect(getAllNavLinks(true).at(-1)).toEqual(PROFILE_LINK);
   });
+
+  it("appends the admin panel link only for an administrator", () => {
+    expect(getAllNavLinks(true, false)).not.toContainEqual(ADMIN_NAV_LINK);
+    expect(getAllNavLinks(false, true)).toContainEqual(ADMIN_NAV_LINK);
+    expect(getAllNavLinks(true, true)).toEqual([
+      ...PRIMARY_NAV_LINKS,
+      ...MORE_NAV_LINKS,
+      ADMIN_NAV_LINK,
+      PROFILE_LINK,
+    ]);
+  });
+});
+
+describe("getMoreNavLinks", () => {
+  it("keeps the admin panel out of Więcej for a regular user", () => {
+    expect(getMoreNavLinks(false)).toEqual([...MORE_NAV_LINKS]);
+    expect(getMoreNavLinks(false)).not.toContainEqual(ADMIN_NAV_LINK);
+  });
+
+  it("places Panel admina at the end of the overflow list", () => {
+    expect(getMoreNavLinks(true)).toEqual([...MORE_NAV_LINKS, ADMIN_NAV_LINK]);
+  });
 });
 
 describe("isMoreNavActive", () => {
@@ -31,5 +55,10 @@ describe("isMoreNavActive", () => {
     expect(isMoreNavActive("/predictions/simulate")).toBe(true);
     expect(isMoreNavActive("/typer-lm")).toBe(false);
     expect(isMoreNavActive("/")).toBe(false);
+  });
+
+  it("marks the admin panel as an overflow destination when the link is shown", () => {
+    expect(isMoreNavActive("/admin")).toBe(false);
+    expect(isMoreNavActive("/admin", getMoreNavLinks(true))).toBe(true);
   });
 });

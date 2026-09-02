@@ -20,6 +20,11 @@ import { getServerAuthHeaders } from "@/lib/auth";
 import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
 import { getApiBaseUrl } from "@/lib/runtimeConfig";
 import type {
+  AdminCountry,
+  AdminLeague,
+  AdminSeason,
+  AdminSport,
+  AdminUser,
   AnalyticsAggregationMetric,
   AnalyticsGroupBy,
   AnalyticsStatType,
@@ -729,4 +734,29 @@ export async function getTyperLongTermAutoResult(
   return fetchApi<LongTermAutoResultResponse>(
     `/typer-lm/long-term/admin/markets/${marketId}/auto-result`,
   );
+}
+
+/** All user accounts for the admin panel; never includes password hashes. */
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  return fetchApi<AdminUser[]>("/admin/users");
+}
+
+/** All leagues for the admin panel, including inactive rows. */
+export async function getAdminLeagues(): Promise<AdminLeague[]> {
+  return fetchApi<AdminLeague[]>("/admin/leagues");
+}
+
+/** Country dropdown rows for the admin league form. */
+export async function getAdminCountries(): Promise<AdminCountry[]> {
+  return fetchApi<AdminCountry[]>("/admin/countries");
+}
+
+/** Sport dropdown rows for the admin league form. */
+export async function getAdminSports(): Promise<AdminSport[]> {
+  return fetchApi<AdminSport[]>("/admin/sports");
+}
+
+/** Season dropdown rows for the admin league form. */
+export async function getAdminSeasons(): Promise<AdminSeason[]> {
+  return fetchApi<AdminSeason[]>("/admin/seasons");
 }

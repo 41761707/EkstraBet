@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { AppNav } from "@/components/AppNav";
+import { getCurrentUser } from "@/lib/api";
 import { getAuthCookieName, isAuthEnabled } from "@/lib/authCookie";
 import { FIRST_LOGIN_PATH } from "@/lib/firstLogin";
 import { isFirstLoginPending } from "@/lib/firstLoginGate";
@@ -12,6 +13,7 @@ export async function AppHeader() {
   const showLogout = isAuthEnabled() && hasSession;
   const hideAppLinks = showLogout && (await isFirstLoginPending());
   const homeHref = hideAppLinks ? FIRST_LOGIN_PATH : "/";
+  const showAdmin = showLogout && !hideAppLinks && (await resolveShowAdmin());
 
   return (
     <header className="border-b border-border bg-page/90 backdrop-blur">
@@ -28,8 +30,19 @@ export async function AppHeader() {
           showLogout={showLogout}
           showLinks={!hideAppLinks}
           showProfile={showLogout}
+          showAdmin={showAdmin}
         />
       </div>
     </header>
   );
+}
+
+/** `getCurrentUser` is request-cached, so this shares the first-login lookup. */
+async function resolveShowAdmin(): Promise<boolean> {
+  try {
+    const user = await getCurrentUser();
+    return user.is_admin;
+  } catch {
+    return false;
+  }
 }

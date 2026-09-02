@@ -1495,3 +1495,84 @@ export interface SettleLongTermResponse {
   settled_at: string;
   result_team_ids: number[];
 }
+
+/** Public admin view of a user account from GET/POST/PUT /admin/users. */
+export interface AdminUser {
+  uuid: string;
+  username: string;
+  display_name: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  first_login: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Payload for POST /admin/users. Temporary password is input-only. */
+export interface CreateUserRequest {
+  username: string;
+  temporary_password: string;
+  display_name: string | null;
+  is_admin: boolean;
+}
+
+/** Payload for PUT /admin/users/{uuid}/active. */
+export interface UserActiveUpdate {
+  is_active: boolean;
+}
+
+/** Payload for PUT /admin/users/{uuid}/admin. */
+export interface UserAdminUpdate {
+  is_admin: boolean;
+}
+
+/** Admin view of a league from GET/POST/PUT /admin/leagues, including inactive rows. */
+export interface AdminLeague {
+  id: number;
+  name: string | null;
+  country_id: number | null;
+  country_name: string | null;
+  country_emoji: string | null;
+  sport_id: number | null;
+  sport_name: string | null;
+  active: boolean;
+  last_update: string | null;
+  current_season_id: number | null;
+  tier: number | null;
+  has_player_stats: boolean;
+}
+
+/** Payload for POST /admin/leagues. Name must be non-empty. */
+export interface CreateLeagueRequest {
+  name: string;
+  country_id: number;
+  sport_id: number;
+  current_season_id: number | null;
+  tier: number | null;
+  has_player_stats: boolean;
+}
+
+/** Payload for PUT /admin/leagues/{id}/active. */
+export interface LeagueActiveUpdate {
+  active: boolean;
+}
+
+/** Country dropdown row from GET /admin/countries. */
+export interface AdminCountry {
+  id: number;
+  name: string | null;
+  short_name: string | null;
+  emoji: string | null;
+}
+
+/** Sport dropdown row from GET /admin/sports. */
+export interface AdminSport {
+  id: number;
+  name: string;
+}
+
+/** Season dropdown row from GET /admin/seasons (`years`, not `name`). */
+export interface AdminSeason {
+  id: number;
+  years: string;
+}

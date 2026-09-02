@@ -11,6 +11,10 @@ import {
 } from "@/lib/apiShared";
 import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
 import type {
+  AdminLeague,
+  AdminUser,
+  CreateLeagueRequest,
+  CreateUserRequest,
   FavoriteLeagueMutationResponse,
   PlayerMatchStatsResponse,
   PredictionPreviewRequest,
@@ -337,6 +341,71 @@ export async function settleTyperLongTermMarket(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ team_ids: teamIds }),
+    },
+  );
+}
+
+export async function createAdminUser(
+  request: CreateUserRequest,
+): Promise<AdminUser> {
+  return fetchViaBff<AdminUser>("/admin/users", undefined, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+}
+
+export async function setAdminUserActive(
+  uuid: string,
+  isActive: boolean,
+): Promise<AdminUser> {
+  return fetchViaBff<AdminUser>(
+    `/admin/users/${uuid}/active`,
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: isActive }),
+    },
+  );
+}
+
+export async function setAdminUserAdmin(
+  uuid: string,
+  isAdmin: boolean,
+): Promise<AdminUser> {
+  return fetchViaBff<AdminUser>(
+    `/admin/users/${uuid}/admin`,
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_admin: isAdmin }),
+    },
+  );
+}
+
+export async function createAdminLeague(
+  request: CreateLeagueRequest,
+): Promise<AdminLeague> {
+  return fetchViaBff<AdminLeague>("/admin/leagues", undefined, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+}
+
+export async function setAdminLeagueActive(
+  leagueId: number,
+  active: boolean,
+): Promise<AdminLeague> {
+  return fetchViaBff<AdminLeague>(
+    `/admin/leagues/${leagueId}/active`,
+    undefined,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active }),
     },
   );
 }

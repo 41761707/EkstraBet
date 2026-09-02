@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   addFavoriteLeague,
+  createAdminLeague,
+  createAdminUser,
   deleteTyperPublication,
   getLeagueRatingProgress,
   getSeasonProjectionModes,
@@ -16,6 +18,9 @@ import {
   removeFavoriteLeague,
   saveTyperLongTermPicks,
   saveTyperPrediction,
+  setAdminLeagueActive,
+  setAdminUserActive,
+  setAdminUserAdmin,
   settleTyperLongTermMarket,
 } from "@/lib/apiClient";
 import { ApiError } from "@/lib/apiShared";
@@ -524,5 +529,166 @@ describe("typer LM long-term client", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
     });
+  });
+});
+
+const ADMIN_USER = {
+  uuid: "11111111-1111-1111-1111-111111111111",
+  username: "alice",
+  display_name: "Alice",
+  is_active: true,
+  is_admin: false,
+  first_login: true,
+  created_at: null,
+  updated_at: null,
+};
+
+const ADMIN_LEAGUE = {
+  id: 48,
+  name: "Test League",
+  country_id: 1,
+  country_name: "Polska",
+  country_emoji: "🇵🇱",
+  sport_id: 1,
+  sport_name: "Piłka nożna",
+  active: true,
+  last_update: null,
+  current_season_id: 13,
+  tier: 1,
+  has_player_stats: false,
+};
+
+describe("admin panel client", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("POSTs a new user through the BFF without leaking secrets in the response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(ADMIN_USER), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    const created = await createAdminUser({
+      username: "bob",
+      temporary_password: "secret1",
+      display_name: "Bob",
+      is_admin: false,
+    });
+    expect(created).toEqual(ADMIN_USER);
+    expect(created).not.toHaveProperty("password_hash");
+    expect(created).not.toHaveProperty("temporary_password");
+    expect(created).not.toHaveProperty("id");
+
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/admin/users");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({
+      username: "bob",
+      temporary_password: "secret1",
+      display_name: "Bob",
+      is_admin: false,
+    });
+  });
+
+  it("PUTs user active and admin flags through the BFF", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(ADMIN_USER), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await setAdminUserActive(ADMIN_USER.uuid, false);
+    await setAdminUserAdmin(ADMIN_USER.uuid, true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [activeUrl, activeInit] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(activeUrl).toContain(
+      `/api/backend/admin/users/${ADMIN_USER.uuid}/active`,
+    );
+    expect(activeInit.method).toBe("PUT");
+    expect(JSON.parse(String(activeInit.body))).toEqual({ is_active: false });
+
+    const [adminUrl, adminInit] = fetchMock.mock.calls[1] as [
+      string,
+      RequestInit,
+    ];
+    expect(adminUrl).toContain(
+      `/api/backend/admin/users/${ADMIN_USER.uuid}/admin`,
+    );
+    expect(adminInit.method).toBe("PUT");
+    expect(JSON.parse(String(adminInit.body))).toEqual({ is_admin: true });
+  });
+
+  it("POSTs a new league and PUTs its active flag through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(ADMIN_LEAGUE), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      createAdminLeague({
+        name: "Test League",
+        country_id: 1,
+        sport_id: 1,
+        current_season_id: 13,
+        tier: 1,
+        has_player_stats: false,
+      }),
+    ).resolves.toEqual(ADMIN_LEAGUE);
+
+    const [createUrl, createInit] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(createUrl).toContain("/api/backend/admin/leagues");
+    expect(createInit.method).toBe("POST");
+    expect(JSON.parse(String(createInit.body))).toEqual({
+      name: "Test League",
+      country_id: 1,
+      sport_id: 1,
+      current_season_id: 13,
+      tier: 1,
+      has_player_stats: false,
+    });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...ADMIN_LEAGUE, active: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await setAdminLeagueActive(48, false);
+    const [activeUrl, activeInit] = fetchMock.mock.calls[1] as [
+      string,
+      RequestInit,
+    ];
+    expect(activeUrl).toContain("/api/backend/admin/leagues/48/active");
+    expect(activeInit.method).toBe("PUT");
+    expect(JSON.parse(String(activeInit.body))).toEqual({ active: false });
   });
 });
