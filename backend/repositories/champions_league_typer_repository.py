@@ -288,6 +288,38 @@ _DASHBOARD_HISTORY_SQL = _CHANGES_SELECT_SQL + """
     ORDER BY tm.match_id ASC, c.changed_at ASC, c.id ASC
 """
 
+# kickoff w tym samym SELECT co LEFT JOIN typów: przyszłe mecze
+# nigdy nie trafiają do Pythona nawet przy zerowej liczbie obstawień
+_REVEALED_PREDICTIONS_SQL = f"""
+    SELECT
+        tm.season_id,
+        tm.round_number,
+        tm.match_id,
+        m.game_date,
+        m.home_team AS home_team_id,
+        home.name AS home_team_name,
+        home.shortcut AS home_team_shortcut,
+        m.away_team AS away_team_id,
+        away.name AS away_team_name,
+        away.shortcut AS away_team_shortcut,
+        u.uuid AS user_uuid,
+        COALESCE(NULLIF(TRIM(u.display_name), ''), u.username)
+            AS display_name,
+        p.selected_event_id
+    FROM champions_league_typer_matches tm
+    JOIN matches m ON m.id = tm.match_id
+    JOIN teams home ON home.id = m.home_team
+    JOIN teams away ON away.id = m.away_team
+    LEFT JOIN champions_league_typer_predictions p
+        ON p.typer_match_id = tm.id
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE tm.season_id = %s
+      AND tm.round_number = %s
+      AND m.league = {CHAMPIONS_LEAGUE_ID}
+      AND NOW() >= m.game_date
+    ORDER BY m.game_date ASC, tm.match_id ASC, u.uuid ASC
+"""
+
 _LEADERBOARD_SQL = f"""
     WITH match_agg AS (
         SELECT
@@ -534,6 +566,33 @@ def fetch_dashboard(
         "matches": [_map_dashboard_match_row(row) for row in match_rows],
         "changes": [_map_change_row(row) for row in change_rows]
     }
+
+
+def fetch_revealed_predictions(
+        season_id: int | None,
+        round_number: int) -> dict[str, Any]:
+    """Return started published matches with optional current picks.
+
+    Kick-off filtering happens in SQL via ``NOW() >= matches.game_date``.
+    Future matches are never returned, even when picks already exist.
+    """
+    _require_positive_ids(round_number=round_number)
+    if season_id is not None:
+        _require_positive_ids(season_id=season_id)
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            resolved_season_id = _resolve_season_id(cursor, season_id)
+            cursor.execute(
+                _REVEALED_PREDICTIONS_SQL,
+                (resolved_season_id, round_number))
+            rows = cursor.fetchall()
+        finally:
+            cursor.close()
+    return {
+        "season_id": resolved_season_id,
+        "round_number": round_number,
+        "rows": [_map_revealed_prediction_row(row) for row in rows]}
 
 
 def fetch_leaderboard(season_id: int | None) -> list[dict[str, Any]]:
@@ -923,6 +982,12 @@ def _as_optional_int(value: object) -> int | None:
     return int(value)
 
 
+def _as_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
 def _as_optional_float(value: object) -> float | None:
     if value is None:
         return None
@@ -980,6 +1045,23 @@ def _map_dashboard_match_row(row: dict[str, Any]) -> dict[str, Any]:
         "prediction_id": _as_optional_int(row["prediction_id"]),
         "selected_event_id": _as_optional_int(row["selected_event_id"])
     }
+
+
+def _map_revealed_prediction_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "match_id": int(row["match_id"]),
+        "season_id": int(row["season_id"]),
+        "round_number": int(row["round_number"]),
+        "game_date": row["game_date"],
+        "home_team_id": int(row["home_team_id"]),
+        "home_team_name": str(row["home_team_name"]),
+        "home_team_shortcut": str(row["home_team_shortcut"]),
+        "away_team_id": int(row["away_team_id"]),
+        "away_team_name": str(row["away_team_name"]),
+        "away_team_shortcut": str(row["away_team_shortcut"]),
+        "user_uuid": _as_optional_str(row["user_uuid"]),
+        "display_name": _as_optional_str(row["display_name"]),
+        "selected_event_id": _as_optional_int(row["selected_event_id"])}
 
 
 def _map_change_row(row: dict[str, Any]) -> dict[str, Any]:

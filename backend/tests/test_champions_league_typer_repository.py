@@ -118,6 +118,29 @@ def _candidate_row(match_id: int) -> dict[str, object]:
     }
 
 
+def _revealed_row(
+        match_id: int,
+        *,
+        user_uuid: str | None = "u-1",
+        display_name: str | None = "Ada",
+        selected_event_id: int | None = 1) -> dict[str, object]:
+    return {
+        "match_id": match_id,
+        "season_id": 13,
+        "round_number": 1,
+        "game_date": _GAME_DATE,
+        "home_team_id": 1,
+        "home_team_name": "Home",
+        "home_team_shortcut": "HOM",
+        "away_team_id": 2,
+        "away_team_name": "Away",
+        "away_team_shortcut": "AWY",
+        "user_uuid": user_uuid,
+        "display_name": display_name,
+        "selected_event_id": selected_event_id
+    }
+
+
 def _lock_open_row(
         *,
         prediction_id: int | None = None,
@@ -648,6 +671,151 @@ class TestFetchDashboard(unittest.TestCase):
         history_params = cursor.execute.call_args_list[2].args[1]
         self.assertEqual(match_params, (4, 13))
         self.assertEqual(history_params, (4, 13))
+
+
+class TestFetchRevealedPredictions(unittest.TestCase):
+    """Revealed picks are filtered at kickoff in the same SQL as joins."""
+
+    def _revealed_query(
+            self, cursor: MagicMock) -> tuple[str, tuple[object, ...]]:
+        query, params = cursor.execute.call_args_list[-1].args
+        return query, params
+
+    @patch(_GET_CONN)
+    def test_kickoff_filter_is_in_the_same_sql_as_picks(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_revealed_predictions(13, 8)
+        query, params = self._revealed_query(cursor)
+        self.assertIn("NOW() >= m.game_date", query)
+        self.assertNotIn("NOW() > m.game_date", query)
+        self.assertIn("LEFT JOIN champions_league_typer_predictions p", query)
+        self.assertIn("LEFT JOIN users u ON u.id = p.user_id", query)
+        self.assertIn("tm.season_id = %s", query)
+        self.assertIn("tm.round_number = %s", query)
+        self.assertEqual(params, (13, 8))
+        _assert_no_inlined_values(self, query, 13, 8)
+
+    @patch(_GET_CONN)
+    def test_params_are_season_and_round_not_interpolated(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_revealed_predictions(13, 8)
+        query, params = self._revealed_query(cursor)
+        self.assertEqual(params, (13, 8))
+        _assert_no_inlined_values(self, query, 13, 8)
+        self.assertNotIn(f"season_id = {13}", query)
+        self.assertNotIn(f"round_number = {8}", query)
+
+    @patch(_GET_CONN)
+    def test_none_season_uses_league_current_season(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[{"current_season_id": 13}],
+            fetchall_results=[[]])
+        document = repo.fetch_revealed_predictions(None, 8)
+        self.assertEqual(document["season_id"], 13)
+        self.assertEqual(document["round_number"], 8)
+        season_sql, season_params = cursor.execute.call_args_list[0].args
+        self.assertIn("current_season_id", season_sql)
+        self.assertIn("FROM leagues", season_sql)
+        self.assertEqual(season_params, (repo.CHAMPIONS_LEAGUE_ID,))
+        _query, params = self._revealed_query(cursor)
+        self.assertEqual(params, (13, 8))
+
+    @patch(_GET_CONN)
+    def test_left_join_keeps_started_match_without_picks(
+            self, mock_get_conn: MagicMock) -> None:
+        empty_match = _revealed_row(
+            101,
+            user_uuid=None,
+            display_name=None,
+            selected_event_id=None)
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[empty_match]])
+        document = repo.fetch_revealed_predictions(13, 1)
+        self.assertEqual(len(document["rows"]), 1)
+        row = document["rows"][0]
+        self.assertEqual(row["match_id"], 101)
+        self.assertIsNone(row["user_uuid"])
+        self.assertIsNone(row["display_name"])
+        self.assertIsNone(row["selected_event_id"])
+        query, _params = self._revealed_query(cursor)
+        self.assertIn("LEFT JOIN champions_league_typer_predictions p", query)
+        self.assertNotIn(
+            "INNER JOIN champions_league_typer_predictions", query)
+
+    @patch(_GET_CONN)
+    def test_mixed_kickoffs_cannot_leak_future_picks(
+            self, mock_get_conn: MagicMock) -> None:
+        started = _revealed_row(101, user_uuid="u-1", selected_event_id=3)
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[started]])
+        document = repo.fetch_revealed_predictions(13, 1)
+        self.assertEqual([row["match_id"] for row in document["rows"]], [101])
+        query, _params = self._revealed_query(cursor)
+        where_index = query.upper().index("WHERE")
+        join_index = query.index("LEFT JOIN champions_league_typer_predictions")
+        kickoff_index = query.index("NOW() >= m.game_date")
+        self.assertLess(join_index, kickoff_index)
+        self.assertLess(where_index, kickoff_index)
+        self.assertIn("AND NOW() >= m.game_date", query)
+
+    @patch(_GET_CONN)
+    def test_rows_are_ordered_by_date_match_and_user(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_revealed_predictions(13, 1)
+        query, _params = self._revealed_query(cursor)
+        self.assertIn(
+            "ORDER BY m.game_date ASC, tm.match_id ASC, u.uuid ASC",
+            query)
+
+    @patch(_GET_CONN)
+    def test_mapping_omits_internal_ids_and_audit(
+            self, mock_get_conn: MagicMock) -> None:
+        picked = _revealed_row(101, user_uuid="u-1", selected_event_id=2)
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[picked]])
+        document = repo.fetch_revealed_predictions(13, 1)
+        row = document["rows"][0]
+        self.assertEqual(row["user_uuid"], "u-1")
+        self.assertEqual(row["display_name"], "Ada")
+        self.assertEqual(row["selected_event_id"], 2)
+        self.assertNotIn("user_id", row)
+        self.assertNotIn("prediction_id", row)
+        self.assertNotIn("typer_match_id", row)
+        self.assertNotIn("changed_at", row)
+        self.assertNotIn("published_by", row)
+        query, _params = self._revealed_query(cursor)
+        self.assertNotIn("prediction_id", query)
+        self.assertNotIn("champions_league_typer_prediction_changes", query)
+        self.assertNotIn("p.id", query)
+        self.assertIn("u.uuid AS user_uuid", query)
+        self.assertIn("COALESCE(NULLIF(TRIM(u.display_name), '')", query)
+
+    @patch(_GET_CONN)
+    def test_read_does_not_mutate_or_lock(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_revealed_predictions(13, 1)
+        statements = _sql_statements(cursor)
+        combined = "\n".join(statements).upper()
+        self.assertNotIn("INSERT ", combined)
+        self.assertNotIn("UPDATE ", combined)
+        self.assertNotIn("DELETE ", combined)
+        self.assertNotIn("FOR UPDATE", combined)
+        _assert_no_odds_mutation(self, statements)
+        _conn.commit.assert_not_called()
+
+    def test_rejects_non_positive_round_before_sql(self) -> None:
+        with self.assertRaises(repo.TyperValidationError):
+            repo.fetch_revealed_predictions(13, 0)
 
 
 class TestFetchLeaderboard(unittest.TestCase):
