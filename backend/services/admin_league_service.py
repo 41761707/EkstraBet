@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+from datetime import datetime
 from typing import Any, NoReturn
 
 from mysql.connector.errors import IntegrityError
@@ -60,8 +62,9 @@ def set_league_active(league_id: int, active: bool) -> dict[str, Any]:
 
 
 def list_countries() -> list[dict[str, Any]]:
-    """Return country dropdown rows."""
-    return country_repository.fetch_all_countries()
+    """Return country dropdown rows, including nameless existing rows."""
+    return [_to_admin_country(row)
+        for row in country_repository.fetch_all_countries()]
 
 
 def list_sports() -> list[dict[str, Any]]:
@@ -106,7 +109,7 @@ def _to_admin_league(row: dict[str, Any]) -> dict[str, Any]:
         "sport_id": _as_optional_int(row.get("sport_id")),
         "sport_name": row.get("sport_name"),
         "active": bool(row.get("active")),
-        "last_update": row.get("last_update"),
+        "last_update": _as_optional_date(row.get("last_update")),
         "current_season_id": _as_optional_int(row.get("current_season_id")),
         "tier": _as_optional_int(row.get("tier")),
         "has_player_stats": bool(row.get("has_player_stats"))}
@@ -116,6 +119,27 @@ def _as_optional_int(value: object) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _as_optional_date(value: object) -> date | None:
+    # kolumna DATETIME ma godzinę; Pydantic date odrzuca niezerowy czas
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _to_admin_country(row: dict[str, Any]) -> dict[str, Any]:
+    name = row.get("name")
+    short_name = row.get("short_name")
+    emoji = row.get("emoji")
+    return {"id": int(row["id"]),
+        "name": None if name is None else str(name),
+        "short_name": None if short_name is None else str(short_name),
+        "emoji": None if emoji is None else str(emoji)}
 
 
 def _normalize_league_name(name: str) -> str:

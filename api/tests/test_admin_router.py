@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import date
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -416,6 +417,40 @@ class TestAdminLeaguesRouter(AdminRouterTestCase):
         self.assertEqual(payload[0]["name"], "Polska")
         self.assertEqual(payload[0]["short_name"], "POL")
         mock_list.assert_called_once_with()
+
+    @patch(
+        f"{_LEAGUE_SERVICE}.list_countries",
+        return_value=[{
+            "id": 28,
+            "name": None,
+            "short_name": "",
+            "emoji": ""}])
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_list_countries_allows_null_name(
+            self,
+            _mock_fetch: MagicMock,
+            mock_list: MagicMock) -> None:
+        response = self.client.get(
+            "/admin/countries",
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()[0]["name"])
+
+    @patch(
+        f"{_LEAGUE_SERVICE}.list_leagues",
+        return_value=[{
+            **_ADMIN_LEAGUE_DTO,
+            "last_update": date(2026, 8, 31)}])
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_list_leagues_accepts_date_last_update(
+            self,
+            _mock_fetch: MagicMock,
+            mock_list: MagicMock) -> None:
+        response = self.client.get(
+            "/admin/leagues",
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["last_update"], "2026-08-31")
 
     @patch(
         f"{_LEAGUE_SERVICE}.list_sports",

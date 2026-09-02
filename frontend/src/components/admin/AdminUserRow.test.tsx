@@ -38,6 +38,7 @@ describe("AdminUserRow", () => {
     );
 
     expect(html).toContain("alice");
+    expect(html).toContain("UUID 11111111-1111-1111-1111-111111111111");
     expect(html).toContain("Alicja");
     expect(html).toContain(SELF_ACCOUNT_HINT);
     expect(html).toContain(SELF_DEACTIVATE_HINT);
@@ -67,6 +68,7 @@ describe("AdminUserRow", () => {
     );
 
     expect(html).toContain("bob");
+    expect(html).toContain("UUID 22222222-2222-2222-2222-222222222222");
     expect(html).toContain("Wznów");
     expect(html).toContain("Nadaj rolę admina");
     expect(html).toContain("Pierwsze logowanie");

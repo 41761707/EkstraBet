@@ -95,6 +95,7 @@ class TestListUsers(unittest.TestCase):
     @patch(
         _FETCH_ALL,
         return_value=[{
+            "id": 9,
             "uuid": _TARGET_UUID,
             "username": "bob",
             "display_name": None,

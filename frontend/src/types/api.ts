@@ -1560,7 +1560,7 @@ export interface LeagueActiveUpdate {
 /** Country dropdown row from GET /admin/countries. */
 export interface AdminCountry {
   id: number;
-  name: string;
+  name: string | null;
   short_name: string | null;
   emoji: string | null;
 }

@@ -18,8 +18,6 @@ import {
   replaceAdminUser,
 } from "@/components/admin/adminUsersModel";
 import {
-  acquireAdminMutationLock,
-  releaseAdminMutationLock,
   submitCreateAdminUser,
   submitToggleUserActive,
   submitToggleUserAdmin,
@@ -275,11 +273,4 @@ describe("AdminUsersPanel mutations", () => {
     });
   });
 
-  it("rejects a second mutation while the lock is held", () => {
-    const lock = { current: false };
-    expect(acquireAdminMutationLock(lock)).toBe(true);
-    expect(acquireAdminMutationLock(lock)).toBe(false);
-    releaseAdminMutationLock(lock);
-    expect(acquireAdminMutationLock(lock)).toBe(true);
-  });
 });

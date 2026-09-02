@@ -40,6 +40,13 @@ export default async function AdminPage() {
       currentUserUuid={page.currentUser.uuid}
       users={page.users}
       usersError={page.usersError}
+      leagues={page.leagues}
+      leaguesError={page.leaguesError}
+      countries={page.countries}
+      sports={page.sports}
+      seasons={page.seasons}
+      dictionariesError={page.dictionariesError}
+      seasonsError={page.seasonsError}
     />
   );
 }

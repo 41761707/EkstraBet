@@ -1,4 +1,9 @@
 import {
+  ADMIN_DANGER_BUTTON_CLASS,
+  ADMIN_SECONDARY_BUTTON_CLASS,
+  StatusBadge,
+} from "@/components/admin/adminChrome";
+import {
   ADMIN_USERS_BUSY_HINT,
   SELF_ACCOUNT_HINT,
   SELF_DEACTIVATE_HINT,
@@ -9,15 +14,6 @@ import {
 } from "@/components/admin/adminUsersModel";
 import { formatMatchDateTime } from "@/lib/format";
 import type { AdminUser } from "@/types/api";
-
-const SECONDARY_BUTTON_CLASS =
-  "rounded-md border border-border bg-surface px-3 py-1.5 text-sm " +
-  "text-text hover:bg-surface-muted disabled:cursor-not-allowed " +
-  "disabled:opacity-50";
-
-const DANGER_BUTTON_CLASS =
-  "rounded-md border border-danger-border bg-danger-bg px-3 py-1.5 " +
-  "text-sm text-danger-text disabled:cursor-not-allowed disabled:opacity-50";
 
 interface AdminUserRowProps {
   user: AdminUser;
@@ -56,7 +52,12 @@ export function AdminUserRow({
     <li className="rounded-lg border border-border bg-surface-muted px-3 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="truncate font-medium text-text">{user.username}</p>
+          <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="truncate font-medium text-text">{user.username}</span>
+            <span className="break-all font-mono text-sm font-normal text-muted">
+              UUID {user.uuid}
+            </span>
+          </p>
           <p className="truncate text-sm text-muted">{displayName}</p>
           <UserStatusBadges user={user} isSelf={isSelf} />
           <p className="text-xs text-muted">Utworzono: {createdLabel}</p>
@@ -100,28 +101,6 @@ function UserStatusBadges({
   );
 }
 
-function StatusBadge({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "success" | "danger" | "accent" | "muted";
-}) {
-  const toneClass = {
-    success: "border-success-border bg-success-bg text-success-text",
-    danger: "border-danger-border bg-danger-bg text-danger-text",
-    accent: "border-border bg-accent-soft text-accent-text",
-    muted: "border-border bg-surface text-muted",
-  }[tone];
-  return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${toneClass}`}
-    >
-      {label}
-    </span>
-  );
-}
-
 interface UserActionButtonsProps {
   user: AdminUser;
   isSaving: boolean;
@@ -154,7 +133,7 @@ function UserActionButtons({
         disabled={areActionsLocked || !canToggleActive}
         title={activeHint}
         onClick={() => onToggleActive(user)}
-        className={user.is_active ? DANGER_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}
+        className={user.is_active ? ADMIN_DANGER_BUTTON_CLASS : ADMIN_SECONDARY_BUTTON_CLASS}
       >
         {isSaving ? "Zapisywanie…" : activeLabel}
       </button>
@@ -163,7 +142,7 @@ function UserActionButtons({
         disabled={areActionsLocked || !canToggleAdmin}
         title={adminHint}
         onClick={() => onToggleAdmin(user)}
-        className={SECONDARY_BUTTON_CLASS}
+        className={ADMIN_SECONDARY_BUTTON_CLASS}
       >
         {isSaving ? "Zapisywanie…" : adminLabel}
       </button>

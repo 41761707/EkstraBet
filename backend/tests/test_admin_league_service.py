@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
+from datetime import datetime
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -107,6 +109,17 @@ class TestListLeagues(unittest.TestCase):
         self.assertTrue(league["has_player_stats"])
         self.assertIsNone(league["current_season_id"])
         self.assertIsNone(league["tier"])
+
+    @patch(
+        _FETCH_ALL,
+        return_value=[{
+            **_REPO_LEAGUE_ROW,
+            "last_update": datetime(2026, 8, 31, 3, 48, 1)}])
+    def test_maps_datetime_last_update_to_date(
+            self,
+            _mock_fetch: MagicMock) -> None:
+        league = service.list_leagues()[0]
+        self.assertEqual(league["last_update"], date(2026, 8, 31))
 
 
 class TestCreateLeague(unittest.TestCase):
@@ -283,7 +296,28 @@ class TestDictionaryLists(unittest.TestCase):
             self,
             mock_fetch: MagicMock) -> None:
         countries = service.list_countries()
-        self.assertEqual(countries, [{"id": 1, "name": "Polska"}])
+        self.assertEqual(
+            countries,
+            [{
+                "id": 1,
+                "name": "Polska",
+                "short_name": None,
+                "emoji": None}])
+        mock_fetch.assert_called_once_with()
+
+    @patch(
+        _FETCH_COUNTRIES,
+        return_value=[{
+            "id": 28,
+            "name": None,
+            "short_name": "",
+            "emoji": ""}])
+    def test_list_countries_keeps_null_name(
+            self,
+            mock_fetch: MagicMock) -> None:
+        countries = service.list_countries()
+        self.assertEqual(countries[0]["name"], None)
+        self.assertEqual(countries[0]["id"], 28)
         mock_fetch.assert_called_once_with()
 
     @patch(

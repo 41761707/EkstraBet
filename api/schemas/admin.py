@@ -132,7 +132,9 @@ class AdminCountry(BaseModel):
     """Country dropdown row for the league form."""
 
     id: int = Field(..., description="Country ID")
-    name: str = Field(..., description="Country name")
+    name: str | None = Field(
+        None,
+        description="Country name; null for incomplete dictionary rows")
     short_name: str | None = Field(None, description="Country short name")
     emoji: str | None = Field(None, description="Country flag emoji")
 
