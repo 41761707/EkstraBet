@@ -35,5 +35,11 @@ export default async function AdminPage() {
     );
   }
 
-  return <AdminPageView />;
+  return (
+    <AdminPageView
+      currentUserUuid={page.currentUser.uuid}
+      users={page.users}
+      usersError={page.usersError}
+    />
+  );
 }

@@ -1,9 +1,14 @@
-import { getCurrentUser } from "@/lib/api";
+import { getAdminUsers, getCurrentUser } from "@/lib/api";
 import { ApiError } from "@/lib/apiShared";
-import type { UserPublic } from "@/types/api";
+import type { AdminUser, UserPublic } from "@/types/api";
 
 export type AdminPageResult =
-  | { kind: "ok"; currentUser: UserPublic }
+  | {
+      kind: "ok";
+      currentUser: UserPublic;
+      users: AdminUser[];
+      usersError: string | null;
+    }
   | { kind: "unauthenticated" }
   | { kind: "forbidden" }
   | { kind: "error"; message: string };
@@ -11,20 +16,45 @@ export type AdminPageResult =
 const GENERIC_ADMIN_LOAD_ERROR =
   "Spróbuj odświeżyć stronę. Jeśli problem wraca, zaloguj się ponownie.";
 
-/** Gates `/admin` on the current user; list bootstrap belongs to SZP-169/170. */
+/** Gates `/admin` on the current user and bootstraps the users list. */
 export async function loadAdminPage(): Promise<AdminPageResult> {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser.is_admin) {
       return { kind: "forbidden" };
     }
-    return { kind: "ok", currentUser };
+    return await loadAdminUsersBootstrap(currentUser);
   } catch (error) {
-    return mapAdminLoadError(error);
+    return mapAdminGateError(error);
   }
 }
 
-function mapAdminLoadError(error: unknown): AdminPageResult {
+async function loadAdminUsersBootstrap(
+  currentUser: UserPublic,
+): Promise<AdminPageResult> {
+  try {
+    const users = await getAdminUsers();
+    return {
+      kind: "ok",
+      currentUser,
+      users,
+      usersError: null,
+    };
+  } catch (error) {
+    const gateError = mapAdminGateError(error);
+    if (gateError.kind !== "error") {
+      return gateError;
+    }
+    return {
+      kind: "ok",
+      currentUser,
+      users: [],
+      usersError: gateError.message,
+    };
+  }
+}
+
+function mapAdminGateError(error: unknown): AdminPageResult {
   if (error instanceof ApiError && error.status === 401) {
     return { kind: "unauthenticated" };
   }
