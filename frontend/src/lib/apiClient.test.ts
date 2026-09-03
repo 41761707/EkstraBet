@@ -12,6 +12,7 @@ import {
   getTyperLongTermAutoResult,
   getTyperLongTermHistory,
   getTyperLongTermAdminHistory,
+  getTyperRevealedPredictions,
   getUserPreferences,
   publishTyperMatches,
   putUserPreferences,
@@ -289,6 +290,35 @@ describe("typer LM participant client", () => {
     expect(requested).toContain("/api/backend/typer-lm/predictions/101");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(String(init.body))).toEqual({ outcome: "X" });
+  });
+
+  it("GETs revealed predictions through the BFF without cache", async () => {
+    const payload = {
+      season_id: 13,
+      round_number: 1,
+      round_label: "1",
+      participants: [],
+      matches: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(getTyperRevealedPredictions(13, 1)).resolves.toEqual(payload);
+
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/typer-lm/revealed-predictions");
+    expect(requested).toContain("season_id=13");
+    expect(requested).toContain("round_number=1");
+    expect(init.method ?? "GET").toBe("GET");
+    expect(init.cache).toBe("no-store");
   });
 });
 

@@ -123,6 +123,42 @@ def _change_row(
     }
 
 
+def _revealed_row(
+        match_id: int,
+        *,
+        round_number: int = 1,
+        user_uuid: str | None = "u-1",
+        display_name: str | None = "Ada",
+        selected_event_id: int | None = 1,
+        game_date: datetime | None = None) -> dict[str, object]:
+    return {
+        "match_id": match_id,
+        "season_id": 13,
+        "round_number": round_number,
+        "game_date": game_date or _GAME_DATE,
+        "home_team_id": 1,
+        "home_team_name": "Home",
+        "home_team_shortcut": "HOM",
+        "away_team_id": 2,
+        "away_team_name": "Away",
+        "away_team_shortcut": "AWY",
+        "user_uuid": user_uuid,
+        "display_name": display_name,
+        "selected_event_id": selected_event_id
+    }
+
+
+def _revealed_document(
+        rows: list[dict[str, object]],
+        *,
+        round_number: int = 1) -> dict[str, object]:
+    return {
+        "season_id": 13,
+        "round_number": round_number,
+        "rows": rows
+    }
+
+
 def _saved_row(
         outcome_event_id: int,
         *,
@@ -582,6 +618,196 @@ class TestDashboardAndHistory(unittest.TestCase):
         rows = service.get_leaderboard(13)
         self.assertEqual(rows[0]["total_points"], 5.5)
         mock_fetch.assert_called_once_with(13)
+
+
+class TestGetRevealedPredictions(unittest.TestCase):
+    """Revealed picks are grouped, mapped to 1X2 and never 404 when empty."""
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_maps_events_one_x_two(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(101, selected_event_id=1),
+            _revealed_row(
+                102,
+                user_uuid="u-2",
+                display_name="Ben",
+                selected_event_id=2),
+            _revealed_row(
+                103,
+                user_uuid="u-3",
+                display_name="Cora",
+                selected_event_id=3)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        outcomes = [
+            match["picks"][0]["outcome"] for match in document["matches"]]
+        self.assertEqual(outcomes, ["1", "X", "2"])
+        mock_fetch.assert_called_once_with(13, 1)
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_groups_many_picks_and_repeats_one_user(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(101, selected_event_id=1),
+            _revealed_row(
+                101,
+                user_uuid="u-2",
+                display_name="Ben",
+                selected_event_id=3),
+            _revealed_row(102, selected_event_id=2)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        first, second = document["matches"]
+        self.assertEqual(first["match_id"], 101)
+        self.assertEqual(
+            [(pick["user_uuid"], pick["outcome"]) for pick in first["picks"]],
+            [("u-1", "1"), ("u-2", "2")])
+        self.assertEqual(second["picks"][0]["user_uuid"], "u-1")
+        self.assertEqual(second["picks"][0]["outcome"], "X")
+        self.assertEqual(
+            [row["user_uuid"] for row in document["participants"]],
+            ["u-1", "u-2"])
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_sorts_participants_case_insensitively_then_uuid(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(
+                101,
+                user_uuid="u-2",
+                display_name="ada",
+                selected_event_id=1),
+            _revealed_row(
+                101,
+                user_uuid="u-1",
+                display_name="Ada",
+                selected_event_id=2),
+            _revealed_row(
+                102,
+                user_uuid="z-1",
+                display_name="Zoe",
+                selected_event_id=3)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        self.assertEqual(
+            [row["user_uuid"] for row in document["participants"]],
+            ["u-1", "u-2", "z-1"])
+        self.assertEqual(
+            [row["display_name"] for row in document["participants"]],
+            ["Ada", "ada", "Zoe"])
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_uses_coalesced_username_as_display_name(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        # SQL COALESCE zwraca username, gdy display_name jest puste
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(
+                101,
+                user_uuid="u-9",
+                display_name="bob",
+                selected_event_id=1)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        self.assertEqual(document["participants"][0]["display_name"], "bob")
+        self.assertEqual(document["participants"][0]["user_uuid"], "u-9")
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_empty_round_returns_empty_lists(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([])
+        document = service.get_revealed_predictions(13, 1)
+        self.assertEqual(document["season_id"], 13)
+        self.assertEqual(document["round_number"], 1)
+        self.assertEqual(document["round_label"], "1")
+        self.assertEqual(document["participants"], [])
+        self.assertEqual(document["matches"], [])
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_started_match_without_picks_stays_in_matches(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(
+                101,
+                user_uuid=None,
+                display_name=None,
+                selected_event_id=None)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        self.assertEqual(document["participants"], [])
+        self.assertEqual(len(document["matches"]), 1)
+        self.assertEqual(document["matches"][0]["picks"], [])
+        self.assertEqual(document["matches"][0]["home_team"]["name"], "Home")
+
+    @patch(_SPECIAL_ROUNDS, return_value={900: "Baraże"})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_knockout_round_uses_special_label(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document(
+            [_revealed_row(201, round_number=900, selected_event_id=1)],
+            round_number=900)
+        document = service.get_revealed_predictions(13, 900)
+        self.assertEqual(document["round_label"], "Baraże")
+        mock_fetch.assert_called_once_with(13, 900)
+
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_rejects_round_nine_and_899(
+            self, mock_fetch: MagicMock) -> None:
+        for round_number in (9, 899):
+            with self.subTest(round_number=round_number):
+                with self.assertRaises(service.TyperValidationError):
+                    service.get_revealed_predictions(13, round_number)
+        mock_fetch.assert_not_called()
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_unsupported_event_is_validation_error(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(101, selected_event_id=99)
+        ])
+        with self.assertRaises(service.TyperValidationError):
+            service.get_revealed_predictions(13, 1)
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_contract_omits_internal_and_audit_fields(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(101, selected_event_id=2)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        match = document["matches"][0]
+        self.assertNotIn("user_id", document)
+        self.assertNotIn("prediction_id", match)
+        self.assertNotIn("changed_at", match)
+        self.assertNotIn("selected_event_id", match)
+        self.assertNotIn("odds_home", match)
+        self.assertEqual(match["picks"][0]["outcome"], "X")
 
 
 class TestRemovePublication(unittest.TestCase):

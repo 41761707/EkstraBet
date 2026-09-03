@@ -62,6 +62,28 @@ def _away() -> dict[str, object]:
     return {"id": 2, "name": "Away", "shortcut": "AWY"}
 
 
+def _revealed_payload() -> dict[str, object]:
+    return {
+        "season_id": 13,
+        "round_number": 8,
+        "round_label": "8",
+        "participants": [{
+            "user_uuid": "u-1",
+            "display_name": "Ada"
+        }],
+        "matches": [{
+            "match_id": 101,
+            "game_date": _GAME_DATE,
+            "home_team": _team(),
+            "away_team": _away(),
+            "picks": [{
+                "user_uuid": "u-1",
+                "outcome": "1"
+            }]
+        }]
+    }
+
+
 def _dashboard_payload() -> dict[str, object]:
     return {
         "season_id": 13,
@@ -267,6 +289,97 @@ class TestTyperParticipantRouter(TyperRouterTestCase):
         self.assertNotIn("outcome", row)
         self.assertNotIn("selected_event_id", row)
         self.assertNotIn("picked_team_ids", row)
+
+    @patch(f"{_SERVICE}.get_revealed_predictions")
+    def test_revealed_predictions_require_token(
+            self, mock_revealed: MagicMock) -> None:
+        response = self.client.get(
+            "/typer-lm/revealed-predictions",
+            params={"round_number": 1})
+        self.assertEqual(response.status_code, 401)
+        mock_revealed.assert_not_called()
+
+    @patch(
+        f"{_SERVICE}.get_revealed_predictions",
+        return_value=_revealed_payload())
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_revealed_predictions_return_matrix_contract(
+            self,
+            _mock_fetch: MagicMock,
+            mock_revealed: MagicMock) -> None:
+        response = self.client.get(
+            "/typer-lm/revealed-predictions",
+            params={"season_id": 13, "round_number": 8},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        match = payload["matches"][0]
+        self.assertEqual(payload["season_id"], 13)
+        self.assertEqual(payload["round_number"], 8)
+        self.assertEqual(payload["participants"][0]["user_uuid"], "u-1")
+        self.assertEqual(match["picks"][0]["outcome"], "1")
+        self.assertNotIn("user_id", payload)
+        self.assertNotIn("user_id", match)
+        self.assertNotIn("prediction_id", match)
+        self.assertNotIn("changed_at", match)
+        self.assertNotIn("selected_event_id", match)
+        mock_revealed.assert_called_once_with(13, 8)
+
+    @patch(
+        f"{_SERVICE}.get_revealed_predictions",
+        return_value={
+            "season_id": 13,
+            "round_number": 1,
+            "round_label": "1",
+            "participants": [],
+            "matches": []
+        })
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_revealed_predictions_empty_before_kickoff(
+            self,
+            _mock_fetch: MagicMock,
+            mock_revealed: MagicMock) -> None:
+        response = self.client.get(
+            "/typer-lm/revealed-predictions",
+            params={"round_number": 1},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["participants"], [])
+        self.assertEqual(payload["matches"], [])
+        mock_revealed.assert_called_once_with(None, 1)
+
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_revealed_predictions_invalid_query_returns_422(
+            self, _mock_fetch: MagicMock) -> None:
+        cases = [
+            {},
+            {"round_number": 0},
+            {"season_id": 0, "round_number": 1},
+            {"season_id": "x", "round_number": 1}]
+        for params in cases:
+            with self.subTest(params=params):
+                response = self.client.get(
+                    "/typer-lm/revealed-predictions",
+                    params=params,
+                    headers=self._auth_headers())
+                self.assertEqual(response.status_code, 422)
+
+    @patch(f"{_SERVICE}.get_revealed_predictions")
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_revealed_predictions_round_rule_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_revealed: MagicMock) -> None:
+        mock_revealed.side_effect = TyperValidationError(
+            "round_number must be a group-stage round 1-8 "
+            "or a knockout round >= 900")
+        response = self.client.get(
+            "/typer-lm/revealed-predictions",
+            params={"season_id": 13, "round_number": 9},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 422)
+        mock_revealed.assert_called_once_with(13, 9)
 
 
 class TestTyperAdminRouter(TyperRouterTestCase):
@@ -496,6 +609,22 @@ class TestTyperAdminRouter(TyperRouterTestCase):
         self.assertEqual(response.json()[0]["new_outcome"], "X")
         mock_history.assert_called_once_with(
             _TEST_USER["uuid"], 101, 13)
+
+    @patch(
+        f"{_SERVICE}.get_revealed_predictions",
+        return_value=_revealed_payload())
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_admin_can_read_revealed_predictions(
+            self,
+            _mock_fetch: MagicMock,
+            mock_revealed: MagicMock) -> None:
+        response = self.client.get(
+            "/typer-lm/revealed-predictions",
+            params={"season_id": 13, "round_number": 8},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["round_number"], 8)
+        mock_revealed.assert_called_once_with(13, 8)
 
 
 if __name__ == "__main__":

@@ -169,6 +169,30 @@ def get_dashboard(
     }
 
 
+def get_revealed_predictions(
+        season_id: int | None,
+        round_number: int) -> dict[str, Any]:
+    """Return started published matches with public 1X2 picks.
+
+    Empty rounds before kick-off are a valid 200 with empty lists.
+    """
+    _validate_supported_round(round_number)
+    with _repository_errors():
+        document = repository.fetch_revealed_predictions(
+            season_id, round_number)
+    special_rounds = league_repository.fetch_special_round_names()
+    matches, participants = _group_revealed_rows(document["rows"])
+    resolved_round = int(document["round_number"])
+    return {
+        "season_id": int(document["season_id"]),
+        "round_number": resolved_round,
+        "round_label": _typer_round_label(
+            resolved_round, special_rounds),
+        "participants": participants,
+        "matches": matches
+    }
+
+
 def get_leaderboard(season_id: int | None) -> list[dict[str, Any]]:
     """Return ranking scored from regulation results and Superbet odds."""
     with _repository_errors():
@@ -225,12 +249,15 @@ def _validate_publication_set(
     if len(match_ids) != len(set(match_ids)):
         raise TyperValidationError(
             "Duplicate match ids in publication set")
+    _validate_supported_round(round_number)
     if is_group_stage_round(round_number):
         _assert_group_stage_set(season_id, round_number, match_ids)
         return
-    if is_knockout_round(round_number):
-        _assert_complete_knockout_set(
-            season_id, round_number, match_ids)
+    _assert_complete_knockout_set(season_id, round_number, match_ids)
+
+
+def _validate_supported_round(round_number: int) -> None:
+    if is_group_stage_round(round_number) or is_knockout_round(round_number):
         return
     raise TyperValidationError(
         "round_number must be a group-stage round 1-8 "
@@ -301,6 +328,73 @@ def _typer_round_label(
         special_rounds: dict[int, str]) -> str:
     label = resolve_round_label(round_number, special_rounds)
     return label if label else str(round_number)
+
+
+def _group_revealed_rows(
+        rows: list[dict[str, Any]]
+        ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    matches_by_id: dict[int, dict[str, Any]] = {}
+    participants_by_uuid: dict[str, dict[str, str]] = {}
+    for row in rows:
+        match_id = int(row["match_id"])
+        if match_id not in matches_by_id:
+            matches_by_id[match_id] = _map_revealed_match(row)
+        pick = _map_revealed_pick(row)
+        if pick is None:
+            continue
+        matches_by_id[match_id]["picks"].append(pick)
+        user_uuid = pick["user_uuid"]
+        if user_uuid not in participants_by_uuid:
+            participants_by_uuid[user_uuid] = {
+                "user_uuid": user_uuid,
+                "display_name": _revealed_display_name(row)
+            }
+    participants = sorted(
+        participants_by_uuid.values(),
+        key=_participant_sort_key)
+    return list(matches_by_id.values()), participants
+
+
+def _participant_sort_key(item: dict[str, str]) -> tuple[str, str]:
+    return (item["display_name"].casefold(), item["user_uuid"])
+
+
+def _revealed_display_name(row: dict[str, Any]) -> str:
+    # SQL już robi COALESCE do username; tu tylko normalizujemy etykietę
+    raw = row["display_name"]
+    if raw is None:
+        return ""
+    return str(raw).strip()
+
+
+def _map_revealed_match(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "match_id": int(row["match_id"]),
+        "game_date": row["game_date"],
+        "home_team": _map_team(
+            row["home_team_id"],
+            row["home_team_name"],
+            row["home_team_shortcut"]),
+        "away_team": _map_team(
+            row["away_team_id"],
+            row["away_team_name"],
+            row["away_team_shortcut"]),
+        "picks": []
+    }
+
+
+def _map_revealed_pick(row: dict[str, Any]) -> dict[str, Any] | None:
+    user_uuid = row["user_uuid"]
+    if user_uuid is None:
+        return None
+    outcome = outcome_for_event_id(row["selected_event_id"])
+    if outcome is None:
+        raise TyperValidationError(
+            "selected_event_id must be 1, 2 or 3")
+    return {
+        "user_uuid": str(user_uuid),
+        "outcome": outcome
+    }
 
 
 def _group_dashboard_rounds(

@@ -90,6 +90,49 @@ class TyperDashboardResponse(BaseModel):
     rounds: list[TyperRound] = Field(..., description="Published rounds")
 
 
+class TyperRevealedParticipant(BaseModel):
+    """Contestant who has at least one pick among revealed matches."""
+
+    user_uuid: str = Field(..., description="Public user UUID")
+    display_name: str = Field(..., description="Display name")
+
+
+class TyperRevealedPick(BaseModel):
+    """One revealed 1X2 pick for a started published match."""
+
+    user_uuid: str = Field(..., description="Public user UUID")
+    outcome: TyperOutcome = Field(..., description="Revealed 1X2 pick")
+
+
+class TyperRevealedMatch(BaseModel):
+    """Started published match with revealed picks for the matrix."""
+
+    match_id: int = Field(..., description="Match ID")
+    game_date: datetime | date = Field(..., description="Kick-off datetime")
+    home_team: TyperTeam = Field(..., description="Home team")
+    away_team: TyperTeam = Field(..., description="Away team")
+    picks: list[TyperRevealedPick] = Field(
+        ...,
+        description="Current 1X2 picks; missing users mean no pick")
+
+
+class TyperRevealedPredictionsResponse(BaseModel):
+    """Response model for GET /typer-lm/revealed-predictions."""
+
+    season_id: int = Field(..., description="Resolved season ID")
+    round_number: int = Field(..., description="Requested round number")
+    round_label: str = Field(
+        ...,
+        description=(
+            "Display label; knockout rounds use special_rounds names"))
+    participants: list[TyperRevealedParticipant] = Field(
+        ...,
+        description="Users with at least one pick in the revealed matches")
+    matches: list[TyperRevealedMatch] = Field(
+        ...,
+        description="Started published matches of the round")
+
+
 class SavePredictionRequest(BaseModel):
     """Body for PUT /typer-lm/predictions/{match_id}."""
 

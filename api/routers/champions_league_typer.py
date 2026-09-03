@@ -19,7 +19,8 @@ from api.schemas.champions_league_typer import (
     TyperDashboardResponse,
     TyperLeaderboardRow,
     TyperPredictionChange,
-    TyperPublication)
+    TyperPublication,
+    TyperRevealedPredictionsResponse)
 from backend.config import get_settings
 from backend.services import champions_league_typer_service as typer_service
 
@@ -69,6 +70,25 @@ async def get_dashboard(
     payload = _invoke(
         lambda: typer_service.get_dashboard(_user_id(user), season_id))
     return TyperDashboardResponse(**payload)
+
+
+@router.get(
+    "/revealed-predictions",
+    response_model=TyperRevealedPredictionsResponse)
+async def get_revealed_predictions(
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+    season_id: int | None = Query(
+        None,
+        ge=1,
+        description="Season ID; defaults to the league current season"),
+    round_number: int = Query(..., ge=1, description="Round number")
+) -> TyperRevealedPredictionsResponse:
+    """Return revealed 1X2 picks for started published matches."""
+    _ = user
+    payload = _invoke(
+        lambda: typer_service.get_revealed_predictions(
+            season_id, round_number))
+    return TyperRevealedPredictionsResponse(**payload)
 
 
 @router.put(

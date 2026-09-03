@@ -25,6 +25,12 @@ import {
   TyperLmLongTermTab,
 } from "@/components/typer-lm/TyperLmLongTermTab";
 import { TyperLmMatchCard } from "@/components/typer-lm/TyperLmMatchCard";
+import {
+  TyperLmRevealedPredictions,
+  TyperLmRevealedPredictionsPanel,
+  type TyperLmRevealedPredictionsPanelProps,
+} from "@/components/typer-lm/TyperLmRevealedPredictions";
+import { TyperLmRevealedPredictionsTable } from "@/components/typer-lm/TyperLmRevealedPredictionsTable";
 import { TyperLmRoundPicker } from "@/components/typer-lm/TyperLmRoundPicker";
 import { TyperLmRules } from "@/components/typer-lm/TyperLmRules";
 import { TyperLmViewTabs } from "@/components/typer-lm/TyperLmViewTabs";
@@ -52,6 +58,8 @@ import type {
   TyperDashboardResponse,
   TyperLeaderboardRow,
   TyperMatch,
+  TyperRevealedMatch,
+  TyperRevealedPredictionsResponse,
 } from "@/types/api";
 
 vi.mock("next/navigation", () => ({
@@ -461,11 +469,27 @@ describe("TyperLmViewTabs", () => {
     );
 
     expect(html).toContain("Kolejka");
+    expect(html).toContain("Typy uczestników");
     expect(html).toContain("Długoterminowe");
     expect(html).toContain("Ranking");
     expect(html).not.toContain("role=\"tablist\"");
     expect(html).not.toContain("role=\"tab\"");
     expect(html).not.toContain("aria-selected");
+  });
+
+  it("keeps the target tab order with long_term present", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmViewTabs activeTab="round" onChange={() => undefined} />,
+    );
+    const roundAt = html.indexOf("Kolejka");
+    const revealedAt = html.indexOf("Typy uczestników");
+    const longTermAt = html.indexOf("Długoterminowe");
+    const rankingAt = html.indexOf("Ranking");
+
+    expect(roundAt).toBeGreaterThan(-1);
+    expect(revealedAt).toBeGreaterThan(roundAt);
+    expect(longTermAt).toBeGreaterThan(revealedAt);
+    expect(rankingAt).toBeGreaterThan(longTermAt);
   });
 });
 
@@ -934,6 +958,16 @@ describe("TyperLmRules", () => {
     }
   });
 
+  it("describes 1X2 privacy until kickoff and keeps long-term picks private", () => {
+    const html = renderToStaticMarkup(<TyperLmRules />);
+
+    expect(html).not.toContain("Typy innych osób nie są publiczne");
+    expect(html).toContain("prywatne do rozpoczęcia danego meczu");
+    expect(html).toContain("stają się publiczne po jego starcie");
+    expect(html).toContain("Typy 1X2 innych uczestników");
+    expect(html).toContain("Długoterminowe - TOP 8");
+  });
+
   it("keeps the full rules out of match cards", () => {
     const html = renderToStaticMarkup(
       <TyperLmMatchCard
@@ -984,6 +1018,8 @@ describe("Typer LM page smoke", () => {
     expect(html).not.toContain("Rozliczenie —");
     expect(html).toContain("Bayern Monachium");
     expect(html).toContain("1.85");
+    expect(html).toContain("Typy uczestników");
+    expect(html).not.toContain("Widoczne po rozpoczęciu meczu");
   });
 
   it("shows the admin panel after the rules for an administrator", () => {
@@ -1268,5 +1304,224 @@ describe("TyperLmLongTermAdminAuditLookup", () => {
     expect(html).toContain("rynek 1");
     expect(html).toContain("pierwszy zapis");
     expect(html).toContain(formatMatchDateTime("2026-09-11T18:30:00"));
+  });
+});
+
+function sampleRevealedMatch(
+  overrides: Partial<TyperRevealedMatch> = {},
+): TyperRevealedMatch {
+  return {
+    match_id: 101,
+    game_date: "2026-09-16T21:00:00",
+    home_team: { id: 1, name: "Bayern Monachium", shortcut: "BAY" },
+    away_team: { id: 2, name: "Arsenal", shortcut: "ARS" },
+    picks: [
+      { user_uuid: "user-1", outcome: "1" },
+      { user_uuid: "user-2", outcome: "X" },
+    ],
+    ...overrides,
+  };
+}
+
+function sampleRevealedPayload(
+  overrides: Partial<TyperRevealedPredictionsResponse> = {},
+): TyperRevealedPredictionsResponse {
+  return {
+    season_id: 13,
+    round_number: 1,
+    round_label: "1",
+    participants: [
+      { user_uuid: "user-1", display_name: "Ala" },
+      { user_uuid: "user-2", display_name: "Bartek" },
+    ],
+    matches: [sampleRevealedMatch()],
+    ...overrides,
+  };
+}
+
+function renderRevealedPanel(
+  overrides: Partial<TyperLmRevealedPredictionsPanelProps> = {},
+): string {
+  return renderToStaticMarkup(
+    <TyperLmRevealedPredictionsPanel
+      rounds={sampleDashboard().rounds}
+      selectedRound={1}
+      publishedMatchCount={1}
+      data={null}
+      isLoading={false}
+      isRefreshing={false}
+      errorMessage={null}
+      lastLoadedAt={null}
+      currentUserUuid="user-1"
+      teamNameDisplay="full"
+      onSelectRound={() => undefined}
+      onRefresh={() => undefined}
+      {...overrides}
+    />,
+  );
+}
+
+describe("TyperLmRevealedPredictions", () => {
+  it("shows loading on first paint without mounting the table", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmRevealedPredictions
+        seasonId={13}
+        rounds={sampleDashboard().rounds}
+        selectedRound={1}
+        currentUserUuid="user-1"
+        teamNameDisplay="full"
+        onSelectRound={() => undefined}
+      />,
+    );
+    expect(html).toContain("Ładowanie typów uczestników");
+    expect(html).toContain("Widoczne po rozpoczęciu meczu");
+    expect(html).toContain("Odśwież");
+    expect(html).not.toContain("scope=\"col\"");
+  });
+});
+
+describe("TyperLmRevealedPredictionsPanel", () => {
+  it("shows an empty state before any kick-off", () => {
+    const html = renderRevealedPanel({
+      data: sampleRevealedPayload({ matches: [], participants: [] }),
+    });
+    expect(html).toContain("Brak rozpoczętych meczów");
+    expect(html).toContain("po kickoffie");
+    expect(html).toContain("Rozpoczęte mecze: 0 / 1");
+  });
+
+  it("shows a network error with a retry action", () => {
+    const html = renderRevealedPanel({
+      errorMessage: "Nie udało się wczytać typów uczestników. Spróbuj ponownie.",
+      lastLoadedAt: Date.parse("2026-09-16T21:05:00.000Z"),
+    });
+    expect(html).toContain("Nie udało się wczytać typów uczestników");
+    expect(html).toContain("Spróbuj ponownie");
+    expect(html).not.toContain("Ostatnia aktualizacja:");
+    expect(html).not.toContain("scope=\"col\"");
+  });
+
+  it("keeps the last table when a refresh fails", () => {
+    const lastLoadedAt = Date.parse("2026-09-16T21:05:00.000Z");
+    const html = renderRevealedPanel({
+      data: sampleRevealedPayload(),
+      errorMessage: "Nie udało się wczytać typów uczestników. Spróbuj ponownie.",
+      lastLoadedAt,
+    });
+    expect(html).toContain("Nie udało się wczytać typów uczestników");
+    expect(html).toContain("Ostatnia aktualizacja:");
+    expect(html).toContain(
+      formatMatchDateTime(new Date(lastLoadedAt).toISOString()),
+    );
+    expect(html).toContain("Bayern Monachium (1)");
+    expect(html).not.toContain(">Spróbuj ponownie</button>");
+  });
+
+  it("disables refresh while keeping the last table", () => {
+    const html = renderRevealedPanel({
+      data: sampleRevealedPayload(),
+      isRefreshing: true,
+    });
+    expect(html).toContain("Bayern Monachium (1)");
+    expect(html).toContain("scope=\"col\"");
+    expect(html).toMatch(/disabled=""[^>]*>Odśwież/);
+  });
+
+  it("renders a loading state without dropping the round picker", () => {
+    const html = renderRevealedPanel({ isLoading: true });
+    expect(html).toContain("Ładowanie typów uczestników");
+    expect(html).toContain("Kolejka 1");
+    expect(html).toContain("Odśwież");
+  });
+});
+
+describe("TyperLmRevealedPredictionsTable", () => {
+  it("renders semantic headers, missing picks and sticky scroll classes", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmRevealedPredictionsTable
+        matches={[
+          sampleRevealedMatch(),
+          sampleRevealedMatch({
+            match_id: 202,
+            home_team: { id: 3, name: "Barcelona", shortcut: "BAR" },
+            away_team: { id: 4, name: "Inter", shortcut: "INT" },
+            picks: [{ user_uuid: "user-1", outcome: "2" }],
+          }),
+        ]}
+        participants={[
+          { user_uuid: "user-1", display_name: "Ala" },
+          { user_uuid: "user-2", display_name: "Bartek" },
+        ]}
+        currentUserUuid="user-1"
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("overflow-auto");
+    expect(html).toContain("max-h-[min(70vh,36rem)]");
+    expect(html).toContain("border-separate");
+    expect(html).toContain("border-spacing-0");
+    expect(html).toContain("sticky left-0");
+    expect(html).toContain("sticky top-0");
+    expect(html).toContain('scope="col"');
+    expect(html).toContain('scope="row"');
+    expect(html).toContain("Mecz");
+    expect(html).toContain("Ala");
+    expect(html).toContain("Bartek");
+    expect(html).toMatch(/whitespace-nowrap[^>]*>Ala/);
+    expect(html).toContain("Bayern Monachium (1)");
+    expect(html).toContain("Remis (X)");
+    expect(html).toContain("Inter (2)");
+    expect(html).toContain('aria-label="Brak typu"');
+    expect(html).toContain("—");
+    expect(html.indexOf("Bayern Monachium")).toBeLessThan(
+      html.indexOf("Barcelona"),
+    );
+    expect(html).toContain("bg-accent-soft");
+  });
+
+  it("relabels cells from the name preference without changing payload order", () => {
+    const matches = [sampleRevealedMatch()];
+    const participants = [
+      { user_uuid: "user-1", display_name: "Ala" },
+      { user_uuid: "user-2", display_name: "Bartek" },
+    ];
+    const full = renderToStaticMarkup(
+      <TyperLmRevealedPredictionsTable
+        matches={matches}
+        participants={participants}
+        currentUserUuid="user-1"
+        teamNameDisplay="full"
+      />,
+    );
+    const shortcut = renderToStaticMarkup(
+      <TyperLmRevealedPredictionsTable
+        matches={matches}
+        participants={participants}
+        currentUserUuid="user-1"
+        teamNameDisplay="shortcut"
+      />,
+    );
+    expect(full).toContain("Bayern Monachium (1)");
+    expect(full).toContain("min-w-44");
+    expect(shortcut).toContain("BAY (1)");
+    expect(shortcut).toContain("ARS");
+    expect(shortcut).toContain("min-w-28");
+    expect(shortcut).not.toContain("Bayern Monachium (1)");
+  });
+
+  it("keeps started matches when nobody has picked yet", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmRevealedPredictionsTable
+        matches={[sampleRevealedMatch({ picks: [] })]}
+        participants={[]}
+        currentUserUuid="user-1"
+        teamNameDisplay="shortcut"
+      />,
+    );
+    expect(html).toContain("Brak oddanych typów");
+    expect(html).toContain("BAY – ARS");
+    expect(html).toMatch(/bg-surface-muted[^>]*>Brak oddanych typów/);
+    expect(html).toMatch(/whitespace-nowrap[^>]*>Brak oddanych typów/);
+    expect(html).toContain('aria-label="Brak typu"');
   });
 });

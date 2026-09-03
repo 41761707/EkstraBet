@@ -29,6 +29,7 @@ import type {
 import { TyperLmLeaderboard } from "./TyperLmLeaderboard";
 import { TyperLmLongTermTab } from "./TyperLmLongTermTab";
 import { TyperLmMatchCard } from "./TyperLmMatchCard";
+import { TyperLmRevealedPredictions } from "./TyperLmRevealedPredictions";
 import { TyperLmRoundPicker } from "./TyperLmRoundPicker";
 import { TyperLmViewTabs, type TyperLmTab } from "./TyperLmViewTabs";
 
@@ -94,6 +95,15 @@ export function TyperLmDashboard({
           dashboard={longTermDashboard}
           errorMessage={longTermError}
           nowMs={nowMs}
+        />
+      ) : tab === "revealed" ? (
+        <TyperLmRevealedPredictions
+          seasonId={predictions.dashboard.season_id}
+          rounds={predictions.dashboard.rounds}
+          selectedRound={predictions.selectedRound}
+          currentUserUuid={currentUserUuid}
+          teamNameDisplay={preferences.teamNameDisplay}
+          onSelectRound={predictions.setSelectedRound}
         />
       ) : (
         <RoundPanel
