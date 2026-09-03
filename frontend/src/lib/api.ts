@@ -17,6 +17,11 @@ import {
   type SearchParams,
 } from "@/lib/apiShared";
 import { getServerAuthHeaders } from "@/lib/auth";
+import {
+  compareBetEventOptions,
+  mergeEventFilterOption,
+  type EventFilterOption,
+} from "@/lib/betEventOptions";
 import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
 import { getApiBaseUrl } from "@/lib/runtimeConfig";
 import type {
@@ -614,24 +619,35 @@ export async function getFamilyEvents(
 
 export async function getAllEventOptions(
   sportId = 1,
-): Promise<{ id: number; label: string }[]> {
+): Promise<EventFilterOption[]> {
   const families = await getEventFamilies(sportId);
-  const eventsById = new Map<number, string>();
+  const eventsById = new Map<number, EventFilterOption>();
 
-  await Promise.all(
+  const familyResults = await Promise.all(
     families.event_families.map(async (family) => {
       const response = await getFamilyEvents(family.id);
-      for (const mapping of response.family_events) {
-        if (mapping.event_name) {
-          eventsById.set(mapping.event_id, mapping.event_name);
-        }
-      }
+      return { familyName: family.name, mappings: response.family_events };
     }),
   );
 
-  return Array.from(eventsById.entries())
-    .map(([id, label]) => ({ id, label }))
-    .sort((left, right) => left.label.localeCompare(right.label, "pl"));
+  for (const { familyName, mappings } of familyResults) {
+    for (const mapping of mappings) {
+      if (!mapping.event_name) {
+        continue;
+      }
+      const nextOption: EventFilterOption = {
+        id: mapping.event_id,
+        label: mapping.event_name,
+        familyName: mapping.family_name ?? familyName,
+      };
+      eventsById.set(
+        mapping.event_id,
+        mergeEventFilterOption(eventsById.get(mapping.event_id), nextOption),
+      );
+    }
+  }
+
+  return Array.from(eventsById.values()).sort(compareBetEventOptions);
 }
 
 export async function getPlayerSports(): Promise<PlayerSportsListResponse> {

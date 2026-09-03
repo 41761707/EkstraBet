@@ -43,4 +43,30 @@ describe("MultiSelectCheckboxGroup", () => {
     expect(html).toContain("Odznacz wszystkie");
     expect(hasDisabledClearButton(html)).toBe(false);
   });
+
+  it("renders popular events above niche sections without renaming options", () => {
+    const html = renderToStaticMarkup(
+      createElement(MultiSelectCheckboxGroup, {
+        label: "Wydarzenia",
+        name: "events",
+        sections: [
+          {
+            title: "Najpopularniejsze",
+            options: [{ id: 8, label: "Powyżej 2.5 gola" }],
+          },
+          {
+            title: "Pozostałe",
+            options: [{ id: 201, label: "0:3" }],
+          },
+        ],
+        selectedIds: [],
+        onChange: () => undefined,
+      }),
+    );
+    expect(html).toContain("Najpopularniejsze");
+    expect(html).toContain("Pozostałe");
+    expect(html).toContain("Powyżej 2.5 gola");
+    expect(html).toContain("0:3");
+    expect(html.indexOf("Powyżej 2.5 gola")).toBeLessThan(html.indexOf("0:3"));
+  });
 });
