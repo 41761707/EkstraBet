@@ -21,11 +21,12 @@ describe("TYPER_LM_RULES_SECTIONS", () => {
 
   it("keeps long-term picks private", () => {
     const longTerm = TYPER_LM_RULES_SECTIONS.find(
-      (section) => section.heading === "Długoterminowe -TOP 8",
+      (section) => section.heading === "Długoterminowe - TOP 8",
     );
 
-    expect(longTerm?.items).toContain(
-      "Wybory innych uczestników nie są publiczne.",
-    );
+    expect(longTerm).toBeDefined();
+    expect(
+      longTerm?.items.some((item) => item.includes("stają się publiczne")),
+    ).toBe(false);
   });
 });

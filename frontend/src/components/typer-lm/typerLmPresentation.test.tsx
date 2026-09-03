@@ -964,7 +964,8 @@ describe("TyperLmRules", () => {
     expect(html).not.toContain("Typy innych osób nie są publiczne");
     expect(html).toContain("prywatne do rozpoczęcia danego meczu");
     expect(html).toContain("stają się publiczne po jego starcie");
-    expect(html).toContain("Wybory innych uczestników nie są publiczne");
+    expect(html).toContain("Typy 1X2 innych uczestników");
+    expect(html).toContain("Długoterminowe - TOP 8");
   });
 
   it("keeps the full rules out of match cards", () => {
