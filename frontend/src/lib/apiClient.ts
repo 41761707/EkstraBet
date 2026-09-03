@@ -34,6 +34,7 @@ import type {
   TyperAdminCandidatesResponse,
   TyperOutcome,
   TyperPredictionChange,
+  TyperRevealedPredictionsResponse,
   UserPreferencesResponse,
   UserPreferencesUpdate,
 } from "@/types/api";
@@ -224,6 +225,19 @@ export async function saveTyperPrediction(
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ outcome }),
+    },
+  );
+}
+
+export async function getTyperRevealedPredictions(
+  seasonId: number,
+  roundNumber: number,
+): Promise<TyperRevealedPredictionsResponse> {
+  return fetchViaBff<TyperRevealedPredictionsResponse>(
+    "/typer-lm/revealed-predictions",
+    {
+      season_id: seasonId,
+      round_number: roundNumber,
     },
   );
 }

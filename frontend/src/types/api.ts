@@ -1331,6 +1331,36 @@ export interface TyperDashboardResponse {
   rounds: TyperRound[];
 }
 
+/** Contestant who has at least one pick among revealed matches. */
+export interface TyperRevealedParticipant {
+  user_uuid: string;
+  display_name: string;
+}
+
+/** One revealed 1X2 pick for a started published match. */
+export interface TyperRevealedPick {
+  user_uuid: string;
+  outcome: TyperOutcome;
+}
+
+/** Started published match with revealed picks for the matrix. */
+export interface TyperRevealedMatch {
+  match_id: number;
+  game_date: string;
+  home_team: TyperTeam;
+  away_team: TyperTeam;
+  picks: TyperRevealedPick[];
+}
+
+/** Response model for GET /typer-lm/revealed-predictions. */
+export interface TyperRevealedPredictionsResponse {
+  season_id: number;
+  round_number: number;
+  round_label: string;
+  participants: TyperRevealedParticipant[];
+  matches: TyperRevealedMatch[];
+}
+
 /** Body for PUT /typer-lm/predictions/{match_id}. */
 export interface SaveTyperPredictionRequest {
   outcome: TyperOutcome;
