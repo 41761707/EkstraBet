@@ -1,11 +1,22 @@
 /** Pure presentation helpers for the revealed Typer LM picks matrix. */
 
+import { ApiError } from "@/lib/apiShared";
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { formatTyperOutcomeButtonLabel } from "@/lib/typerLm";
 import type {
   TyperOutcome,
   TyperRevealedMatch,
 } from "@/types/api";
+
+export function revealedPredictionsLoadErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 401) {
+    return "Sesja wygasła. Zaloguj się ponownie.";
+  }
+  if (error instanceof ApiError && error.status === 422) {
+    return "Wybrana runda nie jest obsługiwana.";
+  }
+  return "Nie udało się wczytać typów uczestników. Spróbuj ponownie.";
+}
 
 /**
  * Format a revealed 1X2 cell using the existing team-name preference,

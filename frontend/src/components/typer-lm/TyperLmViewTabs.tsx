@@ -1,4 +1,4 @@
-export type TyperLmTab = "round" | "ranking" | "long_term";
+export type TyperLmTab = "round" | "revealed" | "long_term" | "ranking";
 
 interface TyperLmViewTabsProps {
   activeTab: TyperLmTab;
@@ -7,6 +7,7 @@ interface TyperLmViewTabsProps {
 
 const TABS: { id: TyperLmTab; label: string }[] = [
   { id: "round", label: "Kolejka" },
+  { id: "revealed", label: "Typy uczestników" },
   { id: "long_term", label: "Długoterminowe" },
   { id: "ranking", label: "Ranking" },
 ];

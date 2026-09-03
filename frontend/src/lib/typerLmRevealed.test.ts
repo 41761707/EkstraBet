@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { ApiError } from "@/lib/apiShared";
 import {
   buildRevealedPickLookup,
   formatRevealedPickLabel,
+  revealedPredictionsLoadErrorMessage,
 } from "@/lib/typerLmRevealed";
 import type { TyperRevealedMatch } from "@/types/api";
 
@@ -81,5 +83,19 @@ describe("buildRevealedPickLookup", () => {
     expect(lookup.get(101)?.get("user-2")).toBe("X");
     expect(lookup.get(202)?.get("user-1")).toBe("2");
     expect(lookup.get(202)?.get("user-2")).toBeUndefined();
+  });
+});
+
+describe("revealedPredictionsLoadErrorMessage", () => {
+  it("maps 401 and 422, then falls back for other errors", () => {
+    expect(
+      revealedPredictionsLoadErrorMessage(new ApiError(401, "no session")),
+    ).toContain("Sesja wygasła");
+    expect(
+      revealedPredictionsLoadErrorMessage(new ApiError(422, "round")),
+    ).toContain("nie jest obsługiwana");
+    expect(
+      revealedPredictionsLoadErrorMessage(new Error("network")),
+    ).toContain("Spróbuj ponownie");
   });
 });
