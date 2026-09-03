@@ -73,4 +73,25 @@ describe("AdminPageView", () => {
     expect(html).toContain("2026/27");
     expect(html).not.toContain("password_hash");
   });
+
+  it("stays independent from Typer LM participant and admin views", () => {
+    const html = renderToStaticMarkup(
+      <AdminPageView
+        currentUserUuid={sampleUser().uuid}
+        users={[sampleUser()]}
+        leagues={[sampleLeague()]}
+        countries={COUNTRIES}
+        sports={SPORTS}
+        seasons={SEASONS}
+      />,
+    );
+
+    expect(html).toContain(ADMIN_USERS_TITLE);
+    expect(html).toContain(ADMIN_LEAGUES_TITLE);
+    expect(html).not.toContain("Regulamin Typera LM");
+    expect(html).not.toContain("Typy uczestników");
+    expect(html).not.toContain("Widoczne po rozpoczęciu meczu");
+    expect(html).not.toContain("Długoterminowe");
+    expect(html).not.toContain("Audyt typów");
+  });
 });

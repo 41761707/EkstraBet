@@ -958,6 +958,15 @@ describe("TyperLmRules", () => {
     }
   });
 
+  it("describes 1X2 privacy until kickoff and keeps long-term picks private", () => {
+    const html = renderToStaticMarkup(<TyperLmRules />);
+
+    expect(html).not.toContain("Typy innych osób nie są publiczne");
+    expect(html).toContain("prywatne do rozpoczęcia danego meczu");
+    expect(html).toContain("stają się publiczne po jego starcie");
+    expect(html).toContain("Wybory innych uczestników nie są publiczne");
+  });
+
   it("keeps the full rules out of match cards", () => {
     const html = renderToStaticMarkup(
       <TyperLmMatchCard
