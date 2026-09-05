@@ -87,9 +87,10 @@ _TABLE_SPECS: tuple[TableSpec, ...] = (
     TableSpec("event_family_mappings", SyncKind.DICTIONARY),
     TableSpec("event_model_families", SyncKind.DICTIONARY),
     TableSpec("models", SyncKind.DICTIONARY),
-    TableSpec("season_projection_runs", SyncKind.DICTIONARY),
-    TableSpec("season_projection_team_rows", SyncKind.DICTIONARY),
-    TableSpec("schedule", SyncKind.DICTIONARY),
+    #Table season_projection_team_rows has a composite PRIMARY KEY; not supported
+    #TableSpec("season_projection_runs", SyncKind.DICTIONARY),
+    #TableSpec("season_projection_team_rows", SyncKind.DICTIONARY),
+    #TableSpec("schedule", SyncKind.DICTIONARY),
     # male tabele "stan biezacy" — append + --full-dict
     TableSpec("basketball_current_roster", SyncKind.DICTIONARY),
     TableSpec("hockey_rosters", SyncKind.DICTIONARY),
