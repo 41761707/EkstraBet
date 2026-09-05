@@ -16,7 +16,7 @@ class LongTermTeam(BaseModel):
 
 
 class LongTermStandingTeam(LongTermTeam):
-    """League-phase table row used in the admin TOP 8 proposal."""
+    """League-phase table row used in the admin ranked-table proposal."""
 
     played: int = Field(..., description="Settled league-phase matches")
     points: int = Field(..., description="League-phase points")
@@ -33,10 +33,12 @@ class LongTermPickChange(BaseModel):
     display_name: str = Field(..., description="Display name")
     previous_team_ids: list[int] | None = Field(
         None,
-        description="Previous sorted team IDs; null on the first save")
+        description=(
+            "Previous team IDs in table order; "
+            "null on the first save"))
     new_team_ids: list[int] = Field(
         ...,
-        description="New sorted team IDs")
+        description="New team IDs in table order")
     changed_at: datetime = Field(
         ...,
         description="When the set was saved")
@@ -58,7 +60,22 @@ class LongTermMarketCard(BaseModel):
         description="Required number of distinct teams")
     points_per_correct: float = Field(
         ...,
-        description="Points awarded for each correct team")
+        description="Points awarded for matching a TOP or BOT zone")
+    points_per_exact_position: float = Field(
+        ...,
+        description="Bonus points awarded for an exact table position")
+    market_kind: str = Field(
+        ...,
+        description="Market shape, e.g. ranked_team_table")
+    scoring_kind: str = Field(
+        ...,
+        description="Scoring formula, e.g. zone_and_position")
+    top_zone_size: int = Field(
+        ...,
+        description="TOP zone width; -1 when unused")
+    bot_zone_size: int = Field(
+        ...,
+        description="BOT zone width; -1 when unused")
     settled_at: datetime | date | None = Field(
         None,
         description="When an admin approved the result")
@@ -73,14 +90,16 @@ class LongTermMarketCard(BaseModel):
         description="Distinct league-phase participants")
     picked_team_ids: list[int] = Field(
         ...,
-        description="Current user's selected team IDs")
+        description="Current user's team IDs in table order")
     result_team_ids: list[int] = Field(
         ...,
-        description="Approved result team IDs; empty until settled")
+        description=(
+            "Approved result team IDs in table order; "
+            "empty until settled"))
     points: float | None = Field(
         None,
         description=(
-            "Hits times points_per_correct after settlement; "
+            "Zone-and-position score after settlement; "
             "null while the market is unsettled"))
     changes: list[LongTermPickChange] = Field(
         ...,
@@ -103,8 +122,8 @@ class LongTermTeamIdsRequest(BaseModel):
         ...,
         min_length=1,
         description=(
-            "Team IDs; order is ignored. Count must match "
-            "the market selection size"))
+            "Team IDs in table order; index 0 is position 1. "
+            "Count must match the market selection size"))
 
     @field_validator("team_ids")
     @classmethod
@@ -124,17 +143,17 @@ class SaveLongTermPicksResponse(BaseModel):
     market_id: int = Field(..., description="Long-term market ID")
     team_ids: list[int] = Field(
         ...,
-        description="Saved team IDs sorted ascending")
+        description="Saved team IDs in table order")
     previous_team_ids: list[int] | None = Field(
         None,
-        description="Previous set; null on the first save")
+        description="Previous set in table order; null on the first save")
     audit_written: bool = Field(
         ...,
-        description="False when the identical set was a no-op")
+        description="False when the identical sequence was a no-op")
 
 
 class LongTermAutoResultResponse(BaseModel):
-    """Admin TOP 8 proposal; never awards points by itself."""
+    """Admin ranked-table proposal; never awards points by itself."""
 
     market_id: int = Field(..., description="Long-term market ID")
     league_id: int = Field(..., description="League ID")
@@ -145,7 +164,16 @@ class LongTermAutoResultResponse(BaseModel):
         description="Required number of distinct teams")
     points_per_correct: float = Field(
         ...,
-        description="Points awarded for each correct team")
+        description="Points awarded for matching a TOP or BOT zone")
+    points_per_exact_position: float = Field(
+        ...,
+        description="Bonus points awarded for an exact table position")
+    top_zone_size: int = Field(
+        ...,
+        description="TOP zone width; -1 when unused")
+    bot_zone_size: int = Field(
+        ...,
+        description="BOT zone width; -1 when unused")
     settled_at: datetime | date | None = Field(
         None,
         description="When an admin approved the result")
@@ -184,13 +212,29 @@ class LongTermAutoResultResponse(BaseModel):
         description="Expected settled league-phase matches")
     proposed_team_ids: list[int] = Field(
         ...,
-        description="Proposed TOP 8 IDs; empty until the phase is complete")
+        description=(
+            "Proposed table IDs in standings order; "
+            "empty until the phase is complete"))
+    proposed_top_team_ids: list[int] = Field(
+        ...,
+        description=(
+            "Prefix of proposed_team_ids with length top_zone_size; "
+            "empty until the phase is complete"))
+    proposed_bot_team_ids: list[int] = Field(
+        ...,
+        description=(
+            "Suffix of proposed_team_ids with length bot_zone_size; "
+            "empty until the phase is complete"))
     proposed_teams: list[LongTermStandingTeam] = Field(
         ...,
-        description="Proposed TOP 8 rows; empty until the phase is complete")
+        description=(
+            "Proposed table rows in standings order; "
+            "empty until the phase is complete"))
     result_team_ids: list[int] = Field(
         ...,
-        description="Approved result team IDs; empty until settled")
+        description=(
+            "Approved result team IDs in table order; "
+            "empty until settled"))
     standings: list[LongTermStandingTeam] = Field(
         ...,
         description="League-phase table used to build the proposal")
@@ -202,7 +246,7 @@ class SettleLongTermResponse(BaseModel):
     market_id: int = Field(..., description="Long-term market ID")
     team_ids: list[int] = Field(
         ...,
-        description="Approved team IDs sorted ascending")
+        description="Approved team IDs in table order")
     settled_by_uuid: str | None = Field(
         None,
         description="Public UUID of the admin who wrote the result")
@@ -214,4 +258,4 @@ class SettleLongTermResponse(BaseModel):
         description="When the result was written")
     result_team_ids: list[int] = Field(
         ...,
-        description="Approved team IDs sorted ascending")
+        description="Approved team IDs in table order")

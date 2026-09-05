@@ -76,7 +76,7 @@ async def save_picks(
     body: LongTermTeamIdsRequest,
     market_id: int = Path(..., ge=1, description="Long-term market ID")
 ) -> SaveLongTermPicksResponse:
-    """Replace the current user's set before the first league-phase kick-off."""
+    """Replace the current user's ranked table before first kick-off."""
     payload = _invoke(
         lambda: long_term_service.save_picks(
             _user_id(user), market_id, body.team_ids))
@@ -104,7 +104,7 @@ async def get_auto_result(
     user: Annotated[dict[str, Any], Depends(require_admin)],
     market_id: int = Path(..., ge=1, description="Long-term market ID")
 ) -> LongTermAutoResultResponse:
-    """Return the TOP 8 proposal without writing results or points."""
+    """Return the ranked-table proposal without writing results or points."""
     _ = user
     payload = _invoke(
         lambda: long_term_service.get_auto_result(market_id))
@@ -119,7 +119,7 @@ async def settle_market(
     body: LongTermTeamIdsRequest,
     market_id: int = Path(..., ge=1, description="Long-term market ID")
 ) -> SettleLongTermResponse:
-    """Approve or correct the result after the league phase is complete."""
+    """Approve or correct the ordered table after a complete league phase."""
     payload = _invoke(
         lambda: long_term_service.settle_market(
             market_id, body.team_ids, _user_id(user)))

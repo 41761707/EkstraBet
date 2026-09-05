@@ -15,6 +15,12 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
 os.environ.setdefault("AUTH_ENABLED", "false")
 os.environ.setdefault("OPENAPI_ENABLED", "false")
 
+from api.schemas.champions_league_typer_long_term import (
+    LongTermAutoResultResponse,
+    LongTermMarketCard,
+    LongTermTeamIdsRequest,
+    SaveLongTermPicksResponse,
+    SettleLongTermResponse)
 from backend.config import get_settings
 from backend.services import auth_service
 from backend.services.champions_league_typer_long_term_service import (
@@ -33,8 +39,13 @@ _DEADLINE = datetime(2026, 9, 16, 21, 0)
 _CHANGED_AT = datetime(2026, 8, 20, 12, 0)
 _SETTLED_AT = datetime(2026, 12, 1, 23, 0)
 _MARKET_ID = 20
-_TEAM_IDS = [12, 45, 101, 200, 201, 202, 203, 204]
-_SEVEN_IDS = _TEAM_IDS[:7]
+_TABLE_SIZE = 36
+_TOP_ZONE = 8
+_BOT_ZONE = 8
+_EIGHT_IDS = [12, 45, 101, 200, 201, 202, 203, 204]
+_TABLE_IDS = list(range(1, _TABLE_SIZE + 1))
+_TABLE_PERMUTATION = [3, 1, 2, *range(4, _TABLE_SIZE + 1)]
+_TEAM_IDS = _EIGHT_IDS
 
 _TEST_USER = {
     "id": 4,
@@ -72,7 +83,7 @@ def _change_row() -> dict[str, object]:
         "user_uuid": _TEST_USER["uuid"],
         "display_name": "Alice",
         "previous_team_ids": None,
-        "new_team_ids": list(_TEAM_IDS),
+        "new_team_ids": list(_TABLE_PERMUTATION),
         "changed_at": _CHANGED_AT
     }
 
@@ -84,16 +95,22 @@ def _dashboard_payload() -> dict[str, object]:
             "market_id": _MARKET_ID,
             "league_id": 42,
             "season_id": 13,
-            "market_key": "top8_direct_r16",
-            "title": "TOP 8",
-            "description": "Pick 8 teams",
-            "selection_size": 8,
+            "market_key": "league_phase_table",
+            "title": "Tabela fazy ligowej",
+            "description": "Ułóż 36 drużyn",
+            "selection_size": _TABLE_SIZE,
             "points_per_correct": 2.0,
+            "points_per_exact_position": 2.0,
+            "market_kind": "ranked_team_table",
+            "scoring_kind": "zone_and_position",
+            "top_zone_size": _TOP_ZONE,
+            "bot_zone_size": _BOT_ZONE,
             "settled_at": None,
             "deadline_at": _DEADLINE,
             "is_locked": False,
-            "candidates": [_candidate(team_id) for team_id in _TEAM_IDS],
-            "picked_team_ids": list(_TEAM_IDS),
+            "candidates": [
+                _candidate(team_id) for team_id in _TABLE_IDS],
+            "picked_team_ids": list(_TABLE_PERMUTATION),
             "result_team_ids": [],
             "points": None,
             "changes": [_change_row()]
@@ -116,14 +133,18 @@ def _auto_result_payload(
         complete: bool = True,
         result_team_ids: list[int] | None = None
         ) -> dict[str, object]:
-    proposed = [_standing(team_id) for team_id in _TEAM_IDS]
+    proposed = [_standing(team_id) for team_id in _TABLE_IDS]
+    proposed_ids = list(_TABLE_IDS) if complete else []
     return {
         "market_id": _MARKET_ID,
         "league_id": 42,
         "season_id": 13,
-        "market_key": "top8_direct_r16",
-        "selection_size": 8,
+        "market_key": "league_phase_table",
+        "selection_size": _TABLE_SIZE,
         "points_per_correct": 2.0,
+        "points_per_exact_position": 2.0,
+        "top_zone_size": _TOP_ZONE,
+        "bot_zone_size": _BOT_ZONE,
         "settled_at": None,
         "settled_by_uuid": None,
         "settled_by_display_name": None,
@@ -136,7 +157,10 @@ def _auto_result_payload(
         "required_participant_count": 36,
         "required_matches_per_team": 8,
         "required_settled_match_count": 144,
-        "proposed_team_ids": list(_TEAM_IDS) if complete else [],
+        "proposed_team_ids": proposed_ids,
+        "proposed_top_team_ids": proposed_ids[:_TOP_ZONE],
+        "proposed_bot_team_ids": (
+            proposed_ids[-_BOT_ZONE:] if complete else []),
         "proposed_teams": proposed if complete else [],
         "result_team_ids": (
             [] if result_team_ids is None else list(result_team_ids)),
@@ -200,11 +224,20 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
         payload = response.json()
         market = payload["markets"][0]
         self.assertEqual(payload["season_id"], 13)
-        self.assertEqual(market["picked_team_ids"], list(_TEAM_IDS))
+        self.assertEqual(market["market_key"], "league_phase_table")
+        self.assertEqual(market["market_kind"], "ranked_team_table")
+        self.assertEqual(market["scoring_kind"], "zone_and_position")
+        self.assertEqual(market["top_zone_size"], _TOP_ZONE)
+        self.assertEqual(market["bot_zone_size"], _BOT_ZONE)
+        self.assertEqual(market["points_per_exact_position"], 2.0)
+        self.assertEqual(market["picked_team_ids"], list(_TABLE_PERMUTATION))
+        self.assertNotEqual(
+            market["picked_team_ids"], sorted(market["picked_team_ids"]))
         self.assertIsNone(market["points"])
         self.assertNotIn("user_id", market)
         self.assertNotIn("user_id", payload)
         self.assertNotIn("settled_by", market)
+        self.assertNotIn("player_ids", market)
         mock_dashboard.assert_called_once_with(4, 13)
 
     @patch(f"{_SERVICE}.save_picks")
@@ -213,22 +246,25 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             self,
             _mock_fetch: MagicMock,
             mock_save: MagicMock) -> None:
+        ordered = list(_TABLE_PERMUTATION)
         mock_save.return_value = {
             "market_id": _MARKET_ID,
-            "team_ids": list(_TEAM_IDS),
+            "team_ids": ordered,
             "previous_team_ids": None,
             "audit_written": True
         }
         response = self.client.put(
             f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
-            json={"team_ids": list(_TEAM_IDS)},
+            json={"team_ids": ordered},
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["team_ids"], list(_TEAM_IDS))
+        self.assertEqual(payload["team_ids"], ordered)
+        self.assertNotEqual(payload["team_ids"], sorted(ordered))
         self.assertTrue(payload["audit_written"])
         self.assertNotIn("user_id", payload)
-        mock_save.assert_called_once_with(4, _MARKET_ID, list(_TEAM_IDS))
+        self.assertNotIn("player_ids", payload)
+        mock_save.assert_called_once_with(4, _MARKET_ID, ordered)
 
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_duplicate_team_ids_return_422(
@@ -258,13 +294,13 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             _mock_fetch: MagicMock,
             mock_save: MagicMock) -> None:
         mock_save.side_effect = TyperValidationError(
-            "Long-term pick set must have exactly 8 teams")
+            "Long-term pick set must contain exactly 36 teams")
         response = self.client.put(
             f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
-            json={"team_ids": list(_SEVEN_IDS)},
+            json={"team_ids": list(_EIGHT_IDS)},
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 422)
-        mock_save.assert_called_once_with(4, _MARKET_ID, list(_SEVEN_IDS))
+        mock_save.assert_called_once_with(4, _MARKET_ID, list(_EIGHT_IDS))
 
     @patch(f"{_SERVICE}.save_picks")
     @patch(_FETCH_UUID, return_value=_TEST_USER)
@@ -306,7 +342,8 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             f"/typer-lm/long-term/markets/{_MARKET_ID}/history",
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()[0]["new_team_ids"], list(_TEAM_IDS))
+        self.assertEqual(
+            response.json()[0]["new_team_ids"], list(_TABLE_PERMUTATION))
         mock_history.assert_called_once_with(4, _MARKET_ID)
 
     @patch(f"{_SERVICE}.get_own_history")
@@ -321,6 +358,29 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             "/typer-lm/long-term/markets/999/history",
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 404)
+
+
+class TestLongTermSchemaContract(unittest.TestCase):
+    """HTTP schema treats table order as significant and has no player_ids."""
+
+    def test_team_ids_field_does_not_ignore_order(self) -> None:
+        field = LongTermTeamIdsRequest.model_fields["team_ids"]
+        description = field.description or ""
+        self.assertNotEqual(description, "")
+        self.assertNotIn("order is ignored", description.lower())
+        self.assertIn("table order", description.lower())
+
+    def test_ranked_table_schemas_have_no_player_ids(self) -> None:
+        models = (
+            LongTermMarketCard,
+            LongTermAutoResultResponse,
+            LongTermTeamIdsRequest,
+            SaveLongTermPicksResponse,
+            SettleLongTermResponse)
+        for model in models:
+            with self.subTest(model=model.__name__):
+                self.assertNotIn("player_ids", model.model_fields)
+                self.assertNotIn("player_id", model.model_fields)
 
 
 class TestLongTermAdminRouter(LongTermRouterTestCase):
@@ -383,10 +443,19 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
         payload = response.json()
         self.assertTrue(payload["is_complete"])
         self.assertTrue(payload["is_proposal"])
-        self.assertEqual(payload["proposed_team_ids"], list(_TEAM_IDS))
+        self.assertEqual(len(payload["proposed_team_ids"]), _TABLE_SIZE)
+        self.assertEqual(payload["proposed_team_ids"], list(_TABLE_IDS))
+        self.assertEqual(
+            payload["proposed_top_team_ids"], list(_TABLE_IDS[:_TOP_ZONE]))
+        self.assertEqual(
+            payload["proposed_bot_team_ids"], list(_TABLE_IDS[-_BOT_ZONE:]))
+        self.assertEqual(payload["top_zone_size"], _TOP_ZONE)
+        self.assertEqual(payload["bot_zone_size"], _BOT_ZONE)
+        self.assertEqual(payload["points_per_exact_position"], 2.0)
         self.assertEqual(payload["result_team_ids"], [])
         self.assertIsNone(payload["settled_by_uuid"])
         self.assertNotIn("settled_by", payload)
+        self.assertNotIn("player_ids", payload)
         mock_auto.assert_called_once_with(_MARKET_ID)
 
     @patch(
@@ -404,13 +473,15 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
         payload = response.json()
         self.assertFalse(payload["is_complete"])
         self.assertEqual(payload["proposed_team_ids"], [])
+        self.assertEqual(payload["proposed_top_team_ids"], [])
+        self.assertEqual(payload["proposed_bot_team_ids"], [])
         self.assertEqual(payload["proposed_teams"], [])
         self.assertEqual(payload["result_team_ids"], [])
 
     @patch(
         f"{_SERVICE}.get_auto_result",
         return_value=_auto_result_payload(
-            result_team_ids=[12, 45, 101, 200, 201, 202, 203, 205]))
+            result_team_ids=list(_TABLE_PERMUTATION)))
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)
     def test_auto_result_includes_approved_set_for_correction(
             self,
@@ -421,10 +492,9 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["proposed_team_ids"], list(_TEAM_IDS))
+        self.assertEqual(payload["proposed_team_ids"], list(_TABLE_IDS))
         self.assertEqual(
-            payload["result_team_ids"],
-            [12, 45, 101, 200, 201, 202, 203, 205])
+            payload["result_team_ids"], list(_TABLE_PERMUTATION))
         self.assertNotEqual(
             payload["proposed_team_ids"], payload["result_team_ids"])
 
@@ -438,11 +508,11 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
             "League phase is not complete")
         response = self.client.post(
             f"/typer-lm/long-term/admin/markets/{_MARKET_ID}/settle",
-            json={"team_ids": list(_TEAM_IDS)},
+            json={"team_ids": list(_TABLE_PERMUTATION)},
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 409)
         mock_settle.assert_called_once_with(
-            _MARKET_ID, list(_TEAM_IDS), 7)
+            _MARKET_ID, list(_TABLE_PERMUTATION), 7)
 
     @patch(f"{_SERVICE}.settle_market")
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)
@@ -450,7 +520,7 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
             self,
             _mock_fetch: MagicMock,
             mock_settle: MagicMock) -> None:
-        corrected = [12, 45, 101, 200, 201, 202, 203, 205]
+        corrected = list(_TABLE_PERMUTATION)
         mock_settle.return_value = {
             "market_id": _MARKET_ID,
             "team_ids": corrected,
@@ -466,6 +536,7 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["team_ids"], corrected)
+        self.assertNotEqual(payload["team_ids"], sorted(corrected))
         self.assertEqual(payload["result_team_ids"], corrected)
         self.assertEqual(payload["settled_by_uuid"], _ADMIN_USER["uuid"])
         self.assertNotIn("settled_by", payload)
