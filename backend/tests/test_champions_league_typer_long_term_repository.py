@@ -24,6 +24,15 @@ _MARKET_ID = 20
 _SEASON_ID = 13
 _TEAM_IDS = [12, 45, 101, 200, 201, 202, 203, 204]
 _TEAM_CSV = "12,45,101,200,201,202,203,204"
+_TABLE_IDS = list(range(1, 37))
+
+
+def _position_params(team_ids: list[int]) -> list[int]:
+    params: list[int] = []
+    for index, team_id in enumerate(team_ids):
+        params.append(team_id)
+        params.append(index + 1)
+    return params
 
 
 def _mock_connection(
@@ -103,6 +112,11 @@ def _market_lock_row(
         "description": "Pick 8 teams",
         "selection_size": selection_size,
         "points_per_correct": Decimal("2.00"),
+        "points_per_exact_position": Decimal("2.00"),
+        "market_kind": "ranked_team_table",
+        "scoring_kind": "zone_and_position",
+        "top_zone_size": 8,
+        "bot_zone_size": 8,
         "settled_at": None,
         "settled_by": None,
         "deadline_at": _DEADLINE,
@@ -150,7 +164,7 @@ def _change_row() -> dict[str, object]:
 
 
 class TestSaveLongTermPicks(unittest.TestCase):
-    """Atomic replace of eight teams plus CSV audit; identical set is no-op."""
+    """Replace ranking plus CSV audit; identical sequence is a no-op."""
 
     def _save(
             self,
@@ -160,11 +174,13 @@ class TestSaveLongTermPicks(unittest.TestCase):
             current_ids: list[int] | None = None,
             candidates: list[dict[str, object]] | None = None,
             is_open: int = 1,
-            rowcount: int = 8
+            rowcount: int = 8,
+            selection_size: int = 8
             ) -> tuple[MagicMock, MagicMock, dict[str, object]]:
         conn, cursor = _mock_connection(
             mock_get_conn,
-            fetchone_results=[_market_lock_row(is_open=is_open)],
+            fetchone_results=[_market_lock_row(
+                is_open=is_open, selection_size=selection_size)],
             fetchall_results=[
                 candidates if candidates is not None else _candidate_rows(),
                 _pick_rows(current_ids or [])],
@@ -198,9 +214,14 @@ class TestSaveLongTermPicks(unittest.TestCase):
             if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
         self.assertIn("DELETE FROM typer_long_term_picks", delete_sql)
         self.assertIn("NOW() <", insert_sql)
+        self.assertIn("position", insert_sql)
         self.assertEqual(
             insert_params,
-            (_MARKET_ID, _USER_ID, *_TEAM_IDS, _MARKET_ID))
+            (
+                _MARKET_ID,
+                _USER_ID,
+                *_position_params(_TEAM_IDS),
+                _MARKET_ID))
         self.assertEqual(
             audit_params,
             (_MARKET_ID, _USER_ID, _USER_ID, None, _TEAM_CSV))
@@ -220,7 +241,7 @@ class TestSaveLongTermPicks(unittest.TestCase):
             mock_get_conn,
             team_ids=new_ids,
             current_ids=list(_TEAM_IDS),
-            candidates=_candidate_rows([205]))
+            candidates=[_candidate_row(team_id) for team_id in new_ids])
         self.assertTrue(result["audit_written"])
         self.assertEqual(result["previous_team_ids"], list(_TEAM_IDS))
         audit_params = next(
@@ -233,12 +254,11 @@ class TestSaveLongTermPicks(unittest.TestCase):
         conn.commit.assert_called_once()
 
     @patch(_GET_CONN)
-    def test_identical_set_is_noop_without_audit(
+    def test_identical_sequence_is_noop_without_audit(
             self, mock_get_conn: MagicMock) -> None:
-        reversed_ids = list(reversed(_TEAM_IDS))
         conn, cursor, result = self._save(
             mock_get_conn,
-            team_ids=reversed_ids,
+            team_ids=list(_TEAM_IDS),
             current_ids=list(_TEAM_IDS))
         self.assertFalse(result["audit_written"])
         self.assertEqual(result["team_ids"], list(_TEAM_IDS))
@@ -249,6 +269,30 @@ class TestSaveLongTermPicks(unittest.TestCase):
         self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
         conn.commit.assert_called_once()
         conn.rollback.assert_not_called()
+
+    @patch(_GET_CONN)
+    def test_reordered_same_teams_writes_audit(
+            self, mock_get_conn: MagicMock) -> None:
+        reversed_ids = list(reversed(_TEAM_IDS))
+        reversed_csv = ",".join(str(team_id) for team_id in reversed_ids)
+        conn, cursor, result = self._save(
+            mock_get_conn,
+            team_ids=reversed_ids,
+            current_ids=list(_TEAM_IDS))
+        self.assertTrue(result["audit_written"])
+        self.assertEqual(result["team_ids"], reversed_ids)
+        self.assertEqual(result["previous_team_ids"], list(_TEAM_IDS))
+        audit_params = next(
+            call.args[1]
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
+        self.assertEqual(
+            audit_params,
+            (_MARKET_ID, _USER_ID, _USER_ID, _TEAM_CSV, reversed_csv))
+        combined = _combined_sql(cursor)
+        self.assertIn("DELETE FROM typer_long_term_picks", combined)
+        self.assertIn("INSERT INTO typer_long_term_picks", combined)
+        conn.commit.assert_called_once()
 
     @patch(_GET_CONN)
     def test_seven_teams_are_rejected(
@@ -293,13 +337,32 @@ class TestSaveLongTermPicks(unittest.TestCase):
             mock_get_conn,
             fetchone_results=[_market_lock_row()],
             fetchall_results=[_candidate_rows()])
-        with self.assertRaises(repo.TyperValidationError):
+        with self.assertRaises(repo.TyperValidationError) as ctx:
             repo.save_long_term_picks(
                 _USER_ID, _MARKET_ID, outsider)
+        self.assertIn(
+            "not a league-phase participant", str(ctx.exception))
         combined = _combined_sql(cursor)
         self.assertIn("home_team", combined)
         self.assertIn("away_team", combined)
         self.assertIn("BETWEEN 1", combined)
+        self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_incomplete_permutation_is_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row()],
+            fetchall_results=[_candidate_rows([205])])
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(
+                _USER_ID, _MARKET_ID, list(_TEAM_IDS))
+        self.assertIn(
+            "every league-phase team", str(ctx.exception))
+        combined = _combined_sql(cursor)
         self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
@@ -393,6 +456,62 @@ class TestSaveLongTermPicks(unittest.TestCase):
         _assert_no_inlined_values(
             self, candidate_sql, _MARKET_ID, _USER_ID, _SEASON_ID)
 
+    @patch(_GET_CONN)
+    def test_insert_preserves_position_order_without_sorting(
+            self, mock_get_conn: MagicMock) -> None:
+        unordered = [204, 12, 45, 101, 200, 201, 202, 203]
+        unordered_csv = ",".join(str(team_id) for team_id in unordered)
+        _conn, cursor, result = self._save(
+            mock_get_conn, team_ids=unordered, current_ids=[])
+        self.assertEqual(result["team_ids"], unordered)
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_picks" in call.args[0])
+        audit_params = next(
+            call.args[1]
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
+        self.assertIn("t.position", insert_sql)
+        self.assertEqual(
+            insert_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                *_position_params(unordered),
+                _MARKET_ID))
+        self.assertEqual(audit_params[-1], unordered_csv)
+        self.assertNotEqual(
+            audit_params[-1], ",".join(str(i) for i in sorted(unordered)))
+
+    @patch(_GET_CONN)
+    def test_save_inserts_positions_for_full_table(
+            self, mock_get_conn: MagicMock) -> None:
+        candidates = [
+            _candidate_row(team_id) for team_id in _TABLE_IDS]
+        _conn, cursor, result = self._save(
+            mock_get_conn,
+            team_ids=list(_TABLE_IDS),
+            current_ids=[],
+            candidates=candidates,
+            rowcount=36,
+            selection_size=36)
+        self.assertEqual(result["team_ids"], list(_TABLE_IDS))
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_picks" in call.args[0])
+        self.assertIn("position", insert_sql)
+        self.assertEqual(
+            insert_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                *_position_params(_TABLE_IDS),
+                _MARKET_ID))
+        self.assertEqual(insert_params[-2], 36)
+        self.assertEqual(insert_params[-3], 36)
+
 
 class TestFetchLongTermDashboard(unittest.TestCase):
     """Dashboard lists candidates and only the caller's picks."""
@@ -400,30 +519,45 @@ class TestFetchLongTermDashboard(unittest.TestCase):
     @patch(_GET_CONN)
     def test_picks_are_user_scoped_and_results_are_readable(
             self, mock_get_conn: MagicMock) -> None:
-        pick_row = {"market_id": _MARKET_ID, "team_id": 12}
-        result_row = {"market_id": _MARKET_ID, "team_id": 45}
+        pick_rows = [
+            {"market_id": _MARKET_ID, "team_id": 45},
+            {"market_id": _MARKET_ID, "team_id": 12}]
+        result_rows = [
+            {"market_id": _MARKET_ID, "team_id": 101},
+            {"market_id": _MARKET_ID, "team_id": 45}]
         _conn, cursor = _mock_connection(
             mock_get_conn,
             fetchall_results=[
                 [_dashboard_market_row()],
                 _candidate_rows(),
-                [pick_row],
-                [result_row],
+                pick_rows,
+                result_rows,
                 [_change_row()]])
         document = repo.fetch_long_term_dashboard(_USER_ID, _SEASON_ID)
         self.assertEqual(document["season_id"], _SEASON_ID)
         market = document["markets"][0]
-        self.assertEqual(market["picked_team_ids"], [12])
-        self.assertEqual(market["result_team_ids"], [45])
+        self.assertEqual(market["picked_team_ids"], [45, 12])
+        self.assertEqual(market["result_team_ids"], [101, 45])
         self.assertEqual(len(market["candidates"]), 8)
         self.assertFalse(market["is_locked"])
         self.assertEqual(market["points_per_correct"], 2.0)
+        self.assertEqual(market["points_per_exact_position"], 2.0)
+        self.assertEqual(market["market_kind"], "ranked_team_table")
+        self.assertEqual(market["scoring_kind"], "zone_and_position")
+        self.assertEqual(market["top_zone_size"], 8)
+        self.assertEqual(market["bot_zone_size"], 8)
         self.assertEqual(len(document["changes"]), 1)
         self.assertIsNone(document["changes"][0]["previous_team_ids"])
         self.assertEqual(document["changes"][0]["new_team_ids"], _TEAM_IDS)
+        markets_sql = cursor.execute.call_args_list[1].args[0]
         picks_sql, picks_params = cursor.execute.call_args_list[3].args
+        results_sql = cursor.execute.call_args_list[4].args[0]
         history_sql, history_params = cursor.execute.call_args_list[5].args
+        self.assertIn("m.market_kind", markets_sql)
+        self.assertIn("m.top_zone_size", markets_sql)
         self.assertIn("FROM typer_long_term_picks", picks_sql)
+        self.assertIn("position", picks_sql)
+        self.assertIn("position", results_sql)
         self.assertIn("user_id = %s", picks_sql)
         self.assertEqual(picks_params[0], _USER_ID)
         self.assertIn("c.user_id = %s", history_sql)
@@ -554,11 +688,12 @@ class TestLongTermHistory(unittest.TestCase):
 
 
 class TestTeamIdsCsv(unittest.TestCase):
-    """CSV snapshots are sorted, unique-order-insensitive and space-free."""
+    """CSV snapshots preserve position order and are space-free."""
 
-    def test_sorted_csv_without_spaces(self) -> None:
-        csv = repo._team_ids_csv([101, 12, 45])
-        self.assertEqual(csv, "12,45,101")
+    def test_csv_preserves_position_order_without_spaces(self) -> None:
+        csv = repo._team_ids_csv([3, 1, 2])
+        self.assertEqual(csv, "3,1,2")
+        self.assertNotEqual(csv, "1,2,3")
         self.assertNotIn(" ", csv)
 
     def test_parse_round_trip(self) -> None:
@@ -620,6 +755,10 @@ class TestFetchAutoResult(unittest.TestCase):
         self.assertIsNone(document["settled_at"])
         market_sql = cursor.execute.call_args_list[0].args[0]
         self.assertNotIn("FOR UPDATE", market_sql)
+        self.assertIn("m.market_kind", market_sql)
+        self.assertIn("m.points_per_exact_position", market_sql)
+        self.assertEqual(document["market_kind"], "ranked_team_table")
+        self.assertEqual(document["top_zone_size"], 8)
         query, params = cursor.execute.call_args_list[1].args
         self.assertIn("ORDER BY", query)
         self.assertIn("s.points, 0) DESC", query)
@@ -679,12 +818,14 @@ class TestSettleMarket(unittest.TestCase):
             team_ids: list[int] | None = None,
             candidates: list[dict[str, object]] | None = None,
             is_open: int = 0,
-            rowcount: int = 8
+            rowcount: int = 8,
+            selection_size: int = 8
             ) -> tuple[MagicMock, MagicMock, dict[str, object]]:
         conn, cursor = _mock_connection(
             mock_get_conn,
             fetchone_results=[
-                _market_lock_row(is_open=is_open),
+                _market_lock_row(
+                    is_open=is_open, selection_size=selection_size),
                 _settled_market_row()],
             fetchall_results=[
                 candidates if candidates is not None else _candidate_rows()],
@@ -715,8 +856,9 @@ class TestSettleMarket(unittest.TestCase):
             for call in cursor.execute.call_args_list
             if "UPDATE typer_long_term_markets" in call.args[0])
         self.assertIn("DELETE FROM typer_long_term_results", delete_sql)
+        self.assertIn("position", insert_sql)
         self.assertEqual(
-            insert_params, (_MARKET_ID, *_TEAM_IDS))
+            insert_params, (_MARKET_ID, *_position_params(_TEAM_IDS)))
         self.assertEqual(
             update_params,
             (_ADMIN_ID, _MARKET_ID, repo.CHAMPIONS_LEAGUE_ID))
@@ -737,7 +879,7 @@ class TestSettleMarket(unittest.TestCase):
         conn, cursor, result = self._settle(
             mock_get_conn,
             team_ids=new_ids,
-            candidates=_candidate_rows([205]))
+            candidates=[_candidate_row(team_id) for team_id in new_ids])
         self.assertEqual(result["team_ids"], new_ids)
         combined = _combined_sql(cursor)
         self.assertIn("DELETE FROM typer_long_term_results", combined)
@@ -773,6 +915,47 @@ class TestSettleMarket(unittest.TestCase):
         self.assertNotIn("INSERT INTO typer_long_term_results", combined)
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_incomplete_permutation_is_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row(is_open=0)],
+            fetchall_results=[_candidate_rows([205])])
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.settle_market(
+                _MARKET_ID, list(_TEAM_IDS), _ADMIN_ID)
+        self.assertIn(
+            "every league-phase team", str(ctx.exception))
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_results", combined)
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_settle_writes_positions_one_through_thirty_six(
+            self, mock_get_conn: MagicMock) -> None:
+        candidates = [
+            _candidate_row(team_id) for team_id in _TABLE_IDS]
+        _conn, cursor, result = self._settle(
+            mock_get_conn,
+            team_ids=list(_TABLE_IDS),
+            candidates=candidates,
+            rowcount=36,
+            selection_size=36)
+        self.assertEqual(result["team_ids"], list(_TABLE_IDS))
+        self.assertEqual(result["result_team_ids"], list(_TABLE_IDS))
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_results" in call.args[0])
+        self.assertIn("position", insert_sql)
+        self.assertEqual(
+            insert_params,
+            (_MARKET_ID, *_position_params(_TABLE_IDS)))
+        self.assertEqual(insert_params[-1], 36)
+        self.assertEqual(insert_params[-2], 36)
 
     @patch(_GET_CONN)
     def test_integrity_error_rolls_back_without_commit(
