@@ -5,6 +5,10 @@ import { hasWarsawNaiveDateTimePassed } from "@/lib/date";
 import { formatMatchDateTime, formatOdds } from "@/lib/format";
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { formatTeamName } from "@/lib/teamNameDisplay";
+import {
+  areTeamIdSequencesEqual,
+  scoreZoneAndPosition,
+} from "@/lib/typerLmLongTermRanking";
 import type {
   LongTermAutoResultResponse,
   LongTermDashboardResponse,
@@ -107,7 +111,8 @@ export function canSaveLongTermPicks(
   if (selectedIds.length !== market.selection_size) {
     return false;
   }
-  return !areTeamIdSetsEqual(selectedIds, market.picked_team_ids);
+  // kolejność jest częścią typu tabeli — zbiór id nie steruje zapisem
+  return !areTeamIdSequencesEqual(selectedIds, market.picked_team_ids);
 }
 
 export function classifyLongTermPick(
@@ -298,10 +303,13 @@ export function applySettledLongTermResult(
     result_team_ids: resultTeamIds,
     settled_at: settled.settled_at,
     points: hasPicks
-      ? scoreLongTerm(
+      ? scoreZoneAndPosition(
           market.picked_team_ids,
           resultTeamIds,
           market.points_per_correct,
+          market.points_per_exact_position,
+          market.top_zone_size,
+          market.bot_zone_size,
         )
       : 0,
   };

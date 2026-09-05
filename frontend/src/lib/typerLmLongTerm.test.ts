@@ -51,11 +51,16 @@ function sampleMarket(
     market_id: 1,
     league_id: 42,
     season_id: 13,
-    market_key: "top8_direct_r16",
-    title: "TOP 8",
-    description: "Wskaż 8 drużyn",
+    market_key: "league_phase_table",
+    title: "Tabela fazy ligowej",
+    description: "Ułóż 36 drużyn",
     selection_size: 8,
     points_per_correct: 2,
+    points_per_exact_position: 2,
+    market_kind: "ranked_team_table",
+    scoring_kind: "zone_and_position",
+    top_zone_size: 8,
+    bot_zone_size: 8,
     settled_at: null,
     deadline_at: "2026-09-16T21:00:00",
     is_locked: false,
@@ -75,9 +80,12 @@ function sampleAutoResult(
     market_id: 1,
     league_id: 42,
     season_id: 13,
-    market_key: "top8_direct_r16",
+    market_key: "league_phase_table",
     selection_size: 8,
     points_per_correct: 2,
+    points_per_exact_position: 2,
+    top_zone_size: 8,
+    bot_zone_size: 8,
     settled_at: null,
     settled_by_uuid: null,
     settled_by_display_name: null,
@@ -91,6 +99,8 @@ function sampleAutoResult(
     required_matches_per_team: 8,
     required_settled_match_count: 144,
     proposed_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    proposed_top_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    proposed_bot_team_ids: [],
     proposed_teams: [],
     result_team_ids: [],
     standings: [],
@@ -147,14 +157,17 @@ describe("long-term lock and save rules", () => {
     expect(isLongTermMarketLockedForUi(sampleMarket(), null)).toBe(false);
   });
 
-  it("allows save only for a new complete set before the deadline", () => {
+  it("allows save only for a new complete sequence before the deadline", () => {
     const market = sampleMarket({ picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8] });
     expect(canSaveLongTermPicks(market, [1, 2, 3, 4, 5, 6, 7], false)).toBe(
       false,
     );
     expect(
-      canSaveLongTermPicks(market, [8, 7, 6, 5, 4, 3, 2, 1], false),
+      canSaveLongTermPicks(market, [1, 2, 3, 4, 5, 6, 7, 8], false),
     ).toBe(false);
+    expect(
+      canSaveLongTermPicks(market, [8, 7, 6, 5, 4, 3, 2, 1], false),
+    ).toBe(true);
     expect(
       canSaveLongTermPicks(market, [1, 2, 3, 4, 5, 6, 7, 9], false),
     ).toBe(true);
@@ -228,25 +241,34 @@ describe("audit and apply helpers", () => {
     ).toContain("zmiana zestawu");
   });
 
-  it("applies a saved set and a settled result", () => {
-    const market = sampleMarket({ picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8] });
+  it("applies a saved sequence and zone-and-position points", () => {
+    const pickFillers = Array.from({ length: 36 }, (_, index) => 201 + index);
+    const resultFillers = Array.from({ length: 36 }, (_, index) => 301 + index);
+    const picks = [...pickFillers];
+    picks[5] = 6;
+    const results = [...resultFillers];
+    results[5] = 6;
+    const market = sampleMarket({
+      selection_size: 36,
+      picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
     const saved = applySavedLongTermPicks(market, {
       market_id: 1,
-      team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
+      team_ids: picks,
       previous_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
       audit_written: true,
     });
-    expect(saved.picked_team_ids).toEqual([1, 2, 3, 4, 5, 6, 7, 9]);
+    expect(saved.picked_team_ids).toEqual(picks);
     const settled = applySettledLongTermResult(saved, {
       market_id: 1,
-      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      team_ids: results,
       settled_by_uuid: "admin-1",
       settled_by_display_name: "Admin",
       settled_at: "2027-01-30T12:00:00",
-      result_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      result_team_ids: results,
     });
-    expect(settled.points).toBe(14);
-    expect(settled.result_team_ids).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(settled.points).toBe(4);
+    expect(settled.result_team_ids).toEqual(results);
   });
 });
 
