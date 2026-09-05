@@ -897,6 +897,9 @@ class TestFetchLeaderboard(unittest.TestCase):
         self.assertIn("typer_long_term_results", query)
         self.assertIn("mkt.settled_at IS NOT NULL", query)
         self.assertIn("mkt.points_per_correct", query)
+        self.assertIn("mkt.points_per_exact_position", query)
+        self.assertIn("mkt.top_zone_size", query)
+        self.assertIn("mkt.bot_zone_size", query)
         self.assertIn("mkt.league_id = %s", query)
         self.assertNotIn(
             f"mkt.league_id = {repo.CHAMPIONS_LEAGUE_ID}", query)
@@ -906,6 +909,35 @@ class TestFetchLeaderboard(unittest.TestCase):
             params, (13, 13, repo.CHAMPIONS_LEAGUE_ID))
         _assert_no_inlined_values(
             self, query, 13, repo.CHAMPIONS_LEAGUE_ID)
+
+    @patch(_GET_CONN)
+    def test_long_term_sql_scores_zone_then_exact_position(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard(13)
+        query = cursor.execute.call_args_list[-1].args[0]
+        # join po team_id; pozycja tylko w CASE bonusu
+        self.assertIn("AND res.team_id = p.team_id", query)
+        self.assertNotIn("AND res.position = p.position", query)
+        self.assertIn("p.position = res.position", query)
+        self.assertIn("mkt.points_per_exact_position", query)
+        self.assertIn("p.position <= mkt.top_zone_size", query)
+        self.assertIn("res.position <= mkt.top_zone_size", query)
+        self.assertIn(
+            "mkt.selection_size - mkt.bot_zone_size", query)
+        self.assertIn("mkt.scoring_kind = 'zone_and_position'", query)
+        self.assertNotIn("player_id", query)
+        points_sql = repo._LONG_TERM_POINTS_SQL
+        self.assertIn("mkt.top_zone_size > 0", points_sql)
+        self.assertIn("mkt.bot_zone_size > 0", points_sql)
+        self.assertIn("THEN mkt.points_per_correct", points_sql)
+        # stawka strefy dopiero po TOP/BOT, nie za sam team_id
+        gate_start = points_sql.index("res.team_id IS NOT NULL")
+        gate_end = points_sql.index("THEN mkt.points_per_correct")
+        zone_gate = points_sql[gate_start:gate_end]
+        self.assertIn("mkt.top_zone_size", zone_gate)
+        self.assertIn("mkt.bot_zone_size", zone_gate)
 
 
 class TestPredictionHistory(unittest.TestCase):
