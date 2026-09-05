@@ -23,6 +23,14 @@ _MARKET_ID = 20
 _ADMIN_ID = 7
 _SEASON_ID = 13
 _TEAM_IDS = [12, 45, 101, 200, 201, 202, 203, 204]
+_TABLE_SIZE = 36
+_TOP_ZONE = 8
+_BOT_ZONE = 8
+_POINTS_ZONE = 2.0
+_POINTS_EXACT = 2.0
+_BARCELONA_ID = 6
+_PICK_FILLERS = list(range(201, 237))
+_RESULT_FILLERS = list(range(301, 337))
 _SETTLED_AT = datetime(2026, 12, 1, 23, 0)
 _ADMIN_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 _FETCH_USER = (
@@ -83,32 +91,97 @@ def _auto_result_document(
     }
 
 
+def _table_with_team_at(
+        fillers: list[int],
+        team_id: int,
+        position: int) -> list[int]:
+    table = list(fillers)
+    table[position - 1] = team_id
+    return table
+
+
+def _score_ranked(
+        pick_position: int,
+        result_position: int,
+        *,
+        team_id: int = _BARCELONA_ID,
+        points_per_correct: float = _POINTS_ZONE,
+        points_per_exact: float = _POINTS_EXACT) -> float:
+    return service.score_long_term(
+        service.SCORING_KIND_ZONE_AND_POSITION,
+        _table_with_team_at(_PICK_FILLERS, team_id, pick_position),
+        _table_with_team_at(_RESULT_FILLERS, team_id, result_position),
+        points_per_correct,
+        points_per_exact,
+        _TOP_ZONE,
+        _BOT_ZONE)
+
+
 class TestScoreLongTerm(unittest.TestCase):
-    """Hits are order-insensitive; each hit is points_per_correct."""
+    """Ranked table: zone points plus exact-position bonus."""
 
-    def test_hits_from_zero_to_eight(self) -> None:
-        results = list(_TEAM_IDS)
-        for hits in range(9):
-            picks = list(_TEAM_IDS[:hits]) + list(range(900, 908 - hits))
-            score = service.score_long_term(picks, results, 2.0)
-            self.assertEqual(score, hits * 2.0)
+    def test_barcelona_outside_top_eight_is_zero(self) -> None:
+        self.assertEqual(_score_ranked(6, 13), 0.0)
 
-    def test_order_does_not_change_score(self) -> None:
-        reversed_picks = list(reversed(_TEAM_IDS))
+    def test_barcelona_in_top_eight_wrong_place(self) -> None:
+        self.assertEqual(_score_ranked(6, 2), _POINTS_ZONE)
+
+    def test_barcelona_exact_sixth_place(self) -> None:
         self.assertEqual(
-            service.score_long_term(reversed_picks, list(_TEAM_IDS), 2.0),
-            16.0)
+            _score_ranked(6, 6), _POINTS_ZONE + _POINTS_EXACT)
 
-    def test_empty_intersection_is_zero(self) -> None:
+    def test_bot_eight_outside_zone_is_zero(self) -> None:
+        self.assertEqual(_score_ranked(36, 20), 0.0)
+
+    def test_bot_eight_wrong_place(self) -> None:
+        self.assertEqual(_score_ranked(36, 30), _POINTS_ZONE)
+
+    def test_bot_eight_exact_place(self) -> None:
+        self.assertEqual(
+            _score_ranked(36, 36), _POINTS_ZONE + _POINTS_EXACT)
+
+    def test_middle_slot_does_not_score(self) -> None:
+        self.assertEqual(_score_ranked(9, 2), 0.0)
+
+    def test_uses_market_rates_not_fixed_two(self) -> None:
+        self.assertEqual(
+            _score_ranked(6, 2, points_per_correct=1.5, points_per_exact=0.5),
+            1.5)
+        self.assertEqual(
+            _score_ranked(6, 6, points_per_correct=1.5, points_per_exact=0.5),
+            2.0)
+
+    def test_unknown_scoring_kind_is_zero(self) -> None:
+        picks = _table_with_team_at(_PICK_FILLERS, _BARCELONA_ID, 6)
+        results = _table_with_team_at(_RESULT_FILLERS, _BARCELONA_ID, 6)
         self.assertEqual(
             service.score_long_term(
-                [1, 2, 3, 4, 5, 6, 7, 8], _TEAM_IDS, 2.0),
+                "exact_subject",
+                picks,
+                results,
+                _POINTS_ZONE,
+                _POINTS_EXACT,
+                _TOP_ZONE,
+                _BOT_ZONE),
             0.0)
 
-    def test_uses_points_per_correct_not_fixed_two(self) -> None:
+    def test_zone_for_position_top_middle_bot(self) -> None:
         self.assertEqual(
-            service.score_long_term(_TEAM_IDS[:3], _TEAM_IDS, 1.5),
-            4.5)
+            service.zone_for_position(1, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE),
+            "top")
+        self.assertEqual(
+            service.zone_for_position(8, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE),
+            "top")
+        self.assertIsNone(
+            service.zone_for_position(9, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE))
+        self.assertIsNone(
+            service.zone_for_position(28, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE))
+        self.assertEqual(
+            service.zone_for_position(29, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE),
+            "bot")
+        self.assertEqual(
+            service.zone_for_position(36, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE),
+            "bot")
 
 
 class TestLeaguePhaseComplete(unittest.TestCase):
@@ -313,8 +386,9 @@ class TestLongTermDashboardMapping(unittest.TestCase):
         self.assertNotIn("user_id", market)
         self.assertNotIn("settled_by", market)
 
-    def test_settled_market_scores_hits(self) -> None:
-        hits = list(_TEAM_IDS[:3])
+    def test_settled_market_scores_zone_and_position(self) -> None:
+        picks = _table_with_team_at(_PICK_FILLERS, _BARCELONA_ID, 6)
+        results = _table_with_team_at(_RESULT_FILLERS, _BARCELONA_ID, 6)
         with patch(f"{_REPO}.fetch_long_term_dashboard") as mock_fetch:
             mock_fetch.return_value = {
                 "season_id": _SEASON_ID,
@@ -322,18 +396,22 @@ class TestLongTermDashboardMapping(unittest.TestCase):
                     "market_id": _MARKET_ID,
                     "league_id": repo.CHAMPIONS_LEAGUE_ID,
                     "season_id": _SEASON_ID,
-                    "market_key": "top8_direct_r16",
-                    "title": "TOP 8",
+                    "market_key": "league_phase_table",
+                    "title": "Tabela fazy ligowej",
                     "description": None,
-                    "selection_size": 8,
-                    "points_per_correct": 2.0,
+                    "selection_size": _TABLE_SIZE,
+                    "scoring_kind": service.SCORING_KIND_ZONE_AND_POSITION,
+                    "points_per_correct": _POINTS_ZONE,
+                    "points_per_exact_position": _POINTS_EXACT,
+                    "top_zone_size": _TOP_ZONE,
+                    "bot_zone_size": _BOT_ZONE,
                     "settled_at": _SETTLED_AT,
                     "settled_by": _ADMIN_ID,
                     "deadline_at": _SETTLED_AT,
                     "is_locked": True,
                     "candidates": [],
-                    "picked_team_ids": list(_TEAM_IDS),
-                    "result_team_ids": hits + [900, 901, 902, 903, 904]
+                    "picked_team_ids": picks,
+                    "result_team_ids": results
                 }],
                 "changes": [{
                     "id": 1,
@@ -341,13 +419,13 @@ class TestLongTermDashboardMapping(unittest.TestCase):
                     "user_uuid": "u-1",
                     "display_name": "Alice",
                     "previous_team_ids": None,
-                    "new_team_ids": list(_TEAM_IDS),
+                    "new_team_ids": picks,
                     "changed_at": _SETTLED_AT
                 }]
             }
             document = service.get_dashboard(4, _SEASON_ID)
         market = document["markets"][0]
-        self.assertEqual(market["points"], 6.0)
+        self.assertEqual(market["points"], _POINTS_ZONE + _POINTS_EXACT)
         self.assertEqual(len(market["changes"]), 1)
         self.assertNotIn("settled_by", market)
         self.assertNotIn("settled_by_uuid", market)

@@ -237,3 +237,5 @@ db_module.py
 /tasks/
 models/artifacts/dev/**/*
 deploy/mysql.env
+.agents/
+.codex/

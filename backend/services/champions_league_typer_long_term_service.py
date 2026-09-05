@@ -14,6 +14,8 @@ LEAGUE_PHASE_TEAM_COUNT = repository.LEAGUE_PHASE_TEAM_COUNT
 LEAGUE_PHASE_MATCHES_PER_TEAM = repository.LEAGUE_PHASE_MATCHES_PER_TEAM
 LEAGUE_PHASE_SETTLED_MATCH_COUNT = (
     repository.LEAGUE_PHASE_SETTLED_MATCH_COUNT)
+MARKET_KIND_RANKED_TEAM_TABLE = "ranked_team_table"
+SCORING_KIND_ZONE_AND_POSITION = "zone_and_position"
 
 
 class TyperServiceError(Exception):
@@ -44,16 +46,84 @@ def _repository_errors() -> Iterator[None]:
         raise TyperValidationError(str(exc)) from exc
 
 
-def score_long_term(
+def zone_for_position(
+        position: int,
+        selection_size: int,
+        top_zone_size: int,
+        bot_zone_size: int) -> str | None:
+    """Return 'top', 'bot' or None for a 1-based table slot."""
+    # -1 i 0 oznaczają brak strefy (kolumny rynku nieużywane)
+    if top_zone_size > 0 and position <= top_zone_size:
+        return "top"
+    if bot_zone_size > 0 and position > selection_size - bot_zone_size:
+        return "bot"
+    return None
+
+
+def score_zone_and_position(
         pick_team_ids: list[int],
         result_team_ids: list[int],
-        points_per_correct: float) -> float:
-    """Return ``|picks ∩ results| * points_per_correct``.
+        points_per_zone: float,
+        points_per_exact_position: float,
+        top_zone_size: int,
+        bot_zone_size: int) -> float:
+    """Score ranked table. Middle slots never score.
 
-    Order of ids does not matter. There is no ``scoring_kind`` branch.
+    Same zone -> points_per_zone; same position -> plus exact bonus.
     """
-    hits = len(set(pick_team_ids) & set(result_team_ids))
-    return float(hits) * float(points_per_correct)
+    selection_size = len(pick_team_ids)
+    result_positions = {
+        team_id: index + 1
+        for index, team_id in enumerate(result_team_ids)
+    }
+    total = 0.0
+    for index, team_id in enumerate(pick_team_ids):
+        pick_position = index + 1
+        pick_zone = zone_for_position(
+            pick_position,
+            selection_size,
+            top_zone_size,
+            bot_zone_size)
+        if pick_zone is None:
+            continue
+        # join po team_id: ta sama drużyna może stać na innym miejscu
+        result_position = result_positions.get(team_id)
+        if result_position is None:
+            continue
+        result_zone = zone_for_position(
+            result_position,
+            selection_size,
+            top_zone_size,
+            bot_zone_size)
+        if result_zone != pick_zone:
+            continue
+        total += float(points_per_zone)
+        if result_position == pick_position:
+            total += float(points_per_exact_position)
+    return total
+
+
+def score_long_term(
+        scoring_kind: str,
+        pick_team_ids: list[int],
+        result_team_ids: list[int],
+        points_per_correct: float,
+        points_per_exact_position: float,
+        top_zone_size: int,
+        bot_zone_size: int) -> float:
+    """Dispatch. zone_and_position -> score_zone_and_position.
+
+    Unknown kind -> 0.0.
+    """
+    if scoring_kind != SCORING_KIND_ZONE_AND_POSITION:
+        return 0.0
+    return score_zone_and_position(
+        pick_team_ids,
+        result_team_ids,
+        points_per_correct,
+        points_per_exact_position,
+        top_zone_size,
+        bot_zone_size)
 
 
 def is_league_phase_complete(auto_result: dict[str, Any]) -> bool:
@@ -190,7 +260,13 @@ def _map_dashboard_market(
     if results:
         # punkty dopiero po settle: puste result_team_ids to brak wyniku
         points = score_long_term(
-            picked, results, float(market["points_per_correct"]))
+            str(market["scoring_kind"]),
+            picked,
+            results,
+            float(market["points_per_correct"]),
+            float(market["points_per_exact_position"]),
+            int(market["top_zone_size"]),
+            int(market["bot_zone_size"]))
     return {
         "market_id": int(market["market_id"]),
         "league_id": int(market["league_id"]),

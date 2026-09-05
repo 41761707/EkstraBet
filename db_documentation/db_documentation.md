@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 31.08.2026
+###### Ostatnia data modyfikacji: 05.09.2026
 
 ## Opis struktury bazy
 
@@ -17,7 +17,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [BOOKMAKERS](#bookmakers) (Wszyscy bukmacherzy brani pod uwagę w ramach badania)
 - [CHAMPIONS_LEAGUE_TYPER_MATCHES](#champions_league_typer_matches) (Opublikowane mecze konkursu Typer LM)
 - [CHAMPIONS_LEAGUE_TYPER_PREDICTIONS](#champions_league_typer_predictions) (Bieżące typy 1X2 użytkowników Typera LM)
-- [CHAMPIONS_LEAGUE_TYPER_PREDICTION_CHANGES](#champions_league_typer_prediction_changes) (Append-only audyt zmian typów Typera LM)
+- [CHAMPIONS_LEAGUE_TYPER_PREDICTION_CHANGES](#champions_league_typer_prediction_changes) (Audyt zmian typów Typera LM)
 - [CONFERENCE_DIVISIONS](#conference_divisions) (Dywizje przypisane do konferencji (dotyczy lig północnoamerykańskich))
 - [CONFERENCES](#conferences) (Podział lig (głównie północnoamerykańskich) na konferencje)
 - [COUNTRIES](#countries) (Kraje, z których pochodzą analizowane ligi)
@@ -45,10 +45,10 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
 - [PARLAY_EVENTS](#parlay_events) (Szczegóły kuponów)
 - [PLAYER_NAME_MAPPINGS](#player_name_mappings) (mapowania nazw zawodników dla różnych bukmacherów)
-- [PLAYER_PROS_LINES] (#player_pros_lines) (linie na zdarzenia dla graczy w poszczególnych sportach)
+- [PLAYER_PROPS_LINES](#player_props_lines) (linie bukmacherskie na zdarzenia zawodników)
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
-- [SCHEDULE](#schedule) (Stabilny terminarz sezonu piłkarskiego — źródło listy spotkań projekcji końca sezonu)
+- [SCHEDULE](#schedule) (Terminarz sezonu piłkarskiego)
 - [SEASONS](#seasons) (Tabela z sezonami)
 - [SEASON_PROJECTION_RUNS](#season_projection_runs) (Cache przebiegów Monte Carlo projekcji końca sezonu)
 - [SEASON_PROJECTION_TEAM_ROWS](#season_projection_team_rows) (Statystyki drużyn w ramach udanego runu projekcji)
@@ -56,13 +56,13 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
-- [TYPER_LONG_TERM_MARKETS](#typer_long_term_markets) (Rynki długoterminowe Typera — niezależne od ligi)
-- [TYPER_LONG_TERM_PICK_CHANGES](#typer_long_term_pick_changes) (Append-only audyt zestawów wyborów długoterminowych Typera)
-- [TYPER_LONG_TERM_PICKS](#typer_long_term_picks) (Bieżące wybory drużyn na rynkach długoterminowych Typera)
-- [TYPER_LONG_TERM_RESULTS](#typer_long_term_results) (Zatwierdzony wynik rynku długoterminowego Typera)
+- [TYPER_LONG_TERM_MARKETS](#typer_long_term_markets) (Rynki długoterminowe Typera)
+- [TYPER_LONG_TERM_PICK_CHANGES](#typer_long_term_pick_changes) (Audyt zmian wyborów długoterminowych Typera)
+- [TYPER_LONG_TERM_PICKS](#typer_long_term_picks) (Bieżące wybory użytkowników na rynkach długoterminowych)
+- [TYPER_LONG_TERM_RESULTS](#typer_long_term_results) (Zatwierdzony wynik rynku długoterminowego)
 - [USER_FAVORITE_LEAGUES](#user_favorite_leagues) (Ulubione ligi wybranych użytkowników aplikacji)
 - [USER_PREFERENCES](#user_preferences) (Skalarne preferencje UI konta, m.in. motyw i nazwy drużyn)
-- [USERS](#users) (Konta użytkowników aplikacji web / API)
+- [USERS](#users) (Konta użytkowników aplikacji)
 
 ## Legenda
 
@@ -244,7 +244,7 @@ Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.
 - Klucz obcy: `MATCH_ID` → `matches(ID)`
 - **Unikalny indeks**: `MATCH_ID` (zapobiega duplikatom dodatkowych statystyk dla tego samego meczu)
 
-## **Sposób generowania danych do tabeli**:
+**Sposób generowania danych do tabeli**:
 
 Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.py**
 
@@ -316,17 +316,17 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 
 ### CHAMPIONS_LEAGUE_TYPER_MATCHES
 
-(Opublikowane mecze konkursu Typer LM — rejestr publikacji **bez kursów**)
+(Opublikowane mecze konkursu Typer LM)
 
 
-| POLE            | DOMENA                  | ZAKRES              | UWAGI                                                                                          | WARTOŚC DOMYŚLNA         |
-| --------------- | ----------------------- | ------------------- | ---------------------------------------------------------------------------------------------- | ------------------------ |
-| **ID**          | INT                     | INT                 | ID wiersza publikacji                                                                          | AUTOMATYCZNIE GENEROWANY |
-| *MATCH_ID*      | INT                     | INT                 | Klucz obcy, powiązanie z tabelą *matches* (UNIQUE — jeden mecz publikowany raz)                | NULL                     |
-| *SEASON_ID*     | INT                     | INT                 | Klucz obcy, powiązanie z tabelą *seasons*                                                      | NULL                     |
-| ROUND_NUMBER    | INT                     | INT                 | Kolejka fazy ligowej (1–8) albo `matches.round` rundy pucharowej (>= 900). Faza wynika z tej wartości — brak osobnej kolumny. | NULL                     |
-| *PUBLISHED_BY*  | INT                     | INT                 | Klucz obcy, powiązanie z tabelą *users* (administrator, który opublikował zestaw)              | NULL                     |
-| PUBLISHED_AT    | DATETIME                | DATETIME            | Moment publikacji meczu w Typerze                                                              | CURRENT_TIMESTAMP        |
+| POLE            | DOMENA   | ZAKRES   | UWAGI                                                                        | WARTOŚC DOMYŚLNA         |
+| --------------- | -------- | -------- | ---------------------------------------------------------------------------- | ------------------------ |
+| **ID**          | INT      | INT      | ID wiersza publikacji                                                        | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*      | INT      | INT      | Klucz obcy, powiązanie z tabelą *matches*                                    | NULL                     |
+| *SEASON_ID*     | INT      | INT      | Klucz obcy, powiązanie z tabelą *seasons*                                    | NULL                     |
+| ROUND_NUMBER    | INT      | INT      | Numer rundy (faza ligowa 1–8 albo `matches.round` rundy pucharowej >= 900)   | NULL                     |
+| *PUBLISHED_BY*  | INT      | INT      | Klucz obcy, powiązanie z tabelą *users* (administrator publikujący zestaw)   | NULL                     |
+| PUBLISHED_AT    | DATETIME | DATETIME | Moment publikacji meczu w Typerze                                            | CURRENT_TIMESTAMP        |
 
 
 **Ograniczenia/Indeksy:**
@@ -337,11 +337,10 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 - Klucz obcy: `MATCH_ID` → `matches(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `SEASON_ID` → `seasons(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `PUBLISHED_BY` → `users(ID)` **ON DELETE RESTRICT**
-- Tabela **nie przechowuje kursów**. Kursy 1/X/2 Superbet są w `odds` (`bookmaker = 1`, eventy `1/2/3`) i mogą pojawić się po publikacji. Brak kursu nie blokuje publikacji ani typowania.
 
 **Sposób generowania danych do tabeli:**
 
-Wiersze wstawia administrator przez API Typera LM (`POST /typer-lm/admin/publications`) w jednej transakcji dla całego zestawu rundy. Korekta pomyłki (usunięcie publikacji bez typów) to `DELETE /typer-lm/admin/publications/{match_id}`. Aplikacja nie kopiuje kursów do tej tabeli i nie wstawia wierszy do `odds`.
+Dane wstawiane przez aplikację (administrator).
 
 ---
 
@@ -372,20 +371,20 @@ Wiersze wstawia administrator przez API Typera LM (`POST /typer-lm/admin/publica
 
 **Sposób generowania danych do tabeli:**
 
-Zalogowany użytkownik zapisuje lub zmienia typ przez API (`PUT /typer-lm/predictions/{match_id}`) do chwili `matches.game_date`. Backend wykonuje UPSERT bieżącego wiersza. Identyczny wybór (no-op) nie dodaje wiersza audytu.
+Dane wstawiane przez aplikację (użytkownicy).
 
 ---
 
 ### CHAMPIONS_LEAGUE_TYPER_PREDICTION_CHANGES
 
-(Append-only audyt zmian typów Typera LM — rozstrzyganie sporów o treść zapisu)
+(Audyt zmian typów Typera LM)
 
 
 | POLE                          | DOMENA   | ZAKRES         | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
 | ----------------------------- | -------- | -------------- | --------------------------------------------------------------------- | ------------------------ |
 | **ID**                        | INT      | INT            | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
 | *PREDICTION_ID*               | INT      | INT            | Klucz obcy, powiązanie z tabelą *champions_league_typer_predictions*  | NULL                     |
-| *CHANGED_BY*                  | INT      | INT            | Klucz obcy, powiązanie z tabelą *users* (użytkownik JWT, który zapisał typ; w obecnym API zawsze właściciel typu) | NULL                     |
+| *CHANGED_BY*                  | INT      | INT            | Klucz obcy, powiązanie z tabelą *users* (użytkownik, który zapisał typ) | NULL                     |
 | *PREVIOUS_SELECTED_EVENT_ID*  | INT      | {1, 2, 3, NULL}| Klucz obcy, powiązanie z tabelą *events*; `NULL` przy pierwszym typie | NULL                     |
 | *NEW_SELECTED_EVENT_ID*       | INT      | {1, 2, 3}      | Klucz obcy, powiązanie z tabelą *events*; wyłącznie 1/2/3             | NULL                     |
 | CHANGED_AT                    | DATETIME | DATETIME       | Moment pierwszego zapisu albo realnej zmiany typu                     | CURRENT_TIMESTAMP        |
@@ -402,11 +401,10 @@ Zalogowany użytkownik zapisuje lub zmienia typ przez API (`PUT /typer-lm/predic
 - Klucz obcy: `NEW_SELECTED_EVENT_ID` → `events(ID)` **ON DELETE RESTRICT**
 - **CHECK:** `chk_cl_typer_chg_prev_event` — `PREVIOUS_SELECTED_EVENT_ID IS NULL OR PREVIOUS_SELECTED_EVENT_ID IN (1, 2, 3)`
 - **CHECK:** `chk_cl_typer_chg_new_event` — `NEW_SELECTED_EVENT_ID IN (1, 2, 3)`
-- Wiersze są tylko dokładane. Aplikacja **nie** wykonuje `UPDATE` ani `DELETE` na tej tabeli. Służą rozstrzyganiu sporów o treść typu (kto, z jakiego eventu na jaki, kiedy).
 
 **Sposób generowania danych do tabeli:**
 
-INSERT w tej samej transakcji co UPSERT bieżącego typu: pierwszy zapis (`PREVIOUS_SELECTED_EVENT_ID = NULL`) oraz każda realna zmiana (np. `1 → 2`). Identyczny wybór nie dodaje wiersza. Użytkownik odczytuje wyłącznie własną historię; cudzy audyt widzi tylko administrator (`GET /typer-lm/admin/prediction-history`).
+Dane wyliczane przez aplikację przy zapisie typu (pierwszy typ oraz każda realna zmiana).
 
 ---
 
@@ -642,19 +640,9 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 - Klucz obcy: `PREDICTIONS_ID` → `predictions(ID)`
 - **Unikalny indeks:** `PREDICTIONS_ID` (zapobiega duplikatom predykcji)
 
-**Źródła danych i utrzymanie:**
+**Sposób generowania danych do tabeli:**
 
-- Wiersze finałowe zapisuje pipeline
-  (`models/pipeline/persistence/prediction_writer.py`) przy predykcji batch /
-  pair — osobno dla rodzin RESULT (REZULTAT), BTTS, GOALS, O/U i EXACT.
-- Rozliczanie `OUTCOME` wykonuje proces `refresh-statistics` dla **wszystkich**
-  obsługiwanych rodzin (w tym GOALS i EXACT), niezależnie od obecności kursu
-  w `odds`. Kandydaci: `OUTCOME IS NULL` oraz mecz z `result IN ('1','X','2')`.
-- Nieznany event lub niespójny wynik meczu jest pomijany (bez oznaczania jako
-  przegrana) i trafia do ostrzeżeń raportu cyklu.
-- Statystyki modeli w API (`analytics_service`) liczone są przy odczycie z
-  zapisanych `fp.outcome` / `b.outcome`; nie ma osobnej tabeli statystyk do
-  przebudowy.
+Dane wyliczane przez pipeline predykcji; `OUTCOME` uzupełniane po zakończeniu meczu.
 
 ---
 
@@ -1059,7 +1047,7 @@ Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (*
 
 ### MATCH_MODEL_ASSESSMENTS
 
-(Oceny meczów *po fakcie* z modeli assessment — np. kto zagrał lepiej. Nie mylić z `PREDICTIONS` / `FINAL_PREDICTIONS`, które dotyczą predykcji przyszłych zdarzeń zakładkowych.)
+(Oceny meczów po fakcie z modeli assessment)
 
 
 | POLE                             | DOMENA       | ZAKRES  | UWAGI                                                                                                                                                         | WARTOŚC DOMYŚLNA         |
@@ -1087,13 +1075,13 @@ Dane do tabeli dodawwane w ramach wszystkich scrapperów dotyczących meczów (*
 - Klucz główny: `ID`
 - Klucz obcy: `MATCH_ID` → `matches(ID)` (`fk_match_model_assessments_match`)
 - Klucz obcy: `MODEL_ID` → `models(ID)` (`fk_match_model_assessments_model`)
-- **Unikalny indeks:** `unique_match_model_assessment` (`MATCH_ID`, `MODEL_ID`, `MODEL_VERSION`, `ASSESSMENT_TYPE`) — jeden wiersz na mecz/model/wersję/typ; zapis przez `ON DUPLICATE KEY UPDATE`
+- **Unikalny indeks:** `unique_match_model_assessment` (`MATCH_ID`, `MODEL_ID`, `MODEL_VERSION`, `ASSESSMENT_TYPE`)
 - Indeks: `idx_match_model_assessments_match_id` (`MATCH_ID`)
 - Indeks: `idx_match_model_assessments_model_id` (`MODEL_ID`)
 
 **Sposób generowania danych do tabeli:**
 
-Dane zapisywane przez pipeline ML (`models/pipeline/persistence/match_assessment_writer.py`) przy komendach `assess-match` / `assess-batch` z flagą `--write-db` (`models/scripts/model_runner.py`).
+Dane wyliczane przez pipeline ML i zapisywane do bazy.
 
 ---
 
@@ -1119,13 +1107,13 @@ Dane zapisywane przez pipeline ML (`models/pipeline/persistence/match_assessment
 
 **Sposób generowania danych do tabeli**:
 
-Dane do tabeli dodawane są **ręcznie** w ramach konfiguracji nowych modeli predykcyjnych. Każdy nowy model musi być dodany do tej tabeli przed pierwszym użyciem (seed SQL, np. `sql/migrations/002_seed_football_played_better_v1.sql`, `sql/migrations/003_seed_football_played_better_noxg_v1.sql`). Modele assessment (`FOOTBALL_PLAYED_BETTER_V1`, `FOOTBALL_PLAYED_BETTER_NOXG_V1`) zapisują wyniki do `MATCH_MODEL_ASSESSMENTS`, a nie do `PREDICTIONS`.
+Dane dodawane ręcznie przy konfiguracji nowych modeli.
 
 ---
 
 ### MODEL_TRAINING_RUNS
 
-(Opcjonalny audyt przebiegów trenowania i ewaluacji modeli ML — metryki, feature’y, ścieżki artefaktów. Nie przechowuje predykcji ani ocen meczów.)
+(Audyt przebiegów trenowania i ewaluacji modeli)
 
 
 | POLE                 | DOMENA       | ZAKRES  | UWAGI                                                                                          | WARTOŚC DOMYŚLNA         |
@@ -1152,7 +1140,7 @@ Dane do tabeli dodawane są **ręcznie** w ramach konfiguracji nowych modeli pre
 
 **Sposób generowania danych do tabeli:**
 
-Tabela audytowa utworzona wraz z `MATCH_MODEL_ASSESSMENTS`. Zapis przebiegów jest opcjonalny — pipeline może logować tu wyniki `train` / `evaluate` z `models/scripts/model_runner.py` (metryki + lista feature’ów + filtry danych).
+Dane wyliczane przez pipeline ML (opcjonalny audyt przebiegów trenowania / ewaluacji).
 
 ---
 
@@ -1182,8 +1170,6 @@ Tabela audytowa utworzona wraz z `MATCH_MODEL_ASSESSMENTS`. Zapis przebiegów je
 
 Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
 
-Typer LM odczytuje kursy 1/X/2 Superbet (`bookmaker = 1`, eventy `1/2/3`) z tej tabeli i **nie tworzy kopii** (brak kolumn kursów w tabelach `champions_league_typer_*` i brak krawędzi FK Typer → `odds`; powiązanie logiczne przez `matches.id`). Dla Ligi Mistrzów wiersz `(match_id, bookmaker, event)` jest zapisany jednokrotnie przez proces zewnętrzny, zwykle w dniu meczu.
-
 ---
 
 ### PARLAY_EVENTS
@@ -1211,19 +1197,19 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przysz
 
 ### PLAYER_PROPS_LINES
 
-(linie na zdarzenia dla graczy w poszczególnych sportach)
+(Linie bukmacherskie na zdarzenia zawodników w meczu)
 
 
-| POLE           | DOMENA | ZAKRES | UWAGI                                        | WARTOŚC DOMYŚLNA         |
-| -------------- | ------ | ------ | -------------------------------------------- | ------------------------ |
-| **ID**         | INT    | INT    | ID linii na zdarzenie dla gracza             | AUTOMATYCZNIE GENEROWANY |
-| *PLAYER_ID*    | INT    | INT    | Klucz obcy, powiązanie z tabelą *players*    | NULL                     |
-| *MATCH_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *matches*    | NULL                     |
-| *TEAM_ID*      | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*      | NULL                     |
-| *EVENT_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *events*     | NULL                     |
-| *BOOKMAKER_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *bookmakers* | NULL                     |
-| LINE           | FLOAT  | FLOAT  | Linia na zdarzenie dla gracza                | NULL                     |
-| ODDS           | FLOAT  | >= 1   | Kurs dla danej linii                         | NULL                     |
+| POLE           | DOMENA | ZAKRES | UWAGI                                                                  | WARTOŚC DOMYŚLNA         |
+| -------------- | ------ | ------ | ---------------------------------------------------------------------- | ------------------------ |
+| **ID**         | INT    | INT    | ID linii                                                               | AUTOMATYCZNIE GENEROWANY |
+| *PLAYER_ID*    | INT    | INT    | Klucz obcy, powiązanie z tabelą *players*                              | NULL                     |
+| *MATCH_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *matches*                              | NULL                     |
+| *TEAM_ID*      | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                                | NULL                     |
+| *EVENT_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *events*                               | NULL                     |
+| *BOOKMAKER_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *bookmakers*                           | NULL                     |
+| LINE           | FLOAT  | FLOAT  | Linia na zdarzenie zawodnika (`-1` = brak danych)                      | -1                       |
+| ODDS           | FLOAT  | >= 1   | Kurs dla danej linii (`-1` = brak danych)                              | -1                       |
 
 
 **Ograniczenia/Indeksy:**
@@ -1234,10 +1220,11 @@ Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przysz
 - Klucz obcy: `TEAM_ID` → `teams(ID)`
 - Klucz obcy: `EVENT_ID` → `events(ID)`
 - Klucz obcy: `BOOKMAKER_ID` → `bookmakers(ID)`
-- **Unikalny indeks:** `(PLAYER_ID, MATCH_ID, EVENT_ID, BOOKMAKER_ID)` – gwarantuje unikalność linii dla danego zawodnika, meczu, zdarzenia i bukmachera
+- **Unikalny indeks:** `(PLAYER_ID, MATCH_ID, EVENT_ID, BOOKMAKER_ID)` — jedna linia na zawodnika, mecz, zdarzenie i bukmachera
 
 **Sposób generowania danych do tabeli**:
-TODO - mechanizm
+
+Dane pobierane z internetu (kursy bukmacherskie na zdarzenia zawodników, obecnie NHL).
 
 ---
 
@@ -1267,7 +1254,8 @@ TODO - mechanizm
 - **Indeks**: `(BOOKMAKER_ID, BOOKMAKER_COMMON_NAME)` (optymalizacja wyszukiwania zawodników po znormalizowanej nazwie)
 
 **Sposób generowania danych do tabeli**:
-Dane do tabeli generowane są **automatycznie** w ramach działania modułu **nhl_player_lines.py** podczas pierwszego dopasowania zawodnika z danymi bukmachera. Tabela służy jako cache mapowań, przyspieszając kolejne wyszukiwania i eliminując konieczność ręcznego dodawania wariantów nazw zawodników dla różnych źródeł danych.
+
+Dane pobierane z internetu i uzupełniane przy dopasowaniu nazw zawodników do bukmachera.
 
 ---
 
@@ -1315,7 +1303,7 @@ Dane do tabeli wprowadzane AKTUALNIE jedynie przy pomocy modułu **nhl_get_playe
 | *MATCH_ID* | INT    | INT>0  | Klucz obcy, powiązanie z tabelą *matches* | NULL                     |
 | *EVENT_ID* | INT    | INT>0  | Klucz obcy, powiązanie z tabelą *events*  | NULL                     |
 | *MODEL_ID* | INT    | INT>0  | Klucz obcy, powiązanie z tabelą *models*  | NULL                     |
-| VALUE      | FLOAT  | [0,100] | Prawdopodobieństwo zdarzenia w procentach (pipeline zapisuje przez `_db_percentage`; API konwertuje do [0,1]) | NULL                     |
+| VALUE      | FLOAT  | [0,100] | Prawdopodobieństwo zdarzenia w procentach | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
@@ -1334,45 +1322,29 @@ Dane naliczane w ramach modułu **main.py**
 
 ### SCHEDULE
 
-(Stabilny terminarz sezonu piłkarskiego — źródło listy spotkań dla projekcji
-końca sezonu EB-15. Izoluje graf „kto z kim w której kolejce” od operacyjnych
-przenosin dat w `MATCHES`. Brak kolumny `game_date`; chronologia w symulacji =
-`round` + stały interwał 7 dni.)
+(Terminarz sezonu piłkarskiego)
 
 
-| POLE       | DOMENA | ZAKRES | UWAGI                                                                                                                                                                                                 | WARTOŚC DOMYŚLNA         |
-| ---------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **ID**     | INT    | INT    | Klucz główny, automatycznie generowany                                                                                                                                                                | AUTOMATYCZNIE GENEROWANY |
-| MATCH_ID   | INT    | INT    | Opcjonalne, **logiczne** powiązanie z `matches(ID)` — **bez FK** i bez `UNIQUE(match_id)`. `NULL` = spotkanie jeszcze nie zlinkowane. Po podpięciu ID jest niezmienne (wynik aktualizuje się w `MATCHES`). | NULL                     |
-| LEAGUE     | INT    | INT    | Id ligi — powiązanie **logiczne** z `leagues(ID)`, **bez FK** w DDL                                                                                                                                   | NULL                     |
-| SEASON     | INT    | INT    | Id sezonu — powiązanie **logiczne** z `seasons(ID)`, **bez FK** w DDL                                                                                                                                 | NULL                     |
-| HOME_TEAM  | INT    | INT    | Id gospodarza — powiązanie **logiczne** z `teams(ID)`, **bez FK** w DDL                                                                                                                               | NULL                     |
-| AWAY_TEAM  | INT    | INT    | Id gościa — powiązanie **logiczne** z `teams(ID)`, **bez FK** w DDL                                                                                                                                   | NULL                     |
-| ROUND      | INT    | INT    | Numer kolejki. Symulacja i walidacja pomijają `round >= 900` (jak standings). Brak `game_date` w tej tabeli.                                                                                           | NULL                     |
+| POLE       | DOMENA | ZAKRES | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ---------- | ------ | ------ | --------------------------------------------------------------------- | ------------------------ |
+| **ID**     | INT    | INT    | ID wpisu terminarza                                                   | AUTOMATYCZNIE GENEROWANY |
+| MATCH_ID   | INT    | INT    | Opcjonalne powiązanie z `matches(ID)` — bez FK. `NULL` = jeszcze nie zlinkowane | NULL                     |
+| LEAGUE     | INT    | INT    | Id ligi — powiązanie logiczne z `leagues(ID)`, bez FK                 | NULL                     |
+| SEASON     | INT    | INT    | Id sezonu — powiązanie logiczne z `seasons(ID)`, bez FK               | NULL                     |
+| HOME_TEAM  | INT    | INT    | Id gospodarza — powiązanie logiczne z `teams(ID)`, bez FK             | NULL                     |
+| AWAY_TEAM  | INT    | INT    | Id gościa — powiązanie logiczne z `teams(ID)`, bez FK                 | NULL                     |
+| ROUND      | INT    | INT    | Numer kolejki. Brak kolumny `game_date`                               | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- **Unikalny indeks:** `id_UNIQUE (ID)` (redundantny względem PK — stan DDL)
-- **Unikalny indeks:** `match_schedule_UNQ (LEAGUE, SEASON, HOME_TEAM, AWAY_TEAM, ROUND)` — jeden wiersz na uporządkowaną parę w kolejce
-- **Brak** FK do `leagues` / `seasons` / `teams` / `matches` (świadomie)
-- **Brak** `UNIQUE(MATCH_ID)` — uniknięcie dubli `match_id` to reguła aplikacyjna przy linkowaniu
-
-**Semantyka dla projekcji:**
-
-- Lista fixture’ów = wiersze `SCHEDULE` dla `(league, season)` z `round < 900`,
-  posortowane po `(round, id)`.
-- v1 waliduje double round-robin: `N*(N-1)` wierszy względem rosteru z
-  `MATCHES` (DISTINCT drużyn sezonu, `round < 900`).
-- W trybie `from_now`: LEFT JOIN wyniku z `MATCHES` po `match_id` — stały wynik
-  tylko gdy `result <> '0'`; brak `match_id`, `result = '0'` lub NULL → losowanie.
-- W trybie `from_season_start`: wyniki z `MATCHES` nie są czytane.
+- **Unikalny indeks:** `match_schedule_UNQ (LEAGUE, SEASON, HOME_TEAM, AWAY_TEAM, ROUND)`
+- Brak FK do `leagues` / `seasons` / `teams` / `matches`
 
 **Sposób generowania danych do tabeli:**
 
-DDL i wypełnienie terminarza — **ręcznie** / osobnym procesem operacyjnym
-(SZP-80 poza agentem). v1 bez automatycznego scrapera `schedule`.
+Dane dodawane ręcznie.
 
 ---
 
@@ -1395,36 +1367,31 @@ DDL i wypełnienie terminarza — **ręcznie** / osobnym procesem operacyjnym
 
 Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgrania predefiniowanego skryptu
 
-Typer LM Długoterminowe: `champions_league_typer_long_term_markets.season_id` → `seasons.id` (sezon 13 = 2026/27 dla seedu `top8_direct_r16`).
-
 ---
 
 ### SEASON_PROJECTION_RUNS
 
-(Cache metadanych przebiegu Monte Carlo projekcji końca sezonu. Endpoint
-`GET /leagues/{league_id}/season-projection` odczytuje ostatni `SUCCEEDED` dla
-`(league_id, season_id, mode)` i porównuje `input_fingerprint` ze świeżym
-snapshotem — bez uruchamiania TensorFlow.)
+(Cache przebiegów Monte Carlo projekcji końca sezonu)
 
 
-| POLE               | DOMENA      | ZAKRES                                      | UWAGI                                                                                                                         | WARTOŚC DOMYŚLNA         |
-| ------------------ | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **ID**             | INT         | INT                                         | Klucz główny runu                                                                                                             | AUTOMATYCZNIE GENEROWANY |
-| *LEAGUE_ID*        | INT         | INT                                         | Klucz obcy → `leagues(ID)`                                                                                                    | NULL                     |
-| *SEASON_ID*        | INT         | INT                                         | Klucz obcy → `seasons(ID)`                                                                                                    | NULL                     |
-| MODE               | VARCHAR(32) | {'from_now', 'from_season_start'}           | Tryb symulacji (osobne runy per mode)                                                                                         | NULL                     |
-| STATUS             | VARCHAR(16) | {'RUNNING', 'SUCCEEDED', 'FAILED'}          | Cykl życia zapisu: wiersze drużyn widoczne dopiero po `SUCCEEDED`                                                             | NULL                     |
-| MODEL_NAME         | VARCHAR(128)| STRING                                      | Nazwa artefaktu modelu (np. `FOOTBALL_GOALS_POISSON_V1`)                                                                      | NULL                     |
-| MODEL_VERSION      | VARCHAR(64) | STRING                                      | Wersja modelu zapisana przy runie                                                                                             | NULL                     |
-| ARTIFACT_HASH      | VARCHAR(64) | STRING                                      | Hash artefaktu użytego w inferencji                                                                                           | NULL                     |
-| N_TRIALS           | INT         | [100, 10000]                                | Liczba triali Monte Carlo (domyślnie 2000 w CLI)                                                                              | NULL                     |
-| SEED               | INT         | INT                                         | Seed RNG — ten sam seed + fingerprint + model + config + mode daje powtarzalny wynik                                          | NULL                     |
-| FIXED_MATCHES      | INT         | >=0                                         | Liczba spotkań ze stałym wynikiem (tryb `from_now`)                                                                           | NULL                     |
-| SIMULATED_MATCHES  | INT         | >=0                                         | Liczba spotkań losowanych z Poissona                                                                                          | NULL                     |
-| INPUT_FINGERPRINT  | VARCHAR(64) | hex SHA-256                                 | Fingerprint wejścia (schedule + opcjonalne wyniki); zmiana unieważnia świeżość cache                                          | NULL                     |
-| STARTED_AT         | TIMESTAMP   | TIMESTAMP                                   | Start runu                                                                                                                    | NULL                     |
-| COMPLETED_AT       | TIMESTAMP   | TIMESTAMP                                   | Koniec runu; `NULL` dopóki status `RUNNING`                                                                                   | NULL                     |
-| ERROR_MESSAGE      | TEXT        | STRING                                      | Komunikat błędu przy `FAILED` (np. niekompletny terminarz); `NULL` przy sukcesie                                              | NULL                     |
+| POLE               | DOMENA      | ZAKRES                                      | UWAGI                                           | WARTOŚC DOMYŚLNA         |
+| ------------------ | ----------- | ------------------------------------------- | ----------------------------------------------- | ------------------------ |
+| **ID**             | INT         | INT                                         | ID runu                                         | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*        | INT         | INT                                         | Klucz obcy, powiązanie z tabelą *leagues*       | NULL                     |
+| *SEASON_ID*        | INT         | INT                                         | Klucz obcy, powiązanie z tabelą *seasons*       | NULL                     |
+| MODE               | VARCHAR(32) | {'from_now', 'from_season_start'}           | Tryb symulacji                                  | NULL                     |
+| STATUS             | VARCHAR(16) | {'RUNNING', 'SUCCEEDED', 'FAILED'}          | Status przebiegu                                | NULL                     |
+| MODEL_NAME         | VARCHAR(128)| STRING                                      | Nazwa modelu użytego w runie                    | NULL                     |
+| MODEL_VERSION      | VARCHAR(64) | STRING                                      | Wersja modelu                                   | NULL                     |
+| ARTIFACT_HASH      | VARCHAR(64) | STRING                                      | Hash artefaktu modelu                           | NULL                     |
+| N_TRIALS           | INT         | INT                                         | Liczba triali Monte Carlo                       | NULL                     |
+| SEED               | INT         | INT                                         | Seed generatora liczb losowych                  | NULL                     |
+| FIXED_MATCHES      | INT         | >=0                                         | Liczba spotkań ze stałym wynikiem               | NULL                     |
+| SIMULATED_MATCHES  | INT         | >=0                                         | Liczba spotkań losowanych                       | NULL                     |
+| INPUT_FINGERPRINT  | VARCHAR(64) | STRING                                      | Skrót wejścia (terminarz + opcjonalne wyniki)   | NULL                     |
+| STARTED_AT         | TIMESTAMP   | TIMESTAMP                                   | Start runu                                      | NULL                     |
+| COMPLETED_AT       | TIMESTAMP   | TIMESTAMP                                   | Koniec runu; `NULL` przy statusie `RUNNING`     | NULL                     |
+| ERROR_MESSAGE      | TEXT        | STRING                                      | Komunikat błędu przy `FAILED`; `NULL` przy sukcesie | NULL                 |
 
 
 **Ograniczenia/Indeksy:**
@@ -1432,50 +1399,39 @@ snapshotem — bez uruchamiania TensorFlow.)
 - Klucz główny: `ID`
 - Klucz obcy: `LEAGUE_ID` → `leagues(ID)`
 - Klucz obcy: `SEASON_ID` → `seasons(ID)`
-- Indeks: `idx_season_projection_runs_lookup (LEAGUE_ID, SEASON_ID, MODE, STATUS, COMPLETED_AT)` — lookup „latest succeeded”
-
-**Semantyka zapisu:**
-
-- Writer ustawia `RUNNING`, po sukcesie atomowo zapisuje wiersze drużyn i
-  przełącza na `SUCCEEDED`; przy błędzie → `FAILED` **bez** częściowych wierszy
-  w `SEASON_PROJECTION_TEAM_ROWS`.
-- Niekompletny `SCHEDULE` kończy run jako `FAILED`; API nie prezentuje go jako
-  gotowej projekcji (brak `SUCCEEDED` → 404).
+- Indeks: `idx_season_projection_runs_lookup (LEAGUE_ID, SEASON_ID, MODE, STATUS, COMPLETED_AT)`
 
 **Sposób generowania danych do tabeli:**
 
-Zapis wyłącznie offline przez CLI `simulate-season`
-(`models/pipeline/persistence/season_projection_writer.py`). DDL wgrane ręcznie
-(SZP-86 poza agentem — bez migracji w repo).
+Dane wyliczane przez skrypt projekcji końca sezonu.
 
 ---
 
 ### SEASON_PROJECTION_TEAM_ROWS
 
-(Statystyki końcowe per drużyna dla udanego runu projekcji. Wiersze powstają
-dopiero po transakcyjnym `SUCCEEDED` rodzica.)
+(Statystyki drużyn w ramach udanego runu projekcji)
 
 
-| POLE                         | DOMENA | ZAKRES | UWAGI                                                                                                                                      | WARTOŚC DOMYŚLNA |
-| ---------------------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| ***RUN_ID***                 | INT    | INT    | Część PK; FK → `season_projection_runs(ID)` ON DELETE CASCADE                                                                              | NULL             |
-| ***TEAM_ID***                | INT    | INT    | Część PK; FK → `teams(ID)`                                                                                                                 | NULL             |
-| CURRENT_POSITION             | INT    | >=1    | Pozycja „na teraz”: po commitach stałych w `from_now`; w `from_season_start` start dnia 0                                                  | NULL             |
-| CURRENT_POINTS               | INT    | >=0    | Punkty odpowiadające `CURRENT_POSITION`                                                                                                    | NULL             |
-| EXPECTED_POSITION            | DOUBLE | >=1    | Średnia końcowa pozycja po trialach                                                                                                        | NULL             |
-| MOST_LIKELY_POSITION         | INT    | >=1    | Pozycja o największym prawdopodobieństwie w rozkładzie                                                                                     | NULL             |
-| POSITION_MIN                 | INT    | >=1    | Najlepsza (najniższy numer) pozycja w skończonej próbce triali                                                                             | NULL             |
-| POSITION_MAX                 | INT    | >=1    | Najgorsza pozycja w skończonej próbce triali                                                                                               | NULL             |
-| EXPECTED_POINTS              | DOUBLE | >=0    | Średnia końcowych punktów                                                                                                                  | NULL             |
-| POINTS_VARIANCE              | DOUBLE | >=0    | Wariancja punktów                                                                                                                          | NULL             |
-| POINTS_STDDEV                | DOUBLE | >=0    | Odchylenie standardowe punktów                                                                                                             | NULL             |
-| POINTS_P05                   | DOUBLE | >=0    | Percentyl 5 punktów                                                                                                                        | NULL             |
-| POINTS_P50                   | DOUBLE | >=0    | Mediana punktów                                                                                                                            | NULL             |
-| POINTS_P95                   | DOUBLE | >=0    | Percentyl 95 punktów                                                                                                                       | NULL             |
-| POINTS_MIN                   | DOUBLE | >=0    | Minimum punktów w próbce (ekstremum Monte Carlo — mniej stabilne niż P05–P95)                                                              | NULL             |
-| POINTS_MAX                   | DOUBLE | >=0    | Maksimum punktów w próbce                                                                                                                  | NULL             |
-| EXPECTED_GOAL_DIFFERENCE     | DOUBLE | DOUBLE | Średnia końcowa różnica bramek                                                                                                             | NULL             |
-| POSITION_PROBABILITIES_JSON  | JSON   | JSON   | Rozkład P(pozycja = k) dla `k = 1..N`; suma ≈ 1. Tie-break pozycji w trialu: punkty, GD, stabilne `team_id`                                 | NULL             |
+| POLE                         | DOMENA | ZAKRES | UWAGI                                              | WARTOŚC DOMYŚLNA |
+| ---------------------------- | ------ | ------ | -------------------------------------------------- | ---------------- |
+| ***RUN_ID***                 | INT    | INT    | Część PK; klucz obcy do *season_projection_runs*   | NULL             |
+| ***TEAM_ID***                | INT    | INT    | Część PK; klucz obcy do *teams*                    | NULL             |
+| CURRENT_POSITION             | INT    | >=1    | Aktualna pozycja w tabeli                          | NULL             |
+| CURRENT_POINTS               | INT    | >=0    | Aktualna liczba punktów                            | NULL             |
+| EXPECTED_POSITION            | DOUBLE | >=1    | Średnia końcowa pozycja po trialach                | NULL             |
+| MOST_LIKELY_POSITION         | INT    | >=1    | Najbardziej prawdopodobna pozycja końcowa          | NULL             |
+| POSITION_MIN                 | INT    | >=1    | Najlepsza pozycja w próbce                         | NULL             |
+| POSITION_MAX                 | INT    | >=1    | Najgorsza pozycja w próbce                         | NULL             |
+| EXPECTED_POINTS              | DOUBLE | >=0    | Średnia końcowych punktów                          | NULL             |
+| POINTS_VARIANCE              | DOUBLE | >=0    | Wariancja punktów                                  | NULL             |
+| POINTS_STDDEV                | DOUBLE | >=0    | Odchylenie standardowe punktów                     | NULL             |
+| POINTS_P05                   | DOUBLE | >=0    | 5. percentyl punktów                               | NULL             |
+| POINTS_P50                   | DOUBLE | >=0    | Mediana punktów                                    | NULL             |
+| POINTS_P95                   | DOUBLE | >=0    | 95. percentyl punktów                              | NULL             |
+| POINTS_MIN                   | DOUBLE | >=0    | Minimum punktów w próbce                           | NULL             |
+| POINTS_MAX                   | DOUBLE | >=0    | Maksimum punktów w próbce                          | NULL             |
+| EXPECTED_GOAL_DIFFERENCE     | DOUBLE | DOUBLE | Średnia końcowa różnica bramek                     | NULL             |
+| POSITION_PROBABILITIES_JSON  | JSON   | JSON   | Rozkład prawdopodobieństw pozycji                  | NULL             |
 
 
 **Ograniczenia/Indeksy:**
@@ -1487,8 +1443,7 @@ dopiero po transakcyjnym `SUCCEEDED` rodzica.)
 
 **Sposób generowania danych do tabeli:**
 
-Wstawiane atomowo razem z przejściem runu na `SUCCEEDED` przez
-`season_projection_writer`. Brak wierszy dla runów `RUNNING` / `FAILED`.
+Dane wyliczane razem z udanym runem projekcji.
 
 ---
 
@@ -1591,60 +1546,58 @@ Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencj
 
 ### TYPER_LONG_TERM_MARKETS
 
-(Rynki długoterminowe Typera — niezależne od ligi; definicja rynku, stawki i status rozliczenia)
+(Rynki długoterminowe Typera)
 
 
-| POLE                  | DOMENA       | ZAKRES                         | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| --------------------- | ------------ | ------------------------------ | --------------------------------------------------------------------- | ------------------------ |
-| **ID**                | INT          | INT                            | ID rynku długoterminowego                                            | AUTOMATYCZNIE GENEROWANY |
-| *LEAGUE_ID*           | INT          | INT                            | Klucz obcy, powiązanie z tabelą *leagues*                            | NULL                     |
-| *SEASON_ID*           | INT          | INT                            | Klucz obcy, powiązanie z tabelą *seasons*                            | NULL                     |
-| MARKET_KEY            | VARCHAR(64)  | STRING                         | Stabilny klucz rynku w lidze i sezonie (np. `top8_direct_r16`)    | NULL                     |
-| TITLE                 | VARCHAR(160) | STRING                         | Tytuł prezentowany w UI                                              | NULL                     |
-| DESCRIPTION           | VARCHAR(512) | STRING                         | Opis zasad punktacji prezentowany w UI                              | NULL                     |
-| SELECTION_SIZE        | INT          | INT > 0                        | Wymagana liczba różnych drużyn w zestawie wyborów                    | NULL                     |
-| POINTS_PER_CORRECT    | DECIMAL(6,2) | >= 0                           | Punkty za każdą trafioną drużynę; wynik = liczba trafień × ta stawka | NULL                     |
-| SETTLED_AT            | DATETIME     | DATETIME / NULL                | Moment zatwierdzenia wyniku przez administratora; `NULL` do rozliczenia | NULL                     |
-| *SETTLED_BY*          | INT          | INT / NULL                     | Klucz obcy, powiązanie z tabelą *users* (administrator, który zatwierdził wynik); `NULL` do rozliczenia | NULL                     |
-| *CREATED_BY*          | INT          | INT                            | Klucz obcy, powiązanie z tabelą *users* (administrator, który utworzył rynek) | NULL                     |
-| CREATED_AT            | DATETIME     | DATETIME                       | Moment utworzenia wiersza rynku                                       | CURRENT_TIMESTAMP        |
-| UPDATED_AT            | DATETIME     | DATETIME                       | Moment ostatniej zmiany wiersza (`ON UPDATE CURRENT_TIMESTAMP`)      | CURRENT_TIMESTAMP        |
+| POLE                | DOMENA       | ZAKRES          | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ------------------- | ------------ | --------------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**              | INT          | INT             | ID rynku                                                              | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*         | INT          | INT             | Klucz obcy, powiązanie z tabelą *leagues*                             | NULL                     |
+| *SEASON_ID*         | INT          | INT             | Klucz obcy, powiązanie z tabelą *seasons*                             | NULL                     |
+| MARKET_KEY          | VARCHAR(64)  | STRING          | Stabilny klucz rynku w lidze i sezonie                                | NULL                     |
+| TITLE               | VARCHAR(160) | STRING          | Tytuł rynku                                                           | NULL                     |
+| DESCRIPTION         | VARCHAR(512) | STRING          | Opis zasad punktacji                                                  | NULL                     |
+| SELECTION_SIZE      | INT          | INT > 0         | Wymagana liczba drużyn w zestawie                                     | NULL                     |
+| POINTS_PER_CORRECT  | DECIMAL(6,2) | >= 0            | Punkty za poprawnie wytypowaną drużynę                                | NULL                     |
+| SETTLED_AT          | DATETIME     | DATETIME / NULL | Moment zatwierdzenia wyniku; `NULL` dopóki nierozliczony              | NULL                     |
+| *SETTLED_BY*        | INT          | INT / NULL      | Klucz obcy, powiązanie z tabelą *users*; `NULL` dopóki nierozliczony  | NULL                     |
+| *CREATED_BY*        | INT          | INT             | Klucz obcy, powiązanie z tabelą *users* (twórca rynku)                | NULL                     |
+| CREATED_AT          | DATETIME     | DATETIME        | Moment utworzenia wiersza                                             | CURRENT_TIMESTAMP        |
+| UPDATED_AT          | DATETIME     | DATETIME        | Moment ostatniej zmiany wiersza                                       | CURRENT_TIMESTAMP        |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- **Unikalny indeks:** `uq_typer_lt_markets_league_season_key` (`LEAGUE_ID`, `SEASON_ID`, `MARKET_KEY`) — jeden klucz rynku na ligę i sezon
+- **Unikalny indeks:** `uq_typer_lt_markets_league_season_key` (`LEAGUE_ID`, `SEASON_ID`, `MARKET_KEY`)
 - Klucz obcy: `LEAGUE_ID` → `leagues(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `SEASON_ID` → `seasons(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `CREATED_BY` → `users(ID)` **ON DELETE RESTRICT**
-- Klucz obcy: `SETTLED_BY` → `users(ID)` **ON DELETE RESTRICT** (NULL pomija sprawdzenie FK)
+- Klucz obcy: `SETTLED_BY` → `users(ID)` **ON DELETE RESTRICT**
 - **CHECK:** `chk_typer_lt_markets_size` — `SELECTION_SIZE > 0`
 - **CHECK:** `chk_typer_lt_markets_points` — `POINTS_PER_CORRECT >= 0`
 - **CHECK:** `chk_typer_lt_markets_settled` — `SETTLED_AT` i `SETTLED_BY` są jednocześnie `NULL` albo jednocześnie niepuste
-- Deadline typowania **nie** jest kolumną rynku. Źródłem prawdy jest `MIN(matches.game_date)` dla `league_id` i `season_id` rynku (dla seedu LM: liga 42, rundy 1–8), egzekwowane przez MySQL w warstwie zapisu (SZP-159).
-- Auto-propozycja wyniku nie ustawia `SETTLED_AT` / `SETTLED_BY`. Punkty pojawiają się dopiero po zapisie administratora do tabeli wyników: `liczba trafionych drużyn * points_per_correct`.
 
 **Sposób generowania danych do tabeli:**
 
-Pierwszy rynek `top8_direct_r16` (liga 42, sezon 13, `selection_size = 8`, `points_per_correct = 2.00`) wstawia ręczny skrypt `sql/typer_lm_long_term_schema.sql`. Skrypt wymaga loginu dokładnie jednego aktywnego administratora (`created_by`). Ponowne uruchomienie nie nadpisuje istniejącego wiersza. Analogiczny rynek innej ligi (np. ME) to kolejny wiersz z innym `league_id`. Rozliczenie (`SETTLED_AT`, `SETTLED_BY`) ustawia API administratora (`POST /typer-lm/long-term/admin/markets/{market_id}/settle`). Po ręcznym wdrożeniu skrypt SQL może zostać usunięty z repozytorium.
+Dane wstawiane przez aplikację (administrator).
 
 ---
 
 ### TYPER_LONG_TERM_PICK_CHANGES
 
-(Append-only audyt całego zestawu wyborów długoterminowych — rozstrzyganie sporów o treść zapisu)
+(Audyt zmian wyborów długoterminowych Typera)
 
 
-| POLE                | DOMENA   | ZAKRES              | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| ------------------- | -------- | ------------------- | --------------------------------------------------------------------- | ------------------------ |
-| **ID**              | INT      | INT                 | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
-| *MARKET_ID*         | INT      | INT                 | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
-| *USER_ID*           | INT      | INT                 | Klucz obcy, powiązanie z tabelą *users* (właściciel zestawu)         | NULL                     |
-| *CHANGED_BY*        | INT      | INT                 | Klucz obcy, powiązanie z tabelą *users* (użytkownik JWT, który zapisał zestaw; w obecnym API zawsze właściciel) | NULL                     |
-| PREVIOUS_TEAM_IDS   | VARCHAR(512) | CSV / NULL         | Snapshot `team_id` sprzed zapisu, posortowane rosnąco bez spacji (np. `12,45,101`); `NULL` przy pierwszym zestawie | NULL                     |
-| NEW_TEAM_IDS        | VARCHAR(512) | CSV                | Snapshot `team_id` po zapisie, posortowane rosnąco bez spacji; kolejność w liście nie wpływa na punktację | NULL                     |
-| CHANGED_AT          | DATETIME | DATETIME            | Moment pierwszego zapisu albo realnej zmiany zestawu                 | CURRENT_TIMESTAMP        |
+| POLE              | DOMENA       | ZAKRES     | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ----------------- | ------------ | ---------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**            | INT          | INT        | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*       | INT          | INT        | Klucz obcy, powiązanie z tabelą *typer_long_term_markets*             | NULL                     |
+| *USER_ID*         | INT          | INT        | Klucz obcy, powiązanie z tabelą *users* (właściciel zestawu)          | NULL                     |
+| *CHANGED_BY*      | INT          | INT        | Klucz obcy, powiązanie z tabelą *users* (użytkownik, który zapisał zestaw) | NULL                 |
+| PREVIOUS_TEAM_IDS | VARCHAR(512) | CSV / NULL | Lista `team_id` sprzed zapisu, bez spacji; `NULL` przy pierwszym zestawie | NULL                 |
+| NEW_TEAM_IDS      | VARCHAR(512) | CSV        | Lista `team_id` po zapisie, bez spacji                                | NULL                     |
+| CHANGED_AT        | DATETIME     | DATETIME   | Moment zapisu albo realnej zmiany zestawu                             | CURRENT_TIMESTAMP        |
 
 
 **Ograniczenia/Indeksy:**
@@ -1658,171 +1611,140 @@ Pierwszy rynek `top8_direct_r16` (liga 42, sezon 13, `selection_size = 8`, `poin
 - Klucz obcy: `CHANGED_BY` → `users(ID)` **ON DELETE RESTRICT**
 - **CHECK:** `chk_typer_lt_chg_prev_ids` — `PREVIOUS_TEAM_IDS IS NULL OR PREVIOUS_TEAM_IDS REGEXP '^[0-9]+(,[0-9]+)*$'`
 - **CHECK:** `chk_typer_lt_chg_new_ids` — `NEW_TEAM_IDS REGEXP '^[0-9]+(,[0-9]+)*$'`
-- Snapshot to celowo zdenormalizowany CSV (bez FK do `teams`). Integralność bieżącego zestawu jest w tabeli `picks`. Aplikacja zapisuje ID posortowane rosnąco, bez spacji, żeby porównanie no-op było porównaniem napisów. Snapshot zachowuje historyczny skład nawet po późniejszej zmianie wyborów.
-- Wiersze są tylko dokładane. Aplikacja **nie** wykonuje `UPDATE` ani `DELETE` na tej tabeli. Identyczny zbiór drużyn (bez względu na kolejność) nie tworzy nowego wpisu.
 
 **Sposób generowania danych do tabeli:**
 
-INSERT w tej samej transakcji co zastąpienie zestawu w `typer_long_term_picks`: pierwszy zapis (`PREVIOUS_TEAM_IDS = NULL`) oraz każda realna zmiana zbioru. Użytkownik odczytuje wyłącznie własną historię (`GET /typer-lm/long-term/markets/{market_id}/history`); cudzy audyt widzi tylko administrator (`GET /typer-lm/long-term/admin/prediction-history`).
+Dane wyliczane przez aplikację przy zapisie zestawu (pierwszy zapis oraz każda realna zmiana).
 
 ---
 
 ### TYPER_LONG_TERM_PICKS
 
-(Bieżący zestaw wyborów użytkownika na rynku długoterminowym — jeden wiersz na wybraną drużynę)
+(Bieżące wybory użytkowników na rynkach długoterminowych)
 
 
-| POLE          | DOMENA | ZAKRES | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| ------------- | ------ | ------ | --------------------------------------------------------------------- | ------------------------ |
-| **ID**        | INT    | INT    | ID wiersza wyboru                                                     | AUTOMATYCZNIE GENEROWANY |
-| *MARKET_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
-| *USER_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *users* (właściciel wyboru)          | NULL                     |
-| *TEAM_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams* (jedna drużyna z zestawu)    | NULL                     |
+| POLE        | DOMENA | ZAKRES | UWAGI                                                     | WARTOŚC DOMYŚLNA         |
+| ----------- | ------ | ------ | --------------------------------------------------------- | ------------------------ |
+| **ID**      | INT    | INT    | ID wiersza wyboru                                         | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
+| *USER_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *users*                   | NULL                     |
+| *TEAM_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                   | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- **Unikalny indeks:** `uq_typer_lt_picks_market_user_team` (`MARKET_ID`, `USER_ID`, `TEAM_ID`) — ta sama drużyna nie może wystąpić dwa razy w zestawie użytkownika
-- Indeks: `idx_typer_lt_picks_user` (`USER_ID`) — ranking użytkowników z typem wyłącznie długoterminowym
+- **Unikalny indeks:** `uq_typer_lt_picks_market_user_team` (`MARKET_ID`, `USER_ID`, `TEAM_ID`)
+- Indeks: `idx_typer_lt_picks_user` (`USER_ID`)
 - Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `TEAM_ID` → `teams(ID)` **ON DELETE RESTRICT**
-- Kompletność zestawu (dokładnie `SELECTION_SIZE` drużyn, wyłącznie uczestnicy fazy ligowej) egzekwuje aplikacja w transakcji zapisu, nie CHECK na liczbie wierszy.
 
 **Sposób generowania danych do tabeli:**
 
-Zalogowany użytkownik zapisuje cały zestaw przez API (`PUT /typer-lm/long-term/markets/{market_id}/picks`) do chwili `MIN(matches.game_date)` fazy ligowej. Backend w jednej transakcji zastępuje wiersze użytkownika na danym rynku i dopisuje snapshot audytu. Cudze wybory nie są publiczne.
+Dane wstawiane przez aplikację (użytkownicy).
 
 ---
 
 ### TYPER_LONG_TERM_RESULTS
 
-(Zatwierdzone poprawne drużyny rynku długoterminowego — relacyjny wynik, nie JSON)
+(Zatwierdzony wynik rynku długoterminowego)
 
 
-| POLE          | DOMENA | ZAKRES | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| ------------- | ------ | ------ | --------------------------------------------------------------------- | ------------------------ |
-| **ID**        | INT    | INT    | ID wiersza zatwierdzonego wyniku                                      | AUTOMATYCZNIE GENEROWANY |
-| *MARKET_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
-| *TEAM_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams* (zatwierdzona poprawna drużyna) | NULL                     |
+| POLE        | DOMENA | ZAKRES | UWAGI                                                     | WARTOŚC DOMYŚLNA         |
+| ----------- | ------ | ------ | --------------------------------------------------------- | ------------------------ |
+| **ID**      | INT    | INT    | ID wiersza zatwierdzonego wyniku                          | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
+| *TEAM_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                   | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- **Unikalny indeks:** `uq_typer_lt_results_market_team` (`MARKET_ID`, `TEAM_ID`) — drużyna występuje w wyniku rynku co najwyżej raz
+- **Unikalny indeks:** `uq_typer_lt_results_market_team` (`MARKET_ID`, `TEAM_ID`)
 - Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `TEAM_ID` → `teams(ID)` **ON DELETE RESTRICT**
-- Komplet wyniku (dokładnie `SELECTION_SIZE` drużyn) egzekwuje aplikacja przy settle. Ponowne rozliczenie zastępuje wiersze transakcyjnie; zapisane typy użytkowników nie są modyfikowane.
 
 **Sposób generowania danych do tabeli:**
 
-Wiersze wstawia wyłącznie administrator przez API (`POST /typer-lm/long-term/admin/markets/{market_id}/settle`), na podstawie ręcznej korekty albo potwierdzenia auto-propozycji TOP 8. Sama auto-propozycja **nie** zapisuje tej tabeli i **nie** przyznaje punktów.
+Dane wstawiane przez aplikację (administrator przy rozliczeniu rynku).
 
 ---
 
 ### USER_FAVORITE_LEAGUES
 
-(Ulubione ligi wybranych użytkowników aplikacji — relacja użytkownik–liga)
+(Ulubione ligi użytkowników)
 
 
-| POLE            | DOMENA   | ZAKRES   | UWAGI                                                                 | WARTOŚC DOMYŚLNA  |
-| --------------- | -------- | -------- | --------------------------------------------------------------------- | ----------------- |
-| ***USER_ID***   | INT      | INT      | Klucz główny (część) i klucz obcy do *users*                          | NULL              |
-| ***LEAGUE_ID*** | INT      | INT      | Klucz główny (część) i klucz obcy do *leagues*                        | NULL              |
-| CREATED_AT      | DATETIME | DATETIME | Moment dodania ligi do ulubionych                                     | CURRENT_TIMESTAMP |
+| POLE            | DOMENA   | ZAKRES   | UWAGI                                              | WARTOŚC DOMYŚLNA  |
+| --------------- | -------- | -------- | -------------------------------------------------- | ----------------- |
+| ***USER_ID***   | INT      | INT      | Część klucza głównego; klucz obcy do *users*       | NULL              |
+| ***LEAGUE_ID*** | INT      | INT      | Część klucza głównego; klucz obcy do *leagues*     | NULL              |
+| CREATED_AT      | DATETIME | DATETIME | Moment dodania ligi do ulubionych                  | CURRENT_TIMESTAMP |
 
 
 **Ograniczenia/Indeksy:**
 
-- Klucz główny złożony: (`USER_ID`, `LEAGUE_ID`) — jeden użytkownik nie może mieć tej samej ligi dwa razy
-- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE** (usunięcie konta czyści ulubione)
-- Klucz obcy: `LEAGUE_ID` → `leagues(ID)` **ON DELETE CASCADE** (fizyczne usunięcie ligi czyści relacje)
-- Indeks: `idx_user_favorite_leagues_league` (`LEAGUE_ID`) — wymagany przez FK do `leagues`
-- Brak kolumny `sort_order`: kolejność na liście to najpierw ulubione, potem reszta, w ramach grup bez zmian względem katalogu lig
-
-Samo `leagues.active = 0` nie usuwa wiersza; użytkownik może usunąć historyczną relację z panelu.
+- Klucz główny złożony: (`USER_ID`, `LEAGUE_ID`)
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE**
+- Klucz obcy: `LEAGUE_ID` → `leagues(ID)` **ON DELETE CASCADE**
+- Indeks: `idx_user_favorite_leagues_league` (`LEAGUE_ID`)
 
 **Sposób generowania danych do tabeli:**
 
-Wiersze dodaje i usuwa zalogowany użytkownik przez API (`PUT`/`DELETE /users/me/favorite-leagues/{league_id}`).
+Dane wstawiane przez aplikację (użytkownicy).
 
 ---
 
 ### USER_PREFERENCES
 
-(Skalarne preferencje UI konta — relacja 1:1 z `users`; nie mylić z `USER_FAVORITE_LEAGUES`)
+(Preferencje UI konta — relacja 1:1 z `users`)
 
 
-| POLE               | DOMENA   | ZAKRES                    | UWAGI                                                                 | WARTOŚC DOMYŚLNA  |
-| ------------------ | -------- | ------------------------- | --------------------------------------------------------------------- | ----------------- |
-| ***USER_ID***      | INT      | INT                       | Klucz główny i klucz obcy do *users*                                  | NULL              |
-| THEME              | ENUM     | {system, dark, light}     | Preferencja schematu kolorów konta                                    | system            |
-| TEAM_NAME_DISPLAY  | VARCHAR(15) | STRING (max 15)           | Preferencja etykiet drużyn w UI ze skrótami; allowlista w API, nie ENUM w DB | full              |
-| UPDATED_AT         | DATETIME | DATETIME                  | Moment ostatniego zapisu (last-write-wins per pole)                   | CURRENT_TIMESTAMP |
+| POLE              | DOMENA      | ZAKRES                | UWAGI                                         | WARTOŚC DOMYŚLNA  |
+| ----------------- | ----------- | --------------------- | --------------------------------------------- | ----------------- |
+| ***USER_ID***     | INT         | INT                   | Klucz główny i klucz obcy do *users*          | NULL              |
+| THEME             | ENUM        | {system, dark, light} | Preferencja schematu kolorów                  | system            |
+| TEAM_NAME_DISPLAY | VARCHAR(15) | STRING                | Sposób wyświetlania nazw drużyn w UI          | full              |
+| UPDATED_AT        | DATETIME    | DATETIME              | Moment ostatniego zapisu                      | CURRENT_TIMESTAMP |
 
 
 **Ograniczenia/Indeksy:**
 
-- Klucz główny: `USER_ID` — jeden wiersz na konto
-- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE** (usunięcie konta kasuje preferencje)
-- Brak wiersza = użytkownik nigdy nie zapisał preferencji na koncie (frontend wtedy wypycha cache localStorage)
-- Domyślne `system` / `full` w DDL dotyczą bezpośredniego INSERT-a, nie semantyki „użytkownik wybrał te wartości”
-- Istniejące wiersze przy `ADD COLUMN ... DEFAULT 'full'` otrzymują `full`
-- Kolumna `TEAM_NAME_DISPLAY` to `VARCHAR(15)`, nie ENUM — dopuszczalne tryby (`full`, `shortcut`, ewentualne przyszłe) waliduje warstwa aplikacji (Pydantic + serwis), nie schemat MySQL
-- Kolejne preferencje skalarne (np. `odds_format`) dodaje się **kolumną z DEFAULT**, bez nowej tabeli i bez JSON blob
-- Aplikacja **nie** wykonuje DDL. Kolumnę wgrać ręcznie **przed** backendem, który ją odczytuje:
-
-```sql
-ALTER TABLE user_preferences
-  ADD COLUMN team_name_display VARCHAR(15)
-  NOT NULL DEFAULT 'full'
-  COMMENT 'Preferred team label in abbreviation-capable UI'
-  AFTER theme;
-```
-
-Po wdrożeniu: `SHOW CREATE TABLE user_preferences` oraz agregacja po `team_name_display`.
+- Klucz główny: `USER_ID`
+- Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE CASCADE**
 
 **Sposób generowania danych do tabeli:**
 
-Wiersz tworzy i aktualizuje zalogowany użytkownik przez API (`GET`/`PUT /users/me/preferences`).
-`GET` zwraca `{ "theme", "team_name_display" }`. `PUT` scala tylko podane pola
-(`{ "theme" }` nie zmienia nazw, `{ "team_name_display" }` nie zmienia motywu).
-Pusty body albo niedozwolona wartość daje 422.
+Dane wstawiane przez aplikację (użytkownicy).
 
 ---
 
 ### USERS
 
-(Konta użytkowników aplikacji EkstraBet — logowanie do UI/API; nie mylić z `GAMBLERS`)
+(Konta użytkowników aplikacji)
 
 
-| POLE            | DOMENA       | ZAKRES  | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| --------------- | ------------ | ------- | --------------------------------------------------------------------- | ------------------------ |
-| **ID**          | INT          | INT     | Wewnętrzny klucz główny (zestawienia, admin) — nieeksponowany w API   | AUTOMATYCZNIE GENEROWANY |
-| UUID            | CHAR(36)     | STRING  | Publiczny identyfikator (JWT `sub`, odpowiedzi API) — UNIQUE NOT NULL | NULL                     |
-| USERNAME        | VARCHAR(50)  | STRING  | Login                                                                 | NULL                     |
-| PASSWORD_HASH   | VARCHAR(255) | STRING  | Hash bcrypt hasła                                                     | NULL                     |
-| DISPLAY_NAME    | VARCHAR(100) | STRING  | Nazwa wyświetlana w UI                                                | NULL                     |
-| IS_ACTIVE       | TINYINT      | INT     | 1 = konto aktywne, 0 = zablokowane                                    | 1                        |
-| IS_ADMIN        | TINYINT(1)   | {0,1}   | NOT NULL; 1 = administrator; 0 = zwykły użytkownik | 0                        |
-| FIRST_LOGIN     | TINYINT      | {0,1}   | 1 = należy ustawić hasło, username i display_name po 1. logowaniu     | 0                        |
-| CREATED_AT      | DATETIME     | DATETIME| Data utworzenia konta                                                 | CURRENT_TIMESTAMP        |
-| UPDATED_AT      | DATETIME     | DATETIME| Data ostatniej aktualizacji                                           | CURRENT_TIMESTAMP        |
+| POLE          | DOMENA       | ZAKRES | UWAGI                                              | WARTOŚC DOMYŚLNA         |
+| ------------- | ------------ | ------ | -------------------------------------------------- | ------------------------ |
+| **ID**        | INT          | INT    | ID użytkownika                                     | AUTOMATYCZNIE GENEROWANY |
+| UUID          | VARCHAR(50)  | STRING | Publiczny identyfikator konta                      | NULL                     |
+| USERNAME      | VARCHAR(50)  | STRING | Login                                              | NULL                     |
+| PASSWORD_HASH | VARCHAR(255) | STRING | Hash bcrypt hasła                                  | NULL                     |
+| DISPLAY_NAME  | VARCHAR(50)  | STRING | Nazwa wyświetlana w UI                             | NULL                     |
+| IS_ACTIVE     | TINYINT      | {0,1}  | 1 = konto aktywne, 0 = zablokowane                 | 1                        |
+| IS_ADMIN      | TINYINT(1)   | {0,1}  | 1 = administrator, 0 = zwykły użytkownik           | 0                        |
+| FIRST_LOGIN   | TINYINT      | {0,1}  | 1 = wymagana zmiana danych po pierwszym logowaniu  | 0                        |
+| CREATED_AT    | DATETIME     | DATETIME | Data utworzenia konta                            | CURRENT_TIMESTAMP        |
+| UPDATED_AT    | DATETIME     | DATETIME | Data ostatniej aktualizacji                      | CURRENT_TIMESTAMP        |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
 - **Unikalny indeks:** `USERNAME`
-- **Unikalny indeks:** `UUID` (kontrakt publiczny — JWT `sub` i API zawsze używają UUID, nigdy wewnętrznego `ID`)
+- **Unikalny indeks:** `UUID`
 
 **Sposób generowania danych do tabeli:**
 
-Konta dodawane ręcznie (INSERT). Hash hasła: `python scripts/hash_password.py <haslo>`.
-UUID przy INSERT: `UUID()` (MySQL) albo `uuid4` w seedzie.
-Dla kont z hasłem tymczasowym ustaw `first_login = 1` przy INSERT
-(wymusza zmianę hasła, nazwy użytkownika i wyświetlanej nazwy po pierwszym logowaniu).
-Istniejące konta bez wymuszenia zostają przy `DEFAULT 0`.
-Wyrównanie schematu (jeśli baza odbiega): `sql/align_users_auth_contract.sql`.
+Dane dodawane ręcznie.
