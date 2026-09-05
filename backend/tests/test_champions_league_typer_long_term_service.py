@@ -76,9 +76,14 @@ def _auto_result_document(
         "market_id": _MARKET_ID,
         "league_id": repo.CHAMPIONS_LEAGUE_ID,
         "season_id": _SEASON_ID,
-        "market_key": "top8_direct_r16",
-        "selection_size": 8,
+        "market_key": "league_phase_table",
+        "selection_size": _TABLE_SIZE,
         "points_per_correct": 2.0,
+        "points_per_exact_position": 2.0,
+        "market_kind": service.MARKET_KIND_RANKED_TEAM_TABLE,
+        "scoring_kind": service.SCORING_KIND_ZONE_AND_POSITION,
+        "top_zone_size": _TOP_ZONE,
+        "bot_zone_size": _BOT_ZONE,
         "settled_at": settled_at,
         "settled_by": settled_by,
         "participant_count": participant_count,
@@ -86,6 +91,40 @@ def _auto_result_document(
         "min_matches_per_team": min_matches,
         "max_matches_per_team": max_matches,
         "standings": rows,
+        "result_team_ids": (
+            [] if result_team_ids is None else list(result_team_ids))
+    }
+
+
+def _dashboard_market_row(
+        *,
+        picked_team_ids: list[int] | None = None,
+        result_team_ids: list[int] | None = None,
+        settled_at: datetime | None = None,
+        settled_by: int | None = None,
+        is_locked: bool = False
+        ) -> dict[str, object]:
+    return {
+        "market_id": _MARKET_ID,
+        "league_id": repo.CHAMPIONS_LEAGUE_ID,
+        "season_id": _SEASON_ID,
+        "market_key": "league_phase_table",
+        "title": "Tabela fazy ligowej",
+        "description": None,
+        "selection_size": _TABLE_SIZE,
+        "points_per_correct": _POINTS_ZONE,
+        "points_per_exact_position": _POINTS_EXACT,
+        "market_kind": service.MARKET_KIND_RANKED_TEAM_TABLE,
+        "scoring_kind": service.SCORING_KIND_ZONE_AND_POSITION,
+        "top_zone_size": _TOP_ZONE,
+        "bot_zone_size": _BOT_ZONE,
+        "settled_at": settled_at,
+        "settled_by": settled_by,
+        "deadline_at": _SETTLED_AT,
+        "is_locked": is_locked,
+        "candidates": [],
+        "picked_team_ids": (
+            [] if picked_team_ids is None else list(picked_team_ids)),
         "result_team_ids": (
             [] if result_team_ids is None else list(result_team_ids))
     }
@@ -215,24 +254,33 @@ class TestGetAutoResult(unittest.TestCase):
         self.assertFalse(document["is_complete"])
         self.assertTrue(document["is_proposal"])
         self.assertEqual(document["proposed_team_ids"], [])
+        self.assertEqual(document["proposed_top_team_ids"], [])
+        self.assertEqual(document["proposed_bot_team_ids"], [])
         self.assertEqual(document["proposed_teams"], [])
         self.assertEqual(document["result_team_ids"], [])
         mock_fetch.assert_called_once_with(_MARKET_ID)
 
     @patch(f"{_REPO}.fetch_auto_result")
-    def test_complete_phase_proposes_top_eight(
+    def test_complete_phase_proposes_full_table(
             self, mock_fetch: MagicMock) -> None:
         standings = [
             _standing_row(team_id, points=40 - team_id)
-            for team_id in range(1, 10)]
+            for team_id in range(1, 37)]
         mock_fetch.return_value = _auto_result_document(standings=standings)
         document = service.get_auto_result(_MARKET_ID)
         self.assertTrue(document["is_complete"])
         self.assertTrue(document["is_proposal"])
+        self.assertEqual(len(document["proposed_team_ids"]), 36)
         self.assertEqual(
-            document["proposed_team_ids"], list(range(1, 9)))
-        self.assertEqual(len(document["proposed_teams"]), 8)
-        self.assertNotIn(9, document["proposed_team_ids"])
+            document["proposed_team_ids"], list(range(1, 37)))
+        self.assertEqual(len(document["proposed_teams"]), 36)
+        self.assertEqual(
+            document["proposed_top_team_ids"], list(range(1, 9)))
+        self.assertEqual(
+            document["proposed_bot_team_ids"], list(range(29, 37)))
+        self.assertEqual(document["top_zone_size"], _TOP_ZONE)
+        self.assertEqual(document["bot_zone_size"], _BOT_ZONE)
+        self.assertEqual(document["points_per_exact_position"], 2.0)
 
     @patch(f"{_REPO}.fetch_auto_result")
     def test_table_ties_keep_sql_order_for_eighth_place(
@@ -240,11 +288,13 @@ class TestGetAutoResult(unittest.TestCase):
         # remis punktów/GD rozstrzyga SQL (gole); serwis nie przestawia
         standings = [
             _standing_row(team_id, points=12)
-            for team_id in [1, 2, 3, 4, 5, 6, 7, 8, 9]]
+            for team_id in range(1, 37)]
         mock_fetch.return_value = _auto_result_document(standings=standings)
         document = service.get_auto_result(_MARKET_ID)
-        self.assertEqual(document["proposed_team_ids"][-1], 8)
-        self.assertNotIn(9, document["proposed_team_ids"])
+        self.assertEqual(document["proposed_team_ids"][7], 8)
+        self.assertEqual(document["proposed_team_ids"][8], 9)
+        self.assertEqual(document["proposed_top_team_ids"][-1], 8)
+        self.assertNotIn(9, document["proposed_top_team_ids"])
 
 
 class TestSettleMarket(unittest.TestCase):
@@ -360,29 +410,21 @@ class TestLongTermDashboardMapping(unittest.TestCase):
         with patch(f"{_REPO}.fetch_long_term_dashboard") as mock_fetch:
             mock_fetch.return_value = {
                 "season_id": _SEASON_ID,
-                "markets": [{
-                    "market_id": _MARKET_ID,
-                    "league_id": repo.CHAMPIONS_LEAGUE_ID,
-                    "season_id": _SEASON_ID,
-                    "market_key": "top8_direct_r16",
-                    "title": "TOP 8",
-                    "description": None,
-                    "selection_size": 8,
-                    "points_per_correct": 2.0,
-                    "settled_at": None,
-                    "settled_by": None,
-                    "deadline_at": _SETTLED_AT,
-                    "is_locked": False,
-                    "candidates": [],
-                    "picked_team_ids": list(_TEAM_IDS),
-                    "result_team_ids": []
-                }],
+                "markets": [
+                    _dashboard_market_row(picked_team_ids=list(_TEAM_IDS))],
                 "changes": []
             }
             document = service.get_dashboard(4, _SEASON_ID)
         market = document["markets"][0]
         self.assertIsNone(market["points"])
         self.assertEqual(market["changes"], [])
+        self.assertEqual(
+            market["market_kind"], service.MARKET_KIND_RANKED_TEAM_TABLE)
+        self.assertEqual(
+            market["scoring_kind"], service.SCORING_KIND_ZONE_AND_POSITION)
+        self.assertEqual(market["top_zone_size"], _TOP_ZONE)
+        self.assertEqual(market["bot_zone_size"], _BOT_ZONE)
+        self.assertEqual(market["points_per_exact_position"], _POINTS_EXACT)
         self.assertNotIn("user_id", market)
         self.assertNotIn("settled_by", market)
 
@@ -392,27 +434,12 @@ class TestLongTermDashboardMapping(unittest.TestCase):
         with patch(f"{_REPO}.fetch_long_term_dashboard") as mock_fetch:
             mock_fetch.return_value = {
                 "season_id": _SEASON_ID,
-                "markets": [{
-                    "market_id": _MARKET_ID,
-                    "league_id": repo.CHAMPIONS_LEAGUE_ID,
-                    "season_id": _SEASON_ID,
-                    "market_key": "league_phase_table",
-                    "title": "Tabela fazy ligowej",
-                    "description": None,
-                    "selection_size": _TABLE_SIZE,
-                    "scoring_kind": service.SCORING_KIND_ZONE_AND_POSITION,
-                    "points_per_correct": _POINTS_ZONE,
-                    "points_per_exact_position": _POINTS_EXACT,
-                    "top_zone_size": _TOP_ZONE,
-                    "bot_zone_size": _BOT_ZONE,
-                    "settled_at": _SETTLED_AT,
-                    "settled_by": _ADMIN_ID,
-                    "deadline_at": _SETTLED_AT,
-                    "is_locked": True,
-                    "candidates": [],
-                    "picked_team_ids": picks,
-                    "result_team_ids": results
-                }],
+                "markets": [_dashboard_market_row(
+                    picked_team_ids=picks,
+                    result_team_ids=results,
+                    settled_at=_SETTLED_AT,
+                    settled_by=_ADMIN_ID,
+                    is_locked=True)],
                 "changes": [{
                     "id": 1,
                     "market_id": _MARKET_ID,
@@ -427,6 +454,10 @@ class TestLongTermDashboardMapping(unittest.TestCase):
         market = document["markets"][0]
         self.assertEqual(market["points"], _POINTS_ZONE + _POINTS_EXACT)
         self.assertEqual(len(market["changes"]), 1)
+        self.assertEqual(market["picked_team_ids"], picks)
+        self.assertEqual(market["result_team_ids"], results)
+        self.assertEqual(
+            market["market_kind"], service.MARKET_KIND_RANKED_TEAM_TABLE)
         self.assertNotIn("settled_by", market)
         self.assertNotIn("settled_by_uuid", market)
 

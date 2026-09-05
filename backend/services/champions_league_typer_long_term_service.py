@@ -152,7 +152,7 @@ def save_picks(
         user_id: int,
         market_id: int,
         team_ids: list[int]) -> dict[str, Any]:
-    """Replace the caller's set; identical sets skip audit."""
+    """Replace the caller's ordered table; identical sequences skip audit."""
     with _repository_errors():
         stored = repository.save_long_term_picks(
             user_id, market_id, team_ids)
@@ -179,7 +179,7 @@ def get_admin_history(
 
 
 def get_auto_result(market_id: int) -> dict[str, Any]:
-    """Return TOP 8 proposal and league-phase completeness status.
+    """Return ranked-table proposal and league-phase completeness.
 
     Auto-calculation never writes results or awards points.
     """
@@ -192,7 +192,7 @@ def settle_market(
         market_id: int,
         team_ids: list[int],
         admin_id: int) -> dict[str, Any]:
-    """Approve or correct TOP 8 after the league phase is complete."""
+    """Approve or correct the ranked table after a complete league phase."""
     with _repository_errors():
         auto_result = repository.fetch_auto_result(market_id)
         if not is_league_phase_complete(auto_result):
@@ -204,8 +204,12 @@ def settle_market(
 def _map_auto_result(document: dict[str, Any]) -> dict[str, Any]:
     complete = is_league_phase_complete(document)
     selection_size = int(document["selection_size"])
+    top_zone_size = int(document["top_zone_size"])
+    bot_zone_size = int(document["bot_zone_size"])
     standings = list(document["standings"])
-    proposed = standings[:selection_size] if complete else []
+    # pełna tabela 36, nie prefiks TOP 8
+    proposed = standings if complete else []
+    proposed_ids = [int(row["team_id"]) for row in proposed]
     settler = _settler_public_identity(document.get("settled_by"))
     return {
         "market_id": int(document["market_id"]),
@@ -214,6 +218,10 @@ def _map_auto_result(document: dict[str, Any]) -> dict[str, Any]:
         "market_key": str(document["market_key"]),
         "selection_size": selection_size,
         "points_per_correct": float(document["points_per_correct"]),
+        "points_per_exact_position": float(
+            document["points_per_exact_position"]),
+        "top_zone_size": top_zone_size,
+        "bot_zone_size": bot_zone_size,
         "settled_at": document["settled_at"],
         "settled_by_uuid": settler["settled_by_uuid"],
         "settled_by_display_name": settler["settled_by_display_name"],
@@ -226,7 +234,11 @@ def _map_auto_result(document: dict[str, Any]) -> dict[str, Any]:
         "required_participant_count": LEAGUE_PHASE_TEAM_COUNT,
         "required_matches_per_team": LEAGUE_PHASE_MATCHES_PER_TEAM,
         "required_settled_match_count": LEAGUE_PHASE_SETTLED_MATCH_COUNT,
-        "proposed_team_ids": [int(row["team_id"]) for row in proposed],
+        "proposed_team_ids": proposed_ids,
+        "proposed_top_team_ids": _zone_prefix(
+            proposed_ids, top_zone_size),
+        "proposed_bot_team_ids": _zone_suffix(
+            proposed_ids, bot_zone_size),
         "proposed_teams": proposed,
         "result_team_ids": [
             int(team_id)
@@ -276,6 +288,12 @@ def _map_dashboard_market(
         "description": market["description"],
         "selection_size": int(market["selection_size"]),
         "points_per_correct": float(market["points_per_correct"]),
+        "points_per_exact_position": float(
+            market["points_per_exact_position"]),
+        "market_kind": str(market["market_kind"]),
+        "scoring_kind": str(market["scoring_kind"]),
+        "top_zone_size": int(market["top_zone_size"]),
+        "bot_zone_size": int(market["bot_zone_size"]),
         "settled_at": market["settled_at"],
         "deadline_at": market["deadline_at"],
         "is_locked": bool(market["is_locked"]),
@@ -311,6 +329,18 @@ def _map_settled(stored: dict[str, Any]) -> dict[str, Any]:
         "result_team_ids": [
             int(team_id) for team_id in stored["result_team_ids"]]
     }
+
+
+def _zone_prefix(team_ids: list[int], zone_size: int) -> list[int]:
+    if zone_size <= 0:
+        return []
+    return list(team_ids[:zone_size])
+
+
+def _zone_suffix(team_ids: list[int], zone_size: int) -> list[int]:
+    if zone_size <= 0:
+        return []
+    return list(team_ids[-zone_size:])
 
 
 def _settler_public_identity(
