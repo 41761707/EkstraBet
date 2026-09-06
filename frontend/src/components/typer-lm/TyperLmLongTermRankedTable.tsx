@@ -48,7 +48,7 @@ const DRAG_HANDLE_CLASS =
   "flex min-h-11 min-w-11 shrink-0 touch-none select-none items-center " +
   "justify-center";
 export const RANKED_TOUCH_DRAG_HINT =
-  "Na telefonie przytrzymaj uchwyt (kropki). Podświetlenie oznacza, że możesz przeciągnąć.";
+  "Na telefonie przytrzymaj uchwyt (kropki). Podświetlenie wskazuje aktualnie modyfikowaną pozycję.";
 export const RANKED_ROW_ARMED_CLASS =
   "ring-2 ring-accent ring-offset-2 ring-offset-page";
 

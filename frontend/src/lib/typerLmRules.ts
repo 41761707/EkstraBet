@@ -46,8 +46,7 @@ export const TYPER_LM_RULES_SECTIONS: readonly TyperLmRulesSection[] = [
   {
     heading: "Długoterminowe — tabela fazy ligowej",
     items: [
-      "Ułóż 36 kafelków drużyn fazy ligowej przeciąganiem. " +
-        "Wszystkie kafelki zostają na liście — żaden nie znika.",
+      "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
       "TOP 8 (miejsca 1–8) i BOT 8 (miejsca 29–36) punktują tak samo: " +
         "0 pkt poza strefą, 2 pkt za obecność w strefie, 4 pkt za strefę " +
         "i dokładne miejsce. Miejsca 9–28 nie punktują. Drużyna w TOP 8 " +

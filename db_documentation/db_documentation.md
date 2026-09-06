@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 05.09.2026
+###### Ostatnia data modyfikacji: 06.09.2026
 
 ## Opis struktury bazy
 
@@ -1549,21 +1549,26 @@ Dane do tabeli dodawane AKTUALNIE tylko w ramach **nhl_get_players.py** (potencj
 (Rynki długoterminowe Typera)
 
 
-| POLE                | DOMENA       | ZAKRES          | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| ------------------- | ------------ | --------------- | --------------------------------------------------------------------- | ------------------------ |
-| **ID**              | INT          | INT             | ID rynku                                                              | AUTOMATYCZNIE GENEROWANY |
-| *LEAGUE_ID*         | INT          | INT             | Klucz obcy, powiązanie z tabelą *leagues*                             | NULL                     |
-| *SEASON_ID*         | INT          | INT             | Klucz obcy, powiązanie z tabelą *seasons*                             | NULL                     |
-| MARKET_KEY          | VARCHAR(64)  | STRING          | Stabilny klucz rynku w lidze i sezonie                                | NULL                     |
-| TITLE               | VARCHAR(160) | STRING          | Tytuł rynku                                                           | NULL                     |
-| DESCRIPTION         | VARCHAR(512) | STRING          | Opis zasad punktacji                                                  | NULL                     |
-| SELECTION_SIZE      | INT          | INT > 0         | Wymagana liczba drużyn w zestawie                                     | NULL                     |
-| POINTS_PER_CORRECT  | DECIMAL(6,2) | >= 0            | Punkty za poprawnie wytypowaną drużynę                                | NULL                     |
-| SETTLED_AT          | DATETIME     | DATETIME / NULL | Moment zatwierdzenia wyniku; `NULL` dopóki nierozliczony              | NULL                     |
-| *SETTLED_BY*        | INT          | INT / NULL      | Klucz obcy, powiązanie z tabelą *users*; `NULL` dopóki nierozliczony  | NULL                     |
-| *CREATED_BY*        | INT          | INT             | Klucz obcy, powiązanie z tabelą *users* (twórca rynku)                | NULL                     |
-| CREATED_AT          | DATETIME     | DATETIME        | Moment utworzenia wiersza                                             | CURRENT_TIMESTAMP        |
-| UPDATED_AT          | DATETIME     | DATETIME        | Moment ostatniej zmiany wiersza                                       | CURRENT_TIMESTAMP        |
+| POLE                       | DOMENA       | ZAKRES          | UWAGI                                                                | WARTOŚC DOMYŚLNA         |
+| -------------------------- | ------------ | --------------- | -------------------------------------------------------------------- | ------------------------ |
+| **ID**                     | INT          | INT             | ID rynku                                                             | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*                | INT          | INT             | Klucz obcy, powiązanie z tabelą *leagues*                            | NULL                     |
+| *SEASON_ID*                | INT          | INT             | Klucz obcy, powiązanie z tabelą *seasons*                            | NULL                     |
+| MARKET_KEY                 | VARCHAR(64)  | STRING          | Stabilny klucz rynku w lidze i sezonie                               | NULL                     |
+| TITLE                      | VARCHAR(160) | STRING          | Tytuł rynku                                                          | NULL                     |
+| DESCRIPTION                | VARCHAR(512) | STRING          | Opis zasad punktacji                                                 | NULL                     |
+| SELECTION_SIZE             | INT          | INT > 0         | Wymagana liczba drużyn w wyborze                                     | NULL                     |
+| POINTS_PER_CORRECT         | DECIMAL(6,2) | >= 0            | Stawka punktowa za zgodność wyboru                                   | NULL                     |
+| SETTLED_AT                 | DATETIME     | DATETIME / NULL | Moment zatwierdzenia wyniku; `NULL` dopóki nierozliczony             | NULL                     |
+| *SETTLED_BY*               | INT          | INT / NULL      | Klucz obcy, powiązanie z tabelą *users*; `NULL` dopóki nierozliczony | NULL                     |
+| *CREATED_BY*               | INT          | INT             | Klucz obcy, powiązanie z tabelą *users* (twórca rynku)               | NULL                     |
+| CREATED_AT                 | DATETIME     | DATETIME        | Moment utworzenia wiersza                                            | CURRENT_TIMESTAMP        |
+| UPDATED_AT                 | DATETIME     | DATETIME        | Moment ostatniej zmiany wiersza                                      | CURRENT_TIMESTAMP        |
+| MARKET_KIND                | VARCHAR(32)  | STRING          | Rodzaj rynku                                                         | ranked_team_table        |
+| SCORING_KIND               | VARCHAR(32)  | STRING          | Rodzaj punktacji rynku                                               | zone_and_position        |
+| TOP_ZONE_SIZE              | INT          | INT             | Rozmiar górnej strefy tabeli (`-1` = nieużywane)                     | -1                       |
+| BOT_ZONE_SIZE              | INT          | INT             | Rozmiar dolnej strefy tabeli (`-1` = nieużywane)                     | -1                       |
+| POINTS_PER_EXACT_POSITION  | DECIMAL(6,2) | DECIMAL(6,2)    | Stawka punktowa za zgodność pozycji                                  | 0.00                     |
 
 
 **Ograniczenia/Indeksy:**
@@ -1595,8 +1600,8 @@ Dane wstawiane przez aplikację (administrator).
 | *MARKET_ID*       | INT          | INT        | Klucz obcy, powiązanie z tabelą *typer_long_term_markets*             | NULL                     |
 | *USER_ID*         | INT          | INT        | Klucz obcy, powiązanie z tabelą *users* (właściciel zestawu)          | NULL                     |
 | *CHANGED_BY*      | INT          | INT        | Klucz obcy, powiązanie z tabelą *users* (użytkownik, który zapisał zestaw) | NULL                 |
-| PREVIOUS_TEAM_IDS | VARCHAR(512) | CSV / NULL | Lista `team_id` sprzed zapisu, bez spacji; `NULL` przy pierwszym zestawie | NULL                 |
-| NEW_TEAM_IDS      | VARCHAR(512) | CSV        | Lista `team_id` po zapisie, bez spacji                                | NULL                     |
+| PREVIOUS_TEAM_IDS | VARCHAR(512) | CSV / NULL | CSV `team_id` sprzed zapisu, bez spacji, w kolejności zapisu; `NULL` przy pierwszym wyborze | NULL                 |
+| NEW_TEAM_IDS      | VARCHAR(512) | CSV        | CSV `team_id` po zapisie, bez spacji, w kolejności zapisu             | NULL                     |
 | CHANGED_AT        | DATETIME     | DATETIME   | Moment zapisu albo realnej zmiany zestawu                             | CURRENT_TIMESTAMP        |
 
 
@@ -1629,12 +1634,14 @@ Dane wyliczane przez aplikację przy zapisie zestawu (pierwszy zapis oraz każda
 | *MARKET_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
 | *USER_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *users*                   | NULL                     |
 | *TEAM_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                   | NULL                     |
+| POSITION    | INT    | INT    | Pozycja drużyny w uporządkowanym wyborze (`-1` = brak pozycji) | -1                  |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- **Unikalny indeks:** `uq_typer_lt_picks_market_user_team` (`MARKET_ID`, `USER_ID`, `TEAM_ID`)
+- **Unikalny indeks:** `uq_typer_lt_picks_market_user_team` (`MARKET_ID`, `USER_ID`, `TEAM_ID`) — jedna drużyna na użytkownika i rynek
+- **Unikalny indeks:** `uq_typer_lt_picks_market_user_pos` (`MARKET_ID`, `USER_ID`, `POSITION`) — jedna pozycja na użytkownika i rynek
 - Indeks: `idx_typer_lt_picks_user` (`USER_ID`)
 - Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
@@ -1656,12 +1663,14 @@ Dane wstawiane przez aplikację (użytkownicy).
 | **ID**      | INT    | INT    | ID wiersza zatwierdzonego wyniku                          | AUTOMATYCZNIE GENEROWANY |
 | *MARKET_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
 | *TEAM_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                   | NULL                     |
+| POSITION    | INT    | INT    | Pozycja drużyny w zatwierdzonej tabeli (`-1` = brak pozycji) | -1                    |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- **Unikalny indeks:** `uq_typer_lt_results_market_team` (`MARKET_ID`, `TEAM_ID`)
+- **Unikalny indeks:** `uq_typer_lt_results_market_team` (`MARKET_ID`, `TEAM_ID`) — jedna drużyna na rynek
+- **Unikalny indeks:** `uq_typer_lt_results_market_pos` (`MARKET_ID`, `POSITION`) — jedna pozycja na rynek
 - Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `TEAM_ID` → `teams(ID)` **ON DELETE RESTRICT**
 

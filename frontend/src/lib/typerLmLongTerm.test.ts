@@ -56,7 +56,7 @@ function sampleMarket(
     season_id: 13,
     market_key: "league_phase_table",
     title: "Tabela fazy ligowej",
-    description: "Ułóż 36 drużyn",
+    description: "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
     selection_size: 8,
     points_per_correct: 2,
     points_per_exact_position: 2,

@@ -595,7 +595,7 @@ function sampleLongTermMarket(
     season_id: 13,
     market_key: "league_phase_table",
     title: "Tabela fazy ligowej (TOP 8 + BOT 8)",
-    description: "Ułóż 36 drużyn. TOP 8 i BOT 8: 2 pkt za strefę.",
+    description: "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
     selection_size: 36,
     points_per_correct: 2,
     points_per_exact_position: 2,
@@ -1026,7 +1026,7 @@ describe("TyperLmRules", () => {
 });
 
 describe("Typer LM page smoke", () => {
-  it("places collapsed rules above the participant round and hides admin", () => {
+  it("places collapsed rules below the participant round and hides admin", () => {
     const html = renderToStaticMarkup(
       <PreferencesProvider
         hasSession={false}
@@ -1034,7 +1034,6 @@ describe("Typer LM page smoke", () => {
         api={silentApi()}
       >
         <div>
-          <TyperLmRules />
           <TyperLmAdminSection isAdmin={false} seasonId={13} />
           <TyperLmDashboard
             dashboard={sampleDashboard()}
@@ -1042,6 +1041,7 @@ describe("Typer LM page smoke", () => {
             currentUserUuid="user-1"
             currentUserDisplayName="Ala"
           />
+          <TyperLmRules />
         </div>
       </PreferencesProvider>,
     );
@@ -1050,8 +1050,8 @@ describe("Typer LM page smoke", () => {
     const historyAt = html.indexOf("— na 1");
 
     expect(rulesAt).toBeGreaterThan(-1);
-    expect(roundAt).toBeGreaterThan(rulesAt);
     expect(historyAt).toBeGreaterThan(roundAt);
+    expect(rulesAt).toBeGreaterThan(historyAt);
     expect(html.match(/<details([^>]*)>/)?.[1] ?? "").not.toMatch(
       /\sopen(?:="[^"]*")?(?=[\s>]|$)/,
     );
@@ -1063,7 +1063,7 @@ describe("Typer LM page smoke", () => {
     expect(html).not.toContain("Widoczne po rozpoczęciu meczu");
   });
 
-  it("shows the admin panel after the rules for an administrator", () => {
+  it("shows the admin panel above the round and rules last for an administrator", () => {
     const html = renderToStaticMarkup(
       <PreferencesProvider
         hasSession={false}
@@ -1071,7 +1071,6 @@ describe("Typer LM page smoke", () => {
         api={silentApi()}
       >
         <div>
-          <TyperLmRules />
           <TyperLmAdminSection
             isAdmin={true}
             seasonId={13}
@@ -1089,6 +1088,7 @@ describe("Typer LM page smoke", () => {
               markets: [sampleLongTermMarket()],
             }}
           />
+          <TyperLmRules />
         </div>
       </PreferencesProvider>,
     );
@@ -1096,8 +1096,8 @@ describe("Typer LM page smoke", () => {
     const adminAt = html.indexOf("Panel administratora");
     const roundAt = html.indexOf("Kolejka");
 
-    expect(adminAt).toBeGreaterThan(rulesAt);
     expect(roundAt).toBeGreaterThan(adminAt);
+    expect(rulesAt).toBeGreaterThan(roundAt);
     expect(html).toContain("Audyt typów");
     expect(html).toContain("0/9");
     expect(html).toContain("Rozliczenie — Tabela fazy ligowej (TOP 8 + BOT 8)");
