@@ -10,6 +10,7 @@ import {
   classifyLongTermPick,
   countLongTermHits,
   defaultAdminResultIds,
+  displayedRankedTeamIds,
   filterLongTermCandidates,
   formatAdminLongTermChangeLine,
   formatLongTermChangeLine,
@@ -18,11 +19,13 @@ import {
   formatLongTermPointsLabel,
   formatLongTermSelectionCounter,
   formatLongTermStandingLine,
+  formatLongTermStandingStats,
   isLongTermMarketLockedForUi,
   lockLongTermMarket,
   longTermAdminAuditErrorMessage,
   longTermSaveErrorMessage,
   longTermSettleErrorMessage,
+  longTermUnsavedPickStatus,
   scoreLongTerm,
   toggleLongTermTeamId,
 } from "@/lib/typerLmLongTerm";
@@ -187,6 +190,44 @@ describe("long-term lock and save rules", () => {
       canSaveLongTermPicks(locked, [1, 2, 3, 4, 5, 6, 7, 8], false),
     ).toBe(false);
   });
+
+  it("shows the saved ranking after lock or settle, not a local draft", () => {
+    const saved = [1, 2, 3, 4, 5, 6, 7, 8];
+    const draft = [8, 7, 6, 5, 4, 3, 2, 1];
+    const market = sampleMarket({ picked_team_ids: saved });
+    expect(displayedRankedTeamIds(market, draft, false)).toEqual(draft);
+    expect(displayedRankedTeamIds(market, draft, true)).toEqual(saved);
+    expect(
+      displayedRankedTeamIds(
+        sampleMarket({ picked_team_ids: [] }),
+        draft,
+        true,
+      ),
+    ).toEqual(sampleMarket().candidates.map((team) => team.team_id));
+  });
+
+  it("shows the official table after settle when no pick was saved", () => {
+    const result = [8, 7, 6, 5, 4, 3, 2, 1];
+    const draft = [1, 2, 3, 4, 5, 6, 7, 8];
+    const market = sampleMarket({
+      picked_team_ids: [],
+      settled_at: "2027-01-30T12:00:00",
+      result_team_ids: result,
+    });
+    expect(displayedRankedTeamIds(market, draft, true)).toEqual(result);
+  });
+
+  it("labels a locked market without a saved pick", () => {
+    const open = sampleMarket({ picked_team_ids: [] });
+    const locked = sampleMarket({ picked_team_ids: [], is_locked: true });
+    const saved = sampleMarket({
+      picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      is_locked: true,
+    });
+    expect(longTermUnsavedPickStatus(open, false)).toBeNull();
+    expect(longTermUnsavedPickStatus(locked, true)).toBe("Nie zapisano typu");
+    expect(longTermUnsavedPickStatus(saved, true)).toBeNull();
+  });
 });
 
 describe("scoring and pick classification", () => {
@@ -313,6 +354,17 @@ describe("admin proposal helpers", () => {
         }),
       ),
     ).toContain("30/36");
+    expect(
+      formatLongTermStandingStats({
+        team_id: 1,
+        team_name: "Bayern Monachium",
+        team_shortcut: "BAY",
+        played: 8,
+        points: 18,
+        goal_difference: 12,
+        goals_for: 30,
+      }),
+    ).toBe("18 pkt · +12 · 30 bramek");
     expect(
       formatLongTermStandingLine(
         {

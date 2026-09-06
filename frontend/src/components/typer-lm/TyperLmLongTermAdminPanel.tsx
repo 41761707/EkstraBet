@@ -13,19 +13,19 @@ import {
   canSettleLongTermSelection,
   defaultAdminResultIds,
   formatLongTermCompleteness,
-  formatLongTermStandingLine,
   longTermAutoResultErrorMessage,
   longTermSettleErrorMessage,
-  toggleLongTermTeamId,
 } from "@/lib/typerLmLongTerm";
+import { MARKET_KIND_RANKED_TEAM_TABLE } from "@/lib/typerLmLongTermRanking";
 import type {
   LongTermAutoResultResponse,
   LongTermMarketCard,
+  LongTermStandingTeam,
   SettleLongTermResponse,
 } from "@/types/api";
 
 import { TyperLmLongTermAdminAuditLookup } from "./TyperLmLongTermAdminAuditLookup";
-import { TyperLmLongTermTeamPicker } from "./TyperLmLongTermTeamPicker";
+import { TyperLmLongTermRankedTable } from "./TyperLmLongTermRankedTable";
 
 interface TyperLmLongTermAdminPanelProps {
   market: LongTermMarketCard;
@@ -46,6 +46,10 @@ export function TyperLmLongTermAdminPanel({
     onSettled,
   );
 
+  if (market.market_kind !== MARKET_KIND_RANKED_TEAM_TABLE) {
+    return null;
+  }
+
   return (
     <section className="space-y-4 border-t border-border pt-6">
       <header className="space-y-1">
@@ -53,7 +57,7 @@ export function TyperLmLongTermAdminPanel({
           Rozliczenie — {market.title}
         </h3>
         <p className="text-sm text-muted">
-          Propozycja TOP 8 nie przyznaje punktów. Zatwierdzenie lub korekta
+          Propozycja tabeli nie przyznaje punktów. Zatwierdzenie lub korekta
           rozlicza rynek.
         </p>
       </header>
@@ -82,7 +86,9 @@ function AdminResultBody({
   settlement,
 }: AdminResultBodyProps) {
   if (settlement.isLoading) {
-    return <StatusMessage variant="info" title="Ładowanie propozycji TOP 8" />;
+    return (
+      <StatusMessage variant="info" title="Ładowanie propozycji tabeli" />
+    );
   }
   if (settlement.autoResult === null) {
     return (
@@ -106,14 +112,12 @@ function AdminResultBody({
     <AdminSettlementForm
       market={market}
       autoResult={settlement.autoResult}
-      selectedIds={settlement.selectedIds}
-      query={settlement.query}
+      rankedIds={settlement.rankedIds}
       isSaving={settlement.isSaving}
       isConfirming={settlement.isConfirming}
       errorMessage={settlement.errorMessage}
       teamNameDisplay={teamNameDisplay}
-      onQueryChange={settlement.setQuery}
-      onToggle={settlement.toggleTeam}
+      onReorder={settlement.reorder}
       onRequestSettle={() => settlement.setIsConfirming(true)}
       onCancelSettle={() => settlement.setIsConfirming(false)}
       onConfirmSettle={() => void settlement.confirmSettle()}
@@ -124,14 +128,12 @@ function AdminResultBody({
 interface AdminSettlementFormProps {
   market: LongTermMarketCard;
   autoResult: LongTermAutoResultResponse;
-  selectedIds: readonly number[];
-  query: string;
+  rankedIds: readonly number[];
   isSaving: boolean;
   isConfirming: boolean;
   errorMessage: string | null;
   teamNameDisplay: TeamNameDisplayPreference;
-  onQueryChange: (query: string) => void;
-  onToggle: (teamId: number) => void;
+  onReorder: (teamIds: number[]) => void;
   onRequestSettle: () => void;
   onCancelSettle: () => void;
   onConfirmSettle: () => void;
@@ -140,19 +142,17 @@ interface AdminSettlementFormProps {
 function AdminSettlementForm({
   market,
   autoResult,
-  selectedIds,
-  query,
+  rankedIds,
   isSaving,
   isConfirming,
   errorMessage,
   teamNameDisplay,
-  onQueryChange,
-  onToggle,
+  onReorder,
   onRequestSettle,
   onCancelSettle,
   onConfirmSettle,
 }: AdminSettlementFormProps) {
-  const canSettle = canSettleLongTermSelection(autoResult, selectedIds);
+  const canSettle = canSettleLongTermSelection(autoResult, rankedIds);
   const settleLabel = autoResult.settled_at
     ? "Skoryguj wynik"
     : "Zatwierdź wynik";
@@ -161,24 +161,24 @@ function AdminSettlementForm({
     <div className="space-y-4">
       <StatusMessage
         variant={autoResult.is_complete ? "info" : "empty"}
-        title={autoResult.is_complete ? "Propozycja TOP 8" : "Faza niekompletna"}
+        title={
+          autoResult.is_complete ? "Propozycja tabeli" : "Faza niekompletna"
+        }
         message={formatLongTermCompleteness(autoResult)}
       />
-      <ProposedTeamsList
-        autoResult={autoResult}
-        teamNameDisplay={teamNameDisplay}
-      />
-      <TyperLmLongTermTeamPicker
-        candidates={market.candidates}
-        selectedIds={selectedIds}
-        selectionSize={market.selection_size}
-        query={query}
-        isLocked={isSaving || !autoResult.is_complete}
-        resultTeamIds={[]}
-        teamNameDisplay={teamNameDisplay}
-        onQueryChange={onQueryChange}
-        onToggle={onToggle}
-      />
+      {rankedIds.length > 0 ? (
+        <TyperLmLongTermRankedTable
+          candidates={market.candidates}
+          teamIds={rankedIds}
+          topZoneSize={market.top_zone_size}
+          botZoneSize={market.bot_zone_size}
+          isLocked={isSaving || !autoResult.is_complete}
+          resultTeamIds={[]}
+          teamNameDisplay={teamNameDisplay}
+          standings={settlementStandings(autoResult)}
+          onReorder={onReorder}
+        />
+      ) : null}
       {errorMessage ? (
         <p className="text-sm text-danger-text" role="alert">
           {errorMessage}
@@ -197,25 +197,13 @@ function AdminSettlementForm({
   );
 }
 
-function ProposedTeamsList({
-  autoResult,
-  teamNameDisplay,
-}: {
-  autoResult: LongTermAutoResultResponse;
-  teamNameDisplay: TeamNameDisplayPreference;
-}) {
-  if (autoResult.proposed_teams.length === 0) {
-    return null;
+function settlementStandings(
+  autoResult: LongTermAutoResultResponse,
+): readonly LongTermStandingTeam[] {
+  if (autoResult.standings.length > 0) {
+    return autoResult.standings;
   }
-  return (
-    <ul className="space-y-1 text-sm text-text">
-      {autoResult.proposed_teams.map((team) => (
-        <li key={team.team_id}>
-          {formatLongTermStandingLine(team, teamNameDisplay)}
-        </li>
-      ))}
-    </ul>
-  );
+  return autoResult.proposed_teams;
 }
 
 function SettleActions({
@@ -282,10 +270,9 @@ function useLongTermSettlement(
 ) {
   const router = useRouter();
   const [autoResult, setAutoResult] = useState(initialAutoResult);
-  const [selectedIds, setSelectedIds] = useState(() =>
+  const [rankedIds, setRankedIds] = useState(() =>
     defaultAdminResultIds(initialAutoResult),
   );
-  const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -297,7 +284,7 @@ function useLongTermSettlement(
     try {
       const payload = await getTyperLongTermAutoResult(market.market_id);
       setAutoResult(payload);
-      setSelectedIds(defaultAdminResultIds(payload));
+      setRankedIds(defaultAdminResultIds(payload));
     } catch (error) {
       setAutoResult(null);
       setErrorMessage(longTermAutoResultErrorMessage(error));
@@ -306,27 +293,24 @@ function useLongTermSettlement(
     }
   }
 
-  function toggleTeam(teamId: number) {
+  function reorder(teamIds: number[]) {
     setIsConfirming(false);
-    setSelectedIds((current) =>
-      toggleLongTermTeamId(current, teamId, market.selection_size),
-    );
+    setRankedIds(teamIds);
   }
 
   async function confirmSettle() {
     if (
       autoResult === null ||
-      !canSettleLongTermSelection(autoResult, selectedIds)
+      !canSettleLongTermSelection(autoResult, rankedIds)
     ) {
       return;
     }
     setIsSaving(true);
     setErrorMessage(null);
     try {
-      const settled = await settleTyperLongTermMarket(
-        market.market_id,
-        [...selectedIds],
-      );
+      const settled = await settleTyperLongTermMarket(market.market_id, [
+        ...rankedIds,
+      ]);
       setAutoResult({
         ...autoResult,
         settled_at: settled.settled_at,
@@ -346,16 +330,14 @@ function useLongTermSettlement(
 
   return {
     autoResult,
-    selectedIds,
-    query,
+    rankedIds,
     isLoading,
     isSaving,
     isConfirming,
     errorMessage,
-    setQuery,
     setIsConfirming,
     reload,
-    toggleTeam,
+    reorder,
     confirmSettle,
   };
 }

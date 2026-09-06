@@ -115,6 +115,52 @@ export function canSaveLongTermPicks(
   return !areTeamIdSequencesEqual(selectedIds, market.picked_team_ids);
 }
 
+export function hasSavedRankedPick(
+  market: Pick<LongTermMarketCard, "picked_team_ids" | "selection_size">,
+): boolean {
+  return market.picked_team_ids.length === market.selection_size;
+}
+
+export function rankingIdsForMarket(market: LongTermMarketCard): number[] {
+  if (hasSavedRankedPick(market)) {
+    return [...market.picked_team_ids];
+  }
+  return market.candidates.map((team) => team.team_id);
+}
+
+export const LONG_TERM_UNSAVED_PICK_STATUS = "Nie zapisano typu";
+
+export function longTermUnsavedPickStatus(
+  market: Pick<LongTermMarketCard, "picked_team_ids" | "selection_size">,
+  isReadOnly: boolean,
+): string | null {
+  if (!isReadOnly || hasSavedRankedPick(market)) {
+    return null;
+  }
+  return LONG_TERM_UNSAVED_PICK_STATUS;
+}
+
+/**
+ * Saved pick after lock/settle; official table if settled without a pick;
+ * local draft only while typing is open.
+ */
+export function displayedRankedTeamIds(
+  market: LongTermMarketCard,
+  draftIds: readonly number[],
+  isReadOnly: boolean,
+): number[] {
+  if (!isReadOnly) {
+    return [...draftIds];
+  }
+  if (hasSavedRankedPick(market)) {
+    return [...market.picked_team_ids];
+  }
+  if (isLongTermMarketSettled(market)) {
+    return [...market.result_team_ids];
+  }
+  return rankingIdsForMarket(market);
+}
+
 export function classifyLongTermPick(
   teamId: number,
   resultTeamIds: readonly number[],
@@ -228,7 +274,7 @@ export function longTermAutoResultErrorMessage(error: unknown): string {
       return "Brak uprawnień administratora.";
     }
   }
-  return "Nie udało się wczytać propozycji TOP 8.";
+  return "Nie udało się wczytać propozycji tabeli.";
 }
 
 export function lockLongTermMarket(
@@ -334,7 +380,7 @@ export function formatLongTermCompleteness(
   if (result.is_complete) {
     return (
       `Faza ligowa jest kompletna (${result.participant_count} drużyn, ` +
-      `${result.settled_match_count} meczów). TOP 8 to propozycja — ` +
+      `${result.settled_match_count} meczów). Tabela to propozycja — ` +
       "dalsze kryteria UEFA nie są uwzględnione."
     );
   }
@@ -347,16 +393,20 @@ export function formatLongTermCompleteness(
   );
 }
 
+export function formatLongTermStandingStats(team: LongTermStandingTeam): string {
+  const signedDifference =
+    team.goal_difference > 0
+      ? `+${team.goal_difference}`
+      : String(team.goal_difference);
+  return `${team.points} pkt · ${signedDifference} · ${team.goals_for} bramek`;
+}
+
 export function formatLongTermStandingLine(
   team: LongTermStandingTeam,
   teamNameDisplay: TeamNameDisplayPreference,
 ): string {
   const name = formatLongTermTeamName(team, teamNameDisplay);
-  const signedDifference =
-    team.goal_difference > 0
-      ? `+${team.goal_difference}`
-      : String(team.goal_difference);
-  return `${name} · ${team.points} pkt · ${signedDifference} · ${team.goals_for} bramek`;
+  return `${name} · ${formatLongTermStandingStats(team)}`;
 }
 
 export function defaultAdminResultIds(
