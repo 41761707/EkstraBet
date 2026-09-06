@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
@@ -14,43 +15,44 @@ import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import {
   applySavedLongTermPicks,
   canSaveLongTermPicks,
+  displayedRankedTeamIds,
   formatLongTermChangeLine,
-  formatLongTermHitsLabel,
   formatLongTermPointsLabel,
   formatLongTermTeamName,
+  hasSavedRankedPick,
   isLongTermMarketLockedForUi,
   isLongTermMarketSettled,
   lockLongTermMarket,
   longTermSaveErrorMessage,
+  longTermUnsavedPickStatus,
+  rankingIdsForMarket,
   selectedTeams,
   takeRecentLongTermChanges,
-  toggleLongTermTeamId,
   updateLongTermDashboardMarket,
 } from "@/lib/typerLmLongTerm";
+import { MARKET_KIND_RANKED_TEAM_TABLE } from "@/lib/typerLmLongTermRanking";
 import type {
   LongTermDashboardResponse,
   LongTermMarketCard,
+  LongTermTeam,
 } from "@/types/api";
 
-import { TyperLmLongTermTeamPicker } from "./TyperLmLongTermTeamPicker";
+import { TyperLmLongTermRankedTable } from "./TyperLmLongTermRankedTable";
 
 interface TyperLmLongTermTabProps {
   dashboard: LongTermDashboardResponse | null;
   errorMessage?: string;
   nowMs?: number | null;
+  onDashboardChange?: (dashboard: LongTermDashboardResponse) => void;
 }
 
 export function TyperLmLongTermTab({
-  dashboard: initialDashboard,
+  dashboard,
   errorMessage,
   nowMs = null,
+  onDashboardChange,
 }: TyperLmLongTermTabProps) {
   const { preferences } = usePreferences();
-  const [dashboard, setDashboard] = useState(initialDashboard);
-
-  useEffect(() => {
-    setDashboard(initialDashboard);
-  }, [initialDashboard]);
 
   if (errorMessage) {
     return (
@@ -66,7 +68,7 @@ export function TyperLmLongTermTab({
       <StatusMessage
         variant="empty"
         title="Brak rynków długoterminowych"
-        message="Administrator nie otworzył jeszcze rynku TOP 8."
+        message="Administrator nie otworzył jeszcze rynku tabeli fazy ligowej."
       />
     );
   }
@@ -80,14 +82,12 @@ export function TyperLmLongTermTab({
             nowMs={nowMs}
             teamNameDisplay={preferences.teamNameDisplay}
             onMarketChange={(next) =>
-              setDashboard((current) =>
-                current
-                  ? updateLongTermDashboardMarket(
-                      current,
-                      market.market_id,
-                      () => next,
-                    )
-                  : current,
+              onDashboardChange?.(
+                updateLongTermDashboardMarket(
+                  dashboard,
+                  market.market_id,
+                  () => next,
+                ),
               )
             }
           />
@@ -110,29 +110,75 @@ export function TyperLmLongTermMarketCard({
   teamNameDisplay,
   onMarketChange,
 }: TyperLmLongTermMarketCardProps) {
-  const picks = useLongTermMarketPicks(market, nowMs, onMarketChange);
   const isLocked = isLongTermMarketLockedForUi(market, nowMs);
+  if (market.market_kind !== MARKET_KIND_RANKED_TEAM_TABLE) {
+    return (
+      <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
+        <LongTermMarketHeader market={market} isLocked={isLocked} />
+        <StatusMessage
+          variant="info"
+          title="Ten rynek nie jest jeszcze dostępny"
+          message="Obsługa tego rodzaju rynku pojawi się w kolejnej wersji."
+        />
+      </section>
+    );
+  }
+  return (
+    <RankedTeamTableMarketCard
+      market={market}
+      nowMs={nowMs}
+      teamNameDisplay={teamNameDisplay}
+      isLocked={isLocked}
+      onMarketChange={onMarketChange}
+    />
+  );
+}
+
+function RankedTeamTableMarketCard({
+  market,
+  nowMs,
+  teamNameDisplay,
+  isLocked,
+  onMarketChange,
+}: TyperLmLongTermMarketCardProps & { isLocked: boolean }) {
+  const picks = useLongTermMarketPicks(market, nowMs, onMarketChange);
   const isSettled = isLongTermMarketSettled(market);
+  const isReadOnly = isLocked || isSettled;
+  const teamIds = displayedRankedTeamIds(
+    market,
+    picks.rankedIds,
+    isReadOnly,
+  );
+  const unsavedStatus = longTermUnsavedPickStatus(market, isReadOnly);
 
   return (
     <section className="space-y-4 rounded-xl border border-border bg-surface p-4">
       <LongTermMarketHeader market={market} isLocked={isLocked} />
+      {unsavedStatus ? (
+        <p
+          className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-text"
+          role="status"
+        >
+          {unsavedStatus}
+        </p>
+      ) : null}
       {isSettled ? (
         <SettledResultSummary
           market={market}
           teamNameDisplay={teamNameDisplay}
         />
       ) : null}
-      <TyperLmLongTermTeamPicker
+      <TyperLmLongTermRankedTable
         candidates={market.candidates}
-        selectedIds={picks.selectedIds}
-        selectionSize={market.selection_size}
-        query={picks.query}
+        teamIds={teamIds}
+        topZoneSize={market.top_zone_size}
+        botZoneSize={market.bot_zone_size}
         isLocked={isLocked || picks.isPending || isSettled}
-        resultTeamIds={market.result_team_ids}
+        resultTeamIds={
+          hasSavedRankedPick(market) ? market.result_team_ids : []
+        }
         teamNameDisplay={teamNameDisplay}
-        onQueryChange={picks.setQuery}
-        onToggle={picks.toggleTeam}
+        onReorder={picks.reorder}
       />
       <TyperLmLongTermMarketFooter
         market={market}
@@ -181,24 +227,46 @@ function SettledResultSummary({
   market: LongTermMarketCard;
   teamNameDisplay: TeamNameDisplayPreference;
 }) {
-  const hitsLabel = formatLongTermHitsLabel(market);
-  const official = selectedTeams(market.candidates, market.result_team_ids);
+  const officialTop =
+    market.top_zone_size > 0
+      ? selectedTeams(
+          market.candidates,
+          market.result_team_ids.slice(0, market.top_zone_size),
+        )
+      : [];
+  const officialBot =
+    market.bot_zone_size > 0
+      ? selectedTeams(
+          market.candidates,
+          market.result_team_ids.slice(-market.bot_zone_size),
+        )
+      : [];
   return (
     <div className="space-y-2 text-sm text-text">
-      <p>
-        Wynik zatwierdzony
-        {hitsLabel ? ` · ${hitsLabel}` : ""} · {formatLongTermPointsLabel(market)}
-      </p>
-      {official.length > 0 ? (
+      <p>Wynik zatwierdzony · {formatLongTermPointsLabel(market)}</p>
+      {officialTop.length > 0 ? (
         <p className="text-muted">
-          Oficjalny TOP 8:{" "}
-          {official
-            .map((team) => formatLongTermTeamName(team, teamNameDisplay))
-            .join(", ")}
+          Oficjalny TOP {market.top_zone_size}:{" "}
+          {joinOfficialTeamNames(officialTop, teamNameDisplay)}
+        </p>
+      ) : null}
+      {officialBot.length > 0 ? (
+        <p className="text-muted">
+          Oficjalny BOT {market.bot_zone_size}:{" "}
+          {joinOfficialTeamNames(officialBot, teamNameDisplay)}
         </p>
       ) : null}
     </div>
   );
+}
+
+function joinOfficialTeamNames(
+  teams: readonly LongTermTeam[],
+  teamNameDisplay: TeamNameDisplayPreference,
+): string {
+  return teams
+    .map((team) => formatLongTermTeamName(team, teamNameDisplay))
+    .join(", ");
 }
 
 export function TyperLmLongTermMarketFooter({
@@ -262,28 +330,35 @@ function useLongTermMarketPicks(
   nowMs: number | null,
   onMarketChange: (market: LongTermMarketCard) => void,
 ) {
-  const [selectedIds, setSelectedIds] = useState(() => [
-    ...market.picked_team_ids,
-  ]);
-  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const [rankedIds, setRankedIds] = useState(() => rankingIdsForMarket(market));
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const savedRankingKey = [
+    market.is_locked ? "1" : "0",
+    market.settled_at ?? "",
+    market.picked_team_ids.join(","),
+  ].join("|");
 
-  function toggleTeam(teamId: number) {
-    setSelectedIds((current) =>
-      toggleLongTermTeamId(current, teamId, market.selection_size),
-    );
+  useEffect(() => {
+    setRankedIds(rankingIdsForMarket(market));
+    // reset przy zmianie zapisanego typu / lock / settle, nie przy nowej referencji
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- savedRankingKey serializuje treść
+  }, [savedRankingKey]);
+
+  function reorder(teamIds: number[]) {
+    setRankedIds(teamIds);
   }
 
   async function save() {
-    if (!canSaveLongTermPicks(market, selectedIds, isPending, nowMs)) {
+    if (!canSaveLongTermPicks(market, rankedIds, isPending, nowMs)) {
       return;
     }
     setIsPending(true);
     setErrorMessage(null);
     try {
       const saved = await saveTyperLongTermPicks(market.market_id, [
-        ...selectedIds,
+        ...rankedIds,
       ]);
       let changes = market.changes;
       if (saved.audit_written) {
@@ -294,7 +369,8 @@ function useLongTermMarketPicks(
         }
       }
       onMarketChange(applySavedLongTermPicks(market, saved, changes));
-      setSelectedIds(saved.team_ids);
+      setRankedIds(saved.team_ids);
+      router.refresh();
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         onMarketChange(lockLongTermMarket(market));
@@ -306,13 +382,11 @@ function useLongTermMarketPicks(
   }
 
   return {
-    selectedIds,
-    query,
+    rankedIds,
     isPending,
     errorMessage,
-    canSave: canSaveLongTermPicks(market, selectedIds, isPending, nowMs),
-    setQuery,
-    toggleTeam,
+    canSave: canSaveLongTermPicks(market, rankedIds, isPending, nowMs),
+    reorder,
     save,
   };
 }

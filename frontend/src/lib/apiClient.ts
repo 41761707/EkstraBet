@@ -302,6 +302,7 @@ export async function saveTyperLongTermPicks(
   marketId: number,
   teamIds: number[],
 ): Promise<SaveLongTermPicksResponse> {
+  // kolejność to pozycja w tabeli — nie sortujemy id
   return fetchViaBff<SaveLongTermPicksResponse>(
     `/typer-lm/long-term/markets/${marketId}/picks`,
     undefined,
@@ -348,6 +349,7 @@ export async function settleTyperLongTermMarket(
   marketId: number,
   teamIds: number[],
 ): Promise<SettleLongTermResponse> {
+  // kolejność to pozycja w tabeli — nie sortujemy id
   return fetchViaBff<SettleLongTermResponse>(
     `/typer-lm/long-term/admin/markets/${marketId}/settle`,
     undefined,

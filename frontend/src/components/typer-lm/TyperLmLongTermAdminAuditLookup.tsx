@@ -55,8 +55,8 @@ export function TyperLmLongTermAdminAuditLookup({
     <section className="space-y-3">
       <h3 className="text-sm font-medium text-text">Audyt typów długoterminowych</h3>
       <p className="text-sm text-muted">
-        Odtwórz historię zestawu TOP 8 wskazanego użytkownika. Typów nie można
-        tu zmieniać.
+        Odtwórz historię tabeli wskazanego użytkownika — permutację 36 pozycji.
+        Typów nie można tu zmieniać.
       </p>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
         <label className="flex min-w-56 flex-1 flex-col gap-1 text-sm text-muted">

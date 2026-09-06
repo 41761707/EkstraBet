@@ -16,6 +16,14 @@ import { TyperLmDashboard } from "@/components/typer-lm/TyperLmDashboard";
 import { TyperLmLeaderboard } from "@/components/typer-lm/TyperLmLeaderboard";
 import { TyperLmLongTermAdminPanel } from "@/components/typer-lm/TyperLmLongTermAdminPanel";
 import {
+  RANKED_ROW_ARMED_CLASS,
+  RANKED_SCREEN_READER_INSTRUCTIONS,
+  RANKED_TOUCH_DRAG_HINT,
+  overlayPositionForDrag,
+  rankedRowArmedClass,
+  rankedTableAnnouncements,
+} from "@/components/typer-lm/TyperLmLongTermRankedTable";
+import {
   TyperLmLongTermAdminAuditLookup,
   TyperLmLongTermAdminAuditResults,
 } from "@/components/typer-lm/TyperLmLongTermAdminAuditLookup";
@@ -574,6 +582,10 @@ function sampleLongTermTeams(count = 36): LongTermTeam[] {
   }));
 }
 
+function sequentialTeamIds(count: number): number[] {
+  return Array.from({ length: count }, (_, index) => index + 1);
+}
+
 function sampleLongTermMarket(
   overrides: Partial<LongTermMarketCard> = {},
 ): LongTermMarketCard {
@@ -581,11 +593,16 @@ function sampleLongTermMarket(
     market_id: 1,
     league_id: 42,
     season_id: 13,
-    market_key: "top8_direct_r16",
-    title: "TOP 8 fazy ligowej",
-    description: "Wskaż 8 drużyn bez kolejności",
-    selection_size: 8,
+    market_key: "league_phase_table",
+    title: "Tabela fazy ligowej (TOP 8 + BOT 8)",
+    description: "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
+    selection_size: 36,
     points_per_correct: 2,
+    points_per_exact_position: 2,
+    market_kind: "ranked_team_table",
+    scoring_kind: "zone_and_position",
+    top_zone_size: 8,
+    bot_zone_size: 8,
     settled_at: null,
     deadline_at: "2026-09-16T21:00:00",
     is_locked: false,
@@ -600,7 +617,7 @@ function sampleLongTermMarket(
         user_uuid: "user-1",
         display_name: "Ala",
         previous_team_ids: null,
-        new_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+        new_team_ids: sequentialTeamIds(36),
         changed_at: "2026-09-11T18:30:00",
       },
     ],
@@ -608,16 +625,38 @@ function sampleLongTermMarket(
   };
 }
 
+function sampleSettledRankedMarket(
+  overrides: Partial<LongTermMarketCard> = {},
+): LongTermMarketCard {
+  const picked = sequentialTeamIds(36);
+  const result = [...picked];
+  result[1] = 3;
+  result[2] = 2;
+  result[7] = 13;
+  result[12] = 8;
+  return sampleLongTermMarket({
+    picked_team_ids: picked,
+    result_team_ids: result,
+    settled_at: "2027-01-30T12:00:00",
+    points: 14,
+    ...overrides,
+  });
+}
+
 function sampleAutoResult(
   overrides: Partial<LongTermAutoResultResponse> = {},
 ): LongTermAutoResultResponse {
+  const proposed = sequentialTeamIds(36);
   return {
     market_id: 1,
     league_id: 42,
     season_id: 13,
-    market_key: "top8_direct_r16",
-    selection_size: 8,
+    market_key: "league_phase_table",
+    selection_size: 36,
     points_per_correct: 2,
+    points_per_exact_position: 2,
+    top_zone_size: 8,
+    bot_zone_size: 8,
     settled_at: null,
     settled_by_uuid: null,
     settled_by_display_name: null,
@@ -630,7 +669,9 @@ function sampleAutoResult(
     required_participant_count: 36,
     required_matches_per_team: 8,
     required_settled_match_count: 144,
-    proposed_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+    proposed_team_ids: proposed,
+    proposed_top_team_ids: proposed.slice(0, 8),
+    proposed_bot_team_ids: proposed.slice(28),
     proposed_teams: [
       {
         team_id: 1,
@@ -693,7 +734,7 @@ describe("TyperLmAdminSection", () => {
       </PreferencesProvider>,
     );
     expect(html).toContain("Panel administratora");
-    expect(html).toContain("Rozliczenie — TOP 8 fazy ligowej");
+    expect(html).toContain("Rozliczenie — Tabela fazy ligowej (TOP 8 + BOT 8)");
     expect(html).toContain("Zatwierdź wynik");
     expect(html).toContain("Audyt typów długoterminowych");
   });
@@ -965,7 +1006,7 @@ describe("TyperLmRules", () => {
     expect(html).toContain("prywatne do rozpoczęcia danego meczu");
     expect(html).toContain("stają się publiczne po jego starcie");
     expect(html).toContain("Typy 1X2 innych uczestników");
-    expect(html).toContain("Długoterminowe - TOP 8");
+    expect(html).toContain("Długoterminowe — tabela fazy ligowej");
   });
 
   it("keeps the full rules out of match cards", () => {
@@ -985,7 +1026,7 @@ describe("TyperLmRules", () => {
 });
 
 describe("Typer LM page smoke", () => {
-  it("places collapsed rules above the participant round and hides admin", () => {
+  it("places collapsed rules below the participant round and hides admin", () => {
     const html = renderToStaticMarkup(
       <PreferencesProvider
         hasSession={false}
@@ -993,7 +1034,6 @@ describe("Typer LM page smoke", () => {
         api={silentApi()}
       >
         <div>
-          <TyperLmRules />
           <TyperLmAdminSection isAdmin={false} seasonId={13} />
           <TyperLmDashboard
             dashboard={sampleDashboard()}
@@ -1001,6 +1041,7 @@ describe("Typer LM page smoke", () => {
             currentUserUuid="user-1"
             currentUserDisplayName="Ala"
           />
+          <TyperLmRules />
         </div>
       </PreferencesProvider>,
     );
@@ -1009,8 +1050,8 @@ describe("Typer LM page smoke", () => {
     const historyAt = html.indexOf("— na 1");
 
     expect(rulesAt).toBeGreaterThan(-1);
-    expect(roundAt).toBeGreaterThan(rulesAt);
     expect(historyAt).toBeGreaterThan(roundAt);
+    expect(rulesAt).toBeGreaterThan(historyAt);
     expect(html.match(/<details([^>]*)>/)?.[1] ?? "").not.toMatch(
       /\sopen(?:="[^"]*")?(?=[\s>]|$)/,
     );
@@ -1022,7 +1063,7 @@ describe("Typer LM page smoke", () => {
     expect(html).not.toContain("Widoczne po rozpoczęciu meczu");
   });
 
-  it("shows the admin panel after the rules for an administrator", () => {
+  it("shows the admin panel above the round and rules last for an administrator", () => {
     const html = renderToStaticMarkup(
       <PreferencesProvider
         hasSession={false}
@@ -1030,7 +1071,6 @@ describe("Typer LM page smoke", () => {
         api={silentApi()}
       >
         <div>
-          <TyperLmRules />
           <TyperLmAdminSection
             isAdmin={true}
             seasonId={13}
@@ -1048,6 +1088,7 @@ describe("Typer LM page smoke", () => {
               markets: [sampleLongTermMarket()],
             }}
           />
+          <TyperLmRules />
         </div>
       </PreferencesProvider>,
     );
@@ -1055,11 +1096,11 @@ describe("Typer LM page smoke", () => {
     const adminAt = html.indexOf("Panel administratora");
     const roundAt = html.indexOf("Kolejka");
 
-    expect(adminAt).toBeGreaterThan(rulesAt);
     expect(roundAt).toBeGreaterThan(adminAt);
+    expect(rulesAt).toBeGreaterThan(roundAt);
     expect(html).toContain("Audyt typów");
     expect(html).toContain("0/9");
-    expect(html).toContain("Rozliczenie — TOP 8 fazy ligowej");
+    expect(html).toContain("Rozliczenie — Tabela fazy ligowej (TOP 8 + BOT 8)");
     expect(html).toContain("Audyt typów długoterminowych");
   });
 });
@@ -1090,6 +1131,9 @@ describe("TyperLmLongTermTab", () => {
       </PreferencesProvider>,
     );
     expect(empty).toContain("Brak rynków długoterminowych");
+    expect(empty).toContain(
+      "Administrator nie otworzył jeszcze rynku tabeli fazy ligowej.",
+    );
     expect(failed).toContain("Nie udało się załadować długoterminowych");
     expect(failed).toContain("Brak połączenia");
   });
@@ -1106,7 +1150,7 @@ describe("TyperLmLongTermTab", () => {
         />
       </PreferencesProvider>,
     );
-    expect(html).toContain("TOP 8 fazy ligowej");
+    expect(html).toContain("Tabela fazy ligowej (TOP 8 + BOT 8)");
     expect(html).toContain("Zapisz typ");
     expect(html).not.toContain("Rozliczenie —");
     expect(html).not.toContain("Zatwierdź wynik");
@@ -1116,7 +1160,7 @@ describe("TyperLmLongTermTab", () => {
 });
 
 describe("TyperLmLongTermMarketCard", () => {
-  it("lists 36 candidates and the 0/8 counter", () => {
+  it("lists 36 ranked rows with TOP 8 and BOT 8 zones", () => {
     const html = renderToStaticMarkup(
       <TyperLmLongTermMarketCard
         market={sampleLongTermMarket()}
@@ -1125,15 +1169,24 @@ describe("TyperLmLongTermMarketCard", () => {
         onMarketChange={() => undefined}
       />,
     );
-    expect(html).toContain("Wybrane 0/8");
+    expect(html).toContain("TOP 8");
+    expect(html).toContain("BOT 8");
     expect(html).toContain("Team 1");
     expect(html).toContain("Team 36");
     expect(html).toContain("Zapisz typ");
     expect(html).toContain("pierwszy zapis");
-    expect(html).toContain("Szukaj drużyny");
+    expect(html).toContain("Przeciągnij Team 1");
+    expect(html).toContain("min-h-11");
+    expect(html).toContain("touch-none");
+    expect(html).toContain(RANKED_TOUCH_DRAG_HINT);
+    expect(html).not.toContain(RANKED_ROW_ARMED_CLASS);
+    expect(html).not.toContain("Szukaj drużyny");
+    expect(html).not.toContain("Wybrane 0/8");
+    expect(html).not.toContain("Nie zapisano typu");
+    expect(html.match(/aria-label="Przeciągnij /g)?.length).toBe(36);
   });
 
-  it("locks saving after the deadline", () => {
+  it("locks saving after the deadline and hides the drag handle", () => {
     const html = renderToStaticMarkup(
       <TyperLmLongTermMarketCard
         market={sampleLongTermMarket({ is_locked: true })}
@@ -1143,54 +1196,144 @@ describe("TyperLmLongTermMarketCard", () => {
       />,
     );
     expect(html).toContain("Typowanie zablokowane");
+    expect(html).toContain("Nie zapisano typu");
     expect(html).not.toContain("Zapisz typ");
+    expect(html).not.toContain("Przeciągnij");
+    expect(html).not.toContain(RANKED_TOUCH_DRAG_HINT);
   });
 
-  it("shows hits, misses and points after settlement", () => {
+  it("shows zone labels, hit marks and points after settlement", () => {
     const html = renderToStaticMarkup(
       <TyperLmLongTermMarketCard
-        market={sampleLongTermMarket({
-          picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
-          result_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
-          settled_at: "2027-01-30T12:00:00",
-          points: 14,
+        market={sampleSettledRankedMarket()}
+        nowMs={null}
+        teamNameDisplay="full"
+        onMarketChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("14.00 pkt");
+    expect(html).toContain("pozycja");
+    expect(html).toContain("strefa");
+    expect(html).toContain("pudło");
+    expect(html).toContain("Oficjalny TOP 8");
+    expect(html).toContain("Oficjalny BOT 8");
+    expect(html).toContain(
+      "Team 1, Team 3, Team 2, Team 4, Team 5, Team 6, Team 7, Team 13",
+    );
+    expect(html).not.toContain("Nie zapisano typu");
+    expect(html).not.toContain("Zapisz typ");
+    expect(html).not.toContain("Szukaj drużyny");
+    expect(html).not.toContain("Przeciągnij");
+  });
+
+  it("uses shortcut labels in the official zones when preferred", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketCard
+        market={sampleSettledRankedMarket()}
+        nowMs={null}
+        teamNameDisplay="shortcut"
+        onMarketChange={() => undefined}
+      />,
+    );
+    expect(html).toContain("Oficjalny TOP 8: T1, T3, T2, T4, T5, T6, T7, T13");
+    expect(html).toContain(
+      "Oficjalny BOT 8: T29, T30, T31, T32, T33, T34, T35, T36",
+    );
+    expect(html).not.toContain("Oficjalny TOP 8: Team 1");
+  });
+
+  it("does not label hits when the player has no saved ranked pick", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermMarketCard
+        market={sampleSettledRankedMarket({
+          picked_team_ids: [],
+          points: null,
         })}
         nowMs={null}
         teamNameDisplay="full"
         onMarketChange={() => undefined}
       />,
     );
-    expect(html).toContain("7/8 trafień");
-    expect(html).toContain("14.00 pkt");
-    expect(html).toContain("Wybrane 8/8");
-    expect(html).toContain("trafienie");
-    expect(html).toContain("pudło");
+    expect(html).toContain("Punkty po zatwierdzeniu admina");
+    expect(html).toContain("Nie zapisano typu");
     expect(html).toContain("Oficjalny TOP 8");
-    expect(html).toContain("Team 1, Team 2, Team 3, Team 4, Team 5, Team 6, Team 7, Team 9");
+    expect(html).toContain("Oficjalny BOT 8");
+    const rankedList = html.slice(html.indexOf("<ol"));
+    expect(rankedList.indexOf("Team 3")).toBeLessThan(rankedList.indexOf("Team 2"));
+    expect(rankedList.indexOf("Team 13")).toBeLessThan(
+      rankedList.indexOf("Team 8"),
+    );
+    expect(html).not.toContain("pozycja");
+    expect(html).not.toContain("strefa");
+    expect(html).not.toContain("pudło");
     expect(html).not.toContain("Zapisz typ");
   });
 
-  it("uses shortcut labels in the official TOP 8 when preferred", () => {
+  it("skips unknown market kinds without crashing", () => {
     const html = renderToStaticMarkup(
       <TyperLmLongTermMarketCard
-        market={sampleLongTermMarket({
-          picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
-          result_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
-          settled_at: "2027-01-30T12:00:00",
-          points: 14,
-        })}
+        market={sampleLongTermMarket({ market_kind: "single_player" })}
         nowMs={null}
-        teamNameDisplay="shortcut"
+        teamNameDisplay="full"
         onMarketChange={() => undefined}
       />,
     );
-    expect(html).toContain("Oficjalny TOP 8: T1, T2, T3, T4, T5, T6, T7, T9");
-    expect(html).not.toContain("Oficjalny TOP 8: Team 1");
+    expect(html).toContain("Ten rynek nie jest jeszcze dostępny");
+    expect(html).not.toContain("Przeciągnij");
+    expect(html).not.toContain("Szukaj drużyny");
+    expect(html).not.toContain("Zapisz typ");
+  });
+});
+
+describe("ranked table drag accessibility", () => {
+  const teamIds = [1, 36];
+  const teamNames = new Map<number, string>([
+    [1, "Team 1"],
+    [36, "Team 36"],
+  ]);
+
+  it("announces drag in Polish with target positions", () => {
+    const announcements = rankedTableAnnouncements(teamIds, teamNames);
+    expect(
+      announcements.onDragStart({ active: { id: 36 } } as never),
+    ).toBe("Podniesiono Team 36. Pozycja 2 z 2.");
+    expect(
+      announcements.onDragOver({
+        active: { id: 36 },
+        over: { id: 1 },
+      } as never),
+    ).toBe("Przeniesiono Team 36 na pozycję 1 z 2.");
+    expect(
+      announcements.onDragEnd({
+        active: { id: 36 },
+        over: { id: 1 },
+      } as never),
+    ).toBe("Upuszczono Team 36 na pozycji 1 z 2.");
+    expect(
+      announcements.onDragCancel({ active: { id: 36 } } as never),
+    ).toBe("Przeciąganie anulowane. Team 36 wrócił na poprzednie miejsce.");
+  });
+
+  it("uses Polish keyboard instructions and live overlay slots", () => {
+    expect(RANKED_SCREEN_READER_INSTRUCTIONS.draggable).toContain(
+      "Aby podnieść kafelek",
+    );
+    expect(RANKED_SCREEN_READER_INSTRUCTIONS.draggable).not.toContain(
+      "To pick up a draggable item",
+    );
+    expect(overlayPositionForDrag(1, teamIds)).toBe(1);
+    expect(overlayPositionForDrag(36, teamIds)).toBe(2);
+    expect(overlayPositionForDrag(null, teamIds)).toBeNull();
+  });
+
+  it("highlights an armed tile with the accent ring", () => {
+    expect(rankedRowArmedClass(true)).toContain("ring-accent");
+    expect(rankedRowArmedClass(false)).toBe("");
   });
 });
 
 describe("TyperLmLongTermAdminPanel", () => {
-  it("shows the TOP 8 proposal and a correction path", () => {
+  it("shows the ranked-table proposal and a correction path", () => {
     const html = renderToStaticMarkup(
       <TyperLmLongTermAdminPanel
         market={sampleLongTermMarket()}
@@ -1198,10 +1341,19 @@ describe("TyperLmLongTermAdminPanel", () => {
         teamNameDisplay="full"
       />,
     );
-    expect(html).toContain("Propozycja TOP 8");
-    expect(html).toContain("Team 1 · 18 pkt · +12 · 30 bramek");
+    expect(html).toContain("Propozycja tabeli");
+    expect(html).toContain("TOP 8");
+    expect(html).toContain("BOT 8");
+    expect(html).toContain("Team 1");
+    expect(html).toContain("18 pkt · +12 · 30 bramek");
+    expect(html).not.toContain("Team 1 · 18 pkt · +12 · 30 bramek");
+    expect(html).toContain("Team 36");
     expect(html).toContain("Zatwierdź wynik");
     expect(html).toContain("Audyt typów długoterminowych");
+    expect(html).toContain("historię tabeli");
+    expect(html).toContain("permutację 36 pozycji");
+    expect(html).not.toContain("zestawu TOP 8");
+    expect(html).not.toContain("Szukaj drużyny");
   });
 
   it("blocks settlement when the league phase is incomplete", () => {
@@ -1230,7 +1382,7 @@ describe("TyperLmLongTermAdminPanel", () => {
         market={sampleLongTermMarket()}
         initialAutoResult={sampleAutoResult({
           settled_at: "2027-01-30T12:00:00",
-          result_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+          result_team_ids: sequentialTeamIds(36),
         })}
         teamNameDisplay="full"
       />,
@@ -1299,6 +1451,9 @@ describe("TyperLmLongTermAdminAuditLookup", () => {
       </>,
     );
     expect(html).toContain("Audyt typów długoterminowych");
+    expect(html).toContain("historię tabeli");
+    expect(html).toContain("permutację 36 pozycji");
+    expect(html).not.toContain("zestawu TOP 8");
     expect(html).toContain("Bartek");
     expect(html).toContain("user-2");
     expect(html).toContain("rynek 1");

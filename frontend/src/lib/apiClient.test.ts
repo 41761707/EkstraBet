@@ -456,9 +456,8 @@ describe("typer LM long-term client", () => {
     );
     stubBrowserFetch(fetchMock);
 
-    await expect(
-      saveTyperLongTermPicks(1, [1, 2, 3, 4, 5, 6, 7, 8]),
-    ).resolves.toEqual(payload);
+    const teamIds = [3, 1, 2, 6, 5, 4, 8, 7];
+    await expect(saveTyperLongTermPicks(1, teamIds)).resolves.toEqual(payload);
     const [requested, init] = fetchMock.mock.calls[0] as [
       string,
       RequestInit,
@@ -466,7 +465,7 @@ describe("typer LM long-term client", () => {
     expect(requested).toContain("/api/backend/typer-lm/long-term/markets/1/picks");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(String(init.body))).toEqual({
-      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      team_ids: teamIds,
     });
   });
 
@@ -545,9 +544,10 @@ describe("typer LM long-term client", () => {
     );
     stubBrowserFetch(fetchMock);
 
-    await expect(
-      settleTyperLongTermMarket(1, [1, 2, 3, 4, 5, 6, 7, 8]),
-    ).resolves.toEqual(payload);
+    const teamIds = [3, 1, 2, 6, 5, 4, 8, 7];
+    await expect(settleTyperLongTermMarket(1, teamIds)).resolves.toEqual(
+      payload,
+    );
     const [requested, init] = fetchMock.mock.calls[0] as [
       string,
       RequestInit,
@@ -557,7 +557,7 @@ describe("typer LM long-term client", () => {
     );
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({
-      team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      team_ids: teamIds,
     });
   });
 });

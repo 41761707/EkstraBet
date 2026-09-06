@@ -42,6 +42,11 @@ _SELECT_MARKET_SQL = f"""
         m.description,
         m.selection_size,
         m.points_per_correct,
+        m.points_per_exact_position,
+        m.market_kind,
+        m.scoring_kind,
+        m.top_zone_size,
+        m.bot_zone_size,
         m.settled_at,
         m.settled_by,
         ({_DEADLINE_SQL}) AS deadline_at,
@@ -83,7 +88,7 @@ _CURRENT_PICKS_SQL = """
     FROM typer_long_term_picks
     WHERE market_id = %s
       AND user_id = %s
-    ORDER BY team_id ASC
+    ORDER BY position ASC
 """
 
 _DELETE_PICKS_SQL = """
@@ -94,8 +99,8 @@ _DELETE_PICKS_SQL = """
 
 _INSERT_PICKS_SQL = f"""
     INSERT INTO typer_long_term_picks (
-        market_id, user_id, team_id)
-    SELECT %s, %s, t.team_id
+        market_id, user_id, team_id, position)
+    SELECT %s, %s, t.team_id, t.position
     FROM typer_long_term_markets m
     JOIN ({{union_sql}}) t
     WHERE m.id = %s
@@ -123,6 +128,11 @@ _DASHBOARD_MARKETS_SQL = f"""
         m.description,
         m.selection_size,
         m.points_per_correct,
+        m.points_per_exact_position,
+        m.market_kind,
+        m.scoring_kind,
+        m.top_zone_size,
+        m.bot_zone_size,
         m.settled_at,
         m.settled_by,
         ({_DEADLINE_SQL}) AS deadline_at,
@@ -138,14 +148,14 @@ _DASHBOARD_PICKS_SQL = """
     FROM typer_long_term_picks
     WHERE user_id = %s
       AND market_id IN ({placeholders})
-    ORDER BY market_id ASC, team_id ASC
+    ORDER BY market_id ASC, position ASC
 """
 
 _DASHBOARD_RESULTS_SQL = """
     SELECT market_id, team_id
     FROM typer_long_term_results
     WHERE market_id IN ({placeholders})
-    ORDER BY market_id ASC, team_id ASC
+    ORDER BY market_id ASC, position ASC
 """
 
 _CHANGES_SELECT_SQL = """
@@ -255,8 +265,8 @@ _DELETE_RESULTS_SQL = """
 
 _INSERT_RESULTS_SQL = """
     INSERT INTO typer_long_term_results (
-        market_id, team_id)
-    SELECT %s, t.team_id
+        market_id, team_id, position)
+    SELECT %s, t.team_id, t.position
     FROM ({union_sql}) t
 """
 
@@ -295,10 +305,10 @@ def save_long_term_picks(
         user_id: int,
         market_id: int,
         team_ids: list[int]) -> dict[str, Any]:
-    """Replace the user's set and append CSV audit in one transaction.
+    """Replace the user's ranking and append CSV audit in one transaction.
 
     Deadline is enforced in SQL via ``NOW() < MIN(matches.game_date)``.
-    An identical set (order ignored) is a no-op without an audit row.
+    An identical sequence is a no-op without an audit row.
     """
     _require_positive_ids(user_id=user_id, market_id=market_id)
     unique_ids = _unique_team_ids(team_ids)
@@ -395,7 +405,7 @@ def settle_market(
         market_id: int,
         team_ids: list[int],
         admin_id: int) -> dict[str, Any]:
-    """Replace the approved result set and stamp the market as settled.
+    """Replace the approved ranking and stamp the market as settled.
 
     Does not modify stored picks. Rankings are recalculated on read.
     Deadline is not required: settlement happens after kickoff.
@@ -554,6 +564,12 @@ def _auto_result_document(
         "market_key": str(market["market_key"]),
         "selection_size": int(market["selection_size"]),
         "points_per_correct": float(market["points_per_correct"]),
+        "points_per_exact_position": float(
+            market["points_per_exact_position"]),
+        "market_kind": str(market["market_kind"]),
+        "scoring_kind": str(market["scoring_kind"]),
+        "top_zone_size": int(market["top_zone_size"]),
+        "bot_zone_size": int(market["bot_zone_size"]),
         "settled_at": market["settled_at"],
         "settled_by": _as_optional_int(market["settled_by"]),
         "participant_count": len(standings),
@@ -572,7 +588,7 @@ def _replace_results(
         admin_id: int) -> dict[str, Any]:
     market_id = int(market["market_id"])
     _assert_selection_size(market, team_ids)
-    _assert_candidate_membership(cursor, market, team_ids)
+    _assert_candidate_permutation(cursor, market, team_ids)
     cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
     _insert_results(cursor, market_id, team_ids)
     cursor.execute(
@@ -581,10 +597,10 @@ def _replace_results(
     updated = _fetch_market(cursor, market_id)
     return {
         "market_id": market_id,
-        "team_ids": sorted(team_ids),
+        "team_ids": list(team_ids),
         "settled_by": admin_id,
         "settled_at": updated["settled_at"],
-        "result_team_ids": sorted(team_ids)
+        "result_team_ids": list(team_ids)
     }
 
 
@@ -592,10 +608,9 @@ def _insert_results(
         cursor: Any,
         market_id: int,
         team_ids: list[int]) -> None:
-    union_sql = " UNION ALL ".join(
-        ["SELECT %s AS team_id"] * len(team_ids))
+    union_sql, ranked_params = _ranked_team_union(team_ids)
     query = _INSERT_RESULTS_SQL.format(union_sql=union_sql)
-    cursor.execute(query, (market_id, *sorted(team_ids)))
+    cursor.execute(query, (market_id, *ranked_params))
     if cursor.rowcount != len(team_ids):
         raise TyperConflictError(
             "Long-term result could not be saved")
@@ -608,7 +623,7 @@ def _replace_picks_with_audit(
         team_ids: list[int]) -> dict[str, Any]:
     market_id = int(market["market_id"])
     _assert_selection_size(market, team_ids)
-    _assert_candidate_membership(cursor, market, team_ids)
+    _assert_candidate_permutation(cursor, market, team_ids)
     previous_ids = _fetch_current_pick_ids(cursor, market_id, user_id)
     previous_csv = _team_ids_csv(previous_ids) if previous_ids else None
     new_csv = _team_ids_csv(team_ids)
@@ -632,7 +647,7 @@ def _assert_selection_size(
             "teams")
 
 
-def _assert_candidate_membership(
+def _assert_candidate_permutation(
         cursor: Any,
         market: dict[str, Any],
         team_ids: list[int]) -> None:
@@ -643,6 +658,9 @@ def _assert_candidate_membership(
         if team_id not in candidate_ids:
             raise TyperValidationError(
                 "Team is not a league-phase participant")
+    if set(team_ids) != candidate_ids:
+        raise TyperValidationError(
+            "Pick set must include every league-phase team")
 
 
 def _fetch_current_pick_ids(
@@ -661,11 +679,10 @@ def _insert_picks_with_deadline(
         market_id: int,
         user_id: int,
         team_ids: list[int]) -> None:
-    union_sql = " UNION ALL ".join(
-        ["SELECT %s AS team_id"] * len(team_ids))
+    union_sql, ranked_params = _ranked_team_union(team_ids)
     query = _INSERT_PICKS_SQL.format(union_sql=union_sql)
     cursor.execute(
-        query, (market_id, user_id, *sorted(team_ids), market_id))
+        query, (market_id, user_id, *ranked_params, market_id))
     if cursor.rowcount != len(team_ids):
         raise TyperConflictError(
             "Picks cannot be saved after kickoff")
@@ -689,12 +706,11 @@ def _picks_result(
         team_ids: list[int],
         previous_ids: list[int],
         audit_written: bool) -> dict[str, Any]:
-    sorted_ids = sorted(team_ids)
-    previous = sorted(previous_ids) if previous_ids else None
+    previous = list(previous_ids) if previous_ids else None
     return {
         "market_id": market_id,
         "user_id": user_id,
-        "team_ids": sorted_ids,
+        "team_ids": list(team_ids),
         "previous_team_ids": previous,
         "audit_written": audit_written
     }
@@ -705,6 +721,7 @@ def _unique_team_ids(team_ids: list[int]) -> list[int]:
         raise TyperValidationError("At least one team id is required")
     unique_ids: list[int] = []
     seen: set[int] = set()
+    # zachowujemy kolejność pozycji; duplikat to błąd, nie sort
     for team_id in team_ids:
         if not isinstance(team_id, int) or team_id <= 0:
             raise TyperValidationError(
@@ -717,8 +734,22 @@ def _unique_team_ids(team_ids: list[int]) -> list[int]:
     return unique_ids
 
 
+def _ranked_team_union(
+        team_ids: list[int]) -> tuple[str, tuple[int, ...]]:
+    """Return UNION ALL of (team_id, 1-based position) in list order."""
+    union_sql = " UNION ALL ".join(
+        ["SELECT %s AS team_id, %s AS position"] * len(team_ids))
+    # kolejność listy = pozycja w tabeli; świadomie bez sorted()
+    params: list[int] = []
+    for index, team_id in enumerate(team_ids):
+        params.append(team_id)
+        params.append(index + 1)
+    return union_sql, tuple(params)
+
+
 def _team_ids_csv(team_ids: list[int]) -> str:
-    return ",".join(str(team_id) for team_id in sorted(team_ids))
+    # audyt w kolejności pozycji, nie po id
+    return ",".join(str(team_id) for team_id in team_ids)
 
 
 def _parse_team_ids_csv(value: object) -> list[int] | None:
@@ -850,6 +881,12 @@ def _map_dashboard_market_row(
             else str(row["description"])),
         "selection_size": int(row["selection_size"]),
         "points_per_correct": float(row["points_per_correct"]),
+        "points_per_exact_position": float(
+            row["points_per_exact_position"]),
+        "market_kind": str(row["market_kind"]),
+        "scoring_kind": str(row["scoring_kind"]),
+        "top_zone_size": int(row["top_zone_size"]),
+        "bot_zone_size": int(row["bot_zone_size"]),
         "settled_at": row["settled_at"],
         "settled_by": _as_optional_int(row["settled_by"]),
         "deadline_at": row["deadline_at"],

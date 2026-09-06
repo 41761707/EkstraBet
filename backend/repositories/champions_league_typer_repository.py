@@ -57,6 +57,38 @@ _POINTS_SQL = f"""
     END
 """
 
+# long-term jak score_zone_and_position: join po team_id (nie po pozycji),
+# punkty tylko gdy pick i wynik są w tej samej strefie TOP albo BOT;
+# środek tabeli nie punktuje; identyczna pozycja dodaje bonus
+_LONG_TERM_POINTS_SQL = """
+    CASE
+        WHEN mkt.settled_at IS NOT NULL
+         AND res.team_id IS NOT NULL
+         AND mkt.scoring_kind = 'zone_and_position'
+         AND (
+            (
+                mkt.top_zone_size > 0
+                AND p.position <= mkt.top_zone_size
+                AND res.position <= mkt.top_zone_size
+            )
+            OR (
+                mkt.bot_zone_size > 0
+                AND p.position
+                    > mkt.selection_size - mkt.bot_zone_size
+                AND res.position
+                    > mkt.selection_size - mkt.bot_zone_size
+            )
+         )
+        THEN mkt.points_per_correct
+            + CASE
+                WHEN p.position = res.position
+                THEN mkt.points_per_exact_position
+                ELSE 0
+            END
+        ELSE 0
+    END
+"""
+
 _CANDIDATE_SQL = f"""
     SELECT
         m.id AS match_id,
@@ -359,12 +391,7 @@ _LEADERBOARD_SQL = f"""
         SELECT
             p.user_id,
             COALESCE(SUM(
-                CASE
-                    WHEN mkt.settled_at IS NOT NULL
-                     AND res.team_id IS NOT NULL
-                    THEN mkt.points_per_correct
-                    ELSE 0
-                END
+                {_LONG_TERM_POINTS_SQL}
             ), 0) AS long_term_points
         FROM typer_long_term_picks p
         JOIN typer_long_term_markets mkt

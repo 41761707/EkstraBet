@@ -44,12 +44,16 @@ export const TYPER_LM_RULES_SECTIONS: readonly TyperLmRulesSection[] = [
     ],
   },
   {
-    heading: "Długoterminowe - TOP 8",
+    heading: "Długoterminowe — tabela fazy ligowej",
     items: [
-      "Wskaż dokładnie 8 drużyn, które zakończą fazę ligową na szczycie tabeli. Kolejność wyboru nie ma znaczenia.",
-      "Każda trafiona drużyna daje 2 punkty, doliczane do wspólnego rankingu.",
+      "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
+      "TOP 8 (miejsca 1–8) i BOT 8 (miejsca 29–36) punktują tak samo: " +
+        "0 pkt poza strefą, 2 pkt za obecność w strefie, 4 pkt za strefę " +
+        "i dokładne miejsce. Miejsca 9–28 nie punktują. Drużyna w TOP 8 " +
+        "punktuje tylko wtedy, gdy jej kafelek stoi na miejscu 1–8 " +
+        "(analogicznie BOT 8 na 29–36).",
       "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
-        "Po tym terminie zapis jest zablokowany."
+        "Po tym terminie zapis jest zablokowany.",
     ],
   },
 ];

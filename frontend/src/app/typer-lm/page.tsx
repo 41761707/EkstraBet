@@ -66,7 +66,6 @@ export default async function TyperLmPage() {
           Typuj wyniki spotkań w ramach Ligi Mistrzów w sezonie 2026/2027.
         </p>
       </section>
-      <TyperLmRules />
       <TyperLmAdminSection
         isAdmin={page.isAdmin}
         seasonId={page.dashboard.season_id}
@@ -86,6 +85,7 @@ export default async function TyperLmPage() {
         longTermDashboard={page.longTermDashboard}
         longTermError={page.longTermError}
       />
+      <TyperLmRules />
     </div>
   );
 }

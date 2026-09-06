@@ -1437,7 +1437,7 @@ export interface LongTermTeam {
   team_shortcut: string;
 }
 
-/** League-phase table row used in the admin TOP 8 proposal. */
+/** League-phase table row used in the admin ranked-table proposal. */
 export interface LongTermStandingTeam extends LongTermTeam {
   played: number;
   points: number;
@@ -1466,6 +1466,11 @@ export interface LongTermMarketCard {
   description: string | null;
   selection_size: number;
   points_per_correct: number;
+  points_per_exact_position: number;
+  market_kind: string;
+  scoring_kind: string;
+  top_zone_size: number;
+  bot_zone_size: number;
   settled_at: string | null;
   deadline_at: string | null;
   is_locked: boolean;
@@ -1490,7 +1495,7 @@ export interface SaveLongTermPicksResponse {
   audit_written: boolean;
 }
 
-/** Admin TOP 8 proposal; never awards points by itself. */
+/** Admin ranked-table proposal; never awards points by itself. */
 export interface LongTermAutoResultResponse {
   market_id: number;
   league_id: number;
@@ -1498,6 +1503,9 @@ export interface LongTermAutoResultResponse {
   market_key: string;
   selection_size: number;
   points_per_correct: number;
+  points_per_exact_position: number;
+  top_zone_size: number;
+  bot_zone_size: number;
   settled_at: string | null;
   settled_by_uuid: string | null;
   settled_by_display_name: string | null;
@@ -1511,6 +1519,8 @@ export interface LongTermAutoResultResponse {
   required_matches_per_team: number;
   required_settled_match_count: number;
   proposed_team_ids: number[];
+  proposed_top_team_ids: number[];
+  proposed_bot_team_ids: number[];
   proposed_teams: LongTermStandingTeam[];
   result_team_ids: number[];
   standings: LongTermStandingTeam[];

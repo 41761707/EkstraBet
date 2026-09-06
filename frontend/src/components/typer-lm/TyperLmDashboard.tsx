@@ -67,6 +67,7 @@ export function TyperLmDashboard({
   longTermError,
 }: TyperLmDashboardProps) {
   const [tab, setTab] = useState<TyperLmTab>("round");
+  const [longTerm, setLongTerm] = useState(longTermDashboard);
   const nowMs = useNowMs();
   const { preferences } = usePreferences();
   const predictions = useTyperPredictions(
@@ -81,6 +82,10 @@ export function TyperLmDashboard({
     (round) => round.round_number === predictions.selectedRound,
   );
 
+  useEffect(() => {
+    setLongTerm(longTermDashboard);
+  }, [longTermDashboard]);
+
   return (
     <div className="space-y-6">
       <TyperLmViewTabs activeTab={tab} onChange={setTab} />
@@ -92,9 +97,10 @@ export function TyperLmDashboard({
         />
       ) : tab === "long_term" ? (
         <TyperLmLongTermTab
-          dashboard={longTermDashboard}
+          dashboard={longTerm}
           errorMessage={longTermError}
           nowMs={nowMs}
+          onDashboardChange={setLongTerm}
         />
       ) : tab === "revealed" ? (
         <TyperLmRevealedPredictions
