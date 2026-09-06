@@ -15,7 +15,11 @@ LEAGUE_PHASE_MATCHES_PER_TEAM = repository.LEAGUE_PHASE_MATCHES_PER_TEAM
 LEAGUE_PHASE_SETTLED_MATCH_COUNT = (
     repository.LEAGUE_PHASE_SETTLED_MATCH_COUNT)
 MARKET_KIND_RANKED_TEAM_TABLE = "ranked_team_table"
+MARKET_KIND_SINGLE_TEAM = "single_team"
+MARKET_KIND_FREE_TEXT = "free_text"
+MARKET_KIND_YES_NO = "yes_no"
 SCORING_KIND_ZONE_AND_POSITION = "zone_and_position"
+SCORING_KIND_EXACT_SUBJECT = "exact_subject"
 
 
 class TyperServiceError(Exception):
@@ -103,6 +107,21 @@ def score_zone_and_position(
     return total
 
 
+def normalize_subject_text(raw: str) -> str:
+    """Trim, collapse whitespace, Unicode casefold (user: lower + spaces)."""
+    return " ".join(raw.split()).casefold()
+
+
+def score_exact_subject(
+        pick_values: list[str] | list[int] | list[bool],
+        result_values: list[str] | list[int] | list[bool],
+        points_per_correct: float) -> float:
+    """Return |set(picks) ∩ set(results)| * points_per_correct."""
+    return (
+        float(len(set(pick_values) & set(result_values)))
+        * float(points_per_correct))
+
+
 def score_long_term(
         scoring_kind: str,
         pick_team_ids: list[int],
@@ -110,20 +129,67 @@ def score_long_term(
         points_per_correct: float,
         points_per_exact_position: float,
         top_zone_size: int,
-        bot_zone_size: int) -> float:
-    """Dispatch. zone_and_position -> score_zone_and_position.
+        bot_zone_size: int,
+        market_kind: str = "",
+        pick_subject_texts: list[str] | None = None,
+        result_subject_texts: list[str] | None = None,
+        pick_is_text_correct: bool | None = None,
+        result_is_text_correct: bool | None = None) -> float:
+    """Dispatch zone_and_position or exact_subject.
 
-    Unknown kind -> 0.0.
+    Unknown scoring_kind or exact_subject market_kind -> 0.0.
+    Text values must already be normalized.
     """
-    if scoring_kind != SCORING_KIND_ZONE_AND_POSITION:
+    if scoring_kind == SCORING_KIND_ZONE_AND_POSITION:
+        return score_zone_and_position(
+            pick_team_ids,
+            result_team_ids,
+            points_per_correct,
+            points_per_exact_position,
+            top_zone_size,
+            bot_zone_size)
+    if scoring_kind != SCORING_KIND_EXACT_SUBJECT:
         return 0.0
-    return score_zone_and_position(
+    return _score_exact_subject_for_kind(
+        market_kind,
         pick_team_ids,
         result_team_ids,
-        points_per_correct,
-        points_per_exact_position,
-        top_zone_size,
-        bot_zone_size)
+        pick_subject_texts,
+        result_subject_texts,
+        pick_is_text_correct,
+        result_is_text_correct,
+        points_per_correct)
+
+
+def _score_exact_subject_for_kind(
+        market_kind: str,
+        pick_team_ids: list[int],
+        result_team_ids: list[int],
+        pick_subject_texts: list[str] | None,
+        result_subject_texts: list[str] | None,
+        pick_is_text_correct: bool | None,
+        result_is_text_correct: bool | None,
+        points_per_correct: float) -> float:
+    # dispatch po market_kind: bool True == 1 w Pythonie, nie mieszać list
+    if market_kind == MARKET_KIND_FREE_TEXT:
+        return score_exact_subject(
+            list(pick_subject_texts or []),
+            list(result_subject_texts or []),
+            points_per_correct)
+    if market_kind == MARKET_KIND_SINGLE_TEAM:
+        return score_exact_subject(
+            pick_team_ids,
+            result_team_ids,
+            points_per_correct)
+    if market_kind == MARKET_KIND_YES_NO:
+        picks: list[bool] = (
+            [] if pick_is_text_correct is None
+            else [pick_is_text_correct])
+        results: list[bool] = (
+            [] if result_is_text_correct is None
+            else [result_is_text_correct])
+        return score_exact_subject(picks, results, points_per_correct)
+    return 0.0
 
 
 def is_league_phase_complete(auto_result: dict[str, Any]) -> bool:

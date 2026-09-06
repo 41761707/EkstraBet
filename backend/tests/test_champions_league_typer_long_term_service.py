@@ -195,7 +195,7 @@ class TestScoreLongTerm(unittest.TestCase):
         results = _table_with_team_at(_RESULT_FILLERS, _BARCELONA_ID, 6)
         self.assertEqual(
             service.score_long_term(
-                "exact_subject",
+                "not_a_real_kind",
                 picks,
                 results,
                 _POINTS_ZONE,
@@ -221,6 +221,154 @@ class TestScoreLongTerm(unittest.TestCase):
         self.assertEqual(
             service.zone_for_position(36, _TABLE_SIZE, _TOP_ZONE, _BOT_ZONE),
             "bot")
+
+
+_POINTS_EXACT_SUBJECT = 2.0
+
+
+def _score_exact(
+        market_kind: str,
+        *,
+        pick_team_ids: list[int] | None = None,
+        result_team_ids: list[int] | None = None,
+        pick_subject_texts: list[str] | None = None,
+        result_subject_texts: list[str] | None = None,
+        pick_is_text_correct: bool | None = None,
+        result_is_text_correct: bool | None = None,
+        points_per_correct: float = _POINTS_EXACT_SUBJECT) -> float:
+    return service.score_long_term(
+        service.SCORING_KIND_EXACT_SUBJECT,
+        [] if pick_team_ids is None else pick_team_ids,
+        [] if result_team_ids is None else result_team_ids,
+        points_per_correct,
+        0.0,
+        -1,
+        -1,
+        market_kind=market_kind,
+        pick_subject_texts=pick_subject_texts,
+        result_subject_texts=result_subject_texts,
+        pick_is_text_correct=pick_is_text_correct,
+        result_is_text_correct=result_is_text_correct)
+
+
+class TestNormalizeSubjectText(unittest.TestCase):
+    """Trim, collapse spaces and Unicode casefold; no transliteration."""
+
+    def test_trim_and_collapse_whitespace(self) -> None:
+        self.assertEqual(
+            service.normalize_subject_text("  Robert   Lewandowski "),
+            "robert lewandowski")
+
+    def test_empty_after_whitespace_is_empty(self) -> None:
+        self.assertEqual(service.normalize_subject_text("   "), "")
+
+    def test_does_not_strip_diacritics(self) -> None:
+        self.assertEqual(
+            service.normalize_subject_text("Håland"),
+            "håland")
+        self.assertNotEqual(
+            service.normalize_subject_text("Håland"),
+            service.normalize_subject_text("Haaland"))
+
+
+class TestScoreExactSubject(unittest.TestCase):
+    """Set intersection times points_per_correct; one pick, result may tie."""
+
+    def test_text_hit_is_two(self) -> None:
+        self.assertEqual(
+            service.score_exact_subject(
+                ["robert lewandowski"],
+                ["robert lewandowski"],
+                _POINTS_EXACT_SUBJECT),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_text_miss_is_zero(self) -> None:
+        self.assertEqual(
+            service.score_exact_subject(
+                ["erling haaland"],
+                ["robert lewandowski"],
+                _POINTS_EXACT_SUBJECT),
+            0.0)
+
+    def test_text_tie_hits_when_pick_in_result_set(self) -> None:
+        self.assertEqual(
+            service.score_exact_subject(
+                ["robert lewandowski"],
+                ["erling haaland", "robert lewandowski"],
+                _POINTS_EXACT_SUBJECT),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_team_tie_hits_when_pick_in_result_set(self) -> None:
+        self.assertEqual(
+            service.score_exact_subject(
+                [12],
+                [12, 45],
+                _POINTS_EXACT_SUBJECT),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_yes_misses_no(self) -> None:
+        self.assertEqual(
+            service.score_exact_subject(
+                [True],
+                [False],
+                _POINTS_EXACT_SUBJECT),
+            0.0)
+
+    def test_normalized_full_name_hits(self) -> None:
+        pick = service.normalize_subject_text("  Robert   Lewandowski ")
+        result = service.normalize_subject_text("robert lewandowski")
+        self.assertEqual(
+            service.score_exact_subject(
+                [pick], [result], _POINTS_EXACT_SUBJECT),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_last_name_only_misses_full_name(self) -> None:
+        pick = service.normalize_subject_text("Lewandowski")
+        result = service.normalize_subject_text("Robert Lewandowski")
+        self.assertEqual(
+            service.score_exact_subject(
+                [pick], [result], _POINTS_EXACT_SUBJECT),
+            0.0)
+
+    def test_dispatch_free_text_hit(self) -> None:
+        self.assertEqual(
+            _score_exact(
+                service.MARKET_KIND_FREE_TEXT,
+                pick_subject_texts=["robert lewandowski"],
+                result_subject_texts=["robert lewandowski"]),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_dispatch_single_team_tie(self) -> None:
+        self.assertEqual(
+            _score_exact(
+                service.MARKET_KIND_SINGLE_TEAM,
+                pick_team_ids=[12],
+                result_team_ids=[12, 45]),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_dispatch_yes_no_miss(self) -> None:
+        self.assertEqual(
+            _score_exact(
+                service.MARKET_KIND_YES_NO,
+                pick_is_text_correct=True,
+                result_is_text_correct=False),
+            0.0)
+
+    def test_dispatch_yes_no_hit(self) -> None:
+        self.assertEqual(
+            _score_exact(
+                service.MARKET_KIND_YES_NO,
+                pick_is_text_correct=False,
+                result_is_text_correct=False),
+            _POINTS_EXACT_SUBJECT)
+
+    def test_unknown_market_kind_is_zero(self) -> None:
+        self.assertEqual(
+            _score_exact(
+                "not_a_real_kind",
+                pick_subject_texts=["robert lewandowski"],
+                result_subject_texts=["robert lewandowski"]),
+            0.0)
 
 
 class TestLeaguePhaseComplete(unittest.TestCase):
