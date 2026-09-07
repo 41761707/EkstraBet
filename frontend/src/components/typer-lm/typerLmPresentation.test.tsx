@@ -1133,6 +1133,16 @@ describe("TyperLmRules", () => {
     expect(html).toContain("stają się publiczne po jego starcie");
     expect(html).toContain("Typy 1X2 innych uczestników");
     expect(html).toContain("Długoterminowe — tabela fazy ligowej");
+    expect(html).toContain("Długoterminowe — najlepszy strzelec i asystent");
+    expect(html).toContain("Długoterminowe — TAK/NIE");
+    expect(html).toContain("Długoterminowe — bramki drużyn");
+    expect(html).toContain("Najlepszy strzelec i najlepszy asystent");
+    expect(html).toContain("Czy jakakolwiek drużyna wygra wszystkie mecze?");
+    expect(html).toContain("Czy jakakolwiek drużyna przegra wszystkie mecze?");
+    expect(html).toContain("strzeli najwięcej bramek");
+    expect(html).toContain("straci najwięcej bramek");
+    expect(html).not.toContain("Szukaj zawodnika");
+    expect(html).not.toMatch(/automatycznie rozlicz/i);
   });
 
   it("keeps the full rules out of match cards", () => {
