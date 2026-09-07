@@ -254,6 +254,10 @@ def _score_exact(
 class TestNormalizeSubjectText(unittest.TestCase):
     """Trim, collapse spaces and Unicode casefold; no transliteration."""
 
+    def test_uses_repository_normalize(self) -> None:
+        self.assertIs(
+            service.normalize_subject_text, repo.normalize_subject_text)
+
     def test_trim_and_collapse_whitespace(self) -> None:
         self.assertEqual(
             service.normalize_subject_text("  Robert   Lewandowski "),

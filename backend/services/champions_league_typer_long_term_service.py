@@ -21,6 +21,8 @@ MARKET_KIND_YES_NO = "yes_no"
 SCORING_KIND_ZONE_AND_POSITION = "zone_and_position"
 SCORING_KIND_EXACT_SUBJECT = "exact_subject"
 
+normalize_subject_text = repository.normalize_subject_text
+
 
 class TyperServiceError(Exception):
     """Base error for long-term Typer domain rules."""
@@ -105,11 +107,6 @@ def score_zone_and_position(
         if result_position == pick_position:
             total += float(points_per_exact_position)
     return total
-
-
-def normalize_subject_text(raw: str) -> str:
-    """Trim, collapse whitespace, Unicode casefold (user: lower + spaces)."""
-    return " ".join(raw.split()).casefold()
 
 
 def score_exact_subject(
