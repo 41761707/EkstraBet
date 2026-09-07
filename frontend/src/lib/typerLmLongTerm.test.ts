@@ -29,10 +29,12 @@ import {
   longTermUnsavedPickStatus,
   scoreLongTerm,
   toggleLongTermTeamId,
+  updateLongTermDashboardMarket,
 } from "@/lib/typerLmLongTerm";
 import type {
   LongTermAutoResultResponse,
   LongTermMarketCard,
+  LongTermPickChange,
   LongTermTeam,
 } from "@/types/api";
 
@@ -77,6 +79,25 @@ function sampleMarket(
     result_is_text_correct: null,
     points: null,
     changes: [],
+    ...overrides,
+  };
+}
+
+function sampleChange(
+  overrides: Partial<LongTermPickChange> = {},
+): LongTermPickChange {
+  return {
+    id: 1,
+    market_id: 1,
+    user_uuid: "user-1",
+    display_name: "Ala",
+    previous_team_ids: null,
+    new_team_ids: [],
+    previous_subject_text: null,
+    new_subject_text: null,
+    previous_is_text_correct: null,
+    new_is_text_correct: null,
+    changed_at: "2026-09-11T18:30:00",
     ...overrides,
   };
 }
@@ -233,6 +254,81 @@ describe("long-term lock and save rules", () => {
     expect(longTermUnsavedPickStatus(locked, true)).toBe("Nie zapisano typu");
     expect(longTermUnsavedPickStatus(saved, true)).toBeNull();
   });
+
+  it("labels locked exact-subject cards from the matching pick field", () => {
+    const textLocked = sampleMarket({
+      market_kind: "free_text",
+      selection_size: 1,
+      picked_subject_text: null,
+    });
+    const textSaved = sampleMarket({
+      market_kind: "free_text",
+      selection_size: 1,
+      picked_subject_text: "Harry Kane",
+    });
+    const yesNoLocked = sampleMarket({
+      market_kind: "yes_no",
+      selection_size: 1,
+      picked_is_text_correct: null,
+    });
+    const yesNoSavedNo = sampleMarket({
+      market_kind: "yes_no",
+      selection_size: 1,
+      picked_is_text_correct: false,
+    });
+    const singleLocked = sampleMarket({
+      market_kind: "single_team",
+      selection_size: 1,
+      picked_team_ids: [],
+    });
+    const singleSaved = sampleMarket({
+      market_kind: "single_team",
+      selection_size: 1,
+      picked_team_ids: [6],
+    });
+    expect(longTermUnsavedPickStatus(textLocked, true)).toBe(
+      "Nie zapisano typu",
+    );
+    expect(longTermUnsavedPickStatus(textSaved, true)).toBeNull();
+    expect(longTermUnsavedPickStatus(yesNoLocked, true)).toBe(
+      "Nie zapisano typu",
+    );
+    expect(longTermUnsavedPickStatus(yesNoSavedNo, true)).toBeNull();
+    expect(longTermUnsavedPickStatus(singleLocked, true)).toBe(
+      "Nie zapisano typu",
+    );
+    expect(longTermUnsavedPickStatus(singleSaved, true)).toBeNull();
+  });
+
+  it("keeps sibling market picks when two updaters run in sequence", () => {
+    const dashboard = {
+      season_id: 13,
+      markets: [
+        sampleMarket({ market_id: 1, picked_team_ids: [] }),
+        sampleMarket({
+          market_id: 2,
+          market_kind: "free_text",
+          selection_size: 1,
+          picked_subject_text: null,
+          picked_team_ids: [],
+        }),
+      ],
+    };
+    const afterFirst = updateLongTermDashboardMarket(
+      dashboard,
+      1,
+      (market) => ({ ...market, picked_team_ids: [1, 2, 3, 4, 5, 6, 7, 8] }),
+    );
+    const afterBoth = updateLongTermDashboardMarket(
+      afterFirst,
+      2,
+      (market) => ({ ...market, picked_subject_text: "Harry Kane" }),
+    );
+    expect(afterBoth.markets[0]?.picked_team_ids).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+    expect(afterBoth.markets[1]?.picked_subject_text).toBe("Harry Kane");
+  });
 });
 
 describe("scoring and pick classification", () => {
@@ -264,35 +360,64 @@ describe("scoring and pick classification", () => {
 describe("audit and apply helpers", () => {
   it("labels the first save and later replacements", () => {
     expect(
-      formatLongTermChangeLine({
-        id: 1,
-        market_id: 1,
-        user_uuid: "user-1",
-        display_name: "Ala",
-        previous_team_ids: null,
-        new_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
-        previous_subject_text: null,
-        new_subject_text: null,
-        previous_is_text_correct: null,
-        new_is_text_correct: null,
-        changed_at: "2026-09-11T18:30:00",
-      }),
+      formatLongTermChangeLine(
+        sampleChange({
+          new_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+        }),
+      ),
     ).toContain("pierwszy zapis");
     expect(
-      formatLongTermChangeLine({
-        id: 2,
-        market_id: 1,
-        user_uuid: "user-1",
-        display_name: "Ala",
-        previous_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
-        new_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
-        previous_subject_text: null,
-        new_subject_text: null,
-        previous_is_text_correct: null,
-        new_is_text_correct: null,
-        changed_at: "2026-09-11T19:30:00",
-      }),
+      formatLongTermChangeLine(
+        sampleChange({
+          id: 2,
+          previous_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+          new_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
+          changed_at: "2026-09-11T19:30:00",
+        }),
+      ),
     ).toContain("zmiana zestawu");
+  });
+
+  it("does not treat a later free-text or yes_no edit as a first save", () => {
+    expect(
+      formatLongTermChangeLine(
+        sampleChange({
+          new_subject_text: "Lewandowski",
+        }),
+      ),
+    ).toContain("pierwszy zapis");
+    expect(
+      formatLongTermChangeLine(
+        sampleChange({
+          previous_subject_text: "Lewandowski",
+          new_subject_text: "Harry Kane",
+        }),
+      ),
+    ).toContain("zmiana wpisu");
+    expect(
+      formatLongTermChangeLine(
+        sampleChange({
+          previous_subject_text: "Lewandowski",
+          new_subject_text: "Harry Kane",
+        }),
+      ),
+    ).not.toContain("pierwszy zapis");
+    expect(
+      formatLongTermChangeLine(
+        sampleChange({
+          previous_is_text_correct: false,
+          new_is_text_correct: true,
+        }),
+      ),
+    ).toContain("zmiana TAK/NIE");
+    expect(
+      formatLongTermChangeLine(
+        sampleChange({
+          previous_is_text_correct: false,
+          new_is_text_correct: true,
+        }),
+      ),
+    ).not.toContain("pierwszy zapis");
   });
 
   it("applies a saved sequence and zone-and-position points", () => {
@@ -493,6 +618,15 @@ describe("long-term API error messages", () => {
     expect(longTermSaveErrorMessage(new ApiError(422, "size"))).toContain(
       "wymaganą liczbę",
     );
+    expect(
+      longTermSaveErrorMessage(new ApiError(422, "text"), "free_text"),
+    ).toContain("imię i nazwisko");
+    expect(
+      longTermSaveErrorMessage(new ApiError(422, "flag"), "yes_no"),
+    ).toContain("TAK albo NIE");
+    expect(
+      longTermSaveErrorMessage(new ApiError(422, "team"), "single_team"),
+    ).toContain("jedną drużynę");
     expect(longTermSettleErrorMessage(new ApiError(409, "incomplete"))).toContain(
       "kompletna",
     );
@@ -528,5 +662,15 @@ describe("long-term API error messages", () => {
     expect(line).toContain("rynek 1");
     expect(line).toContain("zmiana zestawu");
     expect(line).toContain("1,2,3,4,5,6,7,8 -> 1,2,3,4,5,6,7,9");
+    expect(
+      formatAdminLongTermChangeLine(
+        sampleChange({
+          user_uuid: "user-2",
+          display_name: "Bartek",
+          previous_subject_text: "Lewandowski",
+          new_subject_text: "Harry Kane",
+        }),
+      ),
+    ).toContain("zmiana wpisu (Lewandowski -> Harry Kane)");
   });
 });
