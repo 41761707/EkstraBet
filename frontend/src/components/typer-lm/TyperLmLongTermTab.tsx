@@ -357,9 +357,9 @@ function useLongTermMarketPicks(
     setIsPending(true);
     setErrorMessage(null);
     try {
-      const saved = await saveTyperLongTermPicks(market.market_id, [
-        ...rankedIds,
-      ]);
+      const saved = await saveTyperLongTermPicks(market.market_id, {
+        teamIds: [...rankedIds],
+      });
       let changes = market.changes;
       if (saved.audit_written) {
         try {

@@ -26,6 +26,7 @@ import type {
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
   SportTeamHistoryResponse,
+  LongTermPicksPayload,
   SaveLongTermPicksResponse,
   SaveTyperPredictionResponse,
   SettleLongTermResponse,
@@ -300,16 +301,15 @@ export async function getTyperAdminPredictionHistory(options: {
 
 export async function saveTyperLongTermPicks(
   marketId: number,
-  teamIds: number[],
+  payload: LongTermPicksPayload,
 ): Promise<SaveLongTermPicksResponse> {
-  // kolejność to pozycja w tabeli — nie sortujemy id
   return fetchViaBff<SaveLongTermPicksResponse>(
     `/typer-lm/long-term/markets/${marketId}/picks`,
     undefined,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ team_ids: teamIds }),
+      body: JSON.stringify(longTermPicksRequestBody(payload)),
     },
   );
 }
@@ -347,18 +347,40 @@ export async function getTyperLongTermAutoResult(
 
 export async function settleTyperLongTermMarket(
   marketId: number,
-  teamIds: number[],
+  payload: LongTermPicksPayload,
 ): Promise<SettleLongTermResponse> {
-  // kolejność to pozycja w tabeli — nie sortujemy id
   return fetchViaBff<SettleLongTermResponse>(
     `/typer-lm/long-term/admin/markets/${marketId}/settle`,
     undefined,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ team_ids: teamIds }),
+      body: JSON.stringify(longTermPicksRequestBody(payload)),
     },
   );
+}
+
+type LongTermPicksRequestBody = {
+  team_ids?: number[];
+  subject_texts?: string[];
+  is_text_correct?: boolean;
+};
+
+function longTermPicksRequestBody(
+  payload: LongTermPicksPayload,
+): LongTermPicksRequestBody {
+  // xor egzekwuje serwis; tabela ma wysyłać wyłącznie team_ids
+  const body: LongTermPicksRequestBody = {};
+  if (payload.teamIds !== undefined) {
+    body.team_ids = payload.teamIds;
+  }
+  if (payload.subjectTexts !== undefined) {
+    body.subject_texts = payload.subjectTexts;
+  }
+  if (payload.isTextCorrect !== undefined) {
+    body.is_text_correct = payload.isTextCorrect;
+  }
+  return body;
 }
 
 export async function createAdminUser(

@@ -308,9 +308,9 @@ function useLongTermSettlement(
     setIsSaving(true);
     setErrorMessage(null);
     try {
-      const settled = await settleTyperLongTermMarket(market.market_id, [
-        ...rankedIds,
-      ]);
+      const settled = await settleTyperLongTermMarket(market.market_id, {
+        teamIds: [...rankedIds],
+      });
       setAutoResult({
         ...autoResult,
         settled_at: settled.settled_at,

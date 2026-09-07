@@ -21,6 +21,7 @@ import {
   formatLongTermStandingLine,
   formatLongTermStandingStats,
   isLongTermMarketLockedForUi,
+  isLongTermMarketSettled,
   lockLongTermMarket,
   longTermAdminAuditErrorMessage,
   longTermSaveErrorMessage,
@@ -70,6 +71,10 @@ function sampleMarket(
     candidates: Array.from({ length: 36 }, (_, index) => sampleTeam(index + 1)),
     picked_team_ids: [],
     result_team_ids: [],
+    picked_subject_text: null,
+    result_subject_texts: [],
+    picked_is_text_correct: null,
+    result_is_text_correct: null,
     points: null,
     changes: [],
     ...overrides,
@@ -266,6 +271,10 @@ describe("audit and apply helpers", () => {
         display_name: "Ala",
         previous_team_ids: null,
         new_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+        previous_subject_text: null,
+        new_subject_text: null,
+        previous_is_text_correct: null,
+        new_is_text_correct: null,
         changed_at: "2026-09-11T18:30:00",
       }),
     ).toContain("pierwszy zapis");
@@ -277,6 +286,10 @@ describe("audit and apply helpers", () => {
         display_name: "Ala",
         previous_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
         new_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
+        previous_subject_text: null,
+        new_subject_text: null,
+        previous_is_text_correct: null,
+        new_is_text_correct: null,
         changed_at: "2026-09-11T19:30:00",
       }),
     ).toContain("zmiana zestawu");
@@ -297,12 +310,18 @@ describe("audit and apply helpers", () => {
       market_id: 1,
       team_ids: picks,
       previous_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      subject_texts: [],
+      previous_subject_text: null,
+      is_text_correct: null,
+      previous_is_text_correct: null,
       audit_written: true,
     });
     expect(saved.picked_team_ids).toEqual(picks);
     const settled = applySettledLongTermResult(saved, {
       market_id: 1,
       team_ids: results,
+      subject_texts: [],
+      is_text_correct: null,
       settled_by_uuid: "admin-1",
       settled_by_display_name: "Admin",
       settled_at: "2027-01-30T12:00:00",
@@ -310,6 +329,90 @@ describe("audit and apply helpers", () => {
     });
     expect(settled.points).toBe(4);
     expect(settled.result_team_ids).toEqual(results);
+  });
+
+  it("applies exact_subject points for a tied free-text result set", () => {
+    const market = sampleMarket({
+      market_key: "top_scorer",
+      market_kind: "free_text",
+      scoring_kind: "exact_subject",
+      selection_size: 1,
+      points_per_exact_position: 0,
+      top_zone_size: -1,
+      bot_zone_size: -1,
+      picked_subject_text: "  Robert   Lewandowski ",
+      candidates: [],
+    });
+    const saved = applySavedLongTermPicks(market, {
+      market_id: 1,
+      team_ids: [],
+      previous_team_ids: null,
+      subject_texts: ["  Robert   Lewandowski "],
+      previous_subject_text: null,
+      is_text_correct: null,
+      previous_is_text_correct: null,
+      audit_written: true,
+    });
+    expect(saved.picked_subject_text).toBe("  Robert   Lewandowski ");
+    const settled = applySettledLongTermResult(saved, {
+      market_id: 1,
+      team_ids: [],
+      subject_texts: ["Robert Lewandowski", "Harry Kane"],
+      is_text_correct: null,
+      settled_by_uuid: "admin-1",
+      settled_by_display_name: "Admin",
+      settled_at: "2027-01-30T12:00:00",
+      result_team_ids: [],
+    });
+    expect(settled.points).toBe(2);
+    expect(settled.result_subject_texts).toEqual([
+      "Robert Lewandowski",
+      "Harry Kane",
+    ]);
+    expect(isLongTermMarketSettled(settled)).toBe(true);
+  });
+
+  it("applies exact_subject points for yes_no and single_team remis", () => {
+    const yesNo = applySettledLongTermResult(
+      sampleMarket({
+        market_kind: "yes_no",
+        scoring_kind: "exact_subject",
+        picked_is_text_correct: false,
+        candidates: [],
+      }),
+      {
+        market_id: 1,
+        team_ids: [],
+        subject_texts: [],
+        is_text_correct: false,
+        settled_by_uuid: "admin-1",
+        settled_by_display_name: "Admin",
+        settled_at: "2027-01-30T12:00:00",
+        result_team_ids: [],
+      },
+    );
+    expect(yesNo.points).toBe(2);
+    expect(isLongTermMarketSettled(yesNo)).toBe(true);
+
+    const singleTeam = applySettledLongTermResult(
+      sampleMarket({
+        market_kind: "single_team",
+        scoring_kind: "exact_subject",
+        selection_size: 1,
+        picked_team_ids: [6],
+      }),
+      {
+        market_id: 1,
+        team_ids: [6, 9],
+        subject_texts: [],
+        is_text_correct: null,
+        settled_by_uuid: "admin-1",
+        settled_by_display_name: "Admin",
+        settled_at: "2027-01-30T12:00:00",
+        result_team_ids: [6, 9],
+      },
+    );
+    expect(singleTeam.points).toBe(2);
   });
 });
 
@@ -414,6 +517,10 @@ describe("long-term API error messages", () => {
       display_name: "Bartek",
       previous_team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
       new_team_ids: [1, 2, 3, 4, 5, 6, 7, 9],
+      previous_subject_text: null,
+      new_subject_text: null,
+      previous_is_text_correct: null,
+      new_is_text_correct: null,
       changed_at: "2026-09-11T18:30:00",
     });
     expect(line).toContain("Bartek");

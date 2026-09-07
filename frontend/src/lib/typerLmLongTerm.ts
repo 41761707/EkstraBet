@@ -1,12 +1,21 @@
 /** Presentation helpers for Typer LM long-term markets. */
 
 import { ApiError } from "@/lib/apiShared";
-import { hasWarsawNaiveDateTimePassed } from "@/lib/date";
 import { formatMatchDateTime, formatOdds } from "@/lib/format";
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { formatTeamName } from "@/lib/teamNameDisplay";
 import {
+  normalizeSubjectText,
+  scoreExactSubject,
+} from "@/lib/typerLmLongTermExact";
+import {
   areTeamIdSequencesEqual,
+  isLongTermMarketLockedForUi,
+  MARKET_KIND_FREE_TEXT,
+  MARKET_KIND_SINGLE_TEAM,
+  MARKET_KIND_YES_NO,
+  SCORING_KIND_EXACT_SUBJECT,
+  SCORING_KIND_ZONE_AND_POSITION,
   scoreZoneAndPosition,
 } from "@/lib/typerLmLongTermRanking";
 import type {
@@ -19,6 +28,8 @@ import type {
   SaveLongTermPicksResponse,
   SettleLongTermResponse,
 } from "@/types/api";
+
+export { isLongTermMarketLockedForUi };
 
 export const LONG_TERM_SHORT_HISTORY_LIMIT = 3;
 
@@ -84,19 +95,6 @@ export function toggleLongTermTeamId(
     return [...selectedIds];
   }
   return [...selectedIds, teamId];
-}
-
-export function isLongTermMarketLockedForUi(
-  market: Pick<LongTermMarketCard, "is_locked" | "deadline_at">,
-  nowMs?: number | null,
-): boolean {
-  if (market.is_locked) {
-    return true;
-  }
-  if (nowMs == null || market.deadline_at == null) {
-    return false;
-  }
-  return hasWarsawNaiveDateTimePassed(market.deadline_at, new Date(nowMs));
 }
 
 export function canSaveLongTermPicks(
@@ -188,9 +186,25 @@ export function scoreLongTerm(
 }
 
 export function isLongTermMarketSettled(
-  market: Pick<LongTermMarketCard, "settled_at" | "result_team_ids">,
+  market: Pick<
+    LongTermMarketCard,
+    | "settled_at"
+    | "result_team_ids"
+    | "result_subject_texts"
+    | "result_is_text_correct"
+    | "market_kind"
+  >,
 ): boolean {
-  return market.settled_at != null && market.result_team_ids.length > 0;
+  if (market.settled_at == null) {
+    return false;
+  }
+  if (market.market_kind === MARKET_KIND_FREE_TEXT) {
+    return market.result_subject_texts.length > 0;
+  }
+  if (market.market_kind === MARKET_KIND_YES_NO) {
+    return market.result_is_text_correct != null;
+  }
+  return market.result_team_ids.length > 0;
 }
 
 export function formatLongTermPointsLabel(market: LongTermMarketCard): string {
@@ -334,6 +348,8 @@ export function applySavedLongTermPicks(
   return {
     ...market,
     picked_team_ids: saved.team_ids,
+    picked_subject_text: saved.subject_texts[0] ?? null,
+    picked_is_text_correct: saved.is_text_correct,
     changes: changes ?? market.changes,
   };
 }
@@ -342,23 +358,69 @@ export function applySettledLongTermResult(
   market: LongTermMarketCard,
   settled: SettleLongTermResponse,
 ): LongTermMarketCard {
-  const resultTeamIds = settled.result_team_ids;
-  const hasPicks = market.picked_team_ids.length > 0;
   return {
     ...market,
-    result_team_ids: resultTeamIds,
+    result_team_ids: settled.result_team_ids,
+    result_subject_texts: settled.subject_texts,
+    result_is_text_correct: settled.is_text_correct,
     settled_at: settled.settled_at,
-    points: hasPicks
-      ? scoreZoneAndPosition(
-          market.picked_team_ids,
-          resultTeamIds,
-          market.points_per_correct,
-          market.points_per_exact_position,
-          market.top_zone_size,
-          market.bot_zone_size,
-        )
-      : 0,
+    points: scoreAfterSettlement(market, settled),
   };
+}
+
+function scoreAfterSettlement(
+  market: LongTermMarketCard,
+  settled: SettleLongTermResponse,
+): number {
+  if (market.scoring_kind === SCORING_KIND_ZONE_AND_POSITION) {
+    if (market.picked_team_ids.length === 0) {
+      return 0;
+    }
+    return scoreZoneAndPosition(
+      market.picked_team_ids,
+      settled.result_team_ids,
+      market.points_per_correct,
+      market.points_per_exact_position,
+      market.top_zone_size,
+      market.bot_zone_size,
+    );
+  }
+  if (market.scoring_kind !== SCORING_KIND_EXACT_SUBJECT) {
+    return 0;
+  }
+  return scoreExactAfterSettlement(market, settled);
+}
+
+function scoreExactAfterSettlement(
+  market: LongTermMarketCard,
+  settled: SettleLongTermResponse,
+): number {
+  if (market.market_kind === MARKET_KIND_FREE_TEXT) {
+    const pick = market.picked_subject_text;
+    const picks = pick == null ? [] : [normalizeSubjectText(pick)];
+    return scoreExactSubject(
+      picks,
+      settled.subject_texts.map(normalizeSubjectText),
+      market.points_per_correct,
+    );
+  }
+  if (market.market_kind === MARKET_KIND_SINGLE_TEAM) {
+    return scoreExactSubject(
+      market.picked_team_ids,
+      settled.result_team_ids,
+      market.points_per_correct,
+    );
+  }
+  if (market.market_kind === MARKET_KIND_YES_NO) {
+    const picks =
+      market.picked_is_text_correct == null
+        ? []
+        : [market.picked_is_text_correct];
+    const results =
+      settled.is_text_correct == null ? [] : [settled.is_text_correct];
+    return scoreExactSubject(picks, results, market.points_per_correct);
+  }
+  return 0;
 }
 
 export function updateLongTermDashboardMarket(
