@@ -630,6 +630,18 @@ describe("long-term API error messages", () => {
     expect(longTermSettleErrorMessage(new ApiError(409, "incomplete"))).toContain(
       "kompletna",
     );
+    expect(longTermSettleErrorMessage(new ApiError(422, "size"))).toContain(
+      "tyle drużyn",
+    );
+    expect(
+      longTermSettleErrorMessage(new ApiError(422, "text"), "free_text"),
+    ).toContain("imię i nazwisko");
+    expect(
+      longTermSettleErrorMessage(new ApiError(422, "flag"), "yes_no"),
+    ).toContain("TAK albo NIE");
+    expect(
+      longTermSettleErrorMessage(new ApiError(422, "team"), "single_team"),
+    ).toContain("co najmniej jedną drużynę");
     expect(longTermSettleErrorMessage(new Error("boom"))).toContain(
       "zatwierdzić",
     );

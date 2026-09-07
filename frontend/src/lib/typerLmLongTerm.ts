@@ -290,7 +290,10 @@ export function longTermSaveErrorMessage(
   return "Nie udało się zapisać typu. Spróbuj ponownie.";
 }
 
-export function longTermSettleErrorMessage(error: unknown): string {
+export function longTermSettleErrorMessage(
+  error: unknown,
+  marketKind?: string,
+): string {
   if (error instanceof ApiError) {
     if (error.status === 409) {
       return "Faza ligowa nie jest jeszcze kompletna. Rozliczenie jest zablokowane.";
@@ -299,13 +302,26 @@ export function longTermSettleErrorMessage(error: unknown): string {
       return "Ten rynek długoterminowy nie istnieje.";
     }
     if (error.status === 422) {
-      return "Wskaż dokładnie tyle drużyn, ile wymaga rynek.";
+      return longTermSettleUnprocessableMessage(marketKind);
     }
     if (error.status === 403) {
       return "Brak uprawnień administratora.";
     }
   }
   return "Nie udało się zatwierdzić wyniku. Spróbuj ponownie.";
+}
+
+function longTermSettleUnprocessableMessage(marketKind?: string): string {
+  if (marketKind === MARKET_KIND_FREE_TEXT) {
+    return "Podaj co najmniej jedno unikalne imię i nazwisko (najwyżej 160 znaków).";
+  }
+  if (marketKind === MARKET_KIND_YES_NO) {
+    return "Wybierz TAK albo NIE.";
+  }
+  if (marketKind === MARKET_KIND_SINGLE_TEAM) {
+    return "Wybierz co najmniej jedną drużynę z fazy ligowej.";
+  }
+  return "Wskaż dokładnie tyle drużyn, ile wymaga rynek.";
 }
 
 export function longTermAutoResultErrorMessage(error: unknown): string {

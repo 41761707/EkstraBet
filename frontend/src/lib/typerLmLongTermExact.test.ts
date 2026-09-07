@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   canSaveLongTermExactPicks,
+  canSettleFreeTextResults,
+  canSettleSingleTeamResults,
+  canSettleYesNoResult,
   classifyExactSubjectPick,
   classifyFreeTextPick,
+  defaultAdminSubjectTexts,
   normalizeSubjectText,
   scoreExactSubject,
   SUBJECT_TEXT_MAX_LENGTH,
+  uniqueTrimmedSubjectTexts,
 } from "@/lib/typerLmLongTermExact";
 import type { LongTermMarketCard, LongTermTeam } from "@/types/api";
 
@@ -211,5 +216,50 @@ describe("canSaveLongTermExactPicks", () => {
     expect(
       canSaveLongTermExactPicks(sampleExactMarket(), draft, false, afterKickoff),
     ).toBe(false);
+  });
+});
+
+describe("admin exact settlement helpers", () => {
+  it("requires at least one unique non-empty free-text winner", () => {
+    expect(canSettleFreeTextResults([""])).toBe(false);
+    expect(canSettleFreeTextResults(["  "])).toBe(false);
+    expect(canSettleFreeTextResults(["Harry Kane"])).toBe(true);
+    expect(
+      canSettleFreeTextResults(["Harry Kane", "Robert Lewandowski"]),
+    ).toBe(true);
+    expect(
+      canSettleFreeTextResults(["Harry Kane", "  harry   kane "]),
+    ).toBe(false);
+    expect(
+      canSettleFreeTextResults(["a".repeat(SUBJECT_TEXT_MAX_LENGTH + 1)]),
+    ).toBe(false);
+  });
+
+  it("keeps the first trimmed original per normalized name", () => {
+    expect(defaultAdminSubjectTexts([])).toEqual([""]);
+    expect(defaultAdminSubjectTexts(["Harry Kane"])).toEqual(["Harry Kane"]);
+    expect(
+      uniqueTrimmedSubjectTexts([
+        "  Harry Kane ",
+        "",
+        "harry kane",
+        "Robert Lewandowski",
+      ]),
+    ).toEqual(["Harry Kane", "Robert Lewandowski"]);
+  });
+
+  it("requires a yes_no choice", () => {
+    expect(canSettleYesNoResult(null)).toBe(false);
+    expect(canSettleYesNoResult(true)).toBe(true);
+    expect(canSettleYesNoResult(false)).toBe(true);
+  });
+
+  it("requires at least one unique candidate team id", () => {
+    const pool = [1, 2, 3];
+    expect(canSettleSingleTeamResults([], pool)).toBe(false);
+    expect(canSettleSingleTeamResults([1], pool)).toBe(true);
+    expect(canSettleSingleTeamResults([1, 2], pool)).toBe(true);
+    expect(canSettleSingleTeamResults([1, 1], pool)).toBe(false);
+    expect(canSettleSingleTeamResults([9], pool)).toBe(false);
   });
 });

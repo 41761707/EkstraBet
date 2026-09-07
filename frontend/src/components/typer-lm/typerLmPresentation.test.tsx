@@ -826,6 +826,44 @@ describe("TyperLmAdminSection", () => {
     expect(html).toContain("Zatwierdź wynik");
     expect(html).toContain("Audyt typów długoterminowych");
   });
+
+  it("hosts settlement for every seeded long-term market kind", () => {
+    const html = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <TyperLmAdminSection
+          isAdmin={true}
+          seasonId={13}
+          initialCandidates={groupCandidates()}
+          longTermMarkets={sampleParticipantLongTermMarkets()}
+          longTermAutoResults={{ 1: sampleAutoResult() }}
+        />
+      </PreferencesProvider>,
+    );
+    expect(html).toContain("Rozliczenie — Tabela fazy ligowej (TOP 8 + BOT 8)");
+    expect(html).toContain("Rozliczenie — Najlepszy strzelec");
+    expect(html).toContain("Rozliczenie — Najlepszy asystent");
+    expect(html).toContain(
+      "Rozliczenie — Czy jakakolwiek drużyna wygra wszystkie mecze?",
+    );
+    expect(html).toContain(
+      "Rozliczenie — Czy jakakolwiek drużyna przegra wszystkie mecze?",
+    );
+    expect(html).toContain(
+      "Rozliczenie — Która drużyna strzeli najwięcej bramek",
+    );
+    expect(html).toContain(
+      "Rozliczenie — Która drużyna straci najwięcej bramek",
+    );
+    expect(html).toContain("Propozycja tabeli");
+    expect(html).toContain("Dodaj zwycięzcę");
+    expect(html).toContain(">TAK</button>");
+    expect(html).toContain("Wybrane 0/36");
+    expect(html).not.toContain("Szukaj zawodnika");
+  });
 });
 
 describe("TyperLmAdminCandidateList", () => {
@@ -1190,6 +1228,44 @@ describe("Typer LM page smoke", () => {
     expect(html).toContain("0/9");
     expect(html).toContain("Rozliczenie — Tabela fazy ligowej (TOP 8 + BOT 8)");
     expect(html).toContain("Audyt typów długoterminowych");
+  });
+
+  it("hosts settlement for every seeded long-term market kind", () => {
+    const html = renderToStaticMarkup(
+      <PreferencesProvider
+        hasSession={false}
+        storage={silentStorage()}
+        api={silentApi()}
+      >
+        <TyperLmAdminSection
+          isAdmin={true}
+          seasonId={13}
+          initialCandidates={groupCandidates()}
+          longTermMarkets={sampleParticipantLongTermMarkets()}
+          longTermAutoResults={{ 1: sampleAutoResult() }}
+        />
+      </PreferencesProvider>,
+    );
+    expect(html).toContain("Rozliczenie — Tabela fazy ligowej (TOP 8 + BOT 8)");
+    expect(html).toContain("Rozliczenie — Najlepszy strzelec");
+    expect(html).toContain("Rozliczenie — Najlepszy asystent");
+    expect(html).toContain(
+      "Rozliczenie — Czy jakakolwiek drużyna wygra wszystkie mecze?",
+    );
+    expect(html).toContain(
+      "Rozliczenie — Czy jakakolwiek drużyna przegra wszystkie mecze?",
+    );
+    expect(html).toContain(
+      "Rozliczenie — Która drużyna strzeli najwięcej bramek",
+    );
+    expect(html).toContain(
+      "Rozliczenie — Która drużyna straci najwięcej bramek",
+    );
+    expect(html).toContain("Propozycja tabeli");
+    expect(html).toContain("Dodaj zwycięzcę");
+    expect(html).toContain(">TAK</button>");
+    expect(html).toContain("Wybrane 0/36");
+    expect(html).not.toContain("Szukaj zawodnika");
   });
 });
 
@@ -1773,6 +1849,86 @@ describe("TyperLmLongTermAdminPanel", () => {
     );
     expect(html).toContain("Skoryguj wynik");
     expect(html).not.toContain("Zatwierdź wynik");
+  });
+
+  it("renders free-text settlement for two official names without auto-result", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleFreeTextMarket({
+          result_subject_texts: ["Harry Kane", "Robert Lewandowski"],
+          settled_at: "2027-01-30T12:00:00",
+        })}
+        initialAutoResult={null}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("Rozliczenie — Najlepszy strzelec");
+    expect(html).toContain('value="Harry Kane"');
+    expect(html).toContain('value="Robert Lewandowski"');
+    expect(html).toContain("Dodaj zwycięzcę");
+    expect(html).toContain("Skoryguj wynik");
+    expect(html).toContain("Audyt typów długoterminowych");
+    expect(html).not.toContain("Szukaj zawodnika");
+    expect(html).not.toContain("Propozycja tabeli");
+    expect(html).not.toContain("Ładowanie propozycji tabeli");
+    expect(html).not.toContain("Faza niekompletna");
+    expect(html).not.toContain("datalist");
+  });
+
+  it("renders yes_no settlement without a league-phase completeness gate", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleYesNoMarket({ result_is_text_correct: true })}
+        initialAutoResult={null}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain(
+      "Rozliczenie — Czy jakakolwiek drużyna wygra wszystkie mecze?",
+    );
+    expect(html).toContain(">TAK</button>");
+    expect(html).toContain(">NIE</button>");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("Zatwierdź wynik");
+    expect(html).not.toContain("Propozycja tabeli");
+    expect(html).not.toContain("Faza niekompletna");
+    expect(html).not.toContain("Szukaj zawodnika");
+    expect(html).not.toContain("Szukaj drużyny");
+  });
+
+  it("renders single_team settlement with remis capacity for two winners", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleSingleTeamMarket({
+          result_team_ids: [1, 2],
+          settled_at: "2027-01-30T12:00:00",
+        })}
+        initialAutoResult={null}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("Rozliczenie — Która drużyna strzeli najwięcej bramek");
+    expect(html).toContain("Wybrane 2/36");
+    expect(html).toContain("Szukaj drużyny");
+    expect(html).toContain("Team 1");
+    expect(html).toContain("Team 2");
+    expect(html).toContain("Skoryguj wynik");
+    expect(html).not.toContain("Wybrane 2/1");
+    expect(html).not.toContain("Wybrane 0/1");
+    expect(html).not.toContain("Szukaj zawodnika");
+    expect(html).not.toContain("Propozycja tabeli");
+    expect(html).not.toContain("Faza niekompletna");
+  });
+
+  it("stays empty for an unknown market kind", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmLongTermAdminPanel
+        market={sampleLongTermMarket({ market_kind: "not_a_real_kind" })}
+        initialAutoResult={null}
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toBe("");
   });
 });
 

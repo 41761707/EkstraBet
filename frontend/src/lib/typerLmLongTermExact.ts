@@ -133,3 +133,68 @@ function canSaveSingleTeamPick(
   }
   return !areTeamIdSequencesEqual(teamIds, market.picked_team_ids);
 }
+
+/** Prefill admin name fields from a published set; one empty row when unset. */
+export function defaultAdminSubjectTexts(
+  resultSubjectTexts: readonly string[],
+): string[] {
+  if (resultSubjectTexts.length === 0) {
+    return [""];
+  }
+  return [...resultSubjectTexts];
+}
+
+/**
+ * Keep first trimmed original per normalized form.
+ * Empty strings after normalizeSubjectText are dropped.
+ */
+export function uniqueTrimmedSubjectTexts(rawNames: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  rawNames.forEach((raw) => {
+    const normalized = normalizeSubjectText(raw);
+    if (normalized === "" || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    unique.push(raw.trim());
+  });
+  return unique;
+}
+
+export function canSettleFreeTextResults(rawNames: readonly string[]): boolean {
+  const filled = rawNames
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+  if (filled.length === 0) {
+    return false;
+  }
+  const tooLong = filled.some(
+    (name) =>
+      name.length > SUBJECT_TEXT_MAX_LENGTH ||
+      normalizeSubjectText(name).length > SUBJECT_TEXT_MAX_LENGTH,
+  );
+  if (tooLong) {
+    return false;
+  }
+  return new Set(filled.map(normalizeSubjectText)).size === filled.length;
+}
+
+export function canSettleYesNoResult(value: boolean | null): boolean {
+  return value === true || value === false;
+}
+
+export function canSettleSingleTeamResults(
+  teamIds: readonly number[],
+  candidateIds: readonly number[],
+): boolean {
+  if (teamIds.length < 1) {
+    return false;
+  }
+  const unique = new Set(teamIds);
+  if (unique.size !== teamIds.length) {
+    return false;
+  }
+  const pool = new Set(candidateIds);
+  return teamIds.every((id) => pool.has(id));
+}
