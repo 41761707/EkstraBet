@@ -1358,7 +1358,8 @@ describe("TyperLmLongTermTab", () => {
     expect(html).toContain("Team 36");
     expect(html).toContain('placeholder="Imię i nazwisko"');
     expect(html).toContain(">TAK</button>");
-    expect(html).toContain("Wybrane 0/1");
+    expect(html).toContain("Wybierz drużynę");
+    expect(html).not.toContain("Wybrane 0/1");
     expect(html.match(/>Zapisz typ</g)?.length).toBe(7);
     expect(html).not.toContain("Szukaj zawodnika");
     expect(html).not.toContain("Ten rynek nie jest jeszcze dostępny");
@@ -1549,7 +1550,7 @@ describe("TyperLmLongTermMarketCard", () => {
     expect(html).not.toContain("Szukaj drużyny");
   });
 
-  it("reuses the team picker with a single slot", () => {
+  it("uses a closed team dropdown with a single slot", () => {
     const html = renderToStaticMarkup(
       <TyperLmLongTermMarketCard
         market={sampleSingleTeamMarket()}
@@ -1559,11 +1560,13 @@ describe("TyperLmLongTermMarketCard", () => {
       />,
     );
     expect(html).toContain("Która drużyna strzeli najwięcej bramek");
-    expect(html).toContain("Wybrane 0/1");
-    expect(html).toContain("Szukaj drużyny");
-    expect(html).toContain("Team 1");
-    expect(html).toContain("Team 36");
+    expect(html).toContain("Wybierz drużynę");
+    expect(html).toContain('aria-haspopup="listbox"');
+    expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("Zapisz typ");
+    expect(html).not.toContain("Wybrane 0/1");
+    expect(html).not.toContain("Szukaj drużyny");
+    expect(html).not.toContain("Nie wybrano jeszcze drużyn");
     expect(html).not.toContain("Szukaj zawodnika");
     expect(html).not.toContain("Przeciągnij");
     expect(html).not.toContain("Wybrane 0/8");

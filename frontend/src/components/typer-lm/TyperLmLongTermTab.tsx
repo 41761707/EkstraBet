@@ -277,7 +277,6 @@ function SingleTeamMarketCard({
   onMarketChange,
 }: TyperLmLongTermMarketCardProps & { isLocked: boolean }) {
   const picks = useSingleTeamMarketPicks(market, nowMs, onMarketChange);
-  const [query, setQuery] = useState("");
   const isSettled = isLongTermMarketSettled(market);
   const hasPick = market.picked_team_ids.length === 1;
   return (
@@ -295,11 +294,9 @@ function SingleTeamMarketCard({
         candidates={market.candidates}
         selectedIds={picks.teamIds}
         selectionSize={1}
-        query={query}
         isLocked={isLocked || picks.isPending || isSettled}
         resultTeamIds={hasPick ? market.result_team_ids : []}
         teamNameDisplay={teamNameDisplay}
-        onQueryChange={setQuery}
         onToggle={picks.toggle}
       />
       <OfficialResultTeams
