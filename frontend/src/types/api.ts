@@ -1453,6 +1453,10 @@ export interface LongTermPickChange {
   display_name: string;
   previous_team_ids: number[] | null;
   new_team_ids: number[];
+  previous_subject_text: string | null;
+  new_subject_text: string | null;
+  previous_is_text_correct: boolean | null;
+  new_is_text_correct: boolean | null;
   changed_at: string;
 }
 
@@ -1477,6 +1481,10 @@ export interface LongTermMarketCard {
   candidates: LongTermTeam[];
   picked_team_ids: number[];
   result_team_ids: number[];
+  picked_subject_text: string | null;
+  result_subject_texts: string[];
+  picked_is_text_correct: boolean | null;
+  result_is_text_correct: boolean | null;
   points: number | null;
   changes: LongTermPickChange[];
 }
@@ -1487,11 +1495,25 @@ export interface LongTermDashboardResponse {
   markets: LongTermMarketCard[];
 }
 
+/**
+ * Client payload for PUT picks / POST settle.
+ * Ranked table still sends only teamIds.
+ */
+export interface LongTermPicksPayload {
+  teamIds?: number[];
+  subjectTexts?: string[];
+  isTextCorrect?: boolean;
+}
+
 /** Result of creating or replacing a long-term pick set. */
 export interface SaveLongTermPicksResponse {
   market_id: number;
   team_ids: number[];
   previous_team_ids: number[] | null;
+  subject_texts: string[];
+  previous_subject_text: string | null;
+  is_text_correct: boolean | null;
+  previous_is_text_correct: boolean | null;
   audit_written: boolean;
 }
 
@@ -1530,6 +1552,8 @@ export interface LongTermAutoResultResponse {
 export interface SettleLongTermResponse {
   market_id: number;
   team_ids: number[];
+  subject_texts: string[];
+  is_text_correct: boolean | null;
   settled_by_uuid: string | null;
   settled_by_display_name: string | null;
   settled_at: string;

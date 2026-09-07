@@ -20,6 +20,15 @@ LEAGUE_PHASE_MAX_ROUND = 8
 LEAGUE_PHASE_TEAM_COUNT = 36
 LEAGUE_PHASE_MATCHES_PER_TEAM = 8
 LEAGUE_PHASE_SETTLED_MATCH_COUNT = 144
+MARKET_KIND_RANKED_TEAM_TABLE = "ranked_team_table"
+MARKET_KIND_SINGLE_TEAM = "single_team"
+MARKET_KIND_FREE_TEXT = "free_text"
+MARKET_KIND_YES_NO = "yes_no"
+SUBJECT_TEXT_MAX_LENGTH = 160
+_TEAM_CANDIDATE_KINDS = frozenset({
+    MARKET_KIND_RANKED_TEAM_TABLE,
+    MARKET_KIND_SINGLE_TEAM
+})
 
 # deadline fazy ligowej: MIN(game_date) dla ligi i sezonu rynku, rund 1-8
 _DEADLINE_SQL = f"""
@@ -84,7 +93,7 @@ _CANDIDATE_TEAMS_SQL = f"""
 """
 
 _CURRENT_PICKS_SQL = """
-    SELECT team_id
+    SELECT team_id, subject_text, subject_text_normalized, is_text_correct
     FROM typer_long_term_picks
     WHERE market_id = %s
       AND user_id = %s
@@ -107,14 +116,38 @@ _INSERT_PICKS_SQL = f"""
       AND NOW() < ({_DEADLINE_SQL})
 """
 
+_INSERT_TEXT_PICK_SQL = f"""
+    INSERT INTO typer_long_term_picks (
+        market_id, user_id, team_id, position,
+        subject_text, subject_text_normalized, is_text_correct)
+    SELECT %s, %s, NULL, 1, %s, %s, NULL
+    FROM typer_long_term_markets m
+    WHERE m.id = %s
+      AND NOW() < ({_DEADLINE_SQL})
+"""
+
+_INSERT_YES_NO_PICK_SQL = f"""
+    INSERT INTO typer_long_term_picks (
+        market_id, user_id, team_id, position,
+        subject_text, subject_text_normalized, is_text_correct)
+    SELECT %s, %s, NULL, 1, NULL, NULL, %s
+    FROM typer_long_term_markets m
+    WHERE m.id = %s
+      AND NOW() < ({_DEADLINE_SQL})
+"""
+
 _INSERT_AUDIT_SQL = """
     INSERT INTO typer_long_term_pick_changes (
         market_id,
         user_id,
         changed_by,
         previous_team_ids,
-        new_team_ids)
-    VALUES (%s, %s, %s, %s, %s)
+        new_team_ids,
+        previous_subject_text,
+        new_subject_text,
+        previous_is_text_correct,
+        new_is_text_correct)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 # sezon bywa współdzielony między ligami — ten moduł pokazuje tylko LM (42)
@@ -144,7 +177,12 @@ _DASHBOARD_MARKETS_SQL = f"""
 """
 
 _DASHBOARD_PICKS_SQL = """
-    SELECT market_id, team_id
+    SELECT
+        market_id,
+        team_id,
+        subject_text,
+        subject_text_normalized,
+        is_text_correct
     FROM typer_long_term_picks
     WHERE user_id = %s
       AND market_id IN ({placeholders})
@@ -152,7 +190,12 @@ _DASHBOARD_PICKS_SQL = """
 """
 
 _DASHBOARD_RESULTS_SQL = """
-    SELECT market_id, team_id
+    SELECT
+        market_id,
+        team_id,
+        subject_text,
+        subject_text_normalized,
+        is_text_correct
     FROM typer_long_term_results
     WHERE market_id IN ({placeholders})
     ORDER BY market_id ASC, position ASC
@@ -166,6 +209,10 @@ _CHANGES_SELECT_SQL = """
         u.display_name,
         c.previous_team_ids,
         c.new_team_ids,
+        c.previous_subject_text,
+        c.new_subject_text,
+        c.previous_is_text_correct,
+        c.new_is_text_correct,
         c.changed_at
     FROM typer_long_term_pick_changes c
     JOIN users u ON u.id = c.user_id
@@ -270,6 +317,22 @@ _INSERT_RESULTS_SQL = """
     FROM ({union_sql}) t
 """
 
+_INSERT_TEXT_RESULTS_SQL = """
+    INSERT INTO typer_long_term_results (
+        market_id, team_id, position,
+        subject_text, subject_text_normalized, is_text_correct)
+    SELECT %s, NULL, t.position, t.subject_text,
+        t.subject_text_normalized, NULL
+    FROM ({union_sql}) t
+"""
+
+_INSERT_YES_NO_RESULT_SQL = """
+    INSERT INTO typer_long_term_results (
+        market_id, team_id, position,
+        subject_text, subject_text_normalized, is_text_correct)
+    VALUES (%s, NULL, 1, NULL, NULL, %s)
+"""
+
 _UPDATE_MARKET_SETTLED_SQL = """
     UPDATE typer_long_term_markets
     SET settled_at = NOW(),
@@ -277,6 +340,11 @@ _UPDATE_MARKET_SETTLED_SQL = """
     WHERE id = %s
       AND league_id = %s
 """
+
+
+def normalize_subject_text(raw: str) -> str:
+    """Trim, collapse whitespace, Unicode casefold (user: lower + spaces)."""
+    return " ".join(raw.split()).casefold()
 
 
 def fetch_long_term_dashboard(
@@ -304,20 +372,28 @@ def fetch_long_term_dashboard(
 def save_long_term_picks(
         user_id: int,
         market_id: int,
-        team_ids: list[int]) -> dict[str, Any]:
-    """Replace the user's ranking and append CSV audit in one transaction.
+        team_ids: list[int] | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None) -> dict[str, Any]:
+    """Replace the user's pick and append audit in one transaction.
 
     Deadline is enforced in SQL via ``NOW() < MIN(matches.game_date)``.
-    An identical sequence is a no-op without an audit row.
+    An identical payload is a no-op without an audit row.
     """
     _require_positive_ids(user_id=user_id, market_id=market_id)
-    unique_ids = _unique_team_ids(team_ids)
+    unique_ids, prepared_texts, yes_no_flag = _prepared_pick_payload(
+        team_ids, subject_texts, is_text_correct, require_single_text=True)
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         try:
             market = _lock_market(cursor, market_id)
             result = _replace_picks_with_audit(
-                cursor, market, user_id, unique_ids)
+                cursor,
+                market,
+                user_id,
+                unique_ids,
+                prepared_texts,
+                yes_no_flag)
             # mysql-connector bez autocommit — close bez commit cofa zapis
             conn.commit()
         except TyperRepositoryError:
@@ -403,21 +479,32 @@ def fetch_auto_result(market_id: int) -> dict[str, Any]:
 
 def settle_market(
         market_id: int,
-        team_ids: list[int],
-        admin_id: int) -> dict[str, Any]:
-    """Replace the approved ranking and stamp the market as settled.
+        team_ids: list[int] | None = None,
+        admin_id: int | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None) -> dict[str, Any]:
+    """Replace the approved result set and stamp the market as settled.
 
     Does not modify stored picks. Rankings are recalculated on read.
     Deadline is not required: settlement happens after kickoff.
     """
     _require_positive_ids(market_id=market_id, admin_id=admin_id)
-    unique_ids = _unique_team_ids(team_ids)
+    unique_ids, prepared_texts, yes_no_flag = _prepared_pick_payload(
+        team_ids,
+        subject_texts,
+        is_text_correct,
+        require_single_text=False)
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         try:
             market = _fetch_locked_market(cursor, market_id)
             result = _replace_results(
-                cursor, market, unique_ids, admin_id)
+                cursor,
+                market,
+                unique_ids,
+                prepared_texts,
+                yes_no_flag,
+                admin_id)
             # mysql-connector bez autocommit — close bez commit cofa zapis
             conn.commit()
         except TyperRepositoryError:
@@ -444,16 +531,15 @@ def _build_dashboard_document(
         return {"season_id": season_id, "markets": [], "changes": []}
     market_ids = [int(row["market_id"]) for row in market_rows]
     candidates_by_key = _fetch_candidates_for_markets(cursor, market_rows)
-    picks_by_market = _fetch_grouped_team_ids(
+    picks_by_market = _fetch_grouped_rows(
         cursor, _DASHBOARD_PICKS_SQL, market_ids, (user_id,))
-    results_by_market = _fetch_grouped_team_ids(
+    results_by_market = _fetch_grouped_rows(
         cursor, _DASHBOARD_RESULTS_SQL, market_ids)
     change_rows = _fetch_dashboard_changes(cursor, user_id, market_ids)
     markets = [
         _map_dashboard_market_row(
             row,
-            candidates_by_key[
-                (int(row["league_id"]), int(row["season_id"]))],
+            _dashboard_candidates_for_market(row, candidates_by_key),
             picks_by_market.get(int(row["market_id"]), []),
             results_by_market.get(int(row["market_id"]), []))
         for row in market_rows]
@@ -464,12 +550,24 @@ def _build_dashboard_document(
     }
 
 
+def _dashboard_candidates_for_market(
+        row: dict[str, Any],
+        candidates_by_key: dict[tuple[int, int], list[dict[str, Any]]]
+        ) -> list[dict[str, Any]]:
+    if str(row["market_kind"]) not in _TEAM_CANDIDATE_KINDS:
+        return []
+    key = (int(row["league_id"]), int(row["season_id"]))
+    return candidates_by_key.get(key, [])
+
+
 def _fetch_candidates_for_markets(
         cursor: Any,
         market_rows: list[dict[str, Any]]
         ) -> dict[tuple[int, int], list[dict[str, Any]]]:
     cache: dict[tuple[int, int], list[dict[str, Any]]] = {}
     for row in market_rows:
+        if str(row["market_kind"]) not in _TEAM_CANDIDATE_KINDS:
+            continue
         key = (int(row["league_id"]), int(row["season_id"]))
         if key not in cache:
             cache[key] = _fetch_candidate_teams(cursor, key[0], key[1])
@@ -486,20 +584,34 @@ def _fetch_candidate_teams(
     return [_map_candidate_row(row) for row in cursor.fetchall()]
 
 
+def _fetch_grouped_rows(
+        cursor: Any,
+        query_template: str,
+        market_ids: list[int],
+        extra_params: tuple[object, ...] = ()
+        ) -> dict[int, list[dict[str, Any]]]:
+    query = query_template.format(
+        placeholders=_in_placeholders(len(market_ids)))
+    cursor.execute(query, extra_params + tuple(market_ids))
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for row in cursor.fetchall():
+        market_id = int(row["market_id"])
+        grouped.setdefault(market_id, []).append(row)
+    return grouped
+
+
 def _fetch_grouped_team_ids(
         cursor: Any,
         query_template: str,
         market_ids: list[int],
         extra_params: tuple[object, ...] = ()
         ) -> dict[int, list[int]]:
-    query = query_template.format(
-        placeholders=_in_placeholders(len(market_ids)))
-    cursor.execute(query, extra_params + tuple(market_ids))
-    grouped: dict[int, list[int]] = {}
-    for row in cursor.fetchall():
-        market_id = int(row["market_id"])
-        grouped.setdefault(market_id, []).append(int(row["team_id"]))
-    return grouped
+    grouped_rows = _fetch_grouped_rows(
+        cursor, query_template, market_ids, extra_params)
+    return {
+        market_id: _team_ids_from_rows(rows)
+        for market_id, rows in grouped_rows.items()
+    }
 
 
 def _fetch_result_team_ids(cursor: Any, market_id: int) -> list[int]:
@@ -584,24 +696,125 @@ def _auto_result_document(
 def _replace_results(
         cursor: Any,
         market: dict[str, Any],
-        team_ids: list[int],
+        team_ids: list[int] | None,
+        prepared_texts: list[tuple[str, str]] | None,
+        is_text_correct: bool | None,
+        admin_id: int) -> dict[str, Any]:
+    kind = str(market["market_kind"])
+    if kind == MARKET_KIND_FREE_TEXT:
+        return _replace_text_results(
+            cursor, market, prepared_texts, admin_id)
+    if kind == MARKET_KIND_YES_NO:
+        return _replace_yes_no_results(
+            cursor, market, is_text_correct, admin_id)
+    if kind == MARKET_KIND_SINGLE_TEAM:
+        return _replace_single_team_results(
+            cursor, market, team_ids, admin_id)
+    if kind != MARKET_KIND_RANKED_TEAM_TABLE:
+        raise TyperValidationError(
+            f"Unsupported long-term market kind: {kind}")
+    return _replace_ranked_results(cursor, market, team_ids, admin_id)
+
+
+def _stamp_settled_market(
+        cursor: Any,
+        market: dict[str, Any],
         admin_id: int) -> dict[str, Any]:
     market_id = int(market["market_id"])
-    _assert_selection_size(market, team_ids)
-    _assert_candidate_permutation(cursor, market, team_ids)
-    cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
-    _insert_results(cursor, market_id, team_ids)
     cursor.execute(
         _UPDATE_MARKET_SETTLED_SQL,
         (admin_id, market_id, CHAMPIONS_LEAGUE_ID))
-    updated = _fetch_market(cursor, market_id)
+    return _fetch_market(cursor, market_id)
+
+
+def _settled_document(
+        market_id: int,
+        admin_id: int,
+        settled_at: object,
+        *,
+        team_ids: list[int] | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None) -> dict[str, Any]:
+    ids = list(team_ids or [])
     return {
         "market_id": market_id,
-        "team_ids": list(team_ids),
+        "team_ids": ids,
+        "subject_texts": list(subject_texts or []),
+        "is_text_correct": is_text_correct,
         "settled_by": admin_id,
-        "settled_at": updated["settled_at"],
-        "result_team_ids": list(team_ids)
+        "settled_at": settled_at,
+        "result_team_ids": ids
     }
+
+
+def _replace_ranked_results(
+        cursor: Any,
+        market: dict[str, Any],
+        team_ids: list[int] | None,
+        admin_id: int) -> dict[str, Any]:
+    unique_ids = _require_team_ids(team_ids)
+    market_id = int(market["market_id"])
+    _assert_selection_size(market, unique_ids)
+    _assert_candidate_permutation(cursor, market, unique_ids)
+    cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
+    _insert_results(cursor, market_id, unique_ids)
+    updated = _stamp_settled_market(cursor, market, admin_id)
+    return _settled_document(
+        market_id, admin_id, updated["settled_at"], team_ids=unique_ids)
+
+
+def _replace_single_team_results(
+        cursor: Any,
+        market: dict[str, Any],
+        team_ids: list[int] | None,
+        admin_id: int) -> dict[str, Any]:
+    unique_ids = _require_team_ids(team_ids)
+    market_id = int(market["market_id"])
+    _assert_teams_in_candidate_pool(cursor, market, unique_ids)
+    cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
+    _insert_results(cursor, market_id, unique_ids)
+    updated = _stamp_settled_market(cursor, market, admin_id)
+    return _settled_document(
+        market_id, admin_id, updated["settled_at"], team_ids=unique_ids)
+
+
+def _replace_text_results(
+        cursor: Any,
+        market: dict[str, Any],
+        prepared_texts: list[tuple[str, str]] | None,
+        admin_id: int) -> dict[str, Any]:
+    texts = _require_prepared_texts(prepared_texts)
+    market_id = int(market["market_id"])
+    cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
+    _insert_text_results(cursor, market_id, texts)
+    updated = _stamp_settled_market(cursor, market, admin_id)
+    return _settled_document(
+        market_id,
+        admin_id,
+        updated["settled_at"],
+        subject_texts=[text for text, _normalized in texts])
+
+
+def _replace_yes_no_results(
+        cursor: Any,
+        market: dict[str, Any],
+        is_text_correct: bool | None,
+        admin_id: int) -> dict[str, Any]:
+    flag = _require_is_text_correct(is_text_correct)
+    market_id = int(market["market_id"])
+    cursor.execute(_DELETE_RESULTS_SQL, (market_id,))
+    cursor.execute(
+        _INSERT_YES_NO_RESULT_SQL,
+        (market_id, _bool_to_tinyint(flag)))
+    if cursor.rowcount != 1:
+        raise TyperConflictError(
+            "Long-term result could not be saved")
+    updated = _stamp_settled_market(cursor, market, admin_id)
+    return _settled_document(
+        market_id,
+        admin_id,
+        updated["settled_at"],
+        is_text_correct=flag)
 
 
 def _insert_results(
@@ -616,26 +829,173 @@ def _insert_results(
             "Long-term result could not be saved")
 
 
+def _insert_text_results(
+        cursor: Any,
+        market_id: int,
+        prepared_texts: list[tuple[str, str]]) -> None:
+    union_sql, text_params = _subject_text_union(prepared_texts)
+    query = _INSERT_TEXT_RESULTS_SQL.format(union_sql=union_sql)
+    cursor.execute(query, (market_id, *text_params))
+    if cursor.rowcount != len(prepared_texts):
+        raise TyperConflictError(
+            "Long-term result could not be saved")
+
+
 def _replace_picks_with_audit(
         cursor: Any,
         market: dict[str, Any],
         user_id: int,
-        team_ids: list[int]) -> dict[str, Any]:
+        team_ids: list[int] | None,
+        prepared_texts: list[tuple[str, str]] | None,
+        is_text_correct: bool | None) -> dict[str, Any]:
+    kind = str(market["market_kind"])
+    if kind == MARKET_KIND_FREE_TEXT:
+        return _replace_text_picks_with_audit(
+            cursor, market, user_id, prepared_texts)
+    if kind == MARKET_KIND_YES_NO:
+        return _replace_yes_no_picks_with_audit(
+            cursor, market, user_id, is_text_correct)
+    if kind == MARKET_KIND_SINGLE_TEAM:
+        return _replace_single_team_picks_with_audit(
+            cursor, market, user_id, team_ids)
+    if kind != MARKET_KIND_RANKED_TEAM_TABLE:
+        raise TyperValidationError(
+            f"Unsupported long-term market kind: {kind}")
+    return _replace_ranked_picks_with_audit(
+        cursor, market, user_id, team_ids)
+
+
+def _replace_ranked_picks_with_audit(
+        cursor: Any,
+        market: dict[str, Any],
+        user_id: int,
+        team_ids: list[int] | None) -> dict[str, Any]:
+    unique_ids = _require_team_ids(team_ids)
     market_id = int(market["market_id"])
-    _assert_selection_size(market, team_ids)
-    _assert_candidate_permutation(cursor, market, team_ids)
+    _assert_selection_size(market, unique_ids)
+    _assert_candidate_permutation(cursor, market, unique_ids)
     previous_ids = _fetch_current_pick_ids(cursor, market_id, user_id)
     previous_csv = _team_ids_csv(previous_ids) if previous_ids else None
-    new_csv = _team_ids_csv(team_ids)
+    new_csv = _team_ids_csv(unique_ids)
     if previous_csv == new_csv:
         return _picks_result(
-            market_id, user_id, team_ids, previous_ids, False)
+            market_id, user_id, unique_ids, previous_ids, False)
     _delete_current_picks(cursor, market_id, user_id)
-    _insert_picks_with_deadline(cursor, market_id, user_id, team_ids)
+    _insert_picks_with_deadline(cursor, market_id, user_id, unique_ids)
     _insert_pick_audit(
-        cursor, market_id, user_id, user_id, previous_csv, new_csv)
+        cursor,
+        market_id,
+        user_id,
+        user_id,
+        previous_csv=previous_csv,
+        new_csv=new_csv)
     return _picks_result(
-        market_id, user_id, team_ids, previous_ids, True)
+        market_id, user_id, unique_ids, previous_ids, True)
+
+
+def _replace_single_team_picks_with_audit(
+        cursor: Any,
+        market: dict[str, Any],
+        user_id: int,
+        team_ids: list[int] | None) -> dict[str, Any]:
+    unique_ids = _require_team_ids(team_ids)
+    market_id = int(market["market_id"])
+    _assert_selection_size(market, unique_ids)
+    _assert_teams_in_candidate_pool(cursor, market, unique_ids)
+    previous_ids = _fetch_current_pick_ids(cursor, market_id, user_id)
+    previous_csv = _team_ids_csv(previous_ids) if previous_ids else None
+    new_csv = _team_ids_csv(unique_ids)
+    if previous_csv == new_csv:
+        return _picks_result(
+            market_id, user_id, unique_ids, previous_ids, False)
+    _delete_current_picks(cursor, market_id, user_id)
+    _insert_picks_with_deadline(cursor, market_id, user_id, unique_ids)
+    _insert_pick_audit(
+        cursor,
+        market_id,
+        user_id,
+        user_id,
+        previous_csv=previous_csv,
+        new_csv=new_csv)
+    return _picks_result(
+        market_id, user_id, unique_ids, previous_ids, True)
+
+
+def _replace_text_picks_with_audit(
+        cursor: Any,
+        market: dict[str, Any],
+        user_id: int,
+        prepared_texts: list[tuple[str, str]] | None) -> dict[str, Any]:
+    texts = _require_prepared_texts(prepared_texts)
+    subject_text, normalized = texts[0]
+    market_id = int(market["market_id"])
+    previous_rows = _fetch_current_pick_rows(cursor, market_id, user_id)
+    previous_text = _first_subject_text(previous_rows)
+    previous_normalized = _first_normalized_text(previous_rows)
+    if previous_normalized == normalized:
+        return _picks_result(
+            market_id,
+            user_id,
+            [],
+            [],
+            False,
+            subject_texts=[subject_text],
+            previous_subject_text=previous_text)
+    _delete_current_picks(cursor, market_id, user_id)
+    _insert_text_pick_with_deadline(
+        cursor, market_id, user_id, subject_text, normalized)
+    _insert_pick_audit(
+        cursor,
+        market_id,
+        user_id,
+        user_id,
+        previous_subject_text=previous_text,
+        new_subject_text=subject_text)
+    return _picks_result(
+        market_id,
+        user_id,
+        [],
+        [],
+        True,
+        subject_texts=[subject_text],
+        previous_subject_text=previous_text)
+
+
+def _replace_yes_no_picks_with_audit(
+        cursor: Any,
+        market: dict[str, Any],
+        user_id: int,
+        is_text_correct: bool | None) -> dict[str, Any]:
+    flag = _require_is_text_correct(is_text_correct)
+    market_id = int(market["market_id"])
+    previous_rows = _fetch_current_pick_rows(cursor, market_id, user_id)
+    previous_flag = _first_is_text_correct(previous_rows)
+    if previous_flag is not None and previous_flag == flag:
+        return _picks_result(
+            market_id,
+            user_id,
+            [],
+            [],
+            False,
+            is_text_correct=flag,
+            previous_is_text_correct=previous_flag)
+    _delete_current_picks(cursor, market_id, user_id)
+    _insert_yes_no_pick_with_deadline(cursor, market_id, user_id, flag)
+    _insert_pick_audit(
+        cursor,
+        market_id,
+        user_id,
+        user_id,
+        previous_is_text_correct=previous_flag,
+        new_is_text_correct=flag)
+    return _picks_result(
+        market_id,
+        user_id,
+        [],
+        [],
+        True,
+        is_text_correct=flag,
+        previous_is_text_correct=previous_flag)
 
 
 def _assert_selection_size(
@@ -647,10 +1007,10 @@ def _assert_selection_size(
             "teams")
 
 
-def _assert_candidate_permutation(
+def _assert_teams_in_candidate_pool(
         cursor: Any,
         market: dict[str, Any],
-        team_ids: list[int]) -> None:
+        team_ids: list[int]) -> set[int]:
     candidates = _fetch_candidate_teams(
         cursor, int(market["league_id"]), int(market["season_id"]))
     candidate_ids = {int(row["team_id"]) for row in candidates}
@@ -658,15 +1018,30 @@ def _assert_candidate_permutation(
         if team_id not in candidate_ids:
             raise TyperValidationError(
                 "Team is not a league-phase participant")
+    return candidate_ids
+
+
+def _assert_candidate_permutation(
+        cursor: Any,
+        market: dict[str, Any],
+        team_ids: list[int]) -> None:
+    candidate_ids = _assert_teams_in_candidate_pool(
+        cursor, market, team_ids)
     if set(team_ids) != candidate_ids:
         raise TyperValidationError(
             "Pick set must include every league-phase team")
 
 
+def _fetch_current_pick_rows(
+        cursor: Any, market_id: int, user_id: int) -> list[dict[str, Any]]:
+    cursor.execute(_CURRENT_PICKS_SQL, (market_id, user_id))
+    return list(cursor.fetchall())
+
+
 def _fetch_current_pick_ids(
         cursor: Any, market_id: int, user_id: int) -> list[int]:
-    cursor.execute(_CURRENT_PICKS_SQL, (market_id, user_id))
-    return [int(row["team_id"]) for row in cursor.fetchall()]
+    return _team_ids_from_rows(
+        _fetch_current_pick_rows(cursor, market_id, user_id))
 
 
 def _delete_current_picks(
@@ -688,16 +1063,57 @@ def _insert_picks_with_deadline(
             "Picks cannot be saved after kickoff")
 
 
+def _insert_text_pick_with_deadline(
+        cursor: Any,
+        market_id: int,
+        user_id: int,
+        subject_text: str,
+        normalized: str) -> None:
+    cursor.execute(
+        _INSERT_TEXT_PICK_SQL,
+        (market_id, user_id, subject_text, normalized, market_id))
+    if cursor.rowcount != 1:
+        raise TyperConflictError(
+            "Picks cannot be saved after kickoff")
+
+
+def _insert_yes_no_pick_with_deadline(
+        cursor: Any,
+        market_id: int,
+        user_id: int,
+        is_text_correct: bool) -> None:
+    cursor.execute(
+        _INSERT_YES_NO_PICK_SQL,
+        (market_id, user_id, _bool_to_tinyint(is_text_correct), market_id))
+    if cursor.rowcount != 1:
+        raise TyperConflictError(
+            "Picks cannot be saved after kickoff")
+
+
 def _insert_pick_audit(
         cursor: Any,
         market_id: int,
         user_id: int,
         changed_by: int,
-        previous_csv: str | None,
-        new_csv: str) -> None:
+        *,
+        previous_csv: str | None = None,
+        new_csv: str | None = None,
+        previous_subject_text: str | None = None,
+        new_subject_text: str | None = None,
+        previous_is_text_correct: bool | None = None,
+        new_is_text_correct: bool | None = None) -> None:
     cursor.execute(
         _INSERT_AUDIT_SQL,
-        (market_id, user_id, changed_by, previous_csv, new_csv))
+        (
+            market_id,
+            user_id,
+            changed_by,
+            previous_csv,
+            new_csv,
+            previous_subject_text,
+            new_subject_text,
+            _optional_tinyint(previous_is_text_correct),
+            _optional_tinyint(new_is_text_correct)))
 
 
 def _picks_result(
@@ -705,13 +1121,21 @@ def _picks_result(
         user_id: int,
         team_ids: list[int],
         previous_ids: list[int],
-        audit_written: bool) -> dict[str, Any]:
+        audit_written: bool,
+        subject_texts: list[str] | None = None,
+        previous_subject_text: str | None = None,
+        is_text_correct: bool | None = None,
+        previous_is_text_correct: bool | None = None) -> dict[str, Any]:
     previous = list(previous_ids) if previous_ids else None
     return {
         "market_id": market_id,
         "user_id": user_id,
         "team_ids": list(team_ids),
         "previous_team_ids": previous,
+        "subject_texts": list(subject_texts or []),
+        "previous_subject_text": previous_subject_text,
+        "is_text_correct": is_text_correct,
+        "previous_is_text_correct": previous_is_text_correct,
         "audit_written": audit_written
     }
 
@@ -734,6 +1158,92 @@ def _unique_team_ids(team_ids: list[int]) -> list[int]:
     return unique_ids
 
 
+def _prepared_pick_payload(
+        team_ids: list[int] | None,
+        subject_texts: list[str] | None,
+        is_text_correct: bool | None,
+        *,
+        require_single_text: bool
+        ) -> tuple[
+            list[int] | None,
+            list[tuple[str, str]] | None,
+            bool | None]:
+    present = [
+        team_ids is not None,
+        subject_texts is not None,
+        is_text_correct is not None]
+    if sum(present) != 1:
+        raise TyperValidationError(
+            "Exactly one of team_ids, subject_texts, "
+            "is_text_correct is required")
+    unique_ids = None if team_ids is None else _unique_team_ids(team_ids)
+    prepared_texts = None
+    if subject_texts is not None:
+        prepared_texts = _prepared_subject_texts(
+            subject_texts, require_single=require_single_text)
+    yes_no_flag = None
+    if is_text_correct is not None:
+        yes_no_flag = _coerce_is_text_correct(is_text_correct)
+    return unique_ids, prepared_texts, yes_no_flag
+
+
+def _prepared_subject_texts(
+        subject_texts: list[str],
+        *,
+        require_single: bool) -> list[tuple[str, str]]:
+    if not subject_texts:
+        raise TyperValidationError("At least one subject text is required")
+    if require_single and len(subject_texts) != 1:
+        raise TyperValidationError(
+            "Long-term pick set must contain exactly 1 subject text")
+    prepared: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for raw in subject_texts:
+        if not isinstance(raw, str):
+            raise TyperValidationError("Subject texts must be strings")
+        stripped = raw.strip()
+        normalized = normalize_subject_text(raw)
+        if not normalized:
+            raise TyperValidationError("Subject text must not be empty")
+        if (
+                len(stripped) > SUBJECT_TEXT_MAX_LENGTH
+                or len(normalized) > SUBJECT_TEXT_MAX_LENGTH):
+            raise TyperValidationError(
+                "Subject text must be at most 160 characters")
+        if normalized in seen:
+            raise TyperValidationError(
+                "Duplicate subject texts in long-term set")
+        seen.add(normalized)
+        prepared.append((stripped, normalized))
+    return prepared
+
+
+def _coerce_is_text_correct(value: object) -> bool:
+    if not isinstance(value, bool):
+        raise TyperValidationError("is_text_correct must be a boolean")
+    return value
+
+
+def _require_team_ids(team_ids: list[int] | None) -> list[int]:
+    if team_ids is None:
+        raise TyperValidationError("Team ids are required")
+    return team_ids
+
+
+def _require_prepared_texts(
+        prepared_texts: list[tuple[str, str]] | None
+        ) -> list[tuple[str, str]]:
+    if prepared_texts is None:
+        raise TyperValidationError("Subject text is required")
+    return prepared_texts
+
+
+def _require_is_text_correct(is_text_correct: bool | None) -> bool:
+    if is_text_correct is None:
+        raise TyperValidationError("is_text_correct is required")
+    return is_text_correct
+
+
 def _ranked_team_union(
         team_ids: list[int]) -> tuple[str, tuple[int, ...]]:
     """Return UNION ALL of (team_id, 1-based position) in list order."""
@@ -743,6 +1253,24 @@ def _ranked_team_union(
     params: list[int] = []
     for index, team_id in enumerate(team_ids):
         params.append(team_id)
+        params.append(index + 1)
+    return union_sql, tuple(params)
+
+
+def _subject_text_union(
+        prepared_texts: list[tuple[str, str]]
+        ) -> tuple[str, tuple[object, ...]]:
+    """Return UNION ALL of text, normalized text and 1-based position."""
+    union_sql = " UNION ALL ".join(
+        [
+            "SELECT %s AS subject_text, "
+            "%s AS subject_text_normalized, %s AS position"
+        ]
+        * len(prepared_texts))
+    params: list[object] = []
+    for index, (subject_text, normalized) in enumerate(prepared_texts):
+        params.append(subject_text)
+        params.append(normalized)
         params.append(index + 1)
     return union_sql, tuple(params)
 
@@ -845,6 +1373,63 @@ def _as_optional_int(value: object) -> int | None:
     return int(value)
 
 
+def _as_optional_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
+
+
+def _bool_to_tinyint(value: bool) -> int:
+    return 1 if value else 0
+
+
+def _optional_tinyint(value: bool | None) -> int | None:
+    if value is None:
+        return None
+    return _bool_to_tinyint(value)
+
+
+def _team_ids_from_rows(rows: list[dict[str, Any]]) -> list[int]:
+    team_ids: list[int] = []
+    for row in rows:
+        team_id = row.get("team_id")
+        if team_id is not None:
+            team_ids.append(int(team_id))
+    return team_ids
+
+
+def _subject_texts_from_rows(rows: list[dict[str, Any]]) -> list[str]:
+    texts: list[str] = []
+    for row in rows:
+        value = row.get("subject_text")
+        if value is not None:
+            texts.append(str(value))
+    return texts
+
+
+def _first_subject_text(rows: list[dict[str, Any]]) -> str | None:
+    texts = _subject_texts_from_rows(rows)
+    if not texts:
+        return None
+    return texts[0]
+
+
+def _first_normalized_text(rows: list[dict[str, Any]]) -> str | None:
+    for row in rows:
+        value = row.get("subject_text_normalized")
+        if value is not None:
+            return str(value)
+    return None
+
+
+def _first_is_text_correct(rows: list[dict[str, Any]]) -> bool | None:
+    for row in rows:
+        value = row.get("is_text_correct")
+        if value is not None:
+            return bool(value)
+    return None
+
+
 def _map_candidate_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "team_id": int(row["team_id"]),
@@ -868,8 +1453,9 @@ def _map_standing_row(row: dict[str, Any]) -> dict[str, Any]:
 def _map_dashboard_market_row(
         row: dict[str, Any],
         candidates: list[dict[str, Any]],
-        picked_team_ids: list[int],
-        result_team_ids: list[int]) -> dict[str, Any]:
+        pick_rows: list[dict[str, Any]],
+        result_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    picked_texts = _subject_texts_from_rows(pick_rows)
     return {
         "market_id": int(row["market_id"]),
         "league_id": int(row["league_id"]),
@@ -892,8 +1478,13 @@ def _map_dashboard_market_row(
         "deadline_at": row["deadline_at"],
         "is_locked": not _as_bool(row["is_open"]),
         "candidates": candidates,
-        "picked_team_ids": list(picked_team_ids),
-        "result_team_ids": list(result_team_ids)
+        "picked_team_ids": _team_ids_from_rows(pick_rows),
+        "result_team_ids": _team_ids_from_rows(result_rows),
+        "picked_subject_text": (
+            picked_texts[0] if picked_texts else None),
+        "result_subject_texts": _subject_texts_from_rows(result_rows),
+        "picked_is_text_correct": _first_is_text_correct(pick_rows),
+        "result_is_text_correct": _first_is_text_correct(result_rows)
     }
 
 
@@ -904,7 +1495,17 @@ def _map_change_row(row: dict[str, Any]) -> dict[str, Any]:
         "user_uuid": str(row["user_uuid"]),
         "display_name": str(row["display_name"]),
         "previous_team_ids": _parse_team_ids_csv(
-            row["previous_team_ids"]),
-        "new_team_ids": _parse_team_ids_csv(row["new_team_ids"]) or [],
+            row.get("previous_team_ids")),
+        "new_team_ids": _parse_team_ids_csv(row.get("new_team_ids")) or [],
+        "previous_subject_text": (
+            None if row.get("previous_subject_text") is None
+            else str(row["previous_subject_text"])),
+        "new_subject_text": (
+            None if row.get("new_subject_text") is None
+            else str(row["new_subject_text"])),
+        "previous_is_text_correct": _as_optional_bool(
+            row.get("previous_is_text_correct")),
+        "new_is_text_correct": _as_optional_bool(
+            row.get("new_is_text_correct")),
         "changed_at": row["changed_at"]
     }

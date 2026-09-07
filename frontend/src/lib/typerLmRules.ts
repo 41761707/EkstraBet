@@ -56,4 +56,44 @@ export const TYPER_LM_RULES_SECTIONS: readonly TyperLmRulesSection[] = [
         "Po tym terminie zapis jest zablokowany.",
     ],
   },
+  {
+    heading: "Długoterminowe — najlepszy strzelec i asystent",
+    items: [
+      "Najlepszy strzelec i najlepszy asystent: wpisz imię i nazwisko " +
+        "z klawiatury. Nie ma listy propozycji ani wyszukiwarki zawodników.",
+      "Wielkość liter i dodatkowe spacje nie mają znaczenia. Literówki, " +
+        "znaki diakrytyczne oraz samo nazwisko zamiast imienia i nazwiska " +
+        "to pudło — na przykład Haaland i Håland to różne wpisy.",
+      "Trafienie: 2 pkt, gdy znormalizowany wpis należy do zbioru nazwisk " +
+        "opublikowanych przez administratora. Przy remisie wielu zawodników " +
+        "punktuje każdy zatwierdzony wpis. Rozlicza administrator.",
+      "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
+        "Po tym terminie zapis jest zablokowany.",
+    ],
+  },
+  {
+    heading: "Długoterminowe — TAK/NIE",
+    items: [
+      "Odpowiedź TAK albo NIE na pytania: Czy jakakolwiek drużyna wygra " +
+        "wszystkie mecze? oraz Czy jakakolwiek drużyna przegra wszystkie " +
+        "mecze?",
+      "„Wszystkie mecze” oznacza fazę ligową (kolejki 1–8) — ten sam " +
+        "horyzont co tabela.",
+      "Trafienie: 2 pkt. Rozlicza administrator.",
+      "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
+        "Po tym terminie zapis jest zablokowany.",
+    ],
+  },
+  {
+    heading: "Długoterminowe — bramki drużyn",
+    items: [
+      "Która drużyna strzeli najwięcej bramek oraz która drużyna straci " +
+        "najwięcej bramek: wybierz jedną drużynę z listy 36 drużyn fazy " +
+        "ligowej.",
+      "Przy remisie wielu drużyn punktuje każdy zatwierdzony zwycięzca. " +
+        "Trafienie: 2 pkt. Rozlicza administrator.",
+      "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
+        "Po tym terminie zapis jest zablokowany.",
+    ],
+  },
 ];

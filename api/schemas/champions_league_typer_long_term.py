@@ -37,8 +37,22 @@ class LongTermPickChange(BaseModel):
             "Previous team IDs in table order; "
             "null on the first save"))
     new_team_ids: list[int] = Field(
-        ...,
-        description="New team IDs in table order")
+        default_factory=list,
+        description=(
+            "New team IDs in table order; empty on text and yes_no"))
+    previous_subject_text: str | None = Field(
+        None,
+        description=(
+            "Previous typed name; null on first save or other kinds"))
+    new_subject_text: str | None = Field(
+        None,
+        description="New typed name; null on team and yes_no rows")
+    previous_is_text_correct: bool | None = Field(
+        None,
+        description="Previous YES/NO pick; null on other kinds")
+    new_is_text_correct: bool | None = Field(
+        None,
+        description="New YES/NO pick; null on other kinds")
     changed_at: datetime = Field(
         ...,
         description="When the set was saved")
@@ -96,11 +110,26 @@ class LongTermMarketCard(BaseModel):
         description=(
             "Approved result team IDs in table order; "
             "empty until settled"))
+    picked_subject_text: str | None = Field(
+        None,
+        description=(
+            "Current user's typed name; null on team and yes_no"))
+    result_subject_texts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Approved names as the admin typed them; "
+            "empty until settled or on non-text markets"))
+    picked_is_text_correct: bool | None = Field(
+        None,
+        description="Current user's YES/NO pick; null on other kinds")
+    result_is_text_correct: bool | None = Field(
+        None,
+        description=(
+            "Approved YES/NO; null until settled or on other kinds"))
     points: float | None = Field(
         None,
         description=(
-            "Zone-and-position score after settlement; "
-            "null while the market is unsettled"))
+            "Score after settlement; null while the market is unsettled"))
     changes: list[LongTermPickChange] = Field(
         ...,
         description="Private audit of the current user's set")
@@ -115,26 +144,51 @@ class LongTermDashboardResponse(BaseModel):
         description="Long-term markets for the season")
 
 
-class LongTermTeamIdsRequest(BaseModel):
-    """Body for pick save and admin settlement."""
+class LongTermPicksRequest(BaseModel):
+    """Body for pick save and admin settlement.
 
-    team_ids: list[int] = Field(
-        ...,
-        min_length=1,
+    Exactly one branch is required per market kind; the service
+    enforces xor. Ranked table still sends only team_ids.
+    """
+
+    team_ids: list[int] | None = Field(
+        None,
         description=(
             "Team IDs in table order; index 0 is position 1. "
-            "Count must match the market selection size"))
+            "Used by ranked_team_table and single_team"))
+    subject_texts: list[str] | None = Field(
+        None,
+        description=(
+            "Typed names without sorting; one pick on save, "
+            "one or more on free_text settlement"))
+    is_text_correct: bool | None = Field(
+        None,
+        description="YES (true) or NO (false) for yes_no markets")
 
     @field_validator("team_ids")
     @classmethod
     def require_positive_unique_team_ids(
-            cls, value: list[int]) -> list[int]:
+            cls, value: list[int] | None) -> list[int] | None:
         """Reject non-positive or duplicate ids before domain rules run."""
+        if value is None:
+            return None
         if any(team_id < 1 for team_id in value):
             raise ValueError("Team ids must be positive integers")
         if len(set(value)) != len(value):
             raise ValueError("Team ids must be unique")
         return value
+
+    @field_validator("subject_texts")
+    @classmethod
+    def strip_non_empty_subject_texts(
+            cls, value: list[str] | None) -> list[str] | None:
+        """Trim each name; reject blanks. Do not sort or collapse."""
+        if value is None:
+            return None
+        stripped = [text.strip() for text in value]
+        if any(not text for text in stripped):
+            raise ValueError("Subject texts must be non-empty after trim")
+        return stripped
 
 
 class SaveLongTermPicksResponse(BaseModel):
@@ -147,6 +201,18 @@ class SaveLongTermPicksResponse(BaseModel):
     previous_team_ids: list[int] | None = Field(
         None,
         description="Previous set in table order; null on the first save")
+    subject_texts: list[str] = Field(
+        default_factory=list,
+        description="Saved typed names; empty on team and yes_no")
+    previous_subject_text: str | None = Field(
+        None,
+        description="Previous typed name; null on first save or other kinds")
+    is_text_correct: bool | None = Field(
+        None,
+        description="Saved YES/NO; null on other kinds")
+    previous_is_text_correct: bool | None = Field(
+        None,
+        description="Previous YES/NO; null on first save or other kinds")
     audit_written: bool = Field(
         ...,
         description="False when the identical sequence was a no-op")
@@ -247,6 +313,12 @@ class SettleLongTermResponse(BaseModel):
     team_ids: list[int] = Field(
         ...,
         description="Approved team IDs in table order")
+    subject_texts: list[str] = Field(
+        default_factory=list,
+        description="Approved names; empty on team and yes_no")
+    is_text_correct: bool | None = Field(
+        None,
+        description="Approved YES/NO; null on other kinds")
     settled_by_uuid: str | None = Field(
         None,
         description="Public UUID of the admin who wrote the result")

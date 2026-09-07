@@ -13,7 +13,7 @@ from api.schemas.champions_league_typer_long_term import (
     LongTermAutoResultResponse,
     LongTermDashboardResponse,
     LongTermPickChange,
-    LongTermTeamIdsRequest,
+    LongTermPicksRequest,
     SaveLongTermPicksResponse,
     SettleLongTermResponse)
 from backend.services import (
@@ -73,13 +73,17 @@ async def get_dashboard(
     response_model=SaveLongTermPicksResponse)
 async def save_picks(
     user: Annotated[dict[str, Any], Depends(get_current_user)],
-    body: LongTermTeamIdsRequest,
+    body: LongTermPicksRequest,
     market_id: int = Path(..., ge=1, description="Long-term market ID")
 ) -> SaveLongTermPicksResponse:
-    """Replace the current user's ranked table before first kick-off."""
+    """Replace the current user's pick before first kick-off."""
     payload = _invoke(
         lambda: long_term_service.save_picks(
-            _user_id(user), market_id, body.team_ids))
+            _user_id(user),
+            market_id,
+            team_ids=body.team_ids,
+            subject_texts=body.subject_texts,
+            is_text_correct=body.is_text_correct))
     return SaveLongTermPicksResponse(**payload)
 
 
@@ -116,13 +120,17 @@ async def get_auto_result(
     response_model=SettleLongTermResponse)
 async def settle_market(
     user: Annotated[dict[str, Any], Depends(require_admin)],
-    body: LongTermTeamIdsRequest,
+    body: LongTermPicksRequest,
     market_id: int = Path(..., ge=1, description="Long-term market ID")
 ) -> SettleLongTermResponse:
-    """Approve or correct the ordered table after a complete league phase."""
+    """Approve or correct the result set for the market kind."""
     payload = _invoke(
         lambda: long_term_service.settle_market(
-            market_id, body.team_ids, _user_id(user)))
+            market_id,
+            team_ids=body.team_ids,
+            admin_id=_user_id(user),
+            subject_texts=body.subject_texts,
+            is_text_correct=body.is_text_correct))
     return SettleLongTermResponse(**payload)
 
 

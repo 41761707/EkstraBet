@@ -22,6 +22,7 @@ import {
   resolveGroupMatchCount,
   selectKnockoutRounds,
 } from "@/lib/typerLmAdmin";
+import { MARKET_KIND_RANKED_TEAM_TABLE } from "@/lib/typerLmLongTermRanking";
 import type {
   LeagueRound,
   LongTermAutoResultResponse,
@@ -257,8 +258,11 @@ async function loadLongTermDashboard(
 async function loadLongTermAutoResults(
   markets: readonly LongTermMarketCard[],
 ): Promise<Record<number, LongTermAutoResultResponse | null>> {
+  const rankedMarkets = markets.filter(
+    (market) => market.market_kind === MARKET_KIND_RANKED_TEAM_TABLE,
+  );
   const entries = await Promise.all(
-    markets.map(async (market) => {
+    rankedMarkets.map(async (market) => {
       try {
         const payload = await getTyperLongTermAutoResult(market.market_id);
         return [market.market_id, payload] as const;

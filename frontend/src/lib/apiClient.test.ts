@@ -446,6 +446,10 @@ describe("typer LM long-term client", () => {
       market_id: 1,
       team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
       previous_team_ids: null,
+      subject_texts: [],
+      previous_subject_text: null,
+      is_text_correct: null,
+      previous_is_text_correct: null,
       audit_written: true,
     };
     const fetchMock = vi.fn().mockResolvedValue(
@@ -457,7 +461,9 @@ describe("typer LM long-term client", () => {
     stubBrowserFetch(fetchMock);
 
     const teamIds = [3, 1, 2, 6, 5, 4, 8, 7];
-    await expect(saveTyperLongTermPicks(1, teamIds)).resolves.toEqual(payload);
+    await expect(
+      saveTyperLongTermPicks(1, { teamIds }),
+    ).resolves.toEqual(payload);
     const [requested, init] = fetchMock.mock.calls[0] as [
       string,
       RequestInit,
@@ -466,6 +472,62 @@ describe("typer LM long-term client", () => {
     expect(init.method).toBe("PUT");
     expect(JSON.parse(String(init.body))).toEqual({
       team_ids: teamIds,
+    });
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("subject_texts");
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("is_text_correct");
+  });
+
+  it("PUTs a free-text pick without team_ids", async () => {
+    const payload = {
+      market_id: 2,
+      team_ids: [],
+      previous_team_ids: null,
+      subject_texts: ["Robert Lewandowski"],
+      previous_subject_text: null,
+      is_text_correct: null,
+      previous_is_text_correct: null,
+      audit_written: true,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      saveTyperLongTermPicks(2, { subjectTexts: ["Robert Lewandowski"] }),
+    ).resolves.toEqual(payload);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      subject_texts: ["Robert Lewandowski"],
+    });
+  });
+
+  it("PUTs a yes_no NIE pick as is_text_correct false", async () => {
+    const payload = {
+      market_id: 3,
+      team_ids: [],
+      previous_team_ids: null,
+      subject_texts: [],
+      previous_subject_text: null,
+      is_text_correct: false,
+      previous_is_text_correct: null,
+      audit_written: true,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      saveTyperLongTermPicks(3, { isTextCorrect: false }),
+    ).resolves.toEqual(payload);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      is_text_correct: false,
     });
   });
 
@@ -531,6 +593,8 @@ describe("typer LM long-term client", () => {
     const payload = {
       market_id: 1,
       team_ids: [1, 2, 3, 4, 5, 6, 7, 8],
+      subject_texts: [],
+      is_text_correct: null,
       settled_by_uuid: "admin-1",
       settled_by_display_name: "Admin",
       settled_at: "2027-01-30T12:00:00",
@@ -545,9 +609,9 @@ describe("typer LM long-term client", () => {
     stubBrowserFetch(fetchMock);
 
     const teamIds = [3, 1, 2, 6, 5, 4, 8, 7];
-    await expect(settleTyperLongTermMarket(1, teamIds)).resolves.toEqual(
-      payload,
-    );
+    await expect(
+      settleTyperLongTermMarket(1, { teamIds }),
+    ).resolves.toEqual(payload);
     const [requested, init] = fetchMock.mock.calls[0] as [
       string,
       RequestInit,
@@ -558,6 +622,34 @@ describe("typer LM long-term client", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({
       team_ids: teamIds,
+    });
+  });
+
+  it("POSTs a free-text settlement without team_ids", async () => {
+    const payload = {
+      market_id: 2,
+      team_ids: [],
+      subject_texts: ["Robert Lewandowski", "Harry Kane"],
+      is_text_correct: null,
+      settled_by_uuid: "admin-1",
+      settled_by_display_name: "Admin",
+      settled_at: "2027-01-30T12:00:00",
+      result_team_ids: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    const subjectTexts = ["Robert Lewandowski", "Harry Kane"];
+    await expect(
+      settleTyperLongTermMarket(2, { subjectTexts }),
+    ).resolves.toEqual(payload);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      subject_texts: subjectTexts,
     });
   });
 });

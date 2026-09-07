@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 os.environ.setdefault("DB_PASSWORD", "test-db-password")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
@@ -18,7 +19,7 @@ os.environ.setdefault("OPENAPI_ENABLED", "false")
 from api.schemas.champions_league_typer_long_term import (
     LongTermAutoResultResponse,
     LongTermMarketCard,
-    LongTermTeamIdsRequest,
+    LongTermPicksRequest,
     SaveLongTermPicksResponse,
     SettleLongTermResponse)
 from backend.config import get_settings
@@ -84,7 +85,52 @@ def _change_row() -> dict[str, object]:
         "display_name": "Alice",
         "previous_team_ids": None,
         "new_team_ids": list(_TABLE_PERMUTATION),
+        "previous_subject_text": None,
+        "new_subject_text": None,
+        "previous_is_text_correct": None,
+        "new_is_text_correct": None,
         "changed_at": _CHANGED_AT
+    }
+
+
+def _saved_picks(
+        *,
+        team_ids: list[int] | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None,
+        previous_team_ids: list[int] | None = None,
+        previous_subject_text: str | None = None,
+        previous_is_text_correct: bool | None = None,
+        audit_written: bool = True) -> dict[str, object]:
+    return {
+        "market_id": _MARKET_ID,
+        "team_ids": [] if team_ids is None else list(team_ids),
+        "previous_team_ids": previous_team_ids,
+        "subject_texts": (
+            [] if subject_texts is None else list(subject_texts)),
+        "previous_subject_text": previous_subject_text,
+        "is_text_correct": is_text_correct,
+        "previous_is_text_correct": previous_is_text_correct,
+        "audit_written": audit_written
+    }
+
+
+def _settled_payload(
+        *,
+        team_ids: list[int] | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None) -> dict[str, object]:
+    ids = [] if team_ids is None else list(team_ids)
+    return {
+        "market_id": _MARKET_ID,
+        "team_ids": ids,
+        "subject_texts": (
+            [] if subject_texts is None else list(subject_texts)),
+        "is_text_correct": is_text_correct,
+        "settled_by_uuid": _ADMIN_USER["uuid"],
+        "settled_by_display_name": "Alice",
+        "settled_at": _SETTLED_AT,
+        "result_team_ids": ids
     }
 
 
@@ -97,7 +143,7 @@ def _dashboard_payload() -> dict[str, object]:
             "season_id": 13,
             "market_key": "league_phase_table",
             "title": "Tabela fazy ligowej",
-            "description": "Ułóż 36 drużyn",
+            "description": "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
             "selection_size": _TABLE_SIZE,
             "points_per_correct": 2.0,
             "points_per_exact_position": 2.0,
@@ -112,8 +158,45 @@ def _dashboard_payload() -> dict[str, object]:
                 _candidate(team_id) for team_id in _TABLE_IDS],
             "picked_team_ids": list(_TABLE_PERMUTATION),
             "result_team_ids": [],
+            "picked_subject_text": None,
+            "result_subject_texts": [],
+            "picked_is_text_correct": None,
+            "result_is_text_correct": None,
             "points": None,
             "changes": [_change_row()]
+        }]
+    }
+
+
+def _free_text_dashboard_payload() -> dict[str, object]:
+    return {
+        "season_id": 13,
+        "markets": [{
+            "market_id": _MARKET_ID,
+            "league_id": 42,
+            "season_id": 13,
+            "market_key": "top_scorer",
+            "title": "Najlepszy strzelec",
+            "description": None,
+            "selection_size": 1,
+            "points_per_correct": 2.0,
+            "points_per_exact_position": 0.0,
+            "market_kind": "free_text",
+            "scoring_kind": "exact_subject",
+            "top_zone_size": -1,
+            "bot_zone_size": -1,
+            "settled_at": None,
+            "deadline_at": _DEADLINE,
+            "is_locked": False,
+            "candidates": [],
+            "picked_team_ids": [],
+            "result_team_ids": [],
+            "picked_subject_text": "  Robert   Lewandowski ",
+            "result_subject_texts": ["Robert Lewandowski"],
+            "picked_is_text_correct": None,
+            "result_is_text_correct": None,
+            "points": 2.0,
+            "changes": []
         }]
     }
 
@@ -233,6 +316,10 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
         self.assertEqual(market["picked_team_ids"], list(_TABLE_PERMUTATION))
         self.assertNotEqual(
             market["picked_team_ids"], sorted(market["picked_team_ids"]))
+        self.assertIsNone(market["picked_subject_text"])
+        self.assertEqual(market["result_subject_texts"], [])
+        self.assertIsNone(market["picked_is_text_correct"])
+        self.assertIsNone(market["result_is_text_correct"])
         self.assertIsNone(market["points"])
         self.assertNotIn("user_id", market)
         self.assertNotIn("user_id", payload)
@@ -247,12 +334,7 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             _mock_fetch: MagicMock,
             mock_save: MagicMock) -> None:
         ordered = list(_TABLE_PERMUTATION)
-        mock_save.return_value = {
-            "market_id": _MARKET_ID,
-            "team_ids": ordered,
-            "previous_team_ids": None,
-            "audit_written": True
-        }
+        mock_save.return_value = _saved_picks(team_ids=ordered)
         response = self.client.put(
             f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
             json={"team_ids": ordered},
@@ -261,10 +343,18 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
         payload = response.json()
         self.assertEqual(payload["team_ids"], ordered)
         self.assertNotEqual(payload["team_ids"], sorted(ordered))
+        self.assertEqual(payload["subject_texts"], [])
+        self.assertIsNone(payload["is_text_correct"])
+        self.assertIsNone(payload["previous_subject_text"])
         self.assertTrue(payload["audit_written"])
         self.assertNotIn("user_id", payload)
         self.assertNotIn("player_ids", payload)
-        mock_save.assert_called_once_with(4, _MARKET_ID, ordered)
+        mock_save.assert_called_once_with(
+            4,
+            _MARKET_ID,
+            team_ids=ordered,
+            subject_texts=None,
+            is_text_correct=None)
 
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_duplicate_team_ids_return_422(
@@ -300,7 +390,12 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             json={"team_ids": list(_EIGHT_IDS)},
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 422)
-        mock_save.assert_called_once_with(4, _MARKET_ID, list(_EIGHT_IDS))
+        mock_save.assert_called_once_with(
+            4,
+            _MARKET_ID,
+            team_ids=list(_EIGHT_IDS),
+            subject_texts=None,
+            is_text_correct=None)
 
     @patch(f"{_SERVICE}.save_picks")
     @patch(_FETCH_UUID, return_value=_TEST_USER)
@@ -344,7 +439,40 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json()[0]["new_team_ids"], list(_TABLE_PERMUTATION))
+        self.assertIsNone(response.json()[0]["previous_subject_text"])
+        self.assertIsNone(response.json()[0]["new_subject_text"])
+        self.assertIsNone(response.json()[0]["previous_is_text_correct"])
+        self.assertIsNone(response.json()[0]["new_is_text_correct"])
         mock_history.assert_called_once_with(4, _MARKET_ID)
+
+    @patch(f"{_SERVICE}.get_own_history")
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_own_history_serializes_text_audit(
+            self,
+            _mock_fetch: MagicMock,
+            mock_history: MagicMock) -> None:
+        mock_history.return_value = [{
+            "id": 11,
+            "market_id": _MARKET_ID,
+            "user_uuid": _TEST_USER["uuid"],
+            "display_name": "Alice",
+            "previous_team_ids": None,
+            "new_team_ids": [],
+            "previous_subject_text": "Robert Lewandowski",
+            "new_subject_text": "Kylian Mbappe",
+            "previous_is_text_correct": None,
+            "new_is_text_correct": None,
+            "changed_at": _CHANGED_AT
+        }]
+        response = self.client.get(
+            f"/typer-lm/long-term/markets/{_MARKET_ID}/history",
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        row = response.json()[0]
+        self.assertEqual(row["previous_subject_text"], "Robert Lewandowski")
+        self.assertEqual(row["new_subject_text"], "Kylian Mbappe")
+        self.assertEqual(row["new_team_ids"], [])
+        self.assertIsNone(row["previous_is_text_correct"])
 
     @patch(f"{_SERVICE}.get_own_history")
     @patch(_FETCH_UUID, return_value=_TEST_USER)
@@ -359,12 +487,133 @@ class TestLongTermParticipantRouter(LongTermRouterTestCase):
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 404)
 
+    @patch(f"{_SERVICE}.save_picks")
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_subject_texts_forwards_free_text_branch(
+            self,
+            _mock_fetch: MagicMock,
+            mock_save: MagicMock) -> None:
+        texts = ["Robert Lewandowski"]
+        mock_save.return_value = _saved_picks(subject_texts=texts)
+        response = self.client.put(
+            f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
+            json={"subject_texts": texts},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["subject_texts"], texts)
+        self.assertEqual(payload["team_ids"], [])
+        self.assertIsNone(payload["is_text_correct"])
+        mock_save.assert_called_once_with(
+            4,
+            _MARKET_ID,
+            team_ids=None,
+            subject_texts=texts,
+            is_text_correct=None)
+
+    @patch(f"{_SERVICE}.save_picks")
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_is_text_correct_forwards_yes_no_branch(
+            self,
+            _mock_fetch: MagicMock,
+            mock_save: MagicMock) -> None:
+        mock_save.return_value = _saved_picks(is_text_correct=True)
+        response = self.client.put(
+            f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
+            json={"is_text_correct": True},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["is_text_correct"])
+        self.assertEqual(payload["subject_texts"], [])
+        self.assertEqual(payload["team_ids"], [])
+        mock_save.assert_called_once_with(
+            4,
+            _MARKET_ID,
+            team_ids=None,
+            subject_texts=None,
+            is_text_correct=True)
+
+    @patch(f"{_SERVICE}.save_picks")
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_put_single_team_forwards_one_id(
+            self,
+            _mock_fetch: MagicMock,
+            mock_save: MagicMock) -> None:
+        mock_save.return_value = _saved_picks(team_ids=[12])
+        response = self.client.put(
+            f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
+            json={"team_ids": [12]},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["team_ids"], [12])
+        mock_save.assert_called_once_with(
+            4,
+            _MARKET_ID,
+            team_ids=[12],
+            subject_texts=None,
+            is_text_correct=None)
+
+    @patch(f"{_SERVICE}.save_picks")
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_wrong_kind_payload_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_save: MagicMock) -> None:
+        mock_save.side_effect = TyperValidationError(
+            "Subject text is not valid for this market kind")
+        response = self.client.put(
+            f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
+            json={"subject_texts": ["x"]},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"],
+            "Subject text is not valid for this market kind")
+        mock_save.assert_called_once_with(
+            4,
+            _MARKET_ID,
+            team_ids=None,
+            subject_texts=["x"],
+            is_text_correct=None)
+
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_blank_subject_texts_return_422_before_service(
+            self, _mock_fetch: MagicMock) -> None:
+        response = self.client.put(
+            f"/typer-lm/long-term/markets/{_MARKET_ID}/picks",
+            json={"subject_texts": ["   "]},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 422)
+        self.assertIsInstance(response.json()["detail"], list)
+
+    @patch(
+        f"{_SERVICE}.get_dashboard",
+        return_value=_free_text_dashboard_payload())
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_dashboard_serializes_free_text_card(
+            self,
+            _mock_fetch: MagicMock,
+            _mock_dashboard: MagicMock) -> None:
+        response = self.client.get(
+            "/typer-lm/long-term",
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        market = response.json()["markets"][0]
+        self.assertEqual(market["market_kind"], "free_text")
+        self.assertEqual(
+            market["picked_subject_text"], "  Robert   Lewandowski ")
+        self.assertEqual(
+            market["result_subject_texts"], ["Robert Lewandowski"])
+        self.assertEqual(market["candidates"], [])
+        self.assertEqual(market["picked_team_ids"], [])
+
 
 class TestLongTermSchemaContract(unittest.TestCase):
     """HTTP schema treats table order as significant and has no player_ids."""
 
     def test_team_ids_field_does_not_ignore_order(self) -> None:
-        field = LongTermTeamIdsRequest.model_fields["team_ids"]
+        field = LongTermPicksRequest.model_fields["team_ids"]
         description = field.description or ""
         self.assertNotEqual(description, "")
         self.assertNotIn("order is ignored", description.lower())
@@ -374,13 +623,37 @@ class TestLongTermSchemaContract(unittest.TestCase):
         models = (
             LongTermMarketCard,
             LongTermAutoResultResponse,
-            LongTermTeamIdsRequest,
+            LongTermPicksRequest,
             SaveLongTermPicksResponse,
             SettleLongTermResponse)
         for model in models:
             with self.subTest(model=model.__name__):
                 self.assertNotIn("player_ids", model.model_fields)
                 self.assertNotIn("player_id", model.model_fields)
+
+    def test_ranked_table_request_omits_text_branches(self) -> None:
+        body = LongTermPicksRequest(team_ids=list(_TABLE_PERMUTATION))
+        self.assertEqual(body.team_ids, list(_TABLE_PERMUTATION))
+        self.assertIsNone(body.subject_texts)
+        self.assertIsNone(body.is_text_correct)
+
+    def test_schema_does_not_require_xor(self) -> None:
+        body = LongTermPicksRequest(
+            team_ids=[12],
+            subject_texts=["Lewandowski"],
+            is_text_correct=True)
+        self.assertEqual(body.team_ids, [12])
+        self.assertEqual(body.subject_texts, ["Lewandowski"])
+        self.assertTrue(body.is_text_correct)
+
+    def test_subject_texts_are_stripped_without_sorting(self) -> None:
+        body = LongTermPicksRequest(
+            subject_texts=["  Mbappe ", "  Lewandowski "])
+        self.assertEqual(body.subject_texts, ["Mbappe", "Lewandowski"])
+
+    def test_blank_subject_texts_are_rejected_by_schema(self) -> None:
+        with self.assertRaises(ValidationError):
+            LongTermPicksRequest(subject_texts=["   "])
 
 
 class TestLongTermAdminRouter(LongTermRouterTestCase):
@@ -512,7 +785,11 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 409)
         mock_settle.assert_called_once_with(
-            _MARKET_ID, list(_TABLE_PERMUTATION), 7)
+            _MARKET_ID,
+            team_ids=list(_TABLE_PERMUTATION),
+            admin_id=7,
+            subject_texts=None,
+            is_text_correct=None)
 
     @patch(f"{_SERVICE}.settle_market")
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)
@@ -521,14 +798,7 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
             _mock_fetch: MagicMock,
             mock_settle: MagicMock) -> None:
         corrected = list(_TABLE_PERMUTATION)
-        mock_settle.return_value = {
-            "market_id": _MARKET_ID,
-            "team_ids": corrected,
-            "settled_by_uuid": _ADMIN_USER["uuid"],
-            "settled_by_display_name": "Alice",
-            "settled_at": _SETTLED_AT,
-            "result_team_ids": corrected
-        }
+        mock_settle.return_value = _settled_payload(team_ids=corrected)
         response = self.client.post(
             f"/typer-lm/long-term/admin/markets/{_MARKET_ID}/settle",
             json={"team_ids": corrected},
@@ -538,9 +808,16 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
         self.assertEqual(payload["team_ids"], corrected)
         self.assertNotEqual(payload["team_ids"], sorted(corrected))
         self.assertEqual(payload["result_team_ids"], corrected)
+        self.assertEqual(payload["subject_texts"], [])
+        self.assertIsNone(payload["is_text_correct"])
         self.assertEqual(payload["settled_by_uuid"], _ADMIN_USER["uuid"])
         self.assertNotIn("settled_by", payload)
-        mock_settle.assert_called_once_with(_MARKET_ID, corrected, 7)
+        mock_settle.assert_called_once_with(
+            _MARKET_ID,
+            team_ids=corrected,
+            admin_id=7,
+            subject_texts=None,
+            is_text_correct=None)
 
     @patch(f"{_SERVICE}.settle_market")
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)
@@ -555,6 +832,92 @@ class TestLongTermAdminRouter(LongTermRouterTestCase):
             json={"team_ids": list(_TEAM_IDS)},
             headers=self._auth_headers())
         self.assertEqual(response.status_code, 404)
+
+    @patch(f"{_SERVICE}.settle_market")
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_settle_subject_texts_forwards_free_text_branch(
+            self,
+            _mock_fetch: MagicMock,
+            mock_settle: MagicMock) -> None:
+        texts = ["Robert Lewandowski", "Kylian Mbappe"]
+        mock_settle.return_value = _settled_payload(subject_texts=texts)
+        response = self.client.post(
+            f"/typer-lm/long-term/admin/markets/{_MARKET_ID}/settle",
+            json={"subject_texts": texts},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["subject_texts"], texts)
+        self.assertEqual(payload["team_ids"], [])
+        self.assertIsNone(payload["is_text_correct"])
+        mock_settle.assert_called_once_with(
+            _MARKET_ID,
+            team_ids=None,
+            admin_id=7,
+            subject_texts=texts,
+            is_text_correct=None)
+
+    @patch(f"{_SERVICE}.settle_market")
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_settle_is_text_correct_forwards_yes_no_branch(
+            self,
+            _mock_fetch: MagicMock,
+            mock_settle: MagicMock) -> None:
+        mock_settle.return_value = _settled_payload(is_text_correct=False)
+        response = self.client.post(
+            f"/typer-lm/long-term/admin/markets/{_MARKET_ID}/settle",
+            json={"is_text_correct": False},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["is_text_correct"])
+        self.assertEqual(payload["subject_texts"], [])
+        mock_settle.assert_called_once_with(
+            _MARKET_ID,
+            team_ids=None,
+            admin_id=7,
+            subject_texts=None,
+            is_text_correct=False)
+
+    @patch(f"{_SERVICE}.settle_market")
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_settle_single_team_forwards_ids(
+            self,
+            _mock_fetch: MagicMock,
+            mock_settle: MagicMock) -> None:
+        mock_settle.return_value = _settled_payload(team_ids=[12, 45])
+        response = self.client.post(
+            f"/typer-lm/long-term/admin/markets/{_MARKET_ID}/settle",
+            json={"team_ids": [12, 45]},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["team_ids"], [12, 45])
+        mock_settle.assert_called_once_with(
+            _MARKET_ID,
+            team_ids=[12, 45],
+            admin_id=7,
+            subject_texts=None,
+            is_text_correct=None)
+
+    @patch(f"{_SERVICE}.settle_market")
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_settle_wrong_kind_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_settle: MagicMock) -> None:
+        mock_settle.side_effect = TyperValidationError(
+            "Team ids are not valid for this market kind")
+        response = self.client.post(
+            f"/typer-lm/long-term/admin/markets/{_MARKET_ID}/settle",
+            json={"team_ids": [12]},
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 422)
+        mock_settle.assert_called_once_with(
+            _MARKET_ID,
+            team_ids=[12],
+            admin_id=7,
+            subject_texts=None,
+            is_text_correct=None)
 
     @patch(f"{_SERVICE}.get_admin_history")
     @patch(_FETCH_UUID, return_value=_ADMIN_USER)

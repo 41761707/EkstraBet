@@ -15,7 +15,13 @@ LEAGUE_PHASE_MATCHES_PER_TEAM = repository.LEAGUE_PHASE_MATCHES_PER_TEAM
 LEAGUE_PHASE_SETTLED_MATCH_COUNT = (
     repository.LEAGUE_PHASE_SETTLED_MATCH_COUNT)
 MARKET_KIND_RANKED_TEAM_TABLE = "ranked_team_table"
+MARKET_KIND_SINGLE_TEAM = "single_team"
+MARKET_KIND_FREE_TEXT = "free_text"
+MARKET_KIND_YES_NO = "yes_no"
 SCORING_KIND_ZONE_AND_POSITION = "zone_and_position"
+SCORING_KIND_EXACT_SUBJECT = "exact_subject"
+
+normalize_subject_text = repository.normalize_subject_text
 
 
 class TyperServiceError(Exception):
@@ -103,6 +109,16 @@ def score_zone_and_position(
     return total
 
 
+def score_exact_subject(
+        pick_values: list[str] | list[int] | list[bool],
+        result_values: list[str] | list[int] | list[bool],
+        points_per_correct: float) -> float:
+    """Return |set(picks) ∩ set(results)| * points_per_correct."""
+    return (
+        float(len(set(pick_values) & set(result_values)))
+        * float(points_per_correct))
+
+
 def score_long_term(
         scoring_kind: str,
         pick_team_ids: list[int],
@@ -110,20 +126,67 @@ def score_long_term(
         points_per_correct: float,
         points_per_exact_position: float,
         top_zone_size: int,
-        bot_zone_size: int) -> float:
-    """Dispatch. zone_and_position -> score_zone_and_position.
+        bot_zone_size: int,
+        market_kind: str = "",
+        pick_subject_texts: list[str] | None = None,
+        result_subject_texts: list[str] | None = None,
+        pick_is_text_correct: bool | None = None,
+        result_is_text_correct: bool | None = None) -> float:
+    """Dispatch zone_and_position or exact_subject.
 
-    Unknown kind -> 0.0.
+    Unknown scoring_kind or exact_subject market_kind -> 0.0.
+    Text values must already be normalized.
     """
-    if scoring_kind != SCORING_KIND_ZONE_AND_POSITION:
+    if scoring_kind == SCORING_KIND_ZONE_AND_POSITION:
+        return score_zone_and_position(
+            pick_team_ids,
+            result_team_ids,
+            points_per_correct,
+            points_per_exact_position,
+            top_zone_size,
+            bot_zone_size)
+    if scoring_kind != SCORING_KIND_EXACT_SUBJECT:
         return 0.0
-    return score_zone_and_position(
+    return _score_exact_subject_for_kind(
+        market_kind,
         pick_team_ids,
         result_team_ids,
-        points_per_correct,
-        points_per_exact_position,
-        top_zone_size,
-        bot_zone_size)
+        pick_subject_texts,
+        result_subject_texts,
+        pick_is_text_correct,
+        result_is_text_correct,
+        points_per_correct)
+
+
+def _score_exact_subject_for_kind(
+        market_kind: str,
+        pick_team_ids: list[int],
+        result_team_ids: list[int],
+        pick_subject_texts: list[str] | None,
+        result_subject_texts: list[str] | None,
+        pick_is_text_correct: bool | None,
+        result_is_text_correct: bool | None,
+        points_per_correct: float) -> float:
+    # dispatch po market_kind: bool True == 1 w Pythonie, nie mieszać list
+    if market_kind == MARKET_KIND_FREE_TEXT:
+        return score_exact_subject(
+            list(pick_subject_texts or []),
+            list(result_subject_texts or []),
+            points_per_correct)
+    if market_kind == MARKET_KIND_SINGLE_TEAM:
+        return score_exact_subject(
+            pick_team_ids,
+            result_team_ids,
+            points_per_correct)
+    if market_kind == MARKET_KIND_YES_NO:
+        picks: list[bool] = (
+            [] if pick_is_text_correct is None
+            else [pick_is_text_correct])
+        results: list[bool] = (
+            [] if result_is_text_correct is None
+            else [result_is_text_correct])
+        return score_exact_subject(picks, results, points_per_correct)
+    return 0.0
 
 
 def is_league_phase_complete(auto_result: dict[str, Any]) -> bool:
@@ -151,11 +214,21 @@ def get_dashboard(
 def save_picks(
         user_id: int,
         market_id: int,
-        team_ids: list[int]) -> dict[str, Any]:
-    """Replace the caller's ordered table; identical sequences skip audit."""
+        team_ids: list[int] | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None) -> dict[str, Any]:
+    """Replace the caller's pick; identical payloads skip audit.
+
+    Exactly one of team_ids, subject_texts, is_text_correct is required.
+    The repository enforces xor against the market kind.
+    """
     with _repository_errors():
         stored = repository.save_long_term_picks(
-            user_id, market_id, team_ids)
+            user_id,
+            market_id,
+            team_ids=team_ids,
+            subject_texts=subject_texts,
+            is_text_correct=is_text_correct)
     return _map_saved_picks(stored)
 
 
@@ -190,14 +263,23 @@ def get_auto_result(market_id: int) -> dict[str, Any]:
 
 def settle_market(
         market_id: int,
-        team_ids: list[int],
-        admin_id: int) -> dict[str, Any]:
-    """Approve or correct the ranked table after a complete league phase."""
+        team_ids: list[int] | None = None,
+        admin_id: int | None = None,
+        subject_texts: list[str] | None = None,
+        is_text_correct: bool | None = None) -> dict[str, Any]:
+    """Approve or correct the result set for the market kind.
+
+    Ranked table requires a complete league phase. Other kinds do not.
+    """
     with _repository_errors():
         auto_result = repository.fetch_auto_result(market_id)
-        if not is_league_phase_complete(auto_result):
-            raise TyperConflictError("League phase is not complete")
-        stored = repository.settle_market(market_id, team_ids, admin_id)
+        _assert_ranked_phase_complete(auto_result)
+        stored = repository.settle_market(
+            market_id,
+            team_ids=team_ids,
+            admin_id=admin_id,
+            subject_texts=subject_texts,
+            is_text_correct=is_text_correct)
     return _map_settled(stored)
 
 
@@ -207,8 +289,8 @@ def _map_auto_result(document: dict[str, Any]) -> dict[str, Any]:
     top_zone_size = int(document["top_zone_size"])
     bot_zone_size = int(document["bot_zone_size"])
     standings = list(document["standings"])
-    # pełna tabela 36, nie prefiks TOP 8
-    proposed = standings if complete else []
+    # auto-propozycja tylko dla tabeli; inne kindy rozlicza admin ręcznie
+    proposed = _proposed_auto_result_teams(document, complete)
     proposed_ids = [int(row["team_id"]) for row in proposed]
     settler = _settler_public_identity(document.get("settled_by"))
     return {
@@ -268,17 +350,12 @@ def _map_dashboard_market(
         changes: list[dict[str, Any]]) -> dict[str, Any]:
     picked = [int(team_id) for team_id in market["picked_team_ids"]]
     results = [int(team_id) for team_id in market["result_team_ids"]]
-    points = None
-    if results:
-        # punkty dopiero po settle: puste result_team_ids to brak wyniku
-        points = score_long_term(
-            str(market["scoring_kind"]),
-            picked,
-            results,
-            float(market["points_per_correct"]),
-            float(market["points_per_exact_position"]),
-            int(market["top_zone_size"]),
-            int(market["bot_zone_size"]))
+    picked_subject_text = _optional_str(
+        market.get("picked_subject_text"))
+    result_subject_texts = [
+        str(text) for text in market.get("result_subject_texts") or []]
+    picked_flag = _optional_bool(market.get("picked_is_text_correct"))
+    result_flag = _optional_bool(market.get("result_is_text_correct"))
     return {
         "market_id": int(market["market_id"]),
         "league_id": int(market["league_id"]),
@@ -300,7 +377,18 @@ def _map_dashboard_market(
         "candidates": list(market["candidates"]),
         "picked_team_ids": picked,
         "result_team_ids": results,
-        "points": points,
+        "picked_subject_text": picked_subject_text,
+        "result_subject_texts": result_subject_texts,
+        "picked_is_text_correct": picked_flag,
+        "result_is_text_correct": result_flag,
+        "points": _dashboard_market_points(
+            market,
+            picked,
+            results,
+            picked_subject_text,
+            result_subject_texts,
+            picked_flag,
+            result_flag),
         "changes": changes
     }
 
@@ -313,6 +401,14 @@ def _map_saved_picks(stored: dict[str, Any]) -> dict[str, Any]:
         "previous_team_ids": (
             None if previous is None
             else [int(team_id) for team_id in previous]),
+        "subject_texts": [
+            str(text) for text in stored.get("subject_texts") or []],
+        "previous_subject_text": _optional_str(
+            stored.get("previous_subject_text")),
+        "is_text_correct": _optional_bool(
+            stored.get("is_text_correct")),
+        "previous_is_text_correct": _optional_bool(
+            stored.get("previous_is_text_correct")),
         "audit_written": bool(stored["audit_written"])
     }
 
@@ -323,12 +419,99 @@ def _map_settled(stored: dict[str, Any]) -> dict[str, Any]:
     return {
         "market_id": int(stored["market_id"]),
         "team_ids": team_ids,
+        "subject_texts": [
+            str(text) for text in stored.get("subject_texts") or []],
+        "is_text_correct": _optional_bool(
+            stored.get("is_text_correct")),
         "settled_by_uuid": settler["settled_by_uuid"],
         "settled_by_display_name": settler["settled_by_display_name"],
         "settled_at": stored["settled_at"],
         "result_team_ids": [
             int(team_id) for team_id in stored["result_team_ids"]]
     }
+
+
+def _assert_ranked_phase_complete(auto_result: dict[str, Any]) -> None:
+    kind = str(auto_result.get("market_kind") or "")
+    if kind != MARKET_KIND_RANKED_TEAM_TABLE:
+        return
+    if not is_league_phase_complete(auto_result):
+        raise TyperConflictError("League phase is not complete")
+
+
+def _proposed_auto_result_teams(
+        document: dict[str, Any],
+        complete: bool) -> list[dict[str, Any]]:
+    kind = str(document.get("market_kind") or "")
+    if kind != MARKET_KIND_RANKED_TEAM_TABLE or not complete:
+        return []
+    # pełna tabela 36, nie prefiks TOP 8
+    return list(document["standings"])
+
+
+def _dashboard_market_points(
+        market: dict[str, Any],
+        picked: list[int],
+        results: list[int],
+        picked_subject_text: str | None,
+        result_subject_texts: list[str],
+        picked_is_text_correct: bool | None,
+        result_is_text_correct: bool | None) -> float | None:
+    if not _has_published_result(
+            str(market["market_kind"]),
+            results,
+            result_subject_texts,
+            result_is_text_correct):
+        return None
+    pick_texts = (
+        [] if picked_subject_text is None else [picked_subject_text])
+    return score_long_term(
+        str(market["scoring_kind"]),
+        picked,
+        results,
+        float(market["points_per_correct"]),
+        float(market["points_per_exact_position"]),
+        int(market["top_zone_size"]),
+        int(market["bot_zone_size"]),
+        market_kind=str(market["market_kind"]),
+        pick_subject_texts=_normalized_subject_texts(pick_texts),
+        result_subject_texts=_normalized_subject_texts(
+            result_subject_texts),
+        pick_is_text_correct=picked_is_text_correct,
+        result_is_text_correct=result_is_text_correct)
+
+
+def _has_published_result(
+        market_kind: str,
+        result_team_ids: list[int],
+        result_subject_texts: list[str],
+        result_is_text_correct: bool | None) -> bool:
+    if market_kind == MARKET_KIND_FREE_TEXT:
+        return bool(result_subject_texts)
+    if market_kind == MARKET_KIND_YES_NO:
+        return result_is_text_correct is not None
+    return bool(result_team_ids)
+
+
+def _normalized_subject_texts(raw_texts: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for raw in raw_texts:
+        value = normalize_subject_text(raw)
+        if value:
+            normalized.append(value)
+    return normalized
+
+
+def _optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _optional_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
 
 
 def _zone_prefix(team_ids: list[int], zone_size: int) -> list[int]:

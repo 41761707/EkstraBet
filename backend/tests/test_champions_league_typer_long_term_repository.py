@@ -102,19 +102,23 @@ def _assert_audit_append_only(
 def _market_lock_row(
         *,
         is_open: int = 1,
-        selection_size: int = 8) -> dict[str, object]:
+        selection_size: int = 8,
+        market_kind: str = "ranked_team_table",
+        scoring_kind: str = "zone_and_position",
+        market_key: str = "top8_direct_r16",
+        title: str = "TOP 8") -> dict[str, object]:
     return {
         "market_id": _MARKET_ID,
         "league_id": repo.CHAMPIONS_LEAGUE_ID,
         "season_id": _SEASON_ID,
-        "market_key": "top8_direct_r16",
-        "title": "TOP 8",
+        "market_key": market_key,
+        "title": title,
         "description": "Pick 8 teams",
         "selection_size": selection_size,
         "points_per_correct": Decimal("2.00"),
         "points_per_exact_position": Decimal("2.00"),
-        "market_kind": "ranked_team_table",
-        "scoring_kind": "zone_and_position",
+        "market_kind": market_kind,
+        "scoring_kind": scoring_kind,
         "top_zone_size": 8,
         "bot_zone_size": 8,
         "settled_at": None,
@@ -140,6 +144,20 @@ def _candidate_rows(extra: list[int] | None = None) -> list[dict[str, object]]:
     if extra:
         ids.extend(extra)
     return [_candidate_row(team_id) for team_id in ids]
+
+
+def _team_audit_params(
+        previous_csv: str | None, new_csv: str) -> tuple[object, ...]:
+    return (
+        _MARKET_ID,
+        _USER_ID,
+        _USER_ID,
+        previous_csv,
+        new_csv,
+        None,
+        None,
+        None,
+        None)
 
 
 def _pick_rows(team_ids: list[int]) -> list[dict[str, object]]:
@@ -215,6 +233,7 @@ class TestSaveLongTermPicks(unittest.TestCase):
         self.assertIn("DELETE FROM typer_long_term_picks", delete_sql)
         self.assertIn("NOW() <", insert_sql)
         self.assertIn("position", insert_sql)
+        self.assertNotIn("subject_text", insert_sql)
         self.assertEqual(
             insert_params,
             (
@@ -224,8 +243,8 @@ class TestSaveLongTermPicks(unittest.TestCase):
                 _MARKET_ID))
         self.assertEqual(
             audit_params,
-            (_MARKET_ID, _USER_ID, _USER_ID, None, _TEAM_CSV))
-        self.assertNotIn(" ", audit_params[-1])
+            _team_audit_params(None, _TEAM_CSV))
+        self.assertNotIn(" ", audit_params[4])
         _assert_long_term_table_names(self, insert_sql)
         _assert_long_term_table_names(self, audit_sql)
         _assert_audit_append_only(self, cursor)
@@ -250,7 +269,7 @@ class TestSaveLongTermPicks(unittest.TestCase):
             if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
         self.assertEqual(
             audit_params,
-            (_MARKET_ID, _USER_ID, _USER_ID, _TEAM_CSV, new_csv))
+            _team_audit_params(_TEAM_CSV, new_csv))
         conn.commit.assert_called_once()
 
     @patch(_GET_CONN)
@@ -288,7 +307,7 @@ class TestSaveLongTermPicks(unittest.TestCase):
             if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
         self.assertEqual(
             audit_params,
-            (_MARKET_ID, _USER_ID, _USER_ID, _TEAM_CSV, reversed_csv))
+            _team_audit_params(_TEAM_CSV, reversed_csv))
         combined = _combined_sql(cursor)
         self.assertIn("DELETE FROM typer_long_term_picks", combined)
         self.assertIn("INSERT INTO typer_long_term_picks", combined)
@@ -480,9 +499,9 @@ class TestSaveLongTermPicks(unittest.TestCase):
                 _USER_ID,
                 *_position_params(unordered),
                 _MARKET_ID))
-        self.assertEqual(audit_params[-1], unordered_csv)
+        self.assertEqual(audit_params[4], unordered_csv)
         self.assertNotEqual(
-            audit_params[-1], ",".join(str(i) for i in sorted(unordered)))
+            audit_params[4], ",".join(str(i) for i in sorted(unordered)))
 
     @patch(_GET_CONN)
     def test_save_inserts_positions_for_full_table(
@@ -538,6 +557,10 @@ class TestFetchLongTermDashboard(unittest.TestCase):
         market = document["markets"][0]
         self.assertEqual(market["picked_team_ids"], [45, 12])
         self.assertEqual(market["result_team_ids"], [101, 45])
+        self.assertIsNone(market["picked_subject_text"])
+        self.assertEqual(market["result_subject_texts"], [])
+        self.assertIsNone(market["picked_is_text_correct"])
+        self.assertIsNone(market["result_is_text_correct"])
         self.assertEqual(len(market["candidates"]), 8)
         self.assertFalse(market["is_locked"])
         self.assertEqual(market["points_per_correct"], 2.0)
@@ -634,6 +657,54 @@ class TestLongTermHistory(unittest.TestCase):
         _assert_no_inlined_values(self, query, _USER_ID, _MARKET_ID)
         _assert_long_term_table_names(self, query)
         _assert_audit_append_only(self, cursor)
+
+    @patch(_GET_CONN)
+    def test_own_history_maps_subject_and_yes_no_audit_columns(
+            self, mock_get_conn: MagicMock) -> None:
+        text_change = {
+            "id": 9,
+            "market_id": _MARKET_ID,
+            "user_uuid": "u-1",
+            "display_name": "Ada",
+            "previous_team_ids": None,
+            "new_team_ids": None,
+            "previous_subject_text": "Robert Lewandowski",
+            "new_subject_text": "Kylian Mbappe",
+            "previous_is_text_correct": None,
+            "new_is_text_correct": None,
+            "changed_at": _CHANGED_AT
+        }
+        yes_no_change = {
+            "id": 10,
+            "market_id": _MARKET_ID,
+            "user_uuid": "u-1",
+            "display_name": "Ada",
+            "previous_team_ids": None,
+            "new_team_ids": None,
+            "previous_subject_text": None,
+            "new_subject_text": None,
+            "previous_is_text_correct": 1,
+            "new_is_text_correct": 0,
+            "changed_at": _CHANGED_AT
+        }
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[text_change, yes_no_change]])
+        rows = repo.fetch_own_long_term_history(_USER_ID, _MARKET_ID)
+        history_sql = cursor.execute.call_args_list[-1].args[0]
+        self.assertIn("c.previous_subject_text", history_sql)
+        self.assertIn("c.new_subject_text", history_sql)
+        self.assertIn("c.previous_is_text_correct", history_sql)
+        self.assertIn("c.new_is_text_correct", history_sql)
+        self.assertEqual(
+            rows[0]["previous_subject_text"], "Robert Lewandowski")
+        self.assertEqual(rows[0]["new_subject_text"], "Kylian Mbappe")
+        self.assertIsNone(rows[0]["previous_is_text_correct"])
+        self.assertIsNone(rows[0]["new_is_text_correct"])
+        self.assertIsNone(rows[1]["previous_subject_text"])
+        self.assertTrue(rows[1]["previous_is_text_correct"])
+        self.assertFalse(rows[1]["new_is_text_correct"])
+        self.assertEqual(rows[1]["new_team_ids"], [])
 
     @patch(_GET_CONN)
     def test_own_history_missing_market_is_not_found(
@@ -974,6 +1045,603 @@ class TestSettleMarket(unittest.TestCase):
                 _MARKET_ID, list(_TEAM_IDS), _ADMIN_ID)
         conn.commit.assert_not_called()
         conn.rollback.assert_called()
+
+
+def _free_text_market_row(*, is_open: int = 1) -> dict[str, object]:
+    return _market_lock_row(
+        is_open=is_open,
+        selection_size=1,
+        market_kind="free_text",
+        scoring_kind="exact_subject",
+        market_key="top_scorer",
+        title="Najlepszy strzelec")
+
+
+def _yes_no_market_row(*, is_open: int = 1) -> dict[str, object]:
+    return _market_lock_row(
+        is_open=is_open,
+        selection_size=1,
+        market_kind="yes_no",
+        scoring_kind="exact_subject",
+        market_key="any_team_win_all",
+        title="Czy jakakolwiek drużyna wygra wszystkie mecze?")
+
+
+def _single_team_market_row(
+        *,
+        is_open: int = 1,
+        market_id: int = _MARKET_ID,
+        market_key: str = "most_goals_scored") -> dict[str, object]:
+    row = _market_lock_row(
+        is_open=is_open,
+        selection_size=1,
+        market_kind="single_team",
+        scoring_kind="exact_subject",
+        market_key=market_key,
+        title="Która drużyna strzeli najwięcej bramek")
+    row["market_id"] = market_id
+    return row
+
+
+def _text_pick_row(
+        subject_text: str,
+        normalized: str) -> dict[str, object]:
+    return {
+        "team_id": None,
+        "subject_text": subject_text,
+        "subject_text_normalized": normalized,
+        "is_text_correct": None
+    }
+
+
+def _assert_no_players_sql(
+        test: unittest.TestCase, cursor: MagicMock) -> None:
+    combined = _combined_sql(cursor)
+    test.assertNotIn("FROM players", combined)
+    test.assertNotIn("current_club", combined.lower())
+
+
+class TestExactSubjectPicksAndSettle(unittest.TestCase):
+    """Text, yes/no and single-team insert, audit and settle contracts."""
+
+    def _save_exact(
+            self,
+            mock_get_conn: MagicMock,
+            market_row: dict[str, object],
+            *,
+            team_ids: list[int] | None = None,
+            subject_texts: list[str] | None = None,
+            is_text_correct: bool | None = None,
+            current_rows: list[dict[str, object]] | None = None,
+            candidates: list[dict[str, object]] | None = None,
+            rowcount: int = 1
+            ) -> tuple[MagicMock, MagicMock, dict[str, object]]:
+        fetchall_results: list[list[dict[str, object]]] = []
+        if str(market_row["market_kind"]) in {
+                "ranked_team_table", "single_team"}:
+            fetchall_results.append(
+                candidates if candidates is not None else _candidate_rows())
+        fetchall_results.append(current_rows or [])
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[market_row],
+            fetchall_results=fetchall_results,
+            rowcount=rowcount)
+        result = repo.save_long_term_picks(
+            _USER_ID,
+            int(market_row["market_id"]),
+            team_ids=team_ids,
+            subject_texts=subject_texts,
+            is_text_correct=is_text_correct)
+        return conn, cursor, result
+
+    def _settle_exact(
+            self,
+            mock_get_conn: MagicMock,
+            market_row: dict[str, object],
+            *,
+            team_ids: list[int] | None = None,
+            subject_texts: list[str] | None = None,
+            is_text_correct: bool | None = None,
+            candidates: list[dict[str, object]] | None = None,
+            rowcount: int = 1
+            ) -> tuple[MagicMock, MagicMock, dict[str, object]]:
+        fetchall_results: list[list[dict[str, object]]] = []
+        if str(market_row["market_kind"]) == "single_team":
+            fetchall_results.append(
+                candidates if candidates is not None else _candidate_rows())
+        settled = dict(market_row)
+        settled["settled_at"] = _SETTLED_AT
+        settled["settled_by"] = _ADMIN_ID
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[market_row, settled],
+            fetchall_results=fetchall_results or [[]],
+            rowcount=rowcount)
+        result = repo.settle_market(
+            int(market_row["market_id"]),
+            team_ids=team_ids,
+            admin_id=_ADMIN_ID,
+            subject_texts=subject_texts,
+            is_text_correct=is_text_correct)
+        return conn, cursor, result
+
+    @patch(_GET_CONN)
+    def test_text_insert_writes_normalized_and_position_one(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _free_text_market_row(),
+            subject_texts=["  Robert   Lewandowski "])
+        self.assertTrue(result["audit_written"])
+        self.assertEqual(
+            result["subject_texts"], ["Robert   Lewandowski"])
+        self.assertEqual(result["team_ids"], [])
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_picks" in call.args[0])
+        audit_params = next(
+            call.args[1]
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
+        self.assertIn("subject_text_normalized", insert_sql)
+        self.assertIn("position", insert_sql)
+        self.assertEqual(
+            insert_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                "Robert   Lewandowski",
+                "robert lewandowski",
+                _MARKET_ID))
+        self.assertEqual(
+            audit_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                _USER_ID,
+                None,
+                None,
+                None,
+                "Robert   Lewandowski",
+                None,
+                None))
+        _assert_no_players_sql(self, cursor)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_identical_normalized_text_is_noop_without_audit(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _free_text_market_row(),
+            subject_texts=["  ROBERT   Lewandowski "],
+            current_rows=[
+                _text_pick_row(
+                    "Robert Lewandowski", "robert lewandowski")])
+        self.assertFalse(result["audit_written"])
+        combined = _combined_sql(cursor)
+        self.assertNotIn(
+            "INSERT INTO typer_long_term_pick_changes", combined)
+        self.assertNotIn("DELETE FROM typer_long_term_picks", combined)
+        conn.commit.assert_called_once()
+
+    def test_empty_subject_text_rejected_before_sql(self) -> None:
+        with self.assertRaises(repo.TyperValidationError):
+            repo.save_long_term_picks(
+                _USER_ID, _MARKET_ID, subject_texts=["   "])
+
+    def test_subject_text_over_160_rejected_before_sql(self) -> None:
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(
+                _USER_ID,
+                _MARKET_ID,
+                subject_texts=["a" * 161])
+        self.assertIn("160", str(ctx.exception))
+
+    def test_xor_two_payload_branches_rejected_before_sql(self) -> None:
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(
+                _USER_ID,
+                _MARKET_ID,
+                list(_TEAM_IDS),
+                subject_texts=["Lewandowski"])
+        self.assertIn("Exactly one", str(ctx.exception))
+
+    def test_xor_team_ids_and_yes_no_rejected_before_sql(self) -> None:
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(
+                _USER_ID,
+                _MARKET_ID,
+                [12],
+                is_text_correct=True)
+        self.assertIn("Exactly one", str(ctx.exception))
+
+    @patch(_GET_CONN)
+    def test_team_ids_on_free_text_are_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_free_text_market_row()])
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(
+                _USER_ID, _MARKET_ID, team_ids=[12])
+        self.assertIn("Subject text is required", str(ctx.exception))
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_subject_texts_on_ranked_table_are_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_market_lock_row()])
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(
+                _USER_ID,
+                _MARKET_ID,
+                subject_texts=["Lewandowski"])
+        self.assertIn("Team ids are required", str(ctx.exception))
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
+        conn.rollback.assert_called()
+
+    def test_duplicate_normalized_settle_texts_rejected_before_sql(
+            self) -> None:
+        with self.assertRaises(repo.TyperValidationError):
+            repo.settle_market(
+                _MARKET_ID,
+                admin_id=_ADMIN_ID,
+                subject_texts=["Haaland", "  haaland "])
+
+    @patch(_GET_CONN)
+    def test_yes_no_insert_writes_is_text_correct(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _yes_no_market_row(),
+            is_text_correct=True)
+        self.assertTrue(result["audit_written"])
+        self.assertTrue(result["is_text_correct"])
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_picks" in call.args[0])
+        audit_params = next(
+            call.args[1]
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
+        self.assertIn("is_text_correct", insert_sql)
+        self.assertEqual(
+            insert_params, (_MARKET_ID, _USER_ID, 1, _MARKET_ID))
+        self.assertEqual(
+            audit_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                _USER_ID,
+                None,
+                None,
+                None,
+                None,
+                None,
+                1))
+        _assert_no_players_sql(self, cursor)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_identical_yes_no_is_noop_without_audit(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _yes_no_market_row(),
+            is_text_correct=False,
+            current_rows=[{
+                "team_id": None,
+                "subject_text": None,
+                "subject_text_normalized": None,
+                "is_text_correct": 0}])
+        self.assertFalse(result["audit_written"])
+        combined = _combined_sql(cursor)
+        self.assertNotIn(
+            "INSERT INTO typer_long_term_pick_changes", combined)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_text_change_audits_previous_and_new_subject(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _free_text_market_row(),
+            subject_texts=["Kylian Mbappe"],
+            current_rows=[
+                _text_pick_row(
+                    "Robert Lewandowski", "robert lewandowski")])
+        self.assertTrue(result["audit_written"])
+        self.assertEqual(
+            result["previous_subject_text"], "Robert Lewandowski")
+        self.assertEqual(result["subject_texts"], ["Kylian Mbappe"])
+        audit_sql, audit_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
+        self.assertIn("previous_subject_text", audit_sql)
+        self.assertIn("new_subject_text", audit_sql)
+        self.assertEqual(
+            audit_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                _USER_ID,
+                None,
+                None,
+                "Robert Lewandowski",
+                "Kylian Mbappe",
+                None,
+                None))
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_yes_no_change_audits_previous_and_new_flag(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _yes_no_market_row(),
+            is_text_correct=False,
+            current_rows=[{
+                "team_id": None,
+                "subject_text": None,
+                "subject_text_normalized": None,
+                "is_text_correct": 1}])
+        self.assertTrue(result["audit_written"])
+        self.assertIs(result["previous_is_text_correct"], True)
+        self.assertIs(result["is_text_correct"], False)
+        audit_sql, audit_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_pick_changes" in call.args[0])
+        self.assertIn("previous_is_text_correct", audit_sql)
+        self.assertIn("new_is_text_correct", audit_sql)
+        self.assertEqual(
+            audit_params,
+            (
+                _MARKET_ID,
+                _USER_ID,
+                _USER_ID,
+                None,
+                None,
+                None,
+                None,
+                1,
+                0))
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_single_team_insert_uses_team_id_and_position(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._save_exact(
+            mock_get_conn,
+            _single_team_market_row(),
+            team_ids=[12],
+            rowcount=1)
+        self.assertEqual(result["team_ids"], [12])
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_picks" in call.args[0])
+        self.assertIn("team_id", insert_sql)
+        self.assertIn("position", insert_sql)
+        self.assertNotIn("subject_text", insert_sql)
+        self.assertEqual(
+            insert_params, (_MARKET_ID, _USER_ID, 12, 1, _MARKET_ID))
+        _assert_no_players_sql(self, cursor)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_single_team_outsider_is_rejected(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchone_results=[_single_team_market_row()],
+            fetchall_results=[_candidate_rows()])
+        with self.assertRaises(repo.TyperValidationError) as ctx:
+            repo.save_long_term_picks(_USER_ID, _MARKET_ID, [999])
+        self.assertIn(
+            "not a league-phase participant", str(ctx.exception))
+        combined = _combined_sql(cursor)
+        self.assertNotIn("INSERT INTO typer_long_term_picks", combined)
+        conn.rollback.assert_called()
+
+    @patch(_GET_CONN)
+    def test_settle_text_writes_multiple_normalized_names(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._settle_exact(
+            mock_get_conn,
+            _free_text_market_row(is_open=0),
+            subject_texts=["Robert Lewandowski", "  Kylian   Mbappe "],
+            rowcount=2)
+        self.assertEqual(
+            result["subject_texts"],
+            ["Robert Lewandowski", "Kylian   Mbappe"])
+        self.assertEqual(result["team_ids"], [])
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_results" in call.args[0])
+        self.assertIn("subject_text_normalized", insert_sql)
+        self.assertEqual(
+            insert_params,
+            (
+                _MARKET_ID,
+                "Robert Lewandowski",
+                "robert lewandowski",
+                1,
+                "Kylian   Mbappe",
+                "kylian mbappe",
+                2))
+        _assert_no_players_sql(self, cursor)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_settle_yes_no_writes_is_text_correct(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor, result = self._settle_exact(
+            mock_get_conn,
+            _yes_no_market_row(is_open=0),
+            is_text_correct=False)
+        self.assertIs(result["is_text_correct"], False)
+        insert_sql, insert_params = next(
+            (call.args[0], call.args[1])
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_results" in call.args[0])
+        self.assertIn("is_text_correct", insert_sql)
+        self.assertEqual(insert_params, (_MARKET_ID, 0))
+
+    @patch(_GET_CONN)
+    def test_settle_single_team_allows_tie_without_full_table(
+            self, mock_get_conn: MagicMock) -> None:
+        conn, cursor, result = self._settle_exact(
+            mock_get_conn,
+            _single_team_market_row(is_open=0),
+            team_ids=[12, 45],
+            rowcount=2)
+        self.assertEqual(result["team_ids"], [12, 45])
+        combined = _combined_sql(cursor)
+        self.assertIn("INSERT INTO typer_long_term_results", combined)
+        self.assertNotIn("FROM players", combined)
+        conn.commit.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_ranked_insert_still_only_team_id_and_position(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor, _result = TestSaveLongTermPicks()._save(
+            mock_get_conn, current_ids=[])
+        insert_sql = next(
+            call.args[0]
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO typer_long_term_picks" in call.args[0])
+        self.assertIn("team_id", insert_sql)
+        self.assertIn("position", insert_sql)
+        self.assertNotIn("subject_text", insert_sql)
+        self.assertNotIn("is_text_correct", insert_sql)
+        _assert_no_players_sql(self, cursor)
+
+
+class TestExactSubjectDashboard(unittest.TestCase):
+    """Candidates attach only to team kinds; text cards stay empty."""
+
+    @patch(_GET_CONN)
+    def test_single_team_markets_share_candidates_text_has_none(
+            self, mock_get_conn: MagicMock) -> None:
+        scored = _single_team_market_row(
+            market_id=6, market_key="most_goals_scored")
+        conceded = _single_team_market_row(
+            market_id=7, market_key="most_goals_conceded")
+        scorer = _free_text_market_row()
+        scorer["market_id"] = 2
+        yes_no = _yes_no_market_row()
+        yes_no["market_id"] = 4
+        candidates = [
+            _candidate_row(team_id) for team_id in _TABLE_IDS]
+        pick_rows = [
+            {
+                "market_id": 6,
+                "team_id": 12,
+                "subject_text": None,
+                "is_text_correct": None
+            },
+            {
+                "market_id": 2,
+                "team_id": None,
+                "subject_text": "Robert Lewandowski",
+                "is_text_correct": None
+            },
+            {
+                "market_id": 4,
+                "team_id": None,
+                "subject_text": None,
+                "is_text_correct": 1
+            }]
+        result_rows = [
+            {
+                "market_id": 6,
+                "team_id": 12,
+                "subject_text": None,
+                "is_text_correct": None
+            },
+            {
+                "market_id": 6,
+                "team_id": 45,
+                "subject_text": None,
+                "is_text_correct": None
+            },
+            {
+                "market_id": 2,
+                "team_id": None,
+                "subject_text": "Robert Lewandowski",
+                "is_text_correct": None
+            },
+            {
+                "market_id": 2,
+                "team_id": None,
+                "subject_text": "Kylian Mbappe",
+                "is_text_correct": None
+            },
+            {
+                "market_id": 4,
+                "team_id": None,
+                "subject_text": None,
+                "is_text_correct": 0
+            }]
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[
+                [scored, conceded, scorer, yes_no],
+                candidates,
+                pick_rows,
+                result_rows,
+                []])
+        document = repo.fetch_long_term_dashboard(_USER_ID, _SEASON_ID)
+        markets = {row["market_key"]: row for row in document["markets"]}
+        self.assertEqual(len(markets["most_goals_scored"]["candidates"]), 36)
+        self.assertEqual(
+            markets["most_goals_conceded"]["candidates"],
+            markets["most_goals_scored"]["candidates"])
+        self.assertEqual(markets["top_scorer"]["candidates"], [])
+        self.assertEqual(markets["any_team_win_all"]["candidates"], [])
+        self.assertEqual(
+            markets["top_scorer"]["picked_subject_text"],
+            "Robert Lewandowski")
+        self.assertEqual(
+            markets["top_scorer"]["result_subject_texts"],
+            ["Robert Lewandowski", "Kylian Mbappe"])
+        self.assertEqual(
+            markets["most_goals_scored"]["picked_team_ids"], [12])
+        self.assertEqual(
+            markets["most_goals_scored"]["result_team_ids"], [12, 45])
+        self.assertIsNone(markets["most_goals_scored"]["picked_subject_text"])
+        self.assertTrue(markets["any_team_win_all"]["picked_is_text_correct"])
+        self.assertFalse(markets["any_team_win_all"]["result_is_text_correct"])
+        candidate_queries = [
+            sql for sql in _sql_statements(cursor)
+            if "m.home_team" in sql]
+        self.assertEqual(len(candidate_queries), 1)
+        _assert_no_players_sql(self, cursor)
+
+    @patch(_GET_CONN)
+    def test_text_only_dashboard_skips_candidate_query(
+            self, mock_get_conn: MagicMock) -> None:
+        scorer = _free_text_market_row()
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[scorer], [], [], []])
+        document = repo.fetch_long_term_dashboard(_USER_ID, _SEASON_ID)
+        self.assertEqual(document["markets"][0]["candidates"], [])
+        combined = _combined_sql(cursor)
+        self.assertNotIn("m.home_team", combined)
+        self.assertNotIn("FROM players", combined)
 
 
 if __name__ == "__main__":

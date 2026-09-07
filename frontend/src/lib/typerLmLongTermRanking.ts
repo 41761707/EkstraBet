@@ -1,7 +1,13 @@
 /** Ranked-table helpers for Typer LM long-term markets. */
 
+import { hasWarsawNaiveDateTimePassed } from "@/lib/date";
+
 export const MARKET_KIND_RANKED_TEAM_TABLE = "ranked_team_table";
+export const MARKET_KIND_SINGLE_TEAM = "single_team";
+export const MARKET_KIND_FREE_TEXT = "free_text";
+export const MARKET_KIND_YES_NO = "yes_no";
 export const SCORING_KIND_ZONE_AND_POSITION = "zone_and_position";
+export const SCORING_KIND_EXACT_SUBJECT = "exact_subject";
 
 export type RankedTableZone = "top" | "middle" | "bot";
 export type RankedPickClassification = "pending" | "miss" | "zone" | "exact";
@@ -146,4 +152,18 @@ export function classifyRankedPick(
     return "exact";
   }
   return "zone";
+}
+
+/** True when the server flag or the local Warsaw deadline has locked typing. */
+export function isLongTermMarketLockedForUi(
+  market: { is_locked: boolean; deadline_at: string | null },
+  nowMs?: number | null,
+): boolean {
+  if (market.is_locked) {
+    return true;
+  }
+  if (nowMs == null || market.deadline_at == null) {
+    return false;
+  }
+  return hasWarsawNaiveDateTimePassed(market.deadline_at, new Date(nowMs));
 }
