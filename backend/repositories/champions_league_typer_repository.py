@@ -57,9 +57,10 @@ _POINTS_SQL = f"""
     END
 """
 
-# long-term jak score_zone_and_position: join po team_id (nie po pozycji),
-# punkty tylko gdy pick i wynik są w tej samej strefie TOP albo BOT;
-# środek tabeli nie punktuje; identyczna pozycja dodaje bonus
+# long-term ranked jak score_zone_and_position: join po team_id
+# (nie po pozycji), punkty tylko w tej samej strefie TOP albo BOT;
+# exact_subject: hit gdy pick należy do zbioru wyników (team / tekst /
+# TAK-NIE); NULL = NULL w SQL nie jest równością, więc xor kindów jest OK
 _LONG_TERM_POINTS_SQL = """
     CASE
         WHEN mkt.settled_at IS NOT NULL
@@ -85,8 +86,27 @@ _LONG_TERM_POINTS_SQL = """
                 THEN mkt.points_per_exact_position
                 ELSE 0
             END
+        WHEN mkt.settled_at IS NOT NULL
+         AND mkt.scoring_kind = 'exact_subject'
+         AND (
+            res.team_id IS NOT NULL
+            OR res.subject_text_normalized IS NOT NULL
+            OR res.is_text_correct IS NOT NULL
+         )
+        THEN mkt.points_per_correct
         ELSE 0
     END
+"""
+
+# nawiasy wokół OR: bez nich AND market_id wiązałby tylko gałąź team_id
+_LONG_TERM_RESULT_JOIN_SQL = """
+    res.market_id = p.market_id
+    AND (
+        res.team_id = p.team_id
+        OR res.subject_text_normalized
+            = p.subject_text_normalized
+        OR res.is_text_correct = p.is_text_correct
+    )
 """
 
 _CANDIDATE_SQL = f"""
@@ -397,8 +417,7 @@ _LEADERBOARD_SQL = f"""
         JOIN typer_long_term_markets mkt
             ON mkt.id = p.market_id
         LEFT JOIN typer_long_term_results res
-            ON res.market_id = p.market_id
-           AND res.team_id = p.team_id
+            ON {_LONG_TERM_RESULT_JOIN_SQL}
         WHERE mkt.season_id = %s
           AND mkt.league_id = %s
         GROUP BY p.user_id

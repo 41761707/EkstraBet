@@ -918,7 +918,7 @@ class TestFetchLeaderboard(unittest.TestCase):
         repo.fetch_leaderboard(13)
         query = cursor.execute.call_args_list[-1].args[0]
         # join po team_id; pozycja tylko w CASE bonusu
-        self.assertIn("AND res.team_id = p.team_id", query)
+        self.assertIn("res.team_id = p.team_id", query)
         self.assertNotIn("AND res.position = p.position", query)
         self.assertIn("p.position = res.position", query)
         self.assertIn("mkt.points_per_exact_position", query)
@@ -938,6 +938,38 @@ class TestFetchLeaderboard(unittest.TestCase):
         zone_gate = points_sql[gate_start:gate_end]
         self.assertIn("mkt.top_zone_size", zone_gate)
         self.assertIn("mkt.bot_zone_size", zone_gate)
+        self.assertIn("mkt.scoring_kind = 'zone_and_position'", zone_gate)
+
+    @patch(_GET_CONN)
+    def test_long_term_sql_scores_exact_subject_join(
+            self, mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard(13)
+        query = cursor.execute.call_args_list[-1].args[0]
+        self.assertIn("subject_text_normalized", query)
+        self.assertIn("is_text_correct", query)
+        self.assertIn("exact_subject", query)
+        self.assertIn("res.team_id = p.team_id", query)
+        self.assertIn("OR res.subject_text_normalized", query)
+        self.assertIn("OR res.is_text_correct", query)
+        self.assertNotIn("AND res.subject_text_normalized", query)
+        self.assertNotIn(
+            "AND res.is_text_correct = p.is_text_correct", query)
+        self.assertIn("mkt.scoring_kind = 'exact_subject'", query)
+        self.assertIn("mkt.scoring_kind = 'zone_and_position'", query)
+        self.assertIn("p.position <= mkt.top_zone_size", query)
+        self.assertIn("res.position <= mkt.top_zone_size", query)
+        self.assertNotIn("player_id", query)
+        points_sql = repo._LONG_TERM_POINTS_SQL
+        exact_start = points_sql.index(
+            "mkt.scoring_kind = 'exact_subject'")
+        exact_end = points_sql.index(
+            "THEN mkt.points_per_correct", exact_start)
+        exact_gate = points_sql[exact_start:exact_end]
+        self.assertIn("res.subject_text_normalized IS NOT NULL", exact_gate)
+        self.assertIn("res.is_text_correct IS NOT NULL", exact_gate)
+        self.assertNotIn("top_zone_size", exact_gate)
 
 
 class TestPredictionHistory(unittest.TestCase):
@@ -1042,6 +1074,176 @@ class TestPointsSqlSemantics(unittest.TestCase):
         if row is None:
             return None
         return row["points"]
+
+
+class TestLongTermPointsSqlSemantics(unittest.TestCase):
+    """Evaluate long-term CASE/JOIN, including MySQL NULL = NULL."""
+
+    def test_text_hit_miss_and_tie(self) -> None:
+        cases = [
+            ("hit", "robert lewandowski", ["robert lewandowski"], 2.0),
+            ("miss", "jan kowalski", ["robert lewandowski"], 0.0),
+            (
+                "tie",
+                "robert lewandowski",
+                ["erling haaland", "robert lewandowski"],
+                2.0)]
+        for label, pick_text, result_texts, expected in cases:
+            with self.subTest(label=label):
+                points = self._eval_long_term(
+                    scoring_kind="exact_subject",
+                    pick_team_id=None,
+                    pick_text=pick_text,
+                    pick_is_text_correct=None,
+                    pick_position=1,
+                    results=[
+                        (None, text, None, index + 1)
+                        for index, text in enumerate(result_texts)])
+                self.assertEqual(points, expected)
+
+    def test_yes_no_including_nie_zero(self) -> None:
+        # NIE to 0: AND na NULL team/tekst nie złączy wierszy
+        cases = [
+            ("tak", 1, 1, 2.0),
+            ("nie", 0, 0, 2.0),
+            ("miss", 1, 0, 0.0)]
+        for label, pick_flag, result_flag, expected in cases:
+            with self.subTest(label=label):
+                points = self._eval_long_term(
+                    scoring_kind="exact_subject",
+                    pick_team_id=None,
+                    pick_text=None,
+                    pick_is_text_correct=pick_flag,
+                    pick_position=1,
+                    results=[(None, None, result_flag, 1)])
+                self.assertEqual(points, expected)
+
+    def test_single_team_tie(self) -> None:
+        cases = [
+            ("hit", 10, 2.0),
+            ("miss", 30, 0.0)]
+        for label, pick_team_id, expected in cases:
+            with self.subTest(label=label):
+                points = self._eval_long_term(
+                    scoring_kind="exact_subject",
+                    pick_team_id=pick_team_id,
+                    pick_text=None,
+                    pick_is_text_correct=None,
+                    pick_position=1,
+                    results=[(10, None, None, 1), (20, None, None, 2)])
+                self.assertEqual(points, expected)
+
+    def test_zone_zero_two_four_unchanged(self) -> None:
+        # te same NULL na tekście/TAK-NIE: AND zerowałby też tabelę
+        cases = [
+            ("middle", 18, 18, 0.0),
+            ("zone_only", 1, 2, 2.0),
+            ("exact", 1, 1, 4.0)]
+        for label, pick_position, result_position, expected in cases:
+            with self.subTest(label=label):
+                points = self._eval_long_term(
+                    scoring_kind="zone_and_position",
+                    pick_team_id=7,
+                    pick_text=None,
+                    pick_is_text_correct=None,
+                    pick_position=pick_position,
+                    results=[(7, None, None, result_position)],
+                    top_zone_size=8,
+                    bot_zone_size=8,
+                    selection_size=36,
+                    points_per_correct=2.0,
+                    points_per_exact_position=2.0)
+                self.assertEqual(points, expected)
+
+    def _eval_long_term(
+            self,
+            *,
+            scoring_kind: str,
+            pick_team_id: int | None,
+            pick_text: str | None,
+            pick_is_text_correct: int | None,
+            pick_position: int,
+            results: list[tuple[int | None, str | None, int | None, int]],
+            top_zone_size: int = -1,
+            bot_zone_size: int = -1,
+            selection_size: int = 1,
+            points_per_correct: float = 2.0,
+            points_per_exact_position: float = 0.0) -> float:
+        result_sql = self._result_source_sql(len(results))
+        query = f"""
+            SELECT COALESCE(SUM(
+                {repo._LONG_TERM_POINTS_SQL}
+            ), 0) AS points
+            FROM (
+                SELECT
+                    %s AS market_id,
+                    %s AS team_id,
+                    %s AS subject_text_normalized,
+                    %s AS is_text_correct,
+                    %s AS position
+            ) AS p
+            INNER JOIN (
+                SELECT
+                    %s AS id,
+                    %s AS settled_at,
+                    %s AS scoring_kind,
+                    %s AS top_zone_size,
+                    %s AS bot_zone_size,
+                    %s AS selection_size,
+                    %s AS points_per_correct,
+                    %s AS points_per_exact_position
+            ) AS mkt ON mkt.id = p.market_id
+            LEFT JOIN (
+                {result_sql}
+            ) AS res ON {repo._LONG_TERM_RESULT_JOIN_SQL}
+        """
+        params: list[object] = [
+            1,
+            pick_team_id,
+            pick_text,
+            pick_is_text_correct,
+            pick_position,
+            1,
+            datetime(2026, 1, 1),
+            scoring_kind,
+            top_zone_size,
+            bot_zone_size,
+            selection_size,
+            points_per_correct,
+            points_per_exact_position]
+        for team_id, text, is_text_correct, position in results:
+            params.extend([1, team_id, text, is_text_correct, position])
+        return self._query_points(query, tuple(params))
+
+    def _result_source_sql(self, result_count: int) -> str:
+        if result_count == 0:
+            return (
+                "SELECT CAST(NULL AS SIGNED) AS market_id, "
+                "CAST(NULL AS SIGNED) AS team_id, "
+                "CAST(NULL AS CHAR) AS subject_text_normalized, "
+                "CAST(NULL AS SIGNED) AS is_text_correct, "
+                "CAST(NULL AS SIGNED) AS position WHERE FALSE")
+        row_sql = (
+            "SELECT %s AS market_id, %s AS team_id, "
+            "%s AS subject_text_normalized, "
+            "%s AS is_text_correct, %s AS position")
+        return " UNION ALL ".join([row_sql] * result_count)
+
+    def _query_points(
+            self, query: str, params: tuple[object, ...]) -> float:
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor(dictionary=True)
+                try:
+                    cursor.execute(query, params)
+                    row = cursor.fetchone()
+                finally:
+                    cursor.close()
+        except DatabaseConnectionError as exc:
+            self.skipTest(str(exc))
+        if row is None:
+            return 0.0
+        return float(row["points"])
 
 
 _SCHEMA_REVIEW_TABLES = {
