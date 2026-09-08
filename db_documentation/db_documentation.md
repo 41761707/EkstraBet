@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 06.09.2026
+###### Ostatnia data modyfikacji: 09.09.2026
 
 ## Opis struktury bazy
 
@@ -1594,15 +1594,19 @@ Dane wstawiane przez aplikację (administrator).
 (Audyt zmian wyborów długoterminowych Typera)
 
 
-| POLE              | DOMENA       | ZAKRES     | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
-| ----------------- | ------------ | ---------- | --------------------------------------------------------------------- | ------------------------ |
-| **ID**            | INT          | INT        | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
-| *MARKET_ID*       | INT          | INT        | Klucz obcy, powiązanie z tabelą *typer_long_term_markets*             | NULL                     |
-| *USER_ID*         | INT          | INT        | Klucz obcy, powiązanie z tabelą *users* (właściciel zestawu)          | NULL                     |
-| *CHANGED_BY*      | INT          | INT        | Klucz obcy, powiązanie z tabelą *users* (użytkownik, który zapisał zestaw) | NULL                 |
-| PREVIOUS_TEAM_IDS | VARCHAR(512) | CSV / NULL | CSV `team_id` sprzed zapisu, bez spacji, w kolejności zapisu; `NULL` przy pierwszym wyborze | NULL                 |
-| NEW_TEAM_IDS      | VARCHAR(512) | CSV        | CSV `team_id` po zapisie, bez spacji, w kolejności zapisu             | NULL                     |
-| CHANGED_AT        | DATETIME     | DATETIME   | Moment zapisu albo realnej zmiany zestawu                             | CURRENT_TIMESTAMP        |
+| POLE                       | DOMENA       | ZAKRES          | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| -------------------------- | ------------ | --------------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**                     | INT          | INT             | ID wpisu audytu                                                       | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*                | INT          | INT             | Klucz obcy, powiązanie z tabelą *typer_long_term_markets*             | NULL                     |
+| *USER_ID*                  | INT          | INT             | Klucz obcy, powiązanie z tabelą *users* (właściciel zestawu)          | NULL                     |
+| *CHANGED_BY*               | INT          | INT             | Klucz obcy, powiązanie z tabelą *users* (użytkownik, który zapisał zestaw) | NULL                 |
+| PREVIOUS_TEAM_IDS          | VARCHAR(512) | CSV / NULL      | CSV `team_id` sprzed zapisu, bez spacji, w kolejności zapisu; `NULL` przy pierwszym wyborze | NULL                 |
+| NEW_TEAM_IDS               | VARCHAR(512) | CSV / NULL      | CSV `team_id` po zapisie, bez spacji, w kolejności zapisu; `NULL` gdy zapis nie dotyczy drużyn | NULL                 |
+| CHANGED_AT                 | DATETIME     | DATETIME        | Moment zapisu albo realnej zmiany zestawu                             | CURRENT_TIMESTAMP        |
+| PREVIOUS_SUBJECT_TEXT      | VARCHAR(160) | STRING / NULL   | Wpisany tekst sprzed zapisu; `NULL` przy pierwszym wyborze albo gdy wiersz nie jest tekstem | NULL                 |
+| NEW_SUBJECT_TEXT           | VARCHAR(160) | STRING / NULL   | Wpisany tekst po zapisie; `NULL` gdy zapis nie dotyczy tekstu         | NULL                     |
+| PREVIOUS_IS_TEXT_CORRECT   | TINYINT      | 0 / 1 / NULL    | Flaga TAK/NIE sprzed zapisu (`1` = TAK, `0` = NIE); `NULL` przy pierwszym wyborze albo gdy wiersz nie jest TAK/NIE | NULL |
+| NEW_IS_TEXT_CORRECT        | TINYINT      | 0 / 1 / NULL    | Flaga TAK/NIE po zapisie (`1` = TAK, `0` = NIE); `NULL` gdy zapis nie dotyczy TAK/NIE | NULL |
 
 
 **Ograniczenia/Indeksy:**
@@ -1628,13 +1632,16 @@ Dane wyliczane przez aplikację przy zapisie zestawu (pierwszy zapis oraz każda
 (Bieżące wybory użytkowników na rynkach długoterminowych)
 
 
-| POLE        | DOMENA | ZAKRES | UWAGI                                                     | WARTOŚC DOMYŚLNA         |
-| ----------- | ------ | ------ | --------------------------------------------------------- | ------------------------ |
-| **ID**      | INT    | INT    | ID wiersza wyboru                                         | AUTOMATYCZNIE GENEROWANY |
-| *MARKET_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
-| *USER_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *users*                   | NULL                     |
-| *TEAM_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                   | NULL                     |
-| POSITION    | INT    | INT    | Pozycja drużyny w uporządkowanym wyborze (`-1` = brak pozycji) | -1                  |
+| POLE                     | DOMENA       | ZAKRES        | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ------------------------ | ------------ | ------------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**                   | INT          | INT           | ID wiersza wyboru                                                     | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*              | INT          | INT           | Klucz obcy, powiązanie z tabelą *typer_long_term_markets*             | NULL                     |
+| *USER_ID*                | INT          | INT           | Klucz obcy, powiązanie z tabelą *users*                               | NULL                     |
+| *TEAM_ID*                | INT          | INT / NULL    | Klucz obcy, powiązanie z tabelą *teams*; `NULL` gdy wybór nie dotyczy drużyny | NULL               |
+| POSITION                 | INT          | INT           | Pozycja w uporządkowanym wyborze (`-1` = brak pozycji)                | -1                       |
+| SUBJECT_TEXT             | VARCHAR(160) | STRING / NULL | Wpisany tekst (np. imię i nazwisko); `NULL` gdy wiersz nie jest tekstem | NULL                   |
+| SUBJECT_TEXT_NORMALIZED  | VARCHAR(160) | STRING / NULL | Znormalizowana forma `SUBJECT_TEXT` (spacje, wielkość liter); `NULL` gdy brak tekstu | NULL |
+| IS_TEXT_CORRECT          | TINYINT      | 0 / 1 / NULL  | Flaga TAK/NIE (`1` = TAK, `0` = NIE); `NULL` gdy wiersz nie jest TAK/NIE | NULL                 |
 
 
 **Ograniczenia/Indeksy:**
@@ -1642,6 +1649,7 @@ Dane wyliczane przez aplikację przy zapisie zestawu (pierwszy zapis oraz każda
 - Klucz główny: `ID`
 - **Unikalny indeks:** `uq_typer_lt_picks_market_user_team` (`MARKET_ID`, `USER_ID`, `TEAM_ID`) — jedna drużyna na użytkownika i rynek
 - **Unikalny indeks:** `uq_typer_lt_picks_market_user_pos` (`MARKET_ID`, `USER_ID`, `POSITION`) — jedna pozycja na użytkownika i rynek
+- **Unikalny indeks:** `uq_typer_lt_picks_market_user_text` (`MARKET_ID`, `USER_ID`, `SUBJECT_TEXT_NORMALIZED`) — jeden znormalizowany tekst na użytkownika i rynek
 - Indeks: `idx_typer_lt_picks_user` (`USER_ID`)
 - Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `USER_ID` → `users(ID)` **ON DELETE RESTRICT**
@@ -1658,12 +1666,15 @@ Dane wstawiane przez aplikację (użytkownicy).
 (Zatwierdzony wynik rynku długoterminowego)
 
 
-| POLE        | DOMENA | ZAKRES | UWAGI                                                     | WARTOŚC DOMYŚLNA         |
-| ----------- | ------ | ------ | --------------------------------------------------------- | ------------------------ |
-| **ID**      | INT    | INT    | ID wiersza zatwierdzonego wyniku                          | AUTOMATYCZNIE GENEROWANY |
-| *MARKET_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *typer_long_term_markets* | NULL                     |
-| *TEAM_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *teams*                   | NULL                     |
-| POSITION    | INT    | INT    | Pozycja drużyny w zatwierdzonej tabeli (`-1` = brak pozycji) | -1                    |
+| POLE                     | DOMENA       | ZAKRES        | UWAGI                                                                 | WARTOŚC DOMYŚLNA         |
+| ------------------------ | ------------ | ------------- | --------------------------------------------------------------------- | ------------------------ |
+| **ID**                   | INT          | INT           | ID wiersza zatwierdzonego wyniku                                      | AUTOMATYCZNIE GENEROWANY |
+| *MARKET_ID*              | INT          | INT           | Klucz obcy, powiązanie z tabelą *typer_long_term_markets*             | NULL                     |
+| *TEAM_ID*                | INT          | INT / NULL    | Klucz obcy, powiązanie z tabelą *teams*; `NULL` gdy wynik nie dotyczy drużyny | NULL               |
+| POSITION                 | INT          | INT           | Pozycja w zatwierdzonym zestawie (`-1` = brak pozycji)                | -1                       |
+| SUBJECT_TEXT             | VARCHAR(160) | STRING / NULL | Zatwierdzony tekst w formie wpisanej przez administratora; `NULL` gdy wiersz nie jest tekstem | NULL |
+| SUBJECT_TEXT_NORMALIZED  | VARCHAR(160) | STRING / NULL | Znormalizowana forma `SUBJECT_TEXT` (spacje, wielkość liter); `NULL` gdy brak tekstu | NULL |
+| IS_TEXT_CORRECT          | TINYINT      | 0 / 1 / NULL  | Zatwierdzona flaga TAK/NIE (`1` = TAK, `0` = NIE); `NULL` gdy wiersz nie jest TAK/NIE | NULL |
 
 
 **Ograniczenia/Indeksy:**
@@ -1671,6 +1682,7 @@ Dane wstawiane przez aplikację (użytkownicy).
 - Klucz główny: `ID`
 - **Unikalny indeks:** `uq_typer_lt_results_market_team` (`MARKET_ID`, `TEAM_ID`) — jedna drużyna na rynek
 - **Unikalny indeks:** `uq_typer_lt_results_market_pos` (`MARKET_ID`, `POSITION`) — jedna pozycja na rynek
+- **Unikalny indeks:** `uq_typer_lt_results_market_text` (`MARKET_ID`, `SUBJECT_TEXT_NORMALIZED`) — jeden znormalizowany tekst na rynek
 - Klucz obcy: `MARKET_ID` → `typer_long_term_markets(ID)` **ON DELETE RESTRICT**
 - Klucz obcy: `TEAM_ID` → `teams(ID)` **ON DELETE RESTRICT**
 
