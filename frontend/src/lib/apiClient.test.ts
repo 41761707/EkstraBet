@@ -6,6 +6,10 @@ import {
   createAdminUser,
   deleteTyperPublication,
   getLeagueRatingProgress,
+  getModelAnalytics,
+  getModelDetails,
+  getModels,
+  getModelsGroupedByFamily,
   getSeasonProjectionModes,
   getTyperAdminCandidates,
   getTyperAdminPredictionHistory,
@@ -812,5 +816,191 @@ describe("admin panel client", () => {
     expect(activeUrl).toContain("/api/backend/admin/leagues/48/active");
     expect(activeInit.method).toBe("PUT");
     expect(JSON.parse(String(activeInit.body))).toEqual({ active: false });
+  });
+});
+
+describe("model analytics BFF client", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  function jsonResponse(payload: unknown, status = 200): Response {
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  it("GETs analytics through the BFF with joined ids and scoped filters", async () => {
+    const payload = {
+      categories: {},
+      aggregations: { by_team: null, by_league: null },
+      league_comparisons: null,
+      model_league_comparisons: null,
+      filters_applied: {},
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(payload));
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      getModelAnalytics({
+        statType: "all",
+        modelResultIds: [4],
+        modelOuIds: [7, 8],
+        modelBttsIds: [9],
+        leagueIds: [1],
+        seasonId: 13,
+        dateFrom: "2025-08-01",
+        dateTo: "2026-05-31",
+        teamId: 490,
+        settledOnly: true,
+        applyTax: true,
+      }),
+    ).resolves.toEqual(payload);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requested = String(fetchMock.mock.calls[0]?.[0]);
+    expect(requested).toContain("/api/backend/analytics/models");
+    expect(requested).toContain("stat_type=all");
+    expect(requested).toContain("model_result_ids=4");
+    expect(requested).toContain("model_ou_ids=7%2C8");
+    expect(requested).toContain("model_btts_ids=9");
+    expect(requested).toContain("league_ids=1");
+    expect(requested).toContain("season_id=13");
+    expect(requested).toContain("date_from=2025-08-01");
+    expect(requested).toContain("date_to=2026-05-31");
+    expect(requested).toContain("team_id=490");
+    expect(requested).toContain("settled_only=true");
+    expect(requested).toContain("apply_tax=true");
+    expect(requested).not.toContain("round_from");
+    expect(requested).not.toContain("group_by");
+    expect(requested).not.toContain("positive_ev_only");
+  });
+
+  it("omits empty model and league id lists from the analytics query", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        categories: {},
+        aggregations: { by_team: null, by_league: null },
+        league_comparisons: null,
+        model_league_comparisons: null,
+        filters_applied: {},
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await getModelAnalytics({
+      leagueIds: [],
+      modelResultIds: [],
+      modelOuIds: [],
+      modelBttsIds: [],
+      seasonId: 13,
+    });
+
+    const requested = String(fetchMock.mock.calls[0]?.[0]);
+    expect(requested).toContain("/api/backend/analytics/models");
+    expect(requested).toContain("season_id=13");
+    expect(requested).not.toContain("league_ids=");
+    expect(requested).not.toContain("model_result_ids=");
+    expect(requested).not.toContain("model_ou_ids=");
+    expect(requested).not.toContain("model_btts_ids=");
+  });
+
+  it("GETs models and model details through the BFF", async () => {
+    const modelsPayload = {
+      models: [
+        {
+          id: 4,
+          name: "Result model",
+          active: 1,
+          sport_id: 1,
+          sport_name: "Football",
+        },
+      ],
+      total_models: 1,
+    };
+    const detailsPayload = {
+      id: 4,
+      name: "Result model",
+      active: 1,
+      sport_id: 1,
+      sport_name: "Football",
+      event_families: [{ id: 1, sport_id: 1, name: "REZULTAT" }],
+      supported_events: [],
+      total_events: 0,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(modelsPayload))
+      .mockResolvedValueOnce(jsonResponse(detailsPayload));
+    stubBrowserFetch(fetchMock);
+
+    await expect(getModels()).resolves.toEqual(modelsPayload);
+    await expect(getModelDetails(4)).resolves.toEqual(detailsPayload);
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/api/backend/models/models",
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+      "/api/backend/models/models/4/details",
+    );
+  });
+
+  it("groups models by family through BFF model endpoints", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("/models/models/4/details")) {
+        return Promise.resolve(
+          jsonResponse({
+            id: 4,
+            name: "Result model",
+            active: 1,
+            sport_id: 1,
+            sport_name: "Football",
+            event_families: [{ id: 1, sport_id: 1, name: "REZULTAT" }],
+            supported_events: [],
+            total_events: 0,
+          }),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({
+          models: [
+            {
+              id: 4,
+              name: "Result model",
+              active: 1,
+              sport_id: 1,
+              sport_name: "Football",
+            },
+          ],
+          total_models: 1,
+        }),
+      );
+    });
+    stubBrowserFetch(fetchMock);
+
+    await expect(getModelsGroupedByFamily()).resolves.toEqual({
+      result: [{ id: 4, label: "Result model" }],
+      ou: [],
+      btts: [],
+    });
+
+    const requestedPaths = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(
+      requestedPaths.some((url) => url.includes("/api/backend/models/models")),
+    ).toBe(true);
+    expect(
+      requestedPaths.some((url) =>
+        url.includes("/api/backend/models/models/4/details"),
+      ),
+    ).toBe(true);
   });
 });
