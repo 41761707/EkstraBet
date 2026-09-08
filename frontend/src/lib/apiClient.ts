@@ -10,37 +10,47 @@ import {
   type SearchParams,
 } from "@/lib/apiShared";
 import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
-import type {
-  AdminLeague,
-  AdminUser,
-  CreateLeagueRequest,
-  CreateUserRequest,
-  FavoriteLeagueMutationResponse,
-  PlayerMatchStatsResponse,
-  PredictionPreviewRequest,
-  PredictionPreviewResponse,
-  PublishTyperMatchesResponse,
-  RatingMetric,
-  RatingProgressResponse,
-  SeasonProjectionMode,
-  SeasonProjectionModeFlags,
-  SeasonProjectionResponse,
-  SportTeamHistoryResponse,
-  LongTermPicksPayload,
-  SaveLongTermPicksResponse,
-  SaveTyperPredictionResponse,
-  SettleLongTermResponse,
-  LongTermAutoResultResponse,
-  LongTermPickChange,
-  TyperAdminCandidatesResponse,
-  TyperOutcome,
-  TyperPredictionChange,
-  TyperRevealedPredictionsResponse,
-  UserPreferencesResponse,
-  UserPreferencesUpdate,
+import {
+  loadModelsGroupedByFamily,
+  type ModelsByFamily,
+} from "@/lib/modelsByFamily";
+import {
+  FOOTBALL_SPORT_ID,
+  type AdminLeague,
+  type AdminUser,
+  type AnalyticsStatType,
+  type CreateLeagueRequest,
+  type CreateUserRequest,
+  type FavoriteLeagueMutationResponse,
+  type ModelAnalyticsResponse,
+  type ModelDetailsResponse,
+  type ModelListResponse,
+  type PlayerMatchStatsResponse,
+  type PredictionPreviewRequest,
+  type PredictionPreviewResponse,
+  type PublishTyperMatchesResponse,
+  type RatingMetric,
+  type RatingProgressResponse,
+  type SeasonProjectionMode,
+  type SeasonProjectionModeFlags,
+  type SeasonProjectionResponse,
+  type SportTeamHistoryResponse,
+  type LongTermPicksPayload,
+  type SaveLongTermPicksResponse,
+  type SaveTyperPredictionResponse,
+  type SettleLongTermResponse,
+  type LongTermAutoResultResponse,
+  type LongTermPickChange,
+  type TyperAdminCandidatesResponse,
+  type TyperOutcome,
+  type TyperPredictionChange,
+  type TyperRevealedPredictionsResponse,
+  type UserPreferencesResponse,
+  type UserPreferencesUpdate,
 } from "@/types/api";
 
 export { ApiError, buildClientProxyPath } from "@/lib/apiShared";
+export type { ModelsByFamily };
 
 interface FetchViaBffOptions {
   skipFirstLoginRedirect?: boolean;
@@ -213,6 +223,64 @@ export async function getSeasonProjection(
       mode,
     },
   );
+}
+
+export interface GetModelAnalyticsOptions {
+  statType?: AnalyticsStatType;
+  modelResultIds?: number[];
+  modelOuIds?: number[];
+  modelBttsIds?: number[];
+  leagueIds?: number[];
+  seasonId?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  teamId?: number;
+  settledOnly?: boolean;
+  applyTax?: boolean;
+}
+
+function joinIdList(ids: number[] | undefined): string | undefined {
+  if (!ids || ids.length === 0) {
+    return undefined;
+  }
+  return ids.join(",");
+}
+
+export async function getModelAnalytics(
+  options: GetModelAnalyticsOptions,
+): Promise<ModelAnalyticsResponse> {
+  return fetchViaBff<ModelAnalyticsResponse>("/analytics/models", {
+    stat_type: options.statType,
+    model_result_ids: joinIdList(options.modelResultIds),
+    model_ou_ids: joinIdList(options.modelOuIds),
+    model_btts_ids: joinIdList(options.modelBttsIds),
+    league_ids: joinIdList(options.leagueIds),
+    season_id: options.seasonId,
+    date_from: options.dateFrom,
+    date_to: options.dateTo,
+    team_id: options.teamId,
+    settled_only: options.settledOnly,
+    apply_tax: options.applyTax,
+  });
+}
+
+export async function getModels(): Promise<ModelListResponse> {
+  return fetchViaBff<ModelListResponse>("/models/models");
+}
+
+export async function getModelDetails(
+  modelId: number,
+): Promise<ModelDetailsResponse> {
+  return fetchViaBff<ModelDetailsResponse>(`/models/models/${modelId}/details`);
+}
+
+export async function getModelsGroupedByFamily(
+  sportId = FOOTBALL_SPORT_ID,
+): Promise<ModelsByFamily> {
+  return loadModelsGroupedByFamily(sportId, {
+    getModels,
+    getModelDetails,
+  });
 }
 
 export async function saveTyperPrediction(
