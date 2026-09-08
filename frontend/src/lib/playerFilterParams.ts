@@ -1,7 +1,9 @@
-import type { PlayerStatKey, PlayerTeamOption } from "@/types/api";
-
-export const FOOTBALL_SPORT_ID = 1;
-export const HOCKEY_SPORT_ID = 2;
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type PlayerStatKey,
+  type PlayerTeamOption,
+} from "@/types/api";
 
 export interface PlayersFilterValues {
   sportId: number;

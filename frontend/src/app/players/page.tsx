@@ -4,8 +4,6 @@ import {
 } from "@/components/players/FootballPlayersSection";
 import { getMatchLimitOptions } from "@/components/players/playerStatsConfig";
 import {
-  FOOTBALL_SPORT_ID,
-  HOCKEY_SPORT_ID,
   parsePlayerStatKeys,
   teamsForCountry,
   type PlayersFilterValues,
@@ -20,6 +18,7 @@ import {
   getPlayers,
 } from "@/lib/api";
 import { parsePositiveInt } from "@/lib/searchParams";
+import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
 
 export const dynamic = "force-dynamic";
 

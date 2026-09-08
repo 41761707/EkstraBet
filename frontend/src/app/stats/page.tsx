@@ -26,13 +26,12 @@ import {
   visibleLeagueFilterIds,
   buildStatsFilterQuery,
 } from "@/lib/statsFilterParams";
-import type {
-  AnalyticsAggregationMetric,
-  AnalyticsGroupBy,
-  AnalyticsStatType,
+import {
+  FOOTBALL_SPORT_ID,
+  type AnalyticsAggregationMetric,
+  type AnalyticsGroupBy,
+  type AnalyticsStatType,
 } from "@/types/api";
-
-const FOOTBALL_SPORT_ID = 1;
 
 export const dynamic = "force-dynamic";
 

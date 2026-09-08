@@ -23,7 +23,12 @@ import {
   type EventFilterOption,
 } from "@/lib/betEventOptions";
 import { FIRST_LOGIN_PATH, isFirstLoginRequiredError } from "@/lib/firstLogin";
+import {
+  loadModelsGroupedByFamily,
+  type ModelsByFamily,
+} from "@/lib/modelsByFamily";
 import { getApiBaseUrl } from "@/lib/runtimeConfig";
+import { FOOTBALL_SPORT_ID } from "@/types/api";
 import type {
   AdminCountry,
   AdminLeague,
@@ -325,7 +330,7 @@ export async function getTeamProfile(
 export async function getFootballTeams(): Promise<TeamsListResponse> {
   const pageSize = 500;
   const firstPage = await fetchApi<TeamsListResponse>("/teams/search", {
-    sport_id: 1,
+    sport_id: FOOTBALL_SPORT_ID,
     page: 1,
     page_size: pageSize,
   });
@@ -337,7 +342,7 @@ export async function getFootballTeams(): Promise<TeamsListResponse> {
   const remainingPages = await Promise.all(
     Array.from({ length: pageCount - 1 }, (_, index) =>
       fetchApi<TeamsListResponse>("/teams/search", {
-        sport_id: 1,
+        sport_id: FOOTBALL_SPORT_ID,
         page: index + 2,
         page_size: pageSize,
       }),
@@ -516,62 +521,15 @@ export async function getModelDetails(
   return fetchApi<ModelDetailsResponse>(`/models/models/${modelId}/details`);
 }
 
-export interface ModelsByFamily {
-  result: FilterOption[];
-  ou: FilterOption[];
-  btts: FilterOption[];
-}
+export type { ModelsByFamily };
 
 export async function getModelsGroupedByFamily(
-  sportId = 1,
+  sportId = FOOTBALL_SPORT_ID,
 ): Promise<ModelsByFamily> {
-  const { models } = await getModels();
-  const activeModels = models.filter(
-    (model) => model.active === 1 && model.sport_id === sportId,
-  );
-
-  const grouped: ModelsByFamily = {
-    result: [],
-    ou: [],
-    btts: [],
-  };
-
-  const detailsList = await Promise.all(
-    activeModels.map(async (model) => {
-      try {
-        return await getModelDetails(model.id);
-      } catch {
-        return null;
-      }
-    }),
-  );
-
-  for (const details of detailsList) {
-    if (!details) {
-      continue;
-    }
-    const option = { id: details.id, label: details.name };
-    const familyNames = new Set(
-      details.event_families.map((family) => family.name.toUpperCase()),
-    );
-    if (familyNames.has("REZULTAT")) {
-      grouped.result.push(option);
-    }
-    if (familyNames.has("OU")) {
-      grouped.ou.push(option);
-    }
-    if (familyNames.has("BTTS")) {
-      grouped.btts.push(option);
-    }
-  }
-
-  for (const key of Object.keys(grouped) as (keyof ModelsByFamily)[]) {
-    grouped[key].sort((left, right) =>
-      left.label.localeCompare(right.label, "pl"),
-    );
-  }
-
-  return grouped;
+  return loadModelsGroupedByFamily(sportId, {
+    getModels,
+    getModelDetails,
+  });
 }
 
 export async function getSeasonOptions(
@@ -618,7 +576,7 @@ export async function getFamilyEvents(
 }
 
 export async function getAllEventOptions(
-  sportId = 1,
+  sportId = FOOTBALL_SPORT_ID,
 ): Promise<EventFilterOption[]> {
   const families = await getEventFamilies(sportId);
   const eventsById = new Map<number, EventFilterOption>();

@@ -3,10 +3,11 @@
  * Hit rate is historical support, not a calibrated model probability.
  */
 
-import type {
-  FootballPlayerMatchStat,
-  TeamProfile,
-  TeamSeasonMatchPoint,
+import {
+  FOOTBALL_SPORT_ID,
+  type FootballPlayerMatchStat,
+  type TeamProfile,
+  type TeamSeasonMatchPoint,
 } from "@/types/api";
 
 import type {
@@ -17,7 +18,6 @@ import type {
   ParsedMarket,
   StatisticalMarketAssessment,
 } from "./markets";
-import { FOOTBALL_SPORT_ID } from "./types";
 
 const MIN_SAMPLE_SIZE = 5;
 const HIGH_SAMPLE_SIZE = 10;

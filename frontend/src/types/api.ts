@@ -196,6 +196,7 @@ export interface LeagueStandingsResponse {
   total_count: number;
 }
 
+export const FOOTBALL_SPORT_ID = 1;
 export const HOCKEY_SPORT_ID = 2;
 export const BASKETBALL_SPORT_ID = 3;
 export const SPORT_REGULAR_SEASON_PHASE = 100;

@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { PlayerPanel } from "@/components/players/PlayerPanel";
 import { PreferencesProvider } from "@/components/preferences/PreferencesProvider";
-import { FOOTBALL_SPORT_ID } from "@/lib/playerFilterParams";
 import {
   DEFAULT_PREFERENCES,
   type PreferencesApi,
   type PreferencesStorage,
 } from "@/lib/preferences";
+import { FOOTBALL_SPORT_ID } from "@/types/api";
 
 function silentStorage(): PreferencesStorage {
   return {

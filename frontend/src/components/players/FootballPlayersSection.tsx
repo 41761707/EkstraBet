@@ -11,14 +11,15 @@ import {
   type PlayersFilterValues,
 } from "@/components/players/PlayersFilters";
 import { getConfigurablePlayerStats } from "@/components/players/playerStatsConfig";
-import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/lib/playerFilterParams";
 import { StatusMessage } from "@/components/StatusMessage";
-import type {
-  FootballPlayerSummary,
-  PlayerStatKey,
-  PlayerCountryOption,
-  PlayerSeasonOption,
-  PlayerTeamOption,
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type FootballPlayerSummary,
+  type PlayerStatKey,
+  type PlayerCountryOption,
+  type PlayerSeasonOption,
+  type PlayerTeamOption,
 } from "@/types/api";
 
 interface FootballPlayersSectionProps {
