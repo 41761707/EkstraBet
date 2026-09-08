@@ -12,6 +12,7 @@ import {
 } from "@/lib/date";
 import {
   BASKETBALL_SPORT_ID,
+  FOOTBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
   type DailyMatchSummary,
 } from "@/types/api";
@@ -23,8 +24,6 @@ interface HomeTodayMatchesProps {
   /** Optional clock for deterministic in-progress checks. */
   now?: Date;
 }
-
-const FOOTBALL_SPORT_ID = 1;
 
 const SPORT_ACCENT: Record<number, string> = {
   [FOOTBALL_SPORT_ID]: "border-accent/45 bg-accent-soft text-accent-text",
