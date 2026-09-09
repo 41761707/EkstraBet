@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { PlayersFilters } from "@/components/players/PlayersFilters";
-import { FOOTBALL_SPORT_ID } from "@/lib/playerFilterParams";
+import { FOOTBALL_SPORT_ID } from "@/types/api";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({

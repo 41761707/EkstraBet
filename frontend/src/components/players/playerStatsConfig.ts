@@ -1,5 +1,8 @@
-import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/lib/playerFilterParams";
-import type { PlayerStatKey } from "@/types/api";
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type PlayerStatKey,
+} from "@/types/api";
 
 export interface PlayerStatDefinition {
   key: PlayerStatKey;

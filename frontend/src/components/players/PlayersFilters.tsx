@@ -10,15 +10,15 @@ import {
 import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
-  FOOTBALL_SPORT_ID,
   selectCountryFilter,
   teamsForCountry,
   type PlayersFilterValues,
 } from "@/lib/playerFilterParams";
-import type {
-  PlayerCountryOption,
-  PlayerSeasonOption,
-  PlayerTeamOption,
+import {
+  FOOTBALL_SPORT_ID,
+  type PlayerCountryOption,
+  type PlayerSeasonOption,
+  type PlayerTeamOption,
 } from "@/types/api";
 
 export type { PlayersFilterValues };

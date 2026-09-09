@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { MatchCard } from "@/components/MatchCard";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ScopedPredictionStatsSection } from "@/components/stats/ScopedPredictionStatsSection";
 import { TeamSeasonChartsSection } from "@/components/teams/TeamSeasonChartsSection";
 import { TeamSportSeasonChartsSection } from "@/components/teams/TeamSportSeasonChartsSection";
 import { TeamSplitStatsTable } from "@/components/TeamSplitStatsTable";
@@ -147,6 +148,12 @@ export default async function TeamPage({
     const sportId = profile.team.sport_id;
     const isSportLeagueTeam =
       sportId === HOCKEY_SPORT_ID || sportId === BASKETBALL_SPORT_ID;
+    const selectedSeasonYears =
+      leagueSeasons.find((season) => season.season_id === selectedSeasonId)
+        ?.years ?? "";
+    const predictionStatsDescription =
+      `Podsumowanie predykcji dla drużyny ${profile.team.name}` +
+      (selectedSeasonYears ? ` w sezonie ${selectedSeasonYears}` : "");
 
     return (
       <div className="space-y-8">
@@ -244,6 +251,16 @@ export default async function TeamPage({
               recentMatches={profile.recent_matches}
             />
           )}
+
+          {!isSportLeagueTeam && queryBase.leagueId ? (
+            <ScopedPredictionStatsSection
+              leagueId={queryBase.leagueId}
+              seasonId={selectedSeasonId}
+              teamId={teamId}
+              heading="Statystyki predykcji"
+              description={predictionStatsDescription}
+            />
+          ) : null}
 
           {profile.head_to_head ? (
             <ExpandableSection

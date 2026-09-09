@@ -39,9 +39,6 @@ export interface PlannedToolCall {
 
 export const MAX_TOOL_CALLS = 4;
 
-export const FOOTBALL_SPORT_ID = 1;
-export const HOCKEY_SPORT_ID = 2;
-
 export const STAT_LABELS = {
   goals: "Bramki",
   total_goals: "Suma bramek",

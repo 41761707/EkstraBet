@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  FOOTBALL_SPORT_ID,
   selectCountryFilter,
   teamsForCountry,
   type PlayersFilterValues,
 } from "@/lib/playerFilterParams";
-import type { PlayerTeamOption } from "@/types/api";
+import {
+  FOOTBALL_SPORT_ID,
+  type PlayerTeamOption,
+} from "@/types/api";
 
 const TEAMS: PlayerTeamOption[] = [
   { id: 10, name: "Arsenal", country_id: 1 },

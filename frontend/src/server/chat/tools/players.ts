@@ -1,13 +1,15 @@
-import type {
-  ChatChartSpec,
-  ChatDataSource,
-  ChatTableSpec,
-  FootballPlayerMatchStat,
-  FootballPlayerMatchStatsResponse,
-  FootballPlayersListResponse,
-  HockeyPlayerMatchStat,
-  HockeyPlayerMatchStatsResponse,
-  TeamProfile,
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type ChatChartSpec,
+  type ChatDataSource,
+  type ChatTableSpec,
+  type FootballPlayerMatchStat,
+  type FootballPlayerMatchStatsResponse,
+  type FootballPlayersListResponse,
+  type HockeyPlayerMatchStat,
+  type HockeyPlayerMatchStatsResponse,
+  type TeamProfile,
 } from "@/types/api";
 
 import { enumArg, numberArg, stringArg } from "./args";
@@ -19,11 +21,7 @@ import type {
   TeamPlayerStatLeadersResponse,
   ToolResult,
 } from "./types";
-import {
-  FOOTBALL_PLAYER_STAT_LABELS,
-  FOOTBALL_SPORT_ID,
-  HOCKEY_SPORT_ID,
-} from "./types";
+import { FOOTBALL_PLAYER_STAT_LABELS } from "./types";
 
 type HockeySkaterPlayerStat = keyof Pick<
   HockeyPlayerMatchStat,

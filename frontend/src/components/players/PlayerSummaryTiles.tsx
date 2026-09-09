@@ -1,8 +1,10 @@
-import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/lib/playerFilterParams";
 import type { ReactNode } from "react";
-import type {
-  FootballPlayerStatsSummary,
-  HockeyPlayerStatsSummary,
+
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type FootballPlayerStatsSummary,
+  type HockeyPlayerStatsSummary,
 } from "@/types/api";
 
 interface PlayerSummaryTilesProps {

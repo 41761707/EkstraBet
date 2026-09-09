@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import {
@@ -12,6 +14,7 @@ interface ExpandableSectionProps {
   children: ReactNode;
   defaultOpen?: boolean;
   id?: string;
+  onToggle?: (open: boolean) => void;
 }
 
 export function ExpandableSection({
@@ -19,12 +22,20 @@ export function ExpandableSection({
   children,
   defaultOpen = false,
   id,
+  onToggle,
 }: ExpandableSectionProps) {
   return (
     <details
       id={id}
-      open={defaultOpen}
       className={EXPANDABLE_SECTION_CLASS_NAME}
+      {...expandableSectionOpenProps(defaultOpen, onToggle)}
+      onToggle={
+        onToggle
+          ? (event) => {
+              onToggle(event.currentTarget.open);
+            }
+          : undefined
+      }
     >
       <summary className={EXPANDABLE_SECTION_SUMMARY_CLASS_NAME}>
         <span className="min-w-0 break-words">{title}</span>
@@ -38,4 +49,15 @@ export function ExpandableSection({
       <div className={EXPANDABLE_SECTION_BODY_CLASS_NAME}>{children}</div>
     </details>
   );
+}
+
+function expandableSectionOpenProps(
+  defaultOpen: boolean,
+  onToggle: ((open: boolean) => void) | undefined,
+): { open?: boolean } {
+  // onToggle re-renderuje rodzica; `open={defaultOpen}` wtedy zamyka expander
+  if (onToggle) {
+    return {};
+  }
+  return { open: defaultOpen };
 }

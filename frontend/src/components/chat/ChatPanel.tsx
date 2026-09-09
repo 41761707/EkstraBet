@@ -4,16 +4,18 @@ import { FormEvent, useMemo, useState } from "react";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatIntro } from "@/components/chat/ChatIntro";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
-import type {
-  ChatMessage,
-  ChatProvider,
-  ChatResponse,
-  ChatSportContext,
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type ChatMessage,
+  type ChatProvider,
+  type ChatResponse,
+  type ChatSportContext,
 } from "@/types/api";
 
 const CHAT_SPORTS: ChatSportContext[] = [
-  { sport_id: 1, label: "Piłka nożna" },
-  { sport_id: 2, label: "Hokej" },
+  { sport_id: FOOTBALL_SPORT_ID, label: "Piłka nożna" },
+  { sport_id: HOCKEY_SPORT_ID, label: "Hokej" },
 ];
 
 const CHAT_PROVIDERS: Array<{
