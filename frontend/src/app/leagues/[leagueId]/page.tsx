@@ -11,6 +11,7 @@ import { ProjectedSeasonStandingsSection } from "@/components/leagues/ProjectedS
 import { MatchList } from "@/components/MatchList";
 import { SportLeaguePage } from "@/components/sport-leagues/SportLeaguePage";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ScopedPredictionStatsSection } from "@/components/stats/ScopedPredictionStatsSection";
 import {
   ApiError,
   getLeagueCharacteristics,
@@ -199,6 +200,12 @@ export default async function LeaguePage({
       roundsResponse.rounds,
       selectedRound,
     );
+    const selectedSeasonYears =
+      league.seasons.find((season) => season.season_id === selectedSeasonId)
+        ?.years ?? "";
+    const predictionStatsDescription =
+      `Podsumowanie predykcji dla ligi ${league.name} ` +
+      `w sezonie ${selectedSeasonYears}`;
 
     return (
       <div className="space-y-8">
@@ -321,6 +328,13 @@ export default async function LeaguePage({
               />
             </ExpandableSection>
           )}
+
+          <ScopedPredictionStatsSection
+            leagueId={league.id}
+            seasonId={selectedSeasonId}
+            heading="Statystyki predykcji"
+            description={predictionStatsDescription}
+          />
 
           <LeagueRatingProgressSection
             key={selectedSeasonId}
