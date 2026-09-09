@@ -11,6 +11,7 @@ import {
   isAnalyticsEmpty,
   resetScopedPredictionStatsFilters,
   shouldFetchScopedPredictionAnalytics,
+  shouldFetchScopedPredictionAnalytics,
   shouldFetchScopedPredictionStats,
   toModelAnalyticsQuery,
   withDefaultScopedModelIds,
@@ -18,6 +19,7 @@ import {
   type ScopedPredictionStatsScope,
 } from "@/components/stats/scopedPredictionStatsModel";
 import {
+  ApiError,
   getModelAnalytics,
   getModelsGroupedByFamily,
   type ModelsByFamily,
@@ -218,8 +220,11 @@ function resolveStatus(
 }
 
 function messageFromLoadError(loadError: unknown): string {
+  if (loadError instanceof ApiError && loadError.message.trim()) {
+    return `${LOAD_ERROR} ${loadError.message}`;
+  }
   if (loadError instanceof Error && loadError.message.trim()) {
-    return loadError.message;
+    return `${LOAD_ERROR} ${loadError.message}`;
   }
   return LOAD_ERROR;
 }
