@@ -3,13 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   areScopedDateFiltersValid,
   createDefaultScopedPredictionStatsFilters,
+  hasScopedModelOptions,
   isAnalyticsEmpty,
   pickDefaultModelIds,
+  resetScopedPredictionStatsFilters,
+  scopedPredictionStatsFiltersKey,
+  shouldFetchScopedPredictionAnalytics,
   shouldFetchScopedPredictionStats,
   toModelAnalyticsQuery,
+  withDefaultScopedModelIds,
   type ScopedPredictionStatsFiltersState,
   type ScopedPredictionStatsScope,
 } from "@/components/stats/scopedPredictionStatsModel";
+import type { ModelsByFamily } from "@/lib/modelsByFamily";
 import type {
   CategoryStatistics,
   ModelAnalyticsResponse,
@@ -76,6 +82,14 @@ function analytics(
   };
 }
 
+function familyModels(): ModelsByFamily {
+  return {
+    result: [{ id: 4, label: "Model 1X2" }],
+    ou: [{ id: 7, label: "Model OU" }],
+    btts: [{ id: 9, label: "Model BTTS" }],
+  };
+}
+
 describe("createDefaultScopedPredictionStatsFilters", () => {
   it("starts with empty dates, no tax and no selected models", () => {
     expect(createDefaultScopedPredictionStatsFilters()).toEqual({
@@ -86,6 +100,111 @@ describe("createDefaultScopedPredictionStatsFilters", () => {
       dateTo: "",
       applyTax: false,
     });
+  });
+});
+
+describe("scopedPredictionStatsFiltersKey", () => {
+  it("is the same for copied objects and copied id arrays", () => {
+    const original = filters({ dateFrom: "2025-08-01", applyTax: true });
+    const copied = {
+      ...original,
+      modelResultIds: [...original.modelResultIds],
+      modelOuIds: [...original.modelOuIds],
+      modelBttsIds: [...original.modelBttsIds],
+    };
+    expect(scopedPredictionStatsFiltersKey(copied)).toBe(
+      scopedPredictionStatsFiltersKey(original),
+    );
+  });
+
+  it("changes when a filter field changes", () => {
+    const withDate = filters({ dateTo: "2026-05-31" });
+    expect(scopedPredictionStatsFiltersKey(withDate)).not.toBe(
+      scopedPredictionStatsFiltersKey(filters()),
+    );
+  });
+});
+
+describe("withDefaultScopedModelIds", () => {
+  it("fills empty family selections with the first model id", () => {
+    expect(
+      withDefaultScopedModelIds(
+        createDefaultScopedPredictionStatsFilters(),
+        familyModels(),
+      ),
+    ).toEqual({
+      modelResultIds: [4],
+      modelOuIds: [7],
+      modelBttsIds: [9],
+      dateFrom: "",
+      dateTo: "",
+      applyTax: false,
+    });
+  });
+
+  it("keeps an existing selection", () => {
+    const next = withDefaultScopedModelIds(
+      filters({ modelResultIds: [11], modelOuIds: [7] }),
+      {
+        result: [
+          { id: 4, label: "A" },
+          { id: 11, label: "B" },
+        ],
+        ou: [{ id: 7, label: "OU" }],
+        btts: [{ id: 9, label: "BTTS" }],
+      },
+    );
+    expect(next.modelResultIds).toEqual([11]);
+    expect(next.modelOuIds).toEqual([7]);
+  });
+});
+
+describe("resetScopedPredictionStatsFilters", () => {
+  it("clears dates and tax and selects the first model of each family", () => {
+    expect(resetScopedPredictionStatsFilters(familyModels())).toEqual({
+      modelResultIds: [4],
+      modelOuIds: [7],
+      modelBttsIds: [9],
+      dateFrom: "",
+      dateTo: "",
+      applyTax: false,
+    });
+  });
+
+  it("leaves a family empty when it has no models", () => {
+    expect(
+      resetScopedPredictionStatsFilters({
+        result: [{ id: 4, label: "A" }],
+        ou: [],
+        btts: [],
+      }),
+    ).toEqual({
+      modelResultIds: [4],
+      modelOuIds: [],
+      modelBttsIds: [],
+      dateFrom: "",
+      dateTo: "",
+      applyTax: false,
+    });
+  });
+});
+
+describe("hasScopedModelOptions", () => {
+  it("is true when any family has a model", () => {
+    expect(hasScopedModelOptions(familyModels())).toBe(true);
+    expect(
+      hasScopedModelOptions({
+        result: [],
+        ou: [{ id: 7, label: "OU" }],
+        btts: [],
+      }),
+    ).toBe(true);
+  });
+
+  it("is false when every family is empty", () => {
+    expect(
+      hasScopedModelOptions({ result: [], ou: [], btts: [] }),
+    ).toBe(false);
   });
 });
 
@@ -179,17 +298,85 @@ describe("toModelAnalyticsQuery", () => {
 });
 
 describe("shouldFetchScopedPredictionStats", () => {
-  it("is true only on the first expander open", () => {
+  it("is true only on the first expander open before models return", () => {
     expect(shouldFetchScopedPredictionStats(true, false)).toBe(true);
   });
 
-  it("does not fetch when the expander is closed", () => {
+  it("does not fetch models when the expander is closed", () => {
     expect(shouldFetchScopedPredictionStats(false, false)).toBe(false);
     expect(shouldFetchScopedPredictionStats(false, true)).toBe(false);
   });
 
-  it("does not fetch again after the first load", () => {
+  it("does not fetch models again after they have returned", () => {
     expect(shouldFetchScopedPredictionStats(true, true)).toBe(false);
+  });
+});
+
+describe("shouldFetchScopedPredictionAnalytics", () => {
+  it("fetches analytics after models return and before analytics complete", () => {
+    expect(shouldFetchScopedPredictionAnalytics(true, true, false)).toBe(
+      true,
+    );
+  });
+
+  it("does not fetch analytics before models return", () => {
+    expect(shouldFetchScopedPredictionAnalytics(true, false, false)).toBe(
+      false,
+    );
+  });
+
+  it("does not fetch analytics after they have loaded once", () => {
+    expect(shouldFetchScopedPredictionAnalytics(true, true, true)).toBe(
+      false,
+    );
+  });
+});
+
+describe("scoped prediction stats fetch orchestration", () => {
+  it("fetches models when the expander stays open after a scope reset", () => {
+    const hasLoadedModels = false;
+    const hasLoadedOnce = false;
+    expect(shouldFetchScopedPredictionStats(true, hasLoadedModels)).toBe(
+      true,
+    );
+    expect(
+      shouldFetchScopedPredictionAnalytics(true, hasLoadedModels, hasLoadedOnce),
+    ).toBe(false);
+  });
+
+  it("loads analytics again after close during analytics then reopen", () => {
+    const hasLoadedModels = true;
+    const hasLoadedOnce = false;
+    expect(shouldFetchScopedPredictionStats(false, hasLoadedModels)).toBe(
+      false,
+    );
+    expect(
+      shouldFetchScopedPredictionAnalytics(false, hasLoadedModels, hasLoadedOnce),
+    ).toBe(false);
+    expect(shouldFetchScopedPredictionStats(true, hasLoadedModels)).toBe(
+      false,
+    );
+    expect(
+      shouldFetchScopedPredictionAnalytics(true, hasLoadedModels, hasLoadedOnce),
+    ).toBe(true);
+  });
+
+  it("fetches nothing while the expander is closed", () => {
+    expect(shouldFetchScopedPredictionStats(false, false)).toBe(false);
+    expect(shouldFetchScopedPredictionAnalytics(false, false, false)).toBe(
+      false,
+    );
+    expect(shouldFetchScopedPredictionStats(false, true)).toBe(false);
+    expect(shouldFetchScopedPredictionAnalytics(false, true, false)).toBe(
+      false,
+    );
+  });
+
+  it("does not refetch through the lazy-load gates after Apply", () => {
+    expect(shouldFetchScopedPredictionStats(true, true)).toBe(false);
+    expect(shouldFetchScopedPredictionAnalytics(true, true, true)).toBe(
+      false,
+    );
   });
 });
 
