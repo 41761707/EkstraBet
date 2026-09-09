@@ -1,4 +1,5 @@
 import type { GetModelAnalyticsOptions } from "@/lib/apiClient";
+import type { ModelsByFamily } from "@/lib/modelsByFamily";
 import type { ModelAnalyticsResponse } from "@/types/api";
 
 export interface ScopedPredictionStatsScope {
@@ -33,6 +34,20 @@ export function createDefaultScopedPredictionStatsFilters(): ScopedPredictionSta
     dateTo: "",
     applyTax: false,
   };
+}
+
+/** Content identity of filters — ignores object/array references. */
+export function scopedPredictionStatsFiltersKey(
+  filters: ScopedPredictionStatsFiltersState,
+): string {
+  return [
+    filters.dateFrom,
+    filters.dateTo,
+    filters.applyTax ? "1" : "0",
+    filters.modelResultIds.join(","),
+    filters.modelOuIds.join(","),
+    filters.modelBttsIds.join(","),
+  ].join("|");
 }
 
 /** Like /stats: keep a selection, otherwise the first family id, else omit the family. */
@@ -88,12 +103,53 @@ export function isAnalyticsEmpty(analytics: ModelAnalyticsResponse): boolean {
   );
 }
 
-/** First expander open loads models + analytics; later Apply refetches in the hook. */
+/** First expander open loads models; skip once that stage has returned. */
 export function shouldFetchScopedPredictionStats(
   isOpen: boolean,
+  hasLoadedModels: boolean,
+): boolean {
+  return isOpen && !hasLoadedModels;
+}
+
+/** After models, load analytics unless already loaded or the expander is closed. */
+export function shouldFetchScopedPredictionAnalytics(
+  isOpen: boolean,
+  hasLoadedModels: boolean,
   hasLoadedOnce: boolean,
 ): boolean {
-  return isOpen && !hasLoadedOnce;
+  return isOpen && hasLoadedModels && !hasLoadedOnce;
+}
+
+/** Fills empty family selections with the first available model id. */
+export function withDefaultScopedModelIds(
+  filters: ScopedPredictionStatsFiltersState,
+  models: ModelsByFamily,
+): ScopedPredictionStatsFiltersState {
+  return {
+    ...filters,
+    modelResultIds:
+      pickDefaultModelIds(filters.modelResultIds, models.result) ?? [],
+    modelOuIds: pickDefaultModelIds(filters.modelOuIds, models.ou) ?? [],
+    modelBttsIds: pickDefaultModelIds(filters.modelBttsIds, models.btts) ?? [],
+  };
+}
+
+/** Clears dates and tax, then selects the first model of each family. */
+export function resetScopedPredictionStatsFilters(
+  models: ModelsByFamily,
+): ScopedPredictionStatsFiltersState {
+  return withDefaultScopedModelIds(
+    createDefaultScopedPredictionStatsFilters(),
+    models,
+  );
+}
+
+export function hasScopedModelOptions(models: ModelsByFamily): boolean {
+  return (
+    models.result.length > 0 ||
+    models.ou.length > 0 ||
+    models.btts.length > 0
+  );
 }
 
 function optionalIdList(
