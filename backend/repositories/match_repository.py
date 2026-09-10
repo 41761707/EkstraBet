@@ -430,6 +430,27 @@ def fetch_hockey_match_boxscore(match_id: int) -> tuple[pd.DataFrame, pd.DataFra
     return goalies, skaters
 
 
+def fetch_hockey_match_lineups(match_id: int) -> pd.DataFrame:
+    """Return roster rows for one hockey match."""
+    query = """
+        SELECT
+            hmr.player_id,
+            p.common_name AS player_name,
+            hmr.team_id,
+            t.name AS team_name,
+            hmr.position,
+            hmr.number,
+            hmr.line
+        FROM hockey_match_rosters hmr
+        JOIN players p ON p.id = hmr.player_id
+        JOIN teams t ON t.id = hmr.team_id
+        WHERE hmr.match_id = %s
+        ORDER BY hmr.team_id, hmr.line, hmr.number, p.common_name
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=(match_id,))
+
+
 def fetch_match_player_stats(match_id: int) -> pd.DataFrame:
     """Return per-player football stats for a single match."""
     query = """
