@@ -429,6 +429,45 @@ class HockeyMatchBoxscore(BaseModel):
         description="Skater stats")
 
 
+class HockeyLineupPlayer(BaseModel):
+    """Single player in a hockey match lineup."""
+
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    team_id: int = Field(..., description="Team ID")
+    position: str = Field(
+        ...,
+        description="Raw position code (C/LW/RW/D/G/NN)")
+    number: int | None = Field(None, description="Jersey number")
+    line: int = Field(..., description="Line number from 1 to 4")
+
+
+class HockeyLineupLine(BaseModel):
+    """Players assigned to one hockey line."""
+
+    line: int = Field(..., description="Line number (1, 2, 3 or 4)")
+    players: list[HockeyLineupPlayer] = Field(
+        ...,
+        description="Players on this line")
+
+
+class HockeyTeamLineup(BaseModel):
+    """Hockey lineup for one team, always four lines."""
+
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    lines: list[HockeyLineupLine] = Field(
+        ...,
+        description="Four lineup lines (line=1..4)")
+
+
+class HockeyMatchLineups(BaseModel):
+    """Hockey match lineups for home and away teams."""
+
+    home: HockeyTeamLineup = Field(..., description="Home team lineup")
+    away: HockeyTeamLineup = Field(..., description="Away team lineup")
+
+
 PlayedBetterFinalAssessment = Literal[
     "HOME_PLAYED_BETTER",
     "DRAW",
@@ -526,6 +565,9 @@ class MatchDetails(BaseModel):
     hockey_boxscore: HockeyMatchBoxscore | None = Field(
         None,
         description="Hockey player stats when available for a played match")
+    hockey_lineups: HockeyMatchLineups | None = Field(
+        None,
+        description="Hockey match lineups grouped by team and line")
     model_assessments: list[MatchModelAssessment] = Field(
         default_factory=list,
         description="Post-match model assessments (e.g. PLAYED_BETTER)")
