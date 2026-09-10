@@ -8,6 +8,9 @@ import pandas as pd
 
 from backend.database import get_db_connection
 from models.pipeline.core.config import ModelRunConfig
+from models.pipeline.data.ml_league_filter import MAX_ML_LEAGUE_TIER
+from models.pipeline.data.ml_league_filter import is_ml_eligible_tier
+from models.pipeline.data.ml_league_filter import ml_eligible_league_sql
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +60,37 @@ _MINIMAL_REQUIRED = [
 ]
 
 _XG_COLUMNS = ("home_team_xg", "away_team_xg")
+_LEAGUE_JOIN_SQL = "INNER JOIN leagues l ON l.id = m.league"
 
 
 def _select_clause() -> str:
     return ",\n        ".join(f"m.{column}" for column in _MATCH_STAT_COLUMNS)
+
+
+def _coerce_league_tier(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    return int(value)
+
+
+def _ml_ineligible_tier_error(tier: int | None) -> ValueError:
+    """Build ValueError for a league that is not eligible for ML."""
+    if tier is None:
+        return ValueError(
+            "League tier None is not eligible for ML "
+            f"(cutoff {MAX_ML_LEAGUE_TIER})")
+    return ValueError(
+        f"League tier {tier} exceeds ML cutoff {MAX_ML_LEAGUE_TIER}")
+
+
+def _reject_ineligible_match_stats(frame: pd.DataFrame) -> pd.DataFrame:
+    """Raise when the row's league is above the ML tier cutoff."""
+    if frame.empty:
+        return frame
+    tier = _coerce_league_tier(frame.iloc[0]["tier"])
+    if not is_ml_eligible_tier(tier):
+        raise _ml_ineligible_tier_error(tier)
+    return frame.drop(columns=["tier"], errors="ignore")
 
 
 def _finished_match_filter() -> str:
@@ -141,13 +171,15 @@ def fetch_training_matches(config: ModelRunConfig) -> pd.DataFrame:
     where_parts = [
         "m.sport_id = %s",
         _finished_match_filter(),
-        _required_stats_filter(required)
+        _required_stats_filter(required),
+        ml_eligible_league_sql()
     ]
     _append_xg_filter(where_parts, require_xg, exclude_xg)
     query = f"""
         SELECT
             {_select_clause()}
         FROM matches m
+        {_LEAGUE_JOIN_SQL}
         WHERE {" AND ".join(where_parts)}
         ORDER BY m.game_date, m.id
     """
@@ -167,14 +199,18 @@ def fetch_match_stats(
     _append_xg_filter(where_parts, require_positive_xg, exclude_positive_xg)
     query = f"""
         SELECT
-            {_select_clause()}
+            {_select_clause()},
+            l.tier
         FROM matches m
+        {_LEAGUE_JOIN_SQL}
         WHERE {" AND ".join(where_parts)}
         LIMIT 1
     """
     with get_db_connection() as conn:
         frame = pd.read_sql(query, conn, params=(match_id,))
-    return _normalize_zero_xg_as_missing(frame)
+    # filtr SQL ukryłby puchar jako „brak meczu”; tu operator ma dostać przyczynę
+    frame = _normalize_zero_xg_as_missing(frame)
+    return _reject_ineligible_match_stats(frame)
 
 
 def fetch_matches_by_ids(
@@ -185,12 +221,16 @@ def fetch_matches_by_ids(
     if not match_ids:
         return pd.DataFrame(columns=_MATCH_STAT_COLUMNS)
     placeholders = ", ".join(["%s"] * len(match_ids))
-    where_parts = [f"m.id IN ({placeholders})"]
+    where_parts = [
+        f"m.id IN ({placeholders})",
+        ml_eligible_league_sql()
+    ]
     _append_xg_filter(where_parts, require_positive_xg, exclude_positive_xg)
     query = f"""
         SELECT
             {_select_clause()}
         FROM matches m
+        {_LEAGUE_JOIN_SQL}
         WHERE {" AND ".join(where_parts)}
         ORDER BY m.game_date, m.id
     """
@@ -211,13 +251,15 @@ def fetch_matches_by_season(
         "m.sport_id = %s",
         "m.season = %s",
         _finished_match_filter(),
-        _required_stats_filter(required)
+        _required_stats_filter(required),
+        ml_eligible_league_sql()
     ]
     _append_xg_filter(where_parts, require_positive_xg, exclude_positive_xg)
     query = f"""
         SELECT
             {_select_clause()}
         FROM matches m
+        {_LEAGUE_JOIN_SQL}
         WHERE {" AND ".join(where_parts)}
         ORDER BY m.game_date, m.id
     """
