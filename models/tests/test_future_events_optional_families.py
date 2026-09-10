@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
+import pandas as pd
 import pytest
 import tqdm as tqdm_module
 import tqdm.std as tqdm_std
@@ -56,6 +57,31 @@ def _batch() -> SequenceBatch:
         X_home=np.zeros((1, 2, 3), dtype=float),
         X_away=np.zeros((1, 2, 3), dtype=float),
         X_static=np.zeros((1, 4), dtype=float))
+
+
+def _stub_league_context(
+        monkeypatch: pytest.MonkeyPatch,
+        tiers: dict[int, int | None]) -> None:
+    from models.pipeline.core import cli as cli_module
+
+    def fake_fetch(
+            sport_id: int,
+            league_id: int | None = None) -> pd.DataFrame:
+        del sport_id
+        frame = pd.DataFrame([
+            {"league_id": item_id, "tier": tier}
+            for item_id, tier in tiers.items()])
+        if league_id is not None:
+            frame = frame.loc[frame["league_id"] == league_id]
+        return frame.reset_index(drop=True)
+
+    monkeypatch.setattr(cli_module, "fetch_league_context", fake_fetch)
+
+
+@pytest.fixture
+def stub_eligible_leagues(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ligi z istniejących testów CLI (1 i 19) zostają poniżej progu ML
+    _stub_league_context(monkeypatch, {1: 1, 19: 1})
 
 
 def test_predict_pair_returns_only_btts_when_other_configs_missing() -> None:
@@ -122,7 +148,8 @@ def test_future_predictor_rejects_empty_config_set() -> None:
 
 
 def test_run_predict_batch_skips_insufficient_history_and_continues(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch,
+        stub_eligible_leagues: None) -> None:
     from models.pipeline.core import cli as cli_module
 
     good = MatchupInput(
@@ -171,7 +198,8 @@ def test_run_predict_batch_skips_insufficient_history_and_continues(
 def test_predict_batch_main_keeps_json_stdout_contract(
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
-        is_tty: bool) -> None:
+        is_tty: bool,
+        stub_eligible_leagues: None) -> None:
     from models.pipeline.core import cli as cli_module
 
     good = MatchupInput(
@@ -223,7 +251,8 @@ def test_predict_batch_main_keeps_json_stdout_contract(
 
 
 def test_predict_batch_skip_logs_use_tqdm_write(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch,
+        stub_eligible_leagues: None) -> None:
     from models.pipeline.core import cli as cli_module
 
     written: list[str] = []
@@ -311,7 +340,8 @@ def test_predict_batch_progress_bar_enabled_on_tty(
 
 def test_run_predict_batch_logs_history_stages(
         monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture) -> None:
+        caplog: pytest.LogCaptureFixture,
+        stub_eligible_leagues: None) -> None:
     from models.pipeline.core import cli as cli_module
 
     matchup = MatchupInput(
@@ -353,7 +383,8 @@ def test_run_predict_batch_logs_history_stages(
 
 
 def test_run_predict_batch_shares_context_and_feature_cache(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch,
+        stub_eligible_leagues: None) -> None:
     from models.pipeline.core import cli as cli_module
 
     first = MatchupInput(
@@ -395,7 +426,8 @@ def test_run_predict_batch_shares_context_and_feature_cache(
 
 
 def test_run_predict_pair_builds_shared_history(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch,
+        stub_eligible_leagues: None) -> None:
     from models.pipeline.core import cli as cli_module
 
     context = object()
@@ -421,3 +453,110 @@ def test_run_predict_pair_builds_shared_history(
 
     assert payload["written"] == 0
     assert predictor.predict_pair.call_args.kwargs["context"] is context
+
+
+def test_run_predict_batch_drops_ineligible_league_without_calling_model(
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture) -> None:
+    from models.pipeline.core import cli as cli_module
+
+    cup = MatchupInput(
+        home_team_id=10,
+        away_team_id=20,
+        league_id=42,
+        as_of_date=date(2026, 7, 24),
+        match_id=900)
+    predictor = MagicMock()
+    _stub_league_context(monkeypatch, {42: 100})
+    monkeypatch.setattr(
+        cli_module,
+        "_load_batch_matchups",
+        lambda _args: [cup.model_dump()])
+    monkeypatch.setattr(
+        cli_module, "_future_predictor", lambda _args: predictor)
+    monkeypatch.setattr(
+        cli_module,
+        "_build_predict_history_context",
+        lambda _predictor, _matchups: None)
+
+    with caplog.at_level(logging.INFO):
+        payload = cli_module.run_predict_batch(SimpleNamespace(
+            write_db=False,
+            select_finals=False))
+
+    predictor.predict_pair.assert_not_called()
+    assert payload["processed"] == 0
+    assert payload["predicted"] == 0
+    assert payload["skipped"] == 0
+    assert payload["results"] == []
+    assert any(
+        "ML-ineligible league_id(s) [42]" in record.getMessage()
+        for record in caplog.records)
+
+
+def test_run_predict_batch_keeps_domestic_drops_cup(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.pipeline.core import cli as cli_module
+
+    domestic = MatchupInput(
+        home_team_id=10,
+        away_team_id=20,
+        league_id=1,
+        as_of_date=date(2026, 7, 24),
+        match_id=101)
+    cup = MatchupInput(
+        home_team_id=30,
+        away_team_id=40,
+        league_id=42,
+        as_of_date=date(2026, 7, 24),
+        match_id=900)
+    predictor = MagicMock()
+    predictor.predict_pair.return_value = {
+        "btts": BttsPrediction(0.55, 0.45)}
+    _stub_league_context(monkeypatch, {1: 1, 42: 100})
+    monkeypatch.setattr(
+        cli_module,
+        "_load_batch_matchups",
+        lambda _args: [domestic.model_dump(), cup.model_dump()])
+    monkeypatch.setattr(
+        cli_module, "_future_predictor", lambda _args: predictor)
+    monkeypatch.setattr(
+        cli_module,
+        "_build_predict_history_context",
+        lambda _predictor, _matchups: None)
+
+    payload = cli_module.run_predict_batch(SimpleNamespace(
+        write_db=False,
+        select_finals=False))
+
+    assert predictor.predict_pair.call_count == 1
+    predicted_matchup = predictor.predict_pair.call_args.args[0]
+    assert predicted_matchup.league_id == 1
+    assert payload["processed"] == 1
+    assert payload["predicted"] == 1
+    assert payload["skipped"] == 0
+
+
+def test_run_predict_pair_rejects_ineligible_league(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.pipeline.core import cli as cli_module
+
+    predictor = MagicMock()
+    _stub_league_context(monkeypatch, {42: 100})
+    monkeypatch.setattr(
+        cli_module, "_future_predictor", lambda _args: predictor)
+
+    with pytest.raises(
+            ValueError,
+            match="League tier 100 exceeds ML cutoff 5"):
+        cli_module.run_predict_pair(SimpleNamespace(
+            home=10,
+            away=20,
+            league_id=42,
+            season_id=1,
+            as_of=date(2026, 7, 24),
+            match_id=None,
+            write_db=False,
+            select_finals=False))
+
+    predictor.predict_pair.assert_not_called()

@@ -45,6 +45,10 @@ from models.pipeline.persistence.season_projection_writer import (
     fail_projection_run,
     start_projection_run,
     write_projection)
+from models.pipeline.data.match_history_repository import fetch_league_context
+from models.pipeline.data.ml_league_filter import MAX_ML_LEAGUE_TIER
+from models.pipeline.data.ml_league_filter import filter_ml_eligible_matchups
+from models.pipeline.data.ml_league_filter import is_ml_eligible_tier
 from models.pipeline.data.shared_history_context import SharedHistoryContext
 from models.pipeline.data.shared_history_context import (
     build_shared_history_context)
@@ -508,6 +512,66 @@ def _persist_future_prediction(
     return write_predictions(rows)
 
 
+def _ml_league_tiers(sport_id: int = 1) -> dict[int, int | None]:
+    """Map league id to competition tier for ML eligibility checks."""
+    frame = fetch_league_context(sport_id)
+    tiers: dict[int, int | None] = {}
+    for _, row in frame.iterrows():
+        league_id = int(row["league_id"])
+        tier_value = row["tier"]
+        if pd.notna(tier_value):
+            tiers[league_id] = int(tier_value)
+        else:
+            tiers[league_id] = None
+    return tiers
+
+
+def _ineligible_league_error(tier: int | None) -> ValueError:
+    """Build ValueError for a league that is not eligible for ML."""
+    if tier is None:
+        return ValueError(
+            "League tier None is not eligible for ML "
+            f"(cutoff {MAX_ML_LEAGUE_TIER})")
+    return ValueError(
+        f"League tier {tier} exceeds ML cutoff {MAX_ML_LEAGUE_TIER}")
+
+
+def _assert_ml_eligible_league(
+        league_id: int,
+        sport_id: int = 1) -> None:
+    """Raise when the given league is above the ML tier cutoff."""
+    frame = fetch_league_context(sport_id, league_id)
+    tier: int | None = None
+    if not frame.empty:
+        tier_value = frame.iloc[0]["tier"]
+        if pd.notna(tier_value):
+            tier = int(tier_value)
+    if not is_ml_eligible_tier(tier):
+        raise _ineligible_league_error(tier)
+
+
+def _filter_predict_matchups(
+        matchups: list[MatchupInput],
+        sport_id: int = 1) -> list[MatchupInput]:
+    """Drop cup/international matchups before calling the model."""
+    if not matchups:
+        return matchups
+    kept = filter_ml_eligible_matchups(matchups, _ml_league_tiers(sport_id))
+    dropped = len(matchups) - len(kept)
+    if dropped:
+        dropped_leagues = sorted({
+            matchup.league_id
+            for matchup in matchups
+            if matchup.league_id is not None and matchup not in kept})
+        logger.info(
+            "Skipping %s matchup(s) from ML-ineligible league_id(s) %s "
+            "(tier cutoff %s)",
+            dropped,
+            dropped_leagues,
+            MAX_ML_LEAGUE_TIER)
+    return kept
+
+
 def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
     """Run configured future-event artifacts for one matchup."""
     matchup = MatchupInput(
@@ -517,6 +581,9 @@ def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
         season_id=args.season_id,
         as_of_date=args.as_of,
         match_id=args.match_id)
+    # operator ma dostać błąd, nie ciche pominięcie pucharu
+    if matchup.league_id is not None:
+        _assert_ml_eligible_league(matchup.league_id)
     predictor = _future_predictor(args)
     context = _build_predict_history_context(predictor, [matchup])
     prediction = predictor.predict_pair(matchup, context=context)
@@ -537,6 +604,8 @@ def run_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
 
     raw_matchups = _load_batch_matchups(args)
     matchups = [MatchupInput.model_validate(item) for item in raw_matchups]
+    # --pairs-file omija filtr SQL upcoming, więc tnemy tu drugi raz
+    matchups = _filter_predict_matchups(matchups)
     predictor = _future_predictor(args)
     context = _build_predict_history_context(predictor, matchups)
     feature_cache: FeatureCache = {}
