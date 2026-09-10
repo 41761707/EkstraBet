@@ -539,13 +539,14 @@ def _ineligible_league_error(tier: int | None) -> ValueError:
 def _assert_ml_eligible_league(
         league_id: int,
         sport_id: int = 1) -> None:
-    """Raise when the given league is above the ML tier cutoff."""
+    """Raise when the given league is missing or above the ML tier cutoff."""
     frame = fetch_league_context(sport_id, league_id)
+    if frame.empty:
+        raise ValueError(f"league_id={league_id} was not found")
     tier: int | None = None
-    if not frame.empty:
-        tier_value = frame.iloc[0]["tier"]
-        if pd.notna(tier_value):
-            tier = int(tier_value)
+    tier_value = frame.iloc[0]["tier"]
+    if pd.notna(tier_value):
+        tier = int(tier_value)
     if not is_ml_eligible_tier(tier):
         raise _ineligible_league_error(tier)
 
@@ -790,6 +791,8 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
         mode=mode,
         n_trials=args.trials,
         seed=args.seed)
+    # LM/MŚ nie mogą dostać wiersza RUNNING w projekcji sezonu
+    _assert_ml_eligible_league(config.league_id, goals_config.sport_id)
     artifact_hash = compute_artifact_hash(goals_config.artifact_dir)
     started_at = datetime.utcnow()
     run_id = start_projection_run(SeasonProjectionRun(

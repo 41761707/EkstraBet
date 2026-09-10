@@ -560,3 +560,28 @@ def test_run_predict_pair_rejects_ineligible_league(
             select_finals=False))
 
     predictor.predict_pair.assert_not_called()
+
+
+def test_run_predict_pair_rejects_unknown_league(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from models.pipeline.core import cli as cli_module
+
+    predictor = MagicMock()
+    _stub_league_context(monkeypatch, {1: 1})
+    monkeypatch.setattr(
+        cli_module, "_future_predictor", lambda _args: predictor)
+
+    with pytest.raises(
+            ValueError,
+            match=r"league_id=42 was not found"):
+        cli_module.run_predict_pair(SimpleNamespace(
+            home=10,
+            away=20,
+            league_id=42,
+            season_id=1,
+            as_of=date(2026, 7, 24),
+            match_id=None,
+            write_db=False,
+            select_finals=False))
+
+    predictor.predict_pair.assert_not_called()

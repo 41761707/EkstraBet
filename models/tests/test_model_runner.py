@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 
 from models.pipeline.core.cli import main
+from models.pipeline.core.cli import run_simulate_season
 from models.pipeline.core.config import (
     EvaluationReport,
     PredictionResult,
@@ -191,6 +194,7 @@ def test_cli_simulate_season_marks_failed_on_error() -> None:
     fake_simulator.run.side_effect = ValueError("incomplete schedule")
 
     with patch(
+            "models.pipeline.core.cli._assert_ml_eligible_league"), patch(
             "models.pipeline.core.cli.load_model_config",
             return_value=goals_config), patch(
             "models.pipeline.core.cli.compute_artifact_hash",
@@ -253,6 +257,7 @@ def test_cli_simulate_season_preserves_original_error_if_fail_write_breaks(
     fake_simulator.run.side_effect = ValueError("incomplete schedule")
 
     with patch(
+            "models.pipeline.core.cli._assert_ml_eligible_league"), patch(
             "models.pipeline.core.cli.load_model_config",
             return_value=goals_config), patch(
             "models.pipeline.core.cli.compute_artifact_hash",
@@ -344,6 +349,7 @@ def test_cli_simulate_season_success_writes_projection() -> None:
     fake_simulator.run.return_value = result
 
     with patch(
+            "models.pipeline.core.cli._assert_ml_eligible_league"), patch(
             "models.pipeline.core.cli.load_model_config",
             return_value=goals_config), patch(
             "models.pipeline.core.cli.compute_artifact_hash",
@@ -446,6 +452,7 @@ def test_cli_simulate_season_no_progress_disables_tqdm() -> None:
     fake_simulator.run.return_value = result
 
     with patch(
+            "models.pipeline.core.cli._assert_ml_eligible_league"), patch(
             "models.pipeline.core.cli.load_model_config",
             return_value=goals_config), patch(
             "models.pipeline.core.cli.compute_artifact_hash",
@@ -474,3 +481,91 @@ def test_cli_simulate_season_no_progress_disables_tqdm() -> None:
         ])
     assert code == 0
     assert fake_simulator.run.call_args.kwargs["round_progress"] is None
+
+
+def test_run_simulate_season_rejects_ineligible_league() -> None:
+    from models.pipeline.core.config import FutureEventsRunConfig
+
+    goals_config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_GOALS_POISSON_V1",
+        "sport_id": 1,
+        "task_type": "goals_poisson",
+        "model_version": "1.0.0",
+        "artifact_dir": str(
+            REPO_ROOT
+            / "models"
+            / "artifacts"
+            / "release"
+            / "football_goals_poisson_v1"),
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballGoalsPoissonLabeler",
+        "trainer": "PoissonTrainer",
+        "output_columns": ["lambda_home", "lambda_away"],
+        "feature_config": {}
+    })
+    league_frame = pd.DataFrame([{"league_id": 42, "tier": 100}])
+
+    with patch(
+            "models.pipeline.core.cli.load_model_config",
+            return_value=goals_config), patch(
+            "models.pipeline.core.cli.fetch_league_context",
+            return_value=league_frame) as context_mock, patch(
+            "models.pipeline.core.cli.compute_artifact_hash") as hash_mock, patch(
+            "models.pipeline.core.cli.start_projection_run") as start_mock, patch(
+            "models.pipeline.core.cli.DynamicSeasonSimulator") as simulator_cls:
+        with pytest.raises(
+                ValueError,
+                match="League tier 100 exceeds ML cutoff 5"):
+            run_simulate_season(SimpleNamespace(
+                goals_config=GOALS_PREDICTION_CONFIG,
+                league_id=42,
+                season_id=13,
+                mode="from_now",
+                trials=100,
+                seed=42,
+                no_progress=True))
+    context_mock.assert_called_once_with(1, 42)
+    start_mock.assert_not_called()
+    simulator_cls.assert_not_called()
+    hash_mock.assert_not_called()
+
+
+def test_run_simulate_season_rejects_unknown_league() -> None:
+    from models.pipeline.core.config import FutureEventsRunConfig
+
+    goals_config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_GOALS_POISSON_V1",
+        "sport_id": 1,
+        "task_type": "goals_poisson",
+        "model_version": "1.0.0",
+        "artifact_dir": str(
+            REPO_ROOT
+            / "models"
+            / "artifacts"
+            / "release"
+            / "football_goals_poisson_v1"),
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballGoalsPoissonLabeler",
+        "trainer": "PoissonTrainer",
+        "output_columns": ["lambda_home", "lambda_away"],
+        "feature_config": {}
+    })
+
+    with patch(
+            "models.pipeline.core.cli.load_model_config",
+            return_value=goals_config), patch(
+            "models.pipeline.core.cli.fetch_league_context",
+            return_value=pd.DataFrame()), patch(
+            "models.pipeline.core.cli.start_projection_run") as start_mock:
+        with pytest.raises(
+                ValueError,
+                match=r"league_id=999 was not found"):
+            run_simulate_season(SimpleNamespace(
+                goals_config=GOALS_PREDICTION_CONFIG,
+                league_id=999,
+                season_id=13,
+                mode="from_now",
+                trials=100,
+                seed=42,
+                no_progress=True))
+    start_mock.assert_not_called()
