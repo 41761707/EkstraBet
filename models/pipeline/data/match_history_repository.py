@@ -9,6 +9,7 @@ from datetime import datetime
 import pandas as pd
 
 from backend.database import get_db_connection
+from models.pipeline.data.ml_league_filter import ml_eligible_league_sql
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,13 @@ def fetch_finished_matches(
         SELECT
             {_match_select_clause()}
         FROM matches m
+        INNER JOIN leagues l ON l.id = m.league
         WHERE m.sport_id = %s
           AND m.game_date < %s
           AND m.result IN ('1', 'X', '2')
           AND m.home_team_goals IS NOT NULL
           AND m.away_team_goals IS NOT NULL
+          AND {ml_eligible_league_sql()}
         ORDER BY m.game_date, m.id
     """
     with get_db_connection() as connection:
@@ -124,7 +127,8 @@ def fetch_upcoming_matches(
     filters = [
         "m.sport_id = %s",
         "m.game_date >= %s",
-        "(m.result = '0' OR m.result IS NULL)"
+        "(m.result = '0' OR m.result IS NULL)",
+        ml_eligible_league_sql()
     ]
     params: tuple[object, ...] = (sport_id, date_from)
     if date_to is not None:
@@ -137,6 +141,7 @@ def fetch_upcoming_matches(
         SELECT
             {_match_select_clause()}
         FROM matches m
+        INNER JOIN leagues l ON l.id = m.league
         WHERE {" AND ".join(filters)}
         ORDER BY m.game_date, m.id
     """
