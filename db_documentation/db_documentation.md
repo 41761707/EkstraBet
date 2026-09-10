@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 09.09.2026
+###### Ostatnia data modyfikacji: 10.09.2026
 
 ## Opis struktury bazy
 
@@ -971,7 +971,7 @@ Dane do tabeli BĘDĄ dodawane nowym modułem o potencjalnej nazwie **get_projec
 | NAME                | VARCHAR(45) | STRING                | Nazwa drużyny w języku polskim                                                           | NULL                     |
 | LAST_UPDATE         | DATETIME    | DATE                  | Ostatnia aktualizacja danych ligowych (jakichkolwiek, nawet fauli w meczu X)             | NULL                     |
 | ACTIVE              | INT         | {0, 1}                | Czy liga aktualnie analizowana przez system? (0 - nie, 1 - tak)                          | NULL                     |
-| TIER                | INT         | {1, 2, 100, 101, 102} | Poziom rozgrywky ligi (100 - Liga Mistrzów, 101 - Liczba Europy, 102 - Liga Konferencji) | NULL                     |
+| TIER                | INT         | {1, 2, 100, 101, 102} | Poziom rozgrywek ligi: 1–5 to szczebel krajowy (bufor na niższe ligi; dziś 1 i 2), 100+ to rozgrywki międzynarodowe/pucharowe (100 = Liga Mistrzów i Mistrzostwa Świata, 101 = Liga Europy, 102 = Liga Konferencji). Pipeline ML używa tylko lig z `tier <= 5`; `NULL` i wartości powyżej progu nie wchodzą do treningu ani predykcji. | NULL                     |
 | HAS_PLAYER_STATS    | INT         | {0, 1}                | Czy liga posiada statystyki zawodników? (0 - nie, 1 - tak)                                    | NULL                     |
 
 
