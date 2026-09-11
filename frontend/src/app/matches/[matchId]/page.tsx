@@ -94,7 +94,7 @@ export default async function MatchPage({
           </div>
         </section>
 
-        <MatchDetailTabs match={match} />
+        <MatchDetailTabs key={match.id} match={match} />
       </div>
     );
   } catch (error) {
