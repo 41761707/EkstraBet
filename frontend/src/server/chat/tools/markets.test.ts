@@ -281,6 +281,7 @@ function makeMatchDetails(
     away_team_history: [],
     boxscore: null,
     hockey_boxscore: null,
+    basketball_lineups: null,
     model_assessments: [],
     ...overrides,
   };
