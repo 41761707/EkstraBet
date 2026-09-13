@@ -17,10 +17,13 @@ from backend.repositories import (
 from backend.repositories.match_repository import (
     DEFAULT_MATCH_SEARCH_LIMIT,
     MAX_MATCH_SEARCH_LIMIT)
-from backend.repositories.sport_league_repository import HOCKEY_SPORT_ID
+from backend.repositories.sport_league_repository import (
+    BASKETBALL_SPORT_ID,
+    HOCKEY_SPORT_ID)
 from backend.services import odds_service, prediction_service
 from backend.services.match_score import map_score_resolution
 from backend.services.round_label import resolve_round_label
+from backend.sports.basketball.lineups import map_basketball_lineups
 from backend.sports.hockey.boxscore import map_hockey_boxscore
 from backend.sports.hockey.first_period_goals import fetch_first_period_goals
 from backend.sports.hockey.lineups import map_hockey_lineups
@@ -547,6 +550,7 @@ def get_match_details(
     hockey_stats = None
     hockey_lineups = None
     football_stats = None
+    basketball_lineups = None
     if sport_id == HOCKEY_SPORT_ID:
         hockey_stats = map_hockey_match_stats(row)
         lineup_frame = match_repository.fetch_hockey_match_lineups(match_id)
@@ -565,6 +569,16 @@ def get_match_details(
                     skaters_frame)
     else:
         football_stats = _map_basic_stats(row)
+
+    if sport_id == BASKETBALL_SPORT_ID:
+        lineup_frame = match_repository.fetch_basketball_match_lineups(
+            match_id)
+        basketball_lineups = map_basketball_lineups(
+            lineup_frame,
+            home_team_id,
+            summary["home_team"]["name"],
+            away_team_id,
+            summary["away_team"]["name"])
 
     has_hockey_boxscore = hockey_boxscore is not None
     model_assessments = _safe_fetch_match_assessments(match_id)
@@ -588,5 +602,6 @@ def get_match_details(
         "boxscore": boxscore,
         "hockey_boxscore": hockey_boxscore,
         "hockey_lineups": hockey_lineups,
+        "basketball_lineups": basketball_lineups,
         "model_assessments": model_assessments
     }
