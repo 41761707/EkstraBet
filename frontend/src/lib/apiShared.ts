@@ -92,6 +92,7 @@ export function normalizeMatchDetails(payload: MatchDetails): MatchDetails {
     away_team_history: payload.away_team_history ?? [],
     boxscore: payload.boxscore ?? null,
     hockey_lineups: payload.hockey_lineups ?? null,
+    basketball_lineups: payload.basketball_lineups ?? null,
     model_assessments: payload.model_assessments ?? [],
   };
 }

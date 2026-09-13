@@ -195,7 +195,11 @@ function summarizeMatchDetails(details: MatchDetails) {
     away_history_count: details.away_team_history?.length ?? 0,
     has_boxscore: Boolean(details.boxscore?.length),
     has_hockey_boxscore: Boolean(details.hockey_boxscore),
+<<<<<<< HEAD
     has_hockey_lineups: Boolean(details.hockey_lineups),
+=======
+    has_basketball_lineups: Boolean(details.basketball_lineups),
+>>>>>>> c03e34c ([SZP-221] Typy TS do koszykówki)
   };
 }
 
