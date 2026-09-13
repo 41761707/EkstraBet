@@ -21,11 +21,14 @@ export interface HockeyRinkMarker {
 
 const FORWARD_SLOT_ORDER = ["RW", "C", "LW"] as const;
 const FORWARD_SLOT_X = [33, 20, 7] as const;
-const FORWARD_SLOT_Y = 45;
+const FORWARD_SLOT_Y = 43;
 const DEFENSE_SLOT_X = [13.5, 26.5] as const;
-const DEFENSE_SLOT_Y = 25;
+const DEFENSE_SLOT_Y = 23;
 const GOALIE_SLOT_X = 20;
-const GOALIE_SLOT_Y = 11;
+// Streamlit miało y=11; podnosimy G, żeby podpis pod kółkiem nie wchodził w pole bramkowe.
+const GOALIE_SLOT_Y = 12;
+const LINE_1_TABLE_ORDER = ["G", "D", "LW", "C", "RW"] as const;
+const SKATER_LINE_TABLE_ORDER = ["D", "LW", "C", "RW"] as const;
 
 function toMarker(
   player: HockeyLineupPlayer,
@@ -66,6 +69,19 @@ export function linePlayers(
 ): HockeyLineupPlayer[] {
   const lineupLine = team.lines.find((item) => item.line === line);
   return lineupLine?.players ?? [];
+}
+
+/** Table order: line 1 is G, D, D, LW, C, RW; other lines omit G. */
+export function sortPlayersForLineTable(
+  players: HockeyLineupPlayer[],
+  line: number,
+): HockeyLineupPlayer[] {
+  const order = line === 1 ? LINE_1_TABLE_ORDER : SKATER_LINE_TABLE_ORDER;
+  const used = new Set<string>(order);
+  return [
+    ...order.flatMap((position) => playersWithPosition(players, position)),
+    ...players.filter((player) => !used.has(player.position)),
+  ];
 }
 
 /**

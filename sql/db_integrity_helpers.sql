@@ -1,9 +1,10 @@
 -- =============================================================================
--- Weryfikacja integralności danych dla wskazanej ligi i sezonu
+-- Weryfikacja integralności danych
 -- =============================================================================
 -- Użycie:
---   1. Ustaw parametry poniżej (ID ligi i ID sezonu).
---   2. Uruchom wybrane zapytanie (każde jest niezależne).
+--   1. Dla zapytań 1–3 ustaw parametry poniżej (ID ligi i ID sezonu).
+--   2. Zapytanie 4 (dzisiejsze mecze bez predykcji) obejmuje wszystkie ligi.
+--   3. Uruchom wybrane zapytanie (każde jest niezależne).
 --
 -- Każde zapytanie zwraca listę konkretnych meczów z brakami — nie liczników.
 --
@@ -11,6 +12,7 @@
 --   - matches.result: '0' lub NULL = brak wyniku
 --   - leagues.has_player_stats: 1 = liga powinna mieć statystyki zawodników
 --   - odds: co najmniej jeden wiersz na mecz oznacza pobrane kursy
+--   - predictions: co najmniej jeden wiersz na mecz oznacza wygenerowane predykcje
 --   - statystyki zawodników wg sport_id:
 --       1 (piłka nożna)  -> football_player_stats
 --       2 (hokej)        -> hockey_match_player_stats
@@ -130,5 +132,36 @@ WHERE m.league = @league_id
           WHERE bps.match_id = m.id
       ))
       OR m.sport_id NOT IN (1, 2, 3)
+  )
+ORDER BY m.game_date, m.id;
+
+
+-- -----------------------------------------------------------------------------
+-- 4. Mecze rozgrywane dzisiaj bez wygenerowanych predykcji
+-- -----------------------------------------------------------------------------
+-- Zakres: wszystkie ligi i sezony (parametry @league_id / @season_id nie są
+-- używane). Sprawdzane są mecze z DATE(game_date) = CURDATE().
+-- Mecz uznajemy za mający predykcje, gdy istnieje co najmniej jeden wiersz
+-- w predictions.
+-- -----------------------------------------------------------------------------
+SELECT
+    m.id AS match_id,
+    m.game_date,
+    m.round,
+    s.years AS season,
+    l.name AS league_name,
+    ht.name AS home_team,
+    at.name AS away_team,
+    'brak_predykcji' AS integrity_issue
+FROM matches m
+JOIN leagues l ON l.id = m.league
+JOIN seasons s ON s.id = m.season
+JOIN teams ht ON ht.id = m.home_team
+JOIN teams at ON at.id = m.away_team
+WHERE DATE(m.game_date) = CURDATE()
+  AND NOT EXISTS (
+      SELECT 1
+      FROM predictions p
+      WHERE p.match_id = m.id
   )
 ORDER BY m.game_date, m.id;

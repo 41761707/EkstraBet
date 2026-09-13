@@ -7,7 +7,8 @@ interface HockeyRinkProps {
 const RINK_WIDTH = 40;
 const RINK_HEIGHT = 60;
 const MARKER_RADIUS = 2.2;
-const NAME_OFFSET = 7;
+// Streamlit dawało offset 7 pod koszulką JPG; tu małe kółko, plan każe y-5.
+const NAME_OFFSET = 5;
 const CENTER_X = 20;
 const CENTER_Y = 30;
 const GOAL_CREASE_RADIUS = 2.5;

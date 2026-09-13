@@ -7,6 +7,7 @@ import {
   HOCKEY_LINE_TABS,
   linePlayers,
   rinkMarkersForLine,
+  sortPlayersForLineTable,
 } from "@/components/matches/hockeyLineupModel";
 import { StatusMessage } from "@/components/StatusMessage";
 import type {
@@ -100,6 +101,7 @@ function HockeyTeamLineupColumn({
 }) {
   const [activeLine, setActiveLine] = useState<HockeyLineNumber>(1);
   const players = linePlayers(team, activeLine);
+  const tablePlayers = sortPlayersForLineTable(players, activeLine);
 
   return (
     <section className="min-w-0 space-y-3">
@@ -113,7 +115,7 @@ function HockeyTeamLineupColumn({
         />
       ) : (
         <>
-          <HockeyLineupTable players={players} />
+          <HockeyLineupTable players={tablePlayers} />
           <HockeyRink markers={rinkMarkersForLine(players)} />
         </>
       )}

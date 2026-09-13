@@ -4,6 +4,7 @@ import {
   HOCKEY_LINE_TABS,
   linePlayers,
   rinkMarkersForLine,
+  sortPlayersForLineTable,
 } from "@/components/matches/hockeyLineupModel";
 import type { HockeyLineupPlayer, HockeyTeamLineup } from "@/types/api";
 
@@ -60,6 +61,30 @@ describe("linePlayers", () => {
   });
 });
 
+describe("sortPlayersForLineTable", () => {
+  const scrambled = [
+    samplePlayer({ player_id: 1, position: "C", player_name: "C" }),
+    samplePlayer({ player_id: 2, position: "RW", player_name: "RW" }),
+    samplePlayer({ player_id: 3, position: "D", player_name: "D1" }),
+    samplePlayer({ player_id: 4, position: "G", player_name: "G" }),
+    samplePlayer({ player_id: 5, position: "LW", player_name: "LW" }),
+    samplePlayer({ player_id: 6, position: "D", player_name: "D2" }),
+    samplePlayer({ player_id: 7, position: "NN", player_name: "NN" }),
+  ];
+
+  it("orders line 1 as G, D, D, LW, C, RW, then unknown positions", () => {
+    expect(
+      sortPlayersForLineTable(scrambled, 1).map((player) => player.position),
+    ).toEqual(["G", "D", "D", "LW", "C", "RW", "NN"]);
+  });
+
+  it("orders other lines as D, D, LW, C, RW, then leftover positions", () => {
+    expect(
+      sortPlayersForLineTable(scrambled, 2).map((player) => player.position),
+    ).toEqual(["D", "D", "LW", "C", "RW", "G", "NN"]);
+  });
+});
+
 describe("rinkMarkersForLine", () => {
   it("places a full first line on six Streamlit slots", () => {
     const markers = rinkMarkersForLine([
@@ -103,12 +128,12 @@ describe("rinkMarkersForLine", () => {
 
     expect(markers).toHaveLength(6);
     expect(markers.map((marker) => [marker.position, marker.x, marker.y])).toEqual([
-      ["RW", 33, 45],
-      ["C", 20, 45],
-      ["LW", 7, 45],
-      ["D", 13.5, 25],
-      ["D", 26.5, 25],
-      ["G", 20, 11],
+      ["RW", 33, 43],
+      ["C", 20, 43],
+      ["LW", 7, 43],
+      ["D", 13.5, 23],
+      ["D", 26.5, 23],
+      ["G", 20, 12],
     ]);
     expect(markers.map((marker) => marker.name)).toEqual([
       "Marchenko",
@@ -127,7 +152,7 @@ describe("rinkMarkersForLine", () => {
 
     expect(markers).toHaveLength(1);
     expect(markers[0].x).toBe(33);
-    expect(markers[0].y).toBe(45);
+    expect(markers[0].y).toBe(43);
     expect(markers[0].position).toBe("RW");
   });
 
