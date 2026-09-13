@@ -463,3 +463,23 @@ def fetch_match_player_stats(match_id: int) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=(match_id,))
 
 
+def fetch_basketball_match_lineups(match_id: int) -> pd.DataFrame:
+    """Return roster rows for one basketball match."""
+    query = """
+        SELECT
+            bmr.player_id,
+            p.common_name AS player_name,
+            bmr.team_id,
+            t.name AS team_name,
+            bmr.number,
+            bmr.starter
+        FROM basketball_match_roster bmr
+        JOIN players p ON p.id = bmr.player_id
+        JOIN teams t ON t.id = bmr.team_id
+        WHERE bmr.match_id = %s
+        ORDER BY bmr.team_id, bmr.starter DESC, bmr.number, p.common_name
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=(match_id,))
+
+
