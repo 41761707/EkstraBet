@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { HomeReleaseNotes } from "@/components/home/HomeReleaseNotes";
 import { HomeSection } from "@/components/home/HomeSection";
 
 const offerCards = [
@@ -199,6 +200,8 @@ export function HomeStaticSections() {
           Projekt rozwijany przez pasjonatów dla pasjonatów
         </p>
       </HomeSection>
+
+      <HomeReleaseNotes />
     </>
   );
 }
