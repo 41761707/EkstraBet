@@ -466,6 +466,153 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(details["model_assessments"], [])
         self.assertIsNotNone(details["stats"])
 
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_basketball_match_lineups")
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
+    @patch(
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_boxscore",
+        return_value=(pd.DataFrame(), pd.DataFrame()))
+    @patch(
+        "backend.services.match_service.match_repository.fetch_match_by_id")
+    def test_get_match_details_skips_basketball_lineups_for_hockey(
+        self,
+        mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_boxscore: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
+        _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock,
+        mock_fetch_lineups: unittest.mock.MagicMock) -> None:
+        frame = self._sample_match_frame()
+        frame["sport_id"] = 2
+        mock_fetch_match.return_value = frame
+        details = get_match_details(100)
+        assert details is not None
+        self.assertIsNone(details["basketball_lineups"])
+        mock_fetch_lineups.assert_not_called()
+
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_basketball_match_lineups")
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
+    @patch(
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository.fetch_match_by_id")
+    def test_get_match_details_maps_basketball_lineups(
+        self,
+        mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
+        _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock,
+        mock_fetch_lineups: unittest.mock.MagicMock) -> None:
+        frame = self._sample_match_frame()
+        frame["sport_id"] = 3
+        mock_fetch_match.return_value = frame
+        mock_fetch_lineups.return_value = pd.DataFrame([{
+            "player_id": 501,
+            "player_name": "Fears J.",
+            "team_id": 10,
+            "team_name": "Legia",
+            "number": 0,
+            "starter": 1
+        }, {
+            "player_id": 502,
+            "player_name": "Poole J.",
+            "team_id": 10,
+            "team_name": "Legia",
+            "number": 13,
+            "starter": 0
+        }, {
+            "player_id": 601,
+            "player_name": "Avdija D.",
+            "team_id": 20,
+            "team_name": "Lech",
+            "number": 8,
+            "starter": 1
+        }])
+        details = get_match_details(100)
+        assert details is not None
+        lineups = details["basketball_lineups"]
+        assert lineups is not None
+        home_players = lineups["home"]["players"]
+        self.assertTrue(home_players[0]["starter"])
+        self.assertEqual(home_players[0]["number"], 0)
+        self.assertEqual(home_players[0]["player_name"], "Fears J.")
+        self.assertFalse(home_players[1]["starter"])
+        self.assertEqual(
+            lineups["away"]["players"][0]["player_name"],
+            "Avdija D.")
+        self.assertIsNone(details.get("hockey_lineups"))
+        mock_fetch_lineups.assert_called_once_with(100)
+
 
 class TestMatchSearchService(unittest.TestCase):
     """Tests for match search by team name queries."""
