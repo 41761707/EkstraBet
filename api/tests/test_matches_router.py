@@ -145,6 +145,7 @@ class TestMatchesRouter(unittest.TestCase):
             },
             "hockey_stats": None,
             "hockey_boxscore": None,
+            "basketball_lineups": None,
             "has_player_stats": False,
             "head_to_head": {
                 "team_id": 10,
