@@ -25,9 +25,8 @@ def _empty_row(team_id: int, team_name: str) -> dict[str, Any]:
 def _process_team_match(
     row: dict[str, Any],
     team_points: int,
-    opponent_points: int,
-    is_overtime: bool) -> None:
-    """Update one team's stats after a single game."""
+    opponent_points: int) -> None:
+    """Update one team's stats after a single FT result, including OT."""
     row["played"] += 1
     row["points_for"] += team_points
     row["points_against"] += opponent_points
@@ -36,8 +35,6 @@ def _process_team_match(
         row["wins"] += 1
     else:
         row["losses"] += 1
-        if is_overtime:
-            pass
 
 
 def build_basketball_standings(
@@ -55,20 +52,17 @@ def build_basketball_standings(
         away_id = int(match_row["away_id"])
         home_points = int(match_row["home_team_goals"])
         away_points = int(match_row["away_team_goals"])
-        is_overtime = int(match_row.get("bma_ot") or 0) == 1
 
         if scope in ("overall", "home") and home_id in stats:
             _process_team_match(
                 stats[home_id],
                 home_points,
-                away_points,
-                is_overtime)
+                away_points)
         if scope in ("overall", "away") and away_id in stats:
             _process_team_match(
                 stats[away_id],
                 away_points,
-                home_points,
-                is_overtime)
+                home_points)
 
     sorted_rows = sorted(
         stats.values(),

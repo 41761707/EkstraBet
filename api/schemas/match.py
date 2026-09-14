@@ -429,18 +429,12 @@ class HockeyMatchBoxscore(BaseModel):
         description="Skater stats")
 
 
-<<<<<<< HEAD
 class HockeyLineupPlayer(BaseModel):
     """Single player in a hockey match lineup."""
-=======
-class BasketballLineupPlayer(BaseModel):
-    """Single player in a basketball match lineup."""
->>>>>>> 3af5e98 ([SZP-217] Schemat Pydantic dla meczu koszykarskiego)
 
     player_id: int = Field(..., description="Player ID")
     player_name: str = Field(..., description="Player display name")
     team_id: int = Field(..., description="Team ID")
-<<<<<<< HEAD
     position: str = Field(
         ...,
         description="Raw position code (C/LW/RW/D/G/NN)")
@@ -472,7 +466,14 @@ class HockeyMatchLineups(BaseModel):
 
     home: HockeyTeamLineup = Field(..., description="Home team lineup")
     away: HockeyTeamLineup = Field(..., description="Away team lineup")
-=======
+
+
+class BasketballLineupPlayer(BaseModel):
+    """Single player in a basketball match lineup."""
+
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    team_id: int = Field(..., description="Team ID")
     number: int | None = Field(
         None,
         description="Jersey number; 0 is valid, missing maps to null")
@@ -496,7 +497,6 @@ class BasketballMatchLineups(BaseModel):
 
     home: BasketballTeamLineup = Field(..., description="Home team lineup")
     away: BasketballTeamLineup = Field(..., description="Away team lineup")
->>>>>>> 3af5e98 ([SZP-217] Schemat Pydantic dla meczu koszykarskiego)
 
 
 PlayedBetterFinalAssessment = Literal[

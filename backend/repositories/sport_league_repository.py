@@ -47,8 +47,6 @@ def fetch_sport_matches(
 
     hockey_join = ""
     hockey_cols = ""
-    basketball_join = ""
-    basketball_cols = ""
     if sport_id == HOCKEY_SPORT_ID:
         hockey_join = "LEFT JOIN hockey_matches_add hma ON m.id = hma.match_id"
         hockey_cols = """
@@ -56,10 +54,6 @@ def fetch_sport_matches(
             , hma.SO AS hma_so
             , hma.OTwinner AS hma_ot_winner
             , hma.SOwinner AS hma_so_winner"""
-    elif sport_id == BASKETBALL_SPORT_ID:
-        basketball_join = (
-            "LEFT JOIN basketball_matches_add bma ON m.id = bma.match_id")
-        basketball_cols = ", bma.ot AS bma_ot"
 
     where_clause = " AND ".join(conditions)
     query = f"""
@@ -81,12 +75,10 @@ def fetch_sport_matches(
             t2.name AS away_name,
             t2.shortcut AS away_shortcut
             {hockey_cols}
-            {basketball_cols}
         FROM matches m
         JOIN teams t1 ON m.home_team = t1.id
         JOIN teams t2 ON m.away_team = t2.id
         {hockey_join}
-        {basketball_join}
         WHERE {where_clause}
         ORDER BY m.game_date DESC
     """

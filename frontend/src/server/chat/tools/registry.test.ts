@@ -100,11 +100,8 @@ describe("runPlannedTools allowlist and limits", () => {
       away_team_history: [],
       boxscore: null,
       hockey_boxscore: null,
-<<<<<<< HEAD
       hockey_lineups: null,
-=======
       basketball_lineups: null,
->>>>>>> c03e34c ([SZP-221] Typy TS do koszykówki)
       model_assessments: [],
     });
 
@@ -211,11 +208,8 @@ describe("runPlannedTools allowlist and limits", () => {
       away_team_history: [{ match_id: 2 }],
       boxscore: null,
       hockey_boxscore: null,
-<<<<<<< HEAD
       hockey_lineups: null,
-=======
       basketball_lineups: null,
->>>>>>> c03e34c ([SZP-221] Typy TS do koszykówki)
       model_assessments: [],
     });
 
@@ -317,11 +311,8 @@ describe("runPlannedTools allowlist and limits", () => {
       away_team_history: [],
       boxscore: null,
       hockey_boxscore: null,
-<<<<<<< HEAD
       hockey_lineups: null,
-=======
       basketball_lineups: null,
->>>>>>> c03e34c ([SZP-221] Typy TS do koszykówki)
       model_assessments: [],
     });
 

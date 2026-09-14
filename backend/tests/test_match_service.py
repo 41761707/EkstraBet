@@ -196,9 +196,13 @@ class TestMatchService(unittest.TestCase):
         }]
         with patch(
             "backend.services.match_service.match_repository"
-            ".fetch_hockey_match_lineups") as mock_fetch_lineups:
-            details = get_match_details(100)
-            mock_fetch_lineups.assert_not_called()
+            ".fetch_hockey_match_lineups") as mock_fetch_hockey_lineups:
+            with patch(
+                "backend.services.match_service.match_repository"
+                ".fetch_basketball_match_lineups") as mock_fetch_basketball_lineups:
+                details = get_match_details(100)
+                mock_fetch_hockey_lineups.assert_not_called()
+                mock_fetch_basketball_lineups.assert_not_called()
         assert details is not None
         self.assertEqual(details["id"], 100)
         self.assertEqual(len(details["final_predictions"]), 1)
@@ -209,6 +213,7 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(details["head_to_head"]["played"], 0)
         self.assertEqual(details["model_assessments"], [])
         self.assertIsNone(details["hockey_lineups"])
+        self.assertIsNone(details["basketball_lineups"])
 
     @patch(
         "backend.services.match_service.league_repository"
@@ -249,6 +254,9 @@ class TestMatchService(unittest.TestCase):
         return_value=(pd.DataFrame(), pd.DataFrame()))
     @patch(
         "backend.services.match_service.match_repository"
+        ".fetch_basketball_match_lineups")
+    @patch(
+        "backend.services.match_service.match_repository"
         ".fetch_hockey_match_lineups")
     @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id")
@@ -256,6 +264,7 @@ class TestMatchService(unittest.TestCase):
         self,
         mock_fetch_match: unittest.mock.MagicMock,
         mock_fetch_lineups: unittest.mock.MagicMock,
+        mock_fetch_basketball_lineups: unittest.mock.MagicMock,
         _mock_fetch_boxscore: unittest.mock.MagicMock,
         _mock_map_hockey_stats: unittest.mock.MagicMock,
         _mock_fetch_assessments: unittest.mock.MagicMock,
@@ -297,6 +306,8 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(len(hockey_lineups["home"]["lines"]), 4)
         self.assertEqual(len(hockey_lineups["away"]["lines"]), 4)
         self.assertEqual(hockey_lineups["away"]["lines"][0]["players"], [])
+        self.assertIsNone(details["basketball_lineups"])
+        mock_fetch_basketball_lineups.assert_not_called()
 
     @patch(
         "backend.services.match_service.league_repository"
@@ -504,10 +515,15 @@ class TestMatchService(unittest.TestCase):
         ".fetch_hockey_match_boxscore",
         return_value=(pd.DataFrame(), pd.DataFrame()))
     @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_lineups",
+        return_value=pd.DataFrame())
+    @patch(
         "backend.services.match_service.match_repository.fetch_match_by_id")
     def test_get_match_details_skips_basketball_lineups_for_hockey(
         self,
         mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_hockey_lineups: unittest.mock.MagicMock,
         _mock_fetch_boxscore: unittest.mock.MagicMock,
         _mock_fetch_assessments: unittest.mock.MagicMock,
         _mock_fetch_predictions: unittest.mock.MagicMock,
