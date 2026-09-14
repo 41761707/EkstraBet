@@ -23,6 +23,7 @@ from backend.services.match_score import map_score_resolution
 from backend.services.round_label import resolve_round_label
 from backend.sports.hockey.boxscore import map_hockey_boxscore
 from backend.sports.hockey.first_period_goals import fetch_first_period_goals
+from backend.sports.hockey.lineups import map_hockey_lineups
 from backend.sports.hockey.match_stats import map_hockey_match_stats
 from backend.sports.hockey.season_match_point import map_hockey_season_match_point
 from backend.services.team_service import (
@@ -544,9 +545,17 @@ def get_match_details(
 
     sport_id = _optional_int(row.get("sport_id"))
     hockey_stats = None
+    hockey_lineups = None
     football_stats = None
     if sport_id == HOCKEY_SPORT_ID:
         hockey_stats = map_hockey_match_stats(row)
+        lineup_frame = match_repository.fetch_hockey_match_lineups(match_id)
+        hockey_lineups = map_hockey_lineups(
+            lineup_frame,
+            home_team_id,
+            summary["home_team"]["name"],
+            away_team_id,
+            summary["away_team"]["name"])
         if summary["is_played"]:
             goalies_frame, skaters_frame = (
                 match_repository.fetch_hockey_match_boxscore(match_id))
@@ -578,5 +587,6 @@ def get_match_details(
             away_history_frame),
         "boxscore": boxscore,
         "hockey_boxscore": hockey_boxscore,
+        "hockey_lineups": hockey_lineups,
         "model_assessments": model_assessments
     }

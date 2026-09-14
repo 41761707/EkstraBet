@@ -620,6 +620,31 @@ export interface HockeyMatchBoxscore {
   skaters: HockeySkaterBoxscoreRow[];
 }
 
+export interface HockeyLineupPlayer {
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  position: string;
+  number: number | null;
+  line: number;
+}
+
+export interface HockeyLineupLine {
+  line: number;
+  players: HockeyLineupPlayer[];
+}
+
+export interface HockeyTeamLineup {
+  team_id: number;
+  team_name: string;
+  lines: HockeyLineupLine[];
+}
+
+export interface HockeyMatchLineups {
+  home: HockeyTeamLineup;
+  away: HockeyTeamLineup;
+}
+
 export type PlayedBetterFinalAssessment =
   | "HOME_PLAYED_BETTER"
   | "DRAW"
@@ -666,6 +691,7 @@ export interface MatchDetails {
   away_team_history: TeamSeasonMatchPoint[];
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
+  hockey_lineups: HockeyMatchLineups | null;
   model_assessments: MatchModelAssessment[];
 }
 

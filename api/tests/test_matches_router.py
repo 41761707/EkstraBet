@@ -145,6 +145,7 @@ class TestMatchesRouter(unittest.TestCase):
             },
             "hockey_stats": None,
             "hockey_boxscore": None,
+            "hockey_lineups": None,
             "has_player_stats": False,
             "head_to_head": {
                 "team_id": 10,
@@ -185,6 +186,7 @@ class TestMatchesRouter(unittest.TestCase):
         self.assertEqual(payload["id"], 100)
         self.assertEqual(payload["home_team"]["name"], "Legia")
         self.assertEqual(len(payload["final_predictions"]), 1)
+        self.assertIsNone(payload["hockey_lineups"])
         home_history = payload["home_team_history"][0]
         self.assertEqual(home_history["team_fouls"], 11)
         self.assertEqual(home_history["opponent_fouls"], 14)

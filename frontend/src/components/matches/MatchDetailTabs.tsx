@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+
 import { HockeyMatchBoxscorePanel } from "@/components/matches/HockeyMatchBoxscorePanel";
+import { HockeyMatchLineupsPanel } from "@/components/matches/HockeyMatchLineupsPanel";
 import { MatchBoxscorePanel } from "@/components/matches/MatchBoxscorePanel";
 import { HockeyMatchStatsPanel } from "@/components/matches/HockeyMatchStatsPanel";
 import { MatchPrematchStatsSection } from "@/components/matches/MatchPrematchStatsSection";
@@ -15,13 +17,13 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
 import { teamChartLabel } from "@/components/predictions/predictionChartModel";
-import type { MatchDetails } from "@/types/api";
+import { HOCKEY_SPORT_ID, type MatchDetails } from "@/types/api";
 
 interface MatchDetailTabsProps {
   match: MatchDetails;
 }
 
-type MatchTab = "prematch" | "predictions" | "stats" | "boxscore";
+type MatchTab = "prematch" | "predictions" | "lineups" | "stats" | "boxscore";
 
 export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<MatchTab>("prematch");
@@ -30,6 +32,11 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   const tabs: { id: MatchTab; label: string; visible: boolean }[] = [
     { id: "prematch", label: "Statystyki przedmeczowe", visible: true },
     { id: "predictions", label: "Predykcje i kursy", visible: true },
+    {
+      id: "lineups",
+      label: "Składy",
+      visible: match.sport_id === HOCKEY_SPORT_ID,
+    },
     {
       id: "stats",
       label: "Statystyki pomeczowe",
@@ -45,6 +52,9 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   ];
 
   const visibleTabs = tabs.filter((tab) => tab.visible);
+  const resolvedTab = visibleTabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : "prematch";
   const homeTeamLabel = teamChartLabel(
     match.home_team,
     preferences.teamNameDisplay,
@@ -58,7 +68,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
     <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap gap-2 border-b border-border pb-1">
         {visibleTabs.map((tab) => {
-          const isActive = tab.id === activeTab;
+          const isActive = tab.id === resolvedTab;
           return (
             <button
               key={tab.id}
@@ -76,7 +86,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         })}
       </div>
 
-      {activeTab === "prematch" ? (
+      {resolvedTab === "prematch" ? (
         <MatchPrematchStatsSection
           sportId={match.sport_id}
           homeTeamName={match.home_team.name}
@@ -89,7 +99,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         />
       ) : null}
 
-      {activeTab === "predictions" ? (
+      {resolvedTab === "predictions" ? (
         <div className="space-y-4">
           {match.prediction_analysis ? (
             <PredictionSimulationResult
@@ -135,7 +145,23 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         </div>
       ) : null}
 
-      {activeTab === "stats" && match.hockey_stats ? (
+      {resolvedTab === "lineups" && match.sport_id === HOCKEY_SPORT_ID ? (
+        match.hockey_lineups ? (
+          <HockeyMatchLineupsPanel
+            lineups={match.hockey_lineups}
+            homeTeamName={match.home_team.name}
+            awayTeamName={match.away_team.name}
+          />
+        ) : (
+          <StatusMessage
+            variant="empty"
+            title="Brak składów"
+            message="Skład meczowy nie jest dostępny dla tego meczu."
+          />
+        )
+      ) : null}
+
+      {resolvedTab === "stats" && match.hockey_stats ? (
         <HockeyMatchStatsPanel
           stats={match.hockey_stats}
           homeTeamName={match.home_team.name}
@@ -143,7 +169,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         />
       ) : null}
 
-      {activeTab === "stats" && !match.hockey_stats && match.stats ? (
+      {resolvedTab === "stats" && !match.hockey_stats && match.stats ? (
         <div className="space-y-6">
           <MatchStatsPanel
             stats={match.stats}
@@ -160,7 +186,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         </div>
       ) : null}
 
-      {activeTab === "boxscore" && match.has_player_stats ? (
+      {resolvedTab === "boxscore" && match.has_player_stats ? (
         match.hockey_boxscore ? (
           <HockeyMatchBoxscorePanel boxscore={match.hockey_boxscore} />
         ) : match.boxscore && match.boxscore.length > 0 ? (
