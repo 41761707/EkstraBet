@@ -91,6 +91,10 @@ describe("BasketballMatchLineupsPanel", () => {
     expect(html).toContain("⭐");
     expect(html).toContain("Ustawienie starterów na boisku");
     expect(html).toContain("Brak zawodników");
+    // boisko nad tabelą, żeby oba SVG były na równej wysokości w siatce
+    expect(html.indexOf("Ustawienie starterów na boisku")).toBeLessThan(
+      html.indexOf("Zawodnik"),
+    );
   });
 
   it("shows an empty state when a team has no players", () => {

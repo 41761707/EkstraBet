@@ -72,7 +72,9 @@ function BasketballTeamLineupColumn({
   if (team.players.length === 0) {
     return (
       <section className="min-w-0 space-y-3">
-        <h3 className="text-lg font-semibold text-text">{teamName}</h3>
+        <h3 className="text-xl font-semibold text-center text-text">
+          {teamName}
+        </h3>
         <StatusMessage
           variant="empty"
           title="Brak zawodników"
@@ -86,9 +88,11 @@ function BasketballTeamLineupColumn({
 
   return (
     <section className="min-w-0 space-y-3">
-      <h3 className="text-lg font-semibold text-text">{teamName}</h3>
-      <BasketballLineupTable players={team.players} />
+      <h3 className="text-xl font-semibold text-center text-text">
+        {teamName}
+      </h3>
       <BasketballCourt markers={markers} />
+      <BasketballLineupTable players={team.players} />
     </section>
   );
 }

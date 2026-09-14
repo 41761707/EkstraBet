@@ -6,8 +6,11 @@ interface BasketballCourtProps {
 
 const COURT_WIDTH = 50;
 const COURT_HEIGHT = 47;
-const MARKER_RADIUS = 2.2;
-const NAME_OFFSET = 5;
+const MARKER_RADIUS = 2.5;
+const NUMBER_FONT_SIZE = 2.4;
+const NAME_FONT_SIZE = 2;
+const NAME_OFFSET = 5.4;
+const NAME_STROKE_WIDTH = 0.35;
 const HALF_LINE_Y = 0.5;
 const LANE_LEFT = 17;
 const LANE_RIGHT = 33;
@@ -133,7 +136,7 @@ function BasketballCourtPlayerMarker({
         textAnchor="middle"
         dominantBaseline="central"
         fill={MARKER_TEXT}
-        fontSize={2}
+        fontSize={NUMBER_FONT_SIZE}
         fontWeight={700}
       >
         {numberLabel}
@@ -144,7 +147,11 @@ function BasketballCourtPlayerMarker({
         textAnchor="middle"
         dominantBaseline="hanging"
         fill={NAME_FILL}
-        fontSize={1.8}
+        fontSize={NAME_FONT_SIZE}
+        fontWeight={700}
+        stroke={LINE_STROKE}
+        strokeWidth={NAME_STROKE_WIDTH}
+        paintOrder="stroke"
       >
         {marker.name}
       </text>
@@ -154,7 +161,7 @@ function BasketballCourtPlayerMarker({
 
 export function BasketballCourt({ markers }: BasketballCourtProps) {
   return (
-    <div className="mx-auto w-full max-w-80 overflow-visible rounded-xl border border-border bg-surface p-2">
+    <div className="mx-auto w-full max-w-96 overflow-visible rounded-xl border border-border bg-surface p-2">
       <svg
         viewBox={`0 0 ${COURT_WIDTH} ${COURT_HEIGHT}`}
         preserveAspectRatio="xMidYMid meet"
