@@ -9,6 +9,7 @@ import {
   type PreferencesStorage,
 } from "@/lib/preferences";
 import {
+  BASKETBALL_SPORT_ID,
   FOOTBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
   type HeadToHeadSummary,
@@ -74,6 +75,7 @@ function minimalMatchDetails(sportId: number): MatchDetails {
     boxscore: null,
     hockey_boxscore: null,
     hockey_lineups: null,
+    basketball_lineups: null,
     model_assessments: [],
   };
 }
@@ -93,6 +95,12 @@ function renderTabs(sportId: number): string {
 describe("MatchDetailTabs", () => {
   it("shows the Składy tab for hockey matches", () => {
     const html = renderTabs(HOCKEY_SPORT_ID);
+
+    expect(html).toContain("Składy");
+  });
+
+  it("shows the Składy tab for basketball matches", () => {
+    const html = renderTabs(BASKETBALL_SPORT_ID);
 
     expect(html).toContain("Składy");
   });

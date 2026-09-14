@@ -96,6 +96,15 @@ class TestMapHockeyScoreResolution(unittest.TestCase):
         assert resolution is not None
         self.assertTrue(resolution["has_extra_time"])
 
+    def test_basketball_returns_none_for_full_time_score(self) -> None:
+        row = pd.Series({
+            "sport_id": 3,
+            "home_team_goals": 112,
+            "away_team_goals": 108,
+            "bma_ot": 1
+        })
+        self.assertIsNone(map_score_resolution(row))
+
 
 if __name__ == "__main__":
     unittest.main()

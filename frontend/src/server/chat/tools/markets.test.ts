@@ -282,6 +282,7 @@ function makeMatchDetails(
     boxscore: null,
     hockey_boxscore: null,
     hockey_lineups: null,
+    basketball_lineups: null,
     model_assessments: [],
     ...overrides,
   };

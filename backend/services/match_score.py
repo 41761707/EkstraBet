@@ -48,23 +48,6 @@ def map_hockey_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     }
 
 
-def map_basketball_score_resolution(row: pd.Series) -> dict[str, Any] | None:
-    """Map basketball overtime metadata for score display."""
-    has_ot = _flag_int(row.get("bma_ot")) == 1
-    if not has_ot:
-        return None
-    return {
-        "has_extra_time": True,
-        "has_penalties": False,
-        "post_ot_home_goals": None,
-        "post_ot_away_goals": None,
-        "penalties_home_goals": None,
-        "penalties_away_goals": None,
-        "overtime_winner": None,
-        "shootout_winner": None
-    }
-
-
 def map_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     """Map extra-time and penalty metadata from a joined match row."""
     sport_id = row.get("sport_id")
@@ -74,7 +57,8 @@ def map_score_resolution(row: pd.Series) -> dict[str, Any] | None:
         if sport == 2:
             return map_hockey_score_resolution(row)
         if sport == 3:
-            return map_basketball_score_resolution(row)
+            # koszykówka: wynik z matches to już FT łącznie z dogrywką
+            return None
 
     overtime_flag = row.get("fsr_ot")
     if overtime_flag is None or (

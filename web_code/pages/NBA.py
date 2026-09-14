@@ -52,7 +52,6 @@ class BasketballSite:
                         t1.name as home_team, t1.id as home_team_id, t1.shortcut as home_team_shortcut, 
                         t2.name as away_team, t2.id as away_team_id, t2.shortcut as away_team_shortcut,
                         m.home_team_goals as home_goals, m.away_team_goals as away_goals, m.result as result,
-                        bma.ot as ot,
                         bma.home_team_field_goals_made, bma.away_team_field_goals_made,
                         bma.home_team_field_goals_attempts, bma.away_team_field_goals_attempts,
                         bma.home_team_field_goals_acc, bma.away_team_field_goals_acc,
@@ -197,10 +196,8 @@ class BasketballSite:
             
             button_label = "{} - {}, data: {}".format(row.home_team, row.away_team, row.game_date.strftime('%d.%m.%y'))
             if row.result != '0':
-                if hasattr(row, 'ot') and row.ot == 1:
-                    button_label = button_label + ", wynik po dogrywce: {} - {}".format(row.home_goals, row.away_goals)
-                else:
-                    button_label = button_label + ", wynik spotkania: {} - {}".format(row.home_goals, row.away_goals)
+                # koszykówka: wynik z matches to już FT łącznie z dogrywką
+                button_label = button_label + ", wynik spotkania: {} - {}".format(row.home_goals, row.away_goals)
 
             if not st.session_state[state_key]:
                 if st.button(f"▶ {button_label}", use_container_width=True, key=f"nba_show_{row.id}"):
@@ -325,7 +322,7 @@ class BasketballSite:
     
     def create_table(self, matches, scope):
         team_ids = {team_id: [0] * 10 for team_id in self.teams_dict}
-        nba_table_package.league_table(matches, team_ids, 1, 0, 0, 0, scope)
+        nba_table_package.league_table(matches, team_ids, 1, 0, 0, scope)
         table_data = {
             "Drużyna": [self.teams_dict[team_id] for team_id in team_ids.keys()],
             "Mecze": [team_stats[0] for team_stats in team_ids.values()],

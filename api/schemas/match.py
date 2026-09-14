@@ -468,6 +468,37 @@ class HockeyMatchLineups(BaseModel):
     away: HockeyTeamLineup = Field(..., description="Away team lineup")
 
 
+class BasketballLineupPlayer(BaseModel):
+    """Single player in a basketball match lineup."""
+
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    team_id: int = Field(..., description="Team ID")
+    number: int | None = Field(
+        None,
+        description="Jersey number; 0 is valid, missing maps to null")
+    starter: bool = Field(
+        ...,
+        description="Whether the player started the match")
+
+
+class BasketballTeamLineup(BaseModel):
+    """Basketball roster for one team."""
+
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    players: list[BasketballLineupPlayer] = Field(
+        ...,
+        description="Roster players ordered by starter then number")
+
+
+class BasketballMatchLineups(BaseModel):
+    """Basketball match lineups for home and away teams."""
+
+    home: BasketballTeamLineup = Field(..., description="Home team lineup")
+    away: BasketballTeamLineup = Field(..., description="Away team lineup")
+
+
 PlayedBetterFinalAssessment = Literal[
     "HOME_PLAYED_BETTER",
     "DRAW",
@@ -568,6 +599,9 @@ class MatchDetails(BaseModel):
     hockey_lineups: HockeyMatchLineups | None = Field(
         None,
         description="Hockey match lineups grouped by team and line")
+    basketball_lineups: BasketballMatchLineups | None = Field(
+        None,
+        description="Basketball match lineups grouped by team")
     model_assessments: list[MatchModelAssessment] = Field(
         default_factory=list,
         description="Post-match model assessments (e.g. PLAYED_BETTER)")

@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 import { HockeyMatchBoxscorePanel } from "@/components/matches/HockeyMatchBoxscorePanel";
-import { HockeyMatchLineupsPanel } from "@/components/matches/HockeyMatchLineupsPanel";
 import { MatchBoxscorePanel } from "@/components/matches/MatchBoxscorePanel";
 import { HockeyMatchStatsPanel } from "@/components/matches/HockeyMatchStatsPanel";
+import { MatchLineupsTabContent } from "@/components/matches/MatchLineupsTabContent";
 import { MatchPrematchStatsSection } from "@/components/matches/MatchPrematchStatsSection";
 import { MatchOddsGroupedTables } from "@/components/MatchOddsGroupedTables";
 import { buildUstaloneMarketPredictions } from "@/components/matchOddsTableModel";
@@ -17,7 +17,11 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
 import { teamChartLabel } from "@/components/predictions/predictionChartModel";
-import { HOCKEY_SPORT_ID, type MatchDetails } from "@/types/api";
+import {
+  BASKETBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type MatchDetails,
+} from "@/types/api";
 
 interface MatchDetailTabsProps {
   match: MatchDetails;
@@ -35,7 +39,9 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
     {
       id: "lineups",
       label: "Składy",
-      visible: match.sport_id === HOCKEY_SPORT_ID,
+      visible:
+        match.sport_id === HOCKEY_SPORT_ID ||
+        match.sport_id === BASKETBALL_SPORT_ID,
     },
     {
       id: "stats",
@@ -145,20 +151,8 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         </div>
       ) : null}
 
-      {resolvedTab === "lineups" && match.sport_id === HOCKEY_SPORT_ID ? (
-        match.hockey_lineups ? (
-          <HockeyMatchLineupsPanel
-            lineups={match.hockey_lineups}
-            homeTeamName={match.home_team.name}
-            awayTeamName={match.away_team.name}
-          />
-        ) : (
-          <StatusMessage
-            variant="empty"
-            title="Brak składów"
-            message="Skład meczowy nie jest dostępny dla tego meczu."
-          />
-        )
+      {resolvedTab === "lineups" ? (
+        <MatchLineupsTabContent match={match} />
       ) : null}
 
       {resolvedTab === "stats" && match.hockey_stats ? (

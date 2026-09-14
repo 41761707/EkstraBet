@@ -62,7 +62,7 @@ def get_teams(league_id, season_id, conn):
     cursor.close()
     return teams
 
-def league_table(matches_df, team_ids, win_value, draw_value, loss_value, ot_loss_value, scope):
+def league_table(matches_df, team_ids, win_value, draw_value, loss_value, scope):
     """
     Tworzy tabelę ligową dla koszykówki.
     
@@ -72,7 +72,6 @@ def league_table(matches_df, team_ids, win_value, draw_value, loss_value, ot_los
         win_value (int): Punkty za wygraną
         draw_value (int): Punkty za remis (nie używane w koszykówce)
         loss_value (int): Punkty za przegraną
-        ot_loss_value (int): Punkty za przegraną po dogrywce
         scope (str): Zakres meczów ('all', 'home', 'away')
     """
     
@@ -84,19 +83,19 @@ def league_table(matches_df, team_ids, win_value, draw_value, loss_value, ot_los
         if scope == 'home':
             # Tylko mecze u siebie dla drużyn
             if home_team_id in team_ids:
-                process_team_match(team_ids, home_team_id, match, True, win_value, loss_value, ot_loss_value)
+                process_team_match(team_ids, home_team_id, match, True, win_value, loss_value)
         elif scope == 'away':
             # Tylko mecze na wyjeździe dla drużyn
             if away_team_id in team_ids:
-                process_team_match(team_ids, away_team_id, match, False, win_value, loss_value, ot_loss_value)
+                process_team_match(team_ids, away_team_id, match, False, win_value, loss_value)
         else:  # scope == 'all'
             # Wszystkie mecze
             if home_team_id in team_ids:
-                process_team_match(team_ids, home_team_id, match, True, win_value, loss_value, ot_loss_value)
+                process_team_match(team_ids, home_team_id, match, True, win_value, loss_value)
             if away_team_id in team_ids:
-                process_team_match(team_ids, away_team_id, match, False, win_value, loss_value, ot_loss_value)
+                process_team_match(team_ids, away_team_id, match, False, win_value, loss_value)
 
-def process_team_match(team_ids, team_id, match, is_home, win_value, loss_value, ot_loss_value):
+def process_team_match(team_ids, team_id, match, is_home, win_value, loss_value):
     """
     Przetwarza pojedynczy mecz dla drużyny w kontekście tabeli.
     
@@ -107,7 +106,6 @@ def process_team_match(team_ids, team_id, match, is_home, win_value, loss_value,
         is_home (bool): Czy drużyna grała u siebie
         win_value (int): Punkty za wygraną
         loss_value (int): Punkty za przegraną
-        ot_loss_value (int): Punkty za przegraną po dogrywce
     """
     # Pozycje w liście: [mecze, wygrane, remisy, przegrane, punkty_zdobyte, punkty_stracone, różnica, punkty, wygrane_po_dogrywce, przegrane_po_dogrywce]
     team_stats = team_ids[team_id]
@@ -128,22 +126,10 @@ def process_team_match(team_ids, team_id, match, is_home, win_value, loss_value,
     team_stats[5] += opponent_points
     team_stats[6] = team_stats[4] - team_stats[5]  # różnica punktów
     
-    # Określ wynik meczu
+    # koszykówka: wynik to FT łącznie z dogrywką, bez osobnego WPD/PPD
     if team_points > opponent_points:
-        # Wygrana
         team_stats[1] += 1
         team_stats[7] += win_value
-        
-        # Sprawdź czy była dogrywka
-        if hasattr(match, 'ot') and match['ot'] == 1:
-            team_stats[8] += 1  # wygrana po dogrywce
     else:
-        # Przegrana
         team_stats[3] += 1
-        
-        # Sprawdź czy była dogrywka
-        if hasattr(match, 'ot') and match['ot'] == 1:
-            team_stats[9] += 1  # przegrana po dogrywce
-            team_stats[7] += ot_loss_value
-        else:
-            team_stats[7] += loss_value
+        team_stats[7] += loss_value

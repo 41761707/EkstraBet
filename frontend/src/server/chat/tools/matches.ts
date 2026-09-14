@@ -196,6 +196,7 @@ function summarizeMatchDetails(details: MatchDetails) {
     has_boxscore: Boolean(details.boxscore?.length),
     has_hockey_boxscore: Boolean(details.hockey_boxscore),
     has_hockey_lineups: Boolean(details.hockey_lineups),
+    has_basketball_lineups: Boolean(details.basketball_lineups),
   };
 }
 
