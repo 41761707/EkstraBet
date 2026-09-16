@@ -451,6 +451,33 @@ def fetch_hockey_match_lineups(match_id: int) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=(match_id,))
 
 
+def fetch_hockey_match_events(match_id: int) -> pd.DataFrame:
+    """Return play-by-play rows for one hockey match."""
+    query = """
+        SELECT
+            hme.id,
+            hme.team_id,
+            t.name AS team_name,
+            hme.player_id,
+            p.common_name AS player_name,
+            hme.event_id,
+            e.name AS event_name,
+            hme.period,
+            hme.event_time,
+            hme.pp_flag,
+            hme.en_flag,
+            hme.description
+        FROM hockey_match_events hme
+        JOIN players p ON p.id = hme.player_id
+        JOIN events e ON e.id = hme.event_id
+        JOIN teams t ON t.id = hme.team_id
+        WHERE hme.match_id = %s
+        ORDER BY hme.period, hme.event_time, hme.id
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=(match_id,))
+
+
 def fetch_match_player_stats(match_id: int) -> pd.DataFrame:
     """Return per-player football stats for a single match."""
     query = """

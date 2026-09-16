@@ -468,6 +468,34 @@ class HockeyMatchLineups(BaseModel):
     away: HockeyTeamLineup = Field(..., description="Away team lineup")
 
 
+class HockeyMatchEvent(BaseModel):
+    """Single hockey play-by-play event on the match timeline."""
+
+    id: int = Field(..., description="Hockey match event ID")
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    event_id: int = Field(..., description="Event type ID from events")
+    event_name: str = Field(..., description="Event type name")
+    period: int = Field(
+        ...,
+        description="Period 1-3, overtime=4, shootout=5")
+    event_time: str = Field(..., description="Time inside the period")
+    description: str | None = Field(
+        None,
+        description="Assist, penalty reason or extra note")
+    is_power_play: bool = Field(
+        ...,
+        description="Whether the event happened on a power play")
+    is_empty_net: bool = Field(
+        ...,
+        description="Whether a goal was scored into an empty net")
+    side: Literal["home", "away"] = Field(
+        ...,
+        description="Home or away column on the timeline")
+
+
 class BasketballLineupPlayer(BaseModel):
     """Single player in a basketball match lineup."""
 
@@ -599,6 +627,9 @@ class MatchDetails(BaseModel):
     hockey_lineups: HockeyMatchLineups | None = Field(
         None,
         description="Hockey match lineups grouped by team and line")
+    hockey_events: list[HockeyMatchEvent] | None = Field(
+        None,
+        description="Hockey play-by-play events for a played match")
     basketball_lineups: BasketballMatchLineups | None = Field(
         None,
         description="Basketball match lineups grouped by team")

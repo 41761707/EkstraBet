@@ -213,6 +213,7 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(details["head_to_head"]["played"], 0)
         self.assertEqual(details["model_assessments"], [])
         self.assertIsNone(details["hockey_lineups"])
+        self.assertIsNone(details["hockey_events"])
         self.assertIsNone(details["basketball_lineups"])
 
     @patch(
@@ -308,6 +309,110 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(hockey_lineups["away"]["lines"][0]["players"], [])
         self.assertIsNone(details["basketball_lineups"])
         mock_fetch_basketball_lineups.assert_not_called()
+        self.assertIsNone(details["hockey_events"])
+
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
+    @patch(
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.map_hockey_match_stats",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_boxscore",
+        return_value=(pd.DataFrame(), pd.DataFrame()))
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_lineups",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_events")
+    @patch(
+        "backend.services.match_service.match_repository.fetch_match_by_id")
+    def test_get_match_details_includes_hockey_events(
+        self,
+        mock_fetch_match: unittest.mock.MagicMock,
+        mock_fetch_events: unittest.mock.MagicMock,
+        _mock_fetch_lineups: unittest.mock.MagicMock,
+        _mock_fetch_boxscore: unittest.mock.MagicMock,
+        _mock_map_hockey_stats: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
+        _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        frame = self._sample_match_frame()
+        frame["sport_id"] = 2
+        mock_fetch_match.return_value = frame
+        mock_fetch_events.return_value = pd.DataFrame([{
+            "id": 11,
+            "team_id": 10,
+            "team_name": "Legia",
+            "player_id": 101,
+            "player_name": "Kucherov N.",
+            "event_id": 181,
+            "event_name": "Strzelec bramki",
+            "period": 1,
+            "event_time": "05:12",
+            "description": "Point B.",
+            "pp_flag": 0,
+            "en_flag": 0
+        }, {
+            "id": 12,
+            "team_id": 20,
+            "team_name": "Lech",
+            "player_id": 202,
+            "player_name": "Scheifele M.",
+            "event_id": 183,
+            "event_name": "Kara mniejsza",
+            "period": 1,
+            "event_time": "08:40",
+            "description": "Zahaczanie",
+            "pp_flag": 0,
+            "en_flag": 0
+        }])
+
+        details = get_match_details(100)
+        assert details is not None
+        mock_fetch_events.assert_called_once_with(100)
+        events = details["hockey_events"]
+        assert events is not None
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["side"], "home")
+        self.assertEqual(events[0]["event_name"], "Strzelec bramki")
+        self.assertEqual(events[1]["side"], "away")
+        self.assertEqual(events[1]["player_name"], "Scheifele M.")
 
     @patch(
         "backend.services.match_service.league_repository"
@@ -512,6 +617,10 @@ class TestMatchService(unittest.TestCase):
         return_value=pd.DataFrame())
     @patch(
         "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_events",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
         ".fetch_hockey_match_boxscore",
         return_value=(pd.DataFrame(), pd.DataFrame()))
     @patch(
@@ -525,6 +634,7 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_match: unittest.mock.MagicMock,
         _mock_fetch_hockey_lineups: unittest.mock.MagicMock,
         _mock_fetch_boxscore: unittest.mock.MagicMock,
+        _mock_fetch_events: unittest.mock.MagicMock,
         _mock_fetch_assessments: unittest.mock.MagicMock,
         _mock_fetch_predictions: unittest.mock.MagicMock,
         _mock_fetch_analysis: unittest.mock.MagicMock,

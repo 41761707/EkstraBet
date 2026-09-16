@@ -101,6 +101,7 @@ describe("runPlannedTools allowlist and limits", () => {
       boxscore: null,
       hockey_boxscore: null,
       hockey_lineups: null,
+      hockey_events: null,
       basketball_lineups: null,
       model_assessments: [],
     });
@@ -209,6 +210,7 @@ describe("runPlannedTools allowlist and limits", () => {
       boxscore: null,
       hockey_boxscore: null,
       hockey_lineups: null,
+      hockey_events: null,
       basketball_lineups: null,
       model_assessments: [],
     });
@@ -312,6 +314,7 @@ describe("runPlannedTools allowlist and limits", () => {
       boxscore: null,
       hockey_boxscore: null,
       hockey_lineups: null,
+      hockey_events: null,
       basketball_lineups: null,
       model_assessments: [],
     });

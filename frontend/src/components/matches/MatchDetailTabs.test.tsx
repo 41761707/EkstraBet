@@ -75,19 +75,25 @@ function minimalMatchDetails(sportId: number): MatchDetails {
     boxscore: null,
     hockey_boxscore: null,
     hockey_lineups: null,
+    hockey_events: null,
     basketball_lineups: null,
     model_assessments: [],
   };
 }
 
-function renderTabs(sportId: number): string {
+function renderTabs(
+  sportId: number,
+  overrides: Partial<MatchDetails> = {},
+): string {
   return renderToStaticMarkup(
     <PreferencesProvider
       hasSession={false}
       storage={silentStorage()}
       api={silentApi()}
     >
-      <MatchDetailTabs match={minimalMatchDetails(sportId)} />
+      <MatchDetailTabs
+        match={{ ...minimalMatchDetails(sportId), ...overrides }}
+      />
     </PreferencesProvider>,
   );
 }
@@ -109,5 +115,23 @@ describe("MatchDetailTabs", () => {
     const html = renderTabs(FOOTBALL_SPORT_ID);
 
     expect(html).not.toContain("Składy");
+  });
+
+  it("shows Przebieg meczu for a played hockey match", () => {
+    const html = renderTabs(HOCKEY_SPORT_ID, { is_played: true });
+
+    expect(html).toContain("Przebieg meczu");
+  });
+
+  it("hides Przebieg meczu for an upcoming hockey match", () => {
+    const html = renderTabs(HOCKEY_SPORT_ID);
+
+    expect(html).not.toContain("Przebieg meczu");
+  });
+
+  it("hides Przebieg meczu for football matches", () => {
+    const html = renderTabs(FOOTBALL_SPORT_ID, { is_played: true });
+
+    expect(html).not.toContain("Przebieg meczu");
   });
 });
