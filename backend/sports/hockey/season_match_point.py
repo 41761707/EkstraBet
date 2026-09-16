@@ -68,8 +68,9 @@ def resolve_hockey_form_result(
     is_home = int(row["home_id"]) == team_id
     home_goals = int(row["home_team_goals"])
     away_goals = int(row["away_team_goals"])
-    has_ot = int(row.get("hma_ot") or 0) != 0
-    has_so = int(row.get("hma_so") or 0) != 0
+    # NaN z LEFT JOIN hockey_matches_add jest truthy, więc nie używamy `or 0`
+    has_ot = _stat_int(row.get("hma_ot")) != 0
+    has_so = _stat_int(row.get("hma_so")) != 0
     overtime = has_ot or has_so
 
     if home_goals > away_goals:

@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import math
+
 import pandas as pd
 
 from api.schemas.match import TeamSeasonMatchPoint
-from backend.sports.hockey.season_match_point import map_hockey_season_match_point
+from backend.sports.hockey.season_match_point import (
+    map_hockey_season_match_point,
+    resolve_hockey_form_result)
 
 
-def _hockey_match_row() -> pd.Series:
-    return pd.Series({
+def _hockey_match_row(**overrides: object) -> pd.Series:
+    row = {
         "id": 501,
         "game_date": datetime(2025, 3, 10, 19, 0),
         "home_id": 100,
@@ -31,8 +35,10 @@ def _hockey_match_row() -> pd.Series:
         "home_team_fk": 8,
         "away_team_fk": 12,
         "home_team_fouls": 4,
-        "away_team_fouls": 6,
-    })
+        "away_team_fouls": 6
+    }
+    row.update(overrides)
+    return pd.Series(row)
 
 
 def test_map_hockey_season_match_point_includes_zero_foul_fields() -> None:
@@ -53,3 +59,10 @@ def test_map_hockey_season_match_point_validates_against_team_season_schema() ->
     assert validated.total_fouls == 0
     assert validated.team_penalties == 4
     assert validated.opponent_penalties == 6
+
+
+def test_resolve_hockey_form_result_treats_missing_ot_so_as_regulation() -> None:
+    row = _hockey_match_row(hma_ot=math.nan, hma_so=math.nan)
+    assert resolve_hockey_form_result(100, row) == "W"
+    mapped = map_hockey_season_match_point(100, row)
+    assert mapped["result"] == "W"

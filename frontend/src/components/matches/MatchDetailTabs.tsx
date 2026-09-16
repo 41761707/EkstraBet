@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { HockeyMatchBoxscorePanel } from "@/components/matches/HockeyMatchBoxscorePanel";
+import { HockeyMatchEventsPanel } from "@/components/matches/HockeyMatchEventsPanel";
 import { MatchBoxscorePanel } from "@/components/matches/MatchBoxscorePanel";
 import { HockeyMatchStatsPanel } from "@/components/matches/HockeyMatchStatsPanel";
 import { MatchLineupsTabContent } from "@/components/matches/MatchLineupsTabContent";
@@ -27,7 +28,13 @@ interface MatchDetailTabsProps {
   match: MatchDetails;
 }
 
-type MatchTab = "prematch" | "predictions" | "lineups" | "stats" | "boxscore";
+type MatchTab =
+  | "prematch"
+  | "predictions"
+  | "lineups"
+  | "events"
+  | "stats"
+  | "boxscore";
 
 export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<MatchTab>("prematch");
@@ -42,6 +49,11 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
       visible:
         match.sport_id === HOCKEY_SPORT_ID ||
         match.sport_id === BASKETBALL_SPORT_ID,
+    },
+    {
+      id: "events",
+      label: "Przebieg meczu",
+      visible: match.sport_id === HOCKEY_SPORT_ID && match.is_played,
     },
     {
       id: "stats",
@@ -153,6 +165,14 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
 
       {resolvedTab === "lineups" ? (
         <MatchLineupsTabContent match={match} />
+      ) : null}
+
+      {resolvedTab === "events" ? (
+        <HockeyMatchEventsPanel
+          events={match.hockey_events ?? []}
+          homeTeamName={match.home_team.name}
+          awayTeamName={match.away_team.name}
+        />
       ) : null}
 
       {resolvedTab === "stats" && match.hockey_stats ? (

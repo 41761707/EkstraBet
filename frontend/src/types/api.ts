@@ -645,6 +645,24 @@ export interface HockeyMatchLineups {
   away: HockeyTeamLineup;
 }
 
+export type HockeyEventSide = "home" | "away";
+
+export interface HockeyMatchEvent {
+  id: number;
+  team_id: number;
+  team_name: string;
+  player_id: number;
+  player_name: string;
+  event_id: number;
+  event_name: string;
+  period: number;
+  event_time: string;
+  description: string | null;
+  is_power_play: boolean;
+  is_empty_net: boolean;
+  side: HockeyEventSide;
+}
+
 export interface BasketballLineupPlayer {
   player_id: number;
   player_name: string;
@@ -711,6 +729,7 @@ export interface MatchDetails {
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
   hockey_lineups: HockeyMatchLineups | null;
+  hockey_events: HockeyMatchEvent[] | null;
   basketball_lineups: BasketballMatchLineups | null;
   model_assessments: MatchModelAssessment[];
 }
