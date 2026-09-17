@@ -1,6 +1,7 @@
 import type {
   SeasonProjectionMode,
   SeasonProjectionModeFlags,
+  SeasonProjectionSpecialSlots,
   SeasonProjectionStandingRow,
 } from "@/types/api";
 
@@ -10,6 +11,13 @@ export const SEASON_PROJECTION_MODE_LABELS: Record<
 > = {
   from_now: "Od ostatniej kolejki",
   from_season_start: "Od początku sezonu",
+};
+
+export type ProjectionView = "points" | "outcomes";
+
+export const PROJECTION_VIEW_LABELS: Record<ProjectionView, string> = {
+  points: "Punkty",
+  outcomes: "Szansę",
 };
 
 export const PROJECTION_COLUMN_LEGEND: ReadonlyArray<{
@@ -89,6 +97,20 @@ export function availableSeasonProjectionModes(
     modes.push("from_season_start");
   }
   return modes;
+}
+
+/** Whether the outcomes table should render the Top N column. */
+export function shouldShowTopColumn(
+  slots: SeasonProjectionSpecialSlots | null,
+): boolean {
+  return slots !== null && slots.top_slots > 0;
+}
+
+/** Whether the outcomes table should render the relegation column. */
+export function shouldShowBotColumn(
+  slots: SeasonProjectionSpecialSlots | null,
+): boolean {
+  return slots !== null && slots.bot_slots > 0;
 }
 
 /** Stable sort by expected position, then team_id as tie-break. */
