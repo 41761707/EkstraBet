@@ -75,6 +75,7 @@ _TABLE_SPECS: tuple[TableSpec, ...] = (
     TableSpec("seasons", SyncKind.DICTIONARY),
     TableSpec("special_rounds", SyncKind.DICTIONARY),
     TableSpec("leagues", SyncKind.DICTIONARY),
+    TableSpec("football_table_special_slots", SyncKind.DICTIONARY),
     TableSpec("conferences", SyncKind.DICTIONARY),
     TableSpec("divisions", SyncKind.DICTIONARY),
     TableSpec("conference_divisions", SyncKind.DICTIONARY),

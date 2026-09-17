@@ -96,12 +96,12 @@ export function ProjectedSeasonOutcomesTable({
             <th className="px-3 py-3 text-center font-medium">Mistrz</th>
             {showTop && specialSlots !== null ? (
               <th className="px-3 py-3 text-center font-medium">
-                Top {specialSlots.top_slots}
+                Puchary (TOP {specialSlots.top_slots})
               </th>
             ) : null}
             {showBot && specialSlots !== null ? (
               <th className="px-3 py-3 text-center font-medium">
-                Spadek ({specialSlots.bot_slots})
+                Spadek (BOT {specialSlots.bot_slots})
               </th>
             ) : null}
           </tr>

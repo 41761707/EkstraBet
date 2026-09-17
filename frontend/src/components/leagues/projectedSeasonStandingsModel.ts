@@ -17,7 +17,7 @@ export type ProjectionView = "points" | "outcomes";
 
 export const PROJECTION_VIEW_LABELS: Record<ProjectionView, string> = {
   points: "Punkty",
-  outcomes: "Szansę",
+  outcomes: "Kluczowe miejsca",
 };
 
 export const PROJECTION_COLUMN_LEGEND: ReadonlyArray<{

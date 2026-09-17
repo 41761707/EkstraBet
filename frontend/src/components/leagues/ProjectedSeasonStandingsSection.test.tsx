@@ -179,9 +179,9 @@ describe("projectedSeasonStandingsModel", () => {
     expect(formatProjectionPoints(42.56)).toBe("42.6");
   });
 
-  it("labels projection views as Punkty and Szansę", () => {
+  it("labels projection views as Punkty and Kluczowe miejsca", () => {
     expect(PROJECTION_VIEW_LABELS.points).toBe("Punkty");
-    expect(PROJECTION_VIEW_LABELS.outcomes).toBe("Szansę");
+    expect(PROJECTION_VIEW_LABELS.outcomes).toBe("Kluczowe miejsca");
   });
 
   it("shows Top and Spadek columns only when slots are positive", () => {
@@ -291,8 +291,8 @@ describe("ProjectedSeasonOutcomesTable", () => {
       }),
     );
     expect(html).toContain("Mistrz");
-    expect(html).toContain("Top 4");
-    expect(html).toContain("Spadek (3)");
+    expect(html).toContain("Puchary (TOP 4)");
+    expect(html).toContain("Spadek (BOT 3)");
     expect(html).toContain("50.0%");
     expect(html).toContain("90.0%");
     expect(html).toContain("5.0%");
@@ -324,7 +324,7 @@ describe("ProjectedSeasonOutcomesTable", () => {
       }),
     );
     expect(html).toContain("Mistrz");
-    expect(html).toContain("Top 4");
+    expect(html).toContain("Puchary (TOP 4)");
     expect(html).not.toContain("Spadek");
   });
 
@@ -463,7 +463,7 @@ describe("ProjectedSeasonStandingsContent", () => {
     expect(html).toContain("Min–Max");
   });
 
-  it("defaults to the points view and shows Punkty / Szansę tabs under mode toggle", () => {
+  it("defaults to the points view and shows Punkty / Kluczowe miejsca tabs under mode toggle", () => {
     const html = renderToStaticMarkup(
       createElement(ProjectedSeasonStandingsContent, {
         loading: false,
@@ -480,7 +480,7 @@ describe("ProjectedSeasonStandingsContent", () => {
       }),
     );
     expect(html).toContain("Punkty");
-    expect(html).toContain("Szansę");
+    expect(html).toContain("Kluczowe miejsca");
     expect(html).toContain("xPts");
     expect(html).toContain("Oczekiwane punkty na koniec sezonu");
     expect(html).not.toContain("Mistrz");
@@ -525,10 +525,10 @@ describe("ProjectedSeasonStandingsContent", () => {
         view: "outcomes",
       }),
     );
-    expect(html).toContain("Szansę");
+    expect(html).toContain("Kluczowe miejsca");
     expect(html).toContain("Mistrz");
     expect(html).toContain("Top 4");
-    expect(html).toContain("Spadek (3)");
+    expect(html).toContain("Spadek (BOT 3)");
     expect(html).toContain("50.0%");
     expect(html).toContain("1. miejsce");
     expect(html).toContain("Od ostatniej kolejki");
@@ -537,7 +537,7 @@ describe("ProjectedSeasonStandingsContent", () => {
     expect(html).not.toContain("puchary europejskie");
   });
 
-  it("keeps the Szansę tab with only Mistrz when special_slots is null", () => {
+  it("keeps the Kluczowe miejsca tab with only Mistrz when special_slots is null", () => {
     const html = renderToStaticMarkup(
       createElement(ProjectedSeasonStandingsContent, {
         loading: false,
@@ -552,7 +552,7 @@ describe("ProjectedSeasonStandingsContent", () => {
         view: "outcomes",
       }),
     );
-    expect(html).toContain("Szansę");
+    expect(html).toContain("Kluczowe miejsca");
     expect(html).toContain("Mistrz");
     expect(html).not.toContain("Top ");
     expect(html).not.toContain("Spadek");
@@ -565,11 +565,12 @@ describe("ProjectedSeasonStandingsContent", () => {
         slots: { top_slots: 4, bot_slots: 3 },
       }),
     );
+    expect(html).toContain("grid-cols-3");
     expect(html).toContain("Mistrz");
     expect(html).toContain("1. miejsce");
     expect(html).toContain("Top 4");
     expect(html).toContain("puchary albo awans");
-    expect(html).toContain("Spadek (3)");
+    expect(html).toContain("Spadek (BOT 3)");
     expect(html).toContain("ostatnie 3 miejsca");
   });
 });

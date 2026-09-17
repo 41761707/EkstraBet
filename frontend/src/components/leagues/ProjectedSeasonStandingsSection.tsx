@@ -136,13 +136,13 @@ export function ProjectionOutcomesLegend({
   const showBot = shouldShowBotColumn(slots);
 
   return (
-    <dl className="grid gap-x-4 gap-y-1 text-xs text-subtle sm:grid-cols-2">
-      <div className="flex gap-2">
+    <dl className="grid grid-cols-3 gap-x-4 text-xs text-subtle">
+      <div className="flex min-w-0 gap-2">
         <dt className="shrink-0 font-semibold text-muted">Mistrz</dt>
         <dd>1. miejsce</dd>
       </div>
       {showTop && slots !== null ? (
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
           <dt className="shrink-0 font-semibold text-muted">
             Top {slots.top_slots}
           </dt>
@@ -150,9 +150,9 @@ export function ProjectionOutcomesLegend({
         </div>
       ) : null}
       {showBot && slots !== null ? (
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
           <dt className="shrink-0 font-semibold text-muted">
-            Spadek ({slots.bot_slots})
+            Spadek (BOT {slots.bot_slots})
           </dt>
           <dd>ostatnie {slots.bot_slots} miejsca</dd>
         </div>
