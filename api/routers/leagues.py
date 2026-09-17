@@ -30,6 +30,7 @@ from api.schemas.standing import (
 from api.schemas.season_projection import SeasonProjectionMode
 from api.schemas.season_projection import SeasonProjectionModeFlagsResponse
 from api.schemas.season_projection import SeasonProjectionResponse
+from api.schemas.season_projection import SeasonProjectionSpecialSlots
 from api.schemas.season_projection import SeasonProjectionStandingRow
 from api.schemas.sport_league import (
     BasketballStandingRow,
@@ -44,6 +45,8 @@ from api.schemas.sport_league import (
     SportTeamHistoryResponse,
     SportTeamsListResponse,
     SportTeamSummary)
+from backend.repositories.season_projection_repository import (
+    SeasonProjectionTeamRowRecord)
 from backend.repositories.sport_league_repository import (
     BASKETBALL_SPORT_ID,
     HOCKEY_SPORT_ID)
@@ -60,6 +63,8 @@ from backend.services.season_projection_service import get_season_projection
 from backend.services.season_projection_service import (
     list_season_projection_modes)
 from backend.sports.football.rating_progress import RatingProgressResult
+from backend.sports.football.table_special_slots import (
+    outcome_probabilities)
 
 logger = logging.getLogger(__name__)
 
@@ -408,26 +413,17 @@ async def get_league_season_projection(
 def _to_season_projection_response(
         payload: SeasonProjectionPayload) -> SeasonProjectionResponse:
     """Map service DTO to the public Pydantic response model."""
+    top_slots = 0
+    bot_slots = 0
+    special_slots = None
+    if payload.special_slots is not None:
+        top_slots = payload.special_slots.top_slots
+        bot_slots = payload.special_slots.bot_slots
+        special_slots = SeasonProjectionSpecialSlots(
+            top_slots=top_slots,
+            bot_slots=bot_slots)
     standings = [
-        SeasonProjectionStandingRow(
-            team_id=row.team_id,
-            team_name=row.team_name,
-            current_position=row.current_position,
-            current_points=row.current_points,
-            expected_position=row.expected_position,
-            most_likely_position=row.most_likely_position,
-            position_min=row.position_min,
-            position_max=row.position_max,
-            expected_points=row.expected_points,
-            points_variance=row.points_variance,
-            points_stddev=row.points_stddev,
-            points_p05=row.points_p05,
-            points_p50=row.points_p50,
-            points_p95=row.points_p95,
-            points_min=row.points_min,
-            points_max=row.points_max,
-            expected_goal_difference=row.expected_goal_difference,
-            position_probabilities=list(row.position_probabilities))
+        _to_season_projection_standing_row(row, top_slots, bot_slots)
         for row in payload.standings]
     return SeasonProjectionResponse(
         league_id=payload.league_id,
@@ -440,7 +436,41 @@ def _to_season_projection_response(
         fixed_matches=payload.fixed_matches,
         simulated_matches=payload.simulated_matches,
         is_stale=payload.is_stale,
+        special_slots=special_slots,
         standings=standings)
+
+
+def _to_season_projection_standing_row(
+        row: SeasonProjectionTeamRowRecord,
+        top_slots: int,
+        bot_slots: int) -> SeasonProjectionStandingRow:
+    """Map one cached standing row and derive outcome probabilities."""
+    outcomes = outcome_probabilities(
+        list(row.position_probabilities),
+        top_slots,
+        bot_slots)
+    return SeasonProjectionStandingRow(
+        team_id=row.team_id,
+        team_name=row.team_name,
+        current_position=row.current_position,
+        current_points=row.current_points,
+        expected_position=row.expected_position,
+        most_likely_position=row.most_likely_position,
+        position_min=row.position_min,
+        position_max=row.position_max,
+        expected_points=row.expected_points,
+        points_variance=row.points_variance,
+        points_stddev=row.points_stddev,
+        points_p05=row.points_p05,
+        points_p50=row.points_p50,
+        points_p95=row.points_p95,
+        points_min=row.points_min,
+        points_max=row.points_max,
+        expected_goal_difference=row.expected_goal_difference,
+        position_probabilities=list(row.position_probabilities),
+        champion_probability=outcomes.champion,
+        top_probability=outcomes.top,
+        bot_probability=outcomes.bot)
 
 
 def _league_sport_id(league_id: int) -> int:

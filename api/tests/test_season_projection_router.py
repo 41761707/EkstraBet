@@ -17,6 +17,8 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
 os.environ.setdefault("AUTH_ENABLED", "false")
 
 from api.main import create_app
+from backend.repositories.football_table_special_slots_repository import (
+    FootballTableSpecialSlotsRecord)
 from backend.repositories.season_projection_repository import (
     SeasonProjectionRunRecord)
 from backend.repositories.season_projection_repository import (
@@ -28,7 +30,12 @@ from models.pipeline.simulation.config import SeasonSimulationInput
 from models.pipeline.simulation.config import SimulationMode
 
 
-def _standing() -> SeasonProjectionTeamRowRecord:
+def _standing(
+        position_probabilities: list[float] | None = None
+) -> SeasonProjectionTeamRowRecord:
+    probabilities = [0.8, 0.2]
+    if position_probabilities is not None:
+        probabilities = position_probabilities
     return SeasonProjectionTeamRowRecord(
         team_id=10,
         team_name="Legia",
@@ -47,14 +54,19 @@ def _standing() -> SeasonProjectionTeamRowRecord:
         points_min=44.0,
         points_max=54.0,
         expected_goal_difference=12.0,
-        position_probabilities=[0.8, 0.2])
+        position_probabilities=probabilities)
 
 
 def _payload(
         *,
         is_stale: bool = False,
-        mode: SimulationMode = SimulationMode.FROM_NOW
+        mode: SimulationMode = SimulationMode.FROM_NOW,
+        special_slots: FootballTableSpecialSlotsRecord | None = None,
+        standings: list[SeasonProjectionTeamRowRecord] | None = None
 ) -> SeasonProjectionPayload:
+    rows = standings
+    if rows is None:
+        rows = [_standing()]
     return SeasonProjectionPayload(
         league_id=1,
         season_id=13,
@@ -66,7 +78,8 @@ def _payload(
         fixed_matches=12,
         simulated_matches=294,
         is_stale=is_stale,
-        standings=[_standing()])
+        standings=rows,
+        special_slots=special_slots)
 
 
 def _football_league_frame() -> pd.DataFrame:
@@ -140,10 +153,41 @@ class TestSeasonProjectionRouter(unittest.TestCase):
         self.assertEqual(body["standings"][0]["team_name"], "Legia")
         self.assertEqual(
             body["standings"][0]["position_probabilities"], [0.8, 0.2])
+        self.assertIsNone(body["special_slots"])
+        self.assertAlmostEqual(
+            body["standings"][0]["champion_probability"], 0.8)
+        self.assertIsNone(body["standings"][0]["top_probability"])
+        self.assertIsNone(body["standings"][0]["bot_probability"])
         mock_get.assert_called_once_with(
             league_id=1,
             season_id=13,
             mode="from_now")
+
+    @patch(
+        "api.routers.leagues.get_season_projection",
+        return_value=_payload(
+            special_slots=FootballTableSpecialSlotsRecord(
+                league_id=1,
+                top_slots=4,
+                bot_slots=3),
+            standings=[_standing(
+                position_probabilities=[0.5, 0.3, 0.15, 0.05])]))
+    def test_returns_special_slots_and_outcome_fields(
+            self,
+            mock_get: MagicMock) -> None:
+        response = self.client.get(
+            "/leagues/1/season-projection?season_id=13")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["special_slots"]["top_slots"], 4)
+        self.assertEqual(body["special_slots"]["bot_slots"], 3)
+        standing = body["standings"][0]
+        self.assertAlmostEqual(standing["champion_probability"], 0.5)
+        self.assertAlmostEqual(standing["top_probability"], 1.0)
+        self.assertAlmostEqual(standing["bot_probability"], 0.5)
+        self.assertEqual(
+            standing["position_probabilities"], [0.5, 0.3, 0.15, 0.05])
+        mock_get.assert_called_once()
 
     @patch(
         "api.routers.leagues.get_season_projection",
@@ -229,6 +273,9 @@ class TestSeasonProjectionRouter(unittest.TestCase):
         mock_get.assert_called_once()
 
     @patch(
+        "backend.services.season_projection_service.fetch_special_slots",
+        return_value=None)
+    @patch(
         "backend.services.season_projection_service"
         ".fetch_season_simulation_input",
         side_effect=ValueError("league_id=1 was not found"))
@@ -249,12 +296,16 @@ class TestSeasonProjectionRouter(unittest.TestCase):
             _mock_league: MagicMock,
             _mock_run: MagicMock,
             _mock_rows: MagicMock,
-            _mock_fingerprint: MagicMock) -> None:
+            _mock_fingerprint: MagicMock,
+            _mock_slots: MagicMock) -> None:
         response = self.client.get(
             "/leagues/1/season-projection?season_id=13")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["is_stale"])
 
+    @patch(
+        "backend.services.season_projection_service.fetch_special_slots",
+        return_value=None)
     @patch(
         "backend.services.season_projection_service"
         ".fetch_season_simulation_input",
@@ -282,7 +333,8 @@ class TestSeasonProjectionRouter(unittest.TestCase):
             _mock_league: MagicMock,
             _mock_run: MagicMock,
             _mock_rows: MagicMock,
-            _mock_fingerprint: MagicMock) -> None:
+            _mock_fingerprint: MagicMock,
+            _mock_slots: MagicMock) -> None:
         for module_name in list(sys.modules):
             if (
                 module_name == "tensorflow"
