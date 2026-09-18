@@ -12,6 +12,9 @@ from datetime import datetime
 
 from backend.repositories import league_repository
 from backend.repositories import season_projection_repository as repository
+from backend.repositories.football_table_special_slots_repository import (
+    FootballTableSpecialSlotsRecord,
+    fetch_special_slots)
 from backend.repositories.season_projection_repository import (
     SeasonProjectionTeamRowRecord)
 from models.pipeline.data.schedule_repository import (
@@ -57,6 +60,7 @@ class SeasonProjectionPayload:
     simulated_matches: int
     is_stale: bool
     standings: list[SeasonProjectionTeamRowRecord]
+    special_slots: FootballTableSpecialSlotsRecord | None = None
 
 
 def list_season_projection_modes(
@@ -99,6 +103,8 @@ def get_season_projection(
     if run is None:
         return None
     team_rows = repository.fetch_team_rows_for_run(run.id)
+    # progi ligi są poza cache'em runu; brak wiersza nie blokuje 200
+    special_slots = fetch_special_slots(league_id)
     is_stale = _is_fingerprint_stale(
         league_id,
         season_id,
@@ -115,7 +121,8 @@ def get_season_projection(
         fixed_matches=run.fixed_matches,
         simulated_matches=run.simulated_matches,
         is_stale=is_stale,
-        standings=team_rows)
+        standings=team_rows,
+        special_slots=special_slots)
 
 
 def _resolve_mode(mode: SimulationMode | str) -> SimulationMode:

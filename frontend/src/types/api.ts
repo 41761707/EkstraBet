@@ -1310,6 +1310,11 @@ export interface SeasonProjectionModeFlags {
   from_season_start: boolean;
 }
 
+export interface SeasonProjectionSpecialSlots {
+  top_slots: number;
+  bot_slots: number;
+}
+
 export interface SeasonProjectionStandingRow {
   team_id: number;
   team_name: string;
@@ -1329,6 +1334,9 @@ export interface SeasonProjectionStandingRow {
   points_max: number;
   expected_goal_difference: number;
   position_probabilities: number[];
+  champion_probability: number;
+  top_probability: number | null;
+  bot_probability: number | null;
 }
 
 export interface SeasonProjectionResponse {
@@ -1342,6 +1350,7 @@ export interface SeasonProjectionResponse {
   fixed_matches: number;
   simulated_matches: number;
   is_stale: boolean;
+  special_slots: SeasonProjectionSpecialSlots | null;
   standings: SeasonProjectionStandingRow[];
 }
 

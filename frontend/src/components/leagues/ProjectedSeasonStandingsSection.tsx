@@ -7,10 +7,15 @@ import {
   EXPANDABLE_SECTION_CLASS_NAME,
   EXPANDABLE_SECTION_SUMMARY_CLASS_NAME,
 } from "@/components/expandableSectionStyles";
+import { ProjectedSeasonOutcomesTable } from "@/components/leagues/ProjectedSeasonOutcomesTable";
 import { ProjectedSeasonStandingsTable } from "@/components/leagues/ProjectedSeasonStandingsTable";
 import {
   availableSeasonProjectionModes,
   PROJECTION_COLUMN_LEGEND,
+  PROJECTION_VIEW_LABELS,
+  shouldShowBotColumn,
+  shouldShowTopColumn,
+  type ProjectionView,
   SEASON_PROJECTION_MODE_LABELS,
 } from "@/components/leagues/projectedSeasonStandingsModel";
 import { useProjectedSeasonStandings } from "@/components/leagues/useProjectedSeasonStandings";
@@ -20,6 +25,7 @@ import type {
   SeasonProjectionMode,
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
+  SeasonProjectionSpecialSlots,
 } from "@/types/api";
 
 interface ProjectedSeasonStandingsSectionProps {
@@ -40,7 +46,11 @@ interface ProjectedSeasonStandingsContentProps {
   > | null;
   selectedMode: SeasonProjectionMode | null;
   onSelectMode: (mode: SeasonProjectionMode) => void;
+  view?: ProjectionView;
+  onSelectView?: (view: ProjectionView) => void;
 }
+
+const PROJECTION_VIEWS: ProjectionView[] = ["points", "outcomes"];
 
 const MODE_BUTTON_ACTIVE =
   "rounded-full bg-accent px-3 py-1.5 text-sm text-on-accent transition hover:bg-accent-hover";
@@ -93,6 +103,64 @@ export function ProjectionColumnLegend() {
   );
 }
 
+export function ProjectionViewToggle({
+  view,
+  onSelectView,
+}: {
+  view: ProjectionView;
+  onSelectView: (view: ProjectionView) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {PROJECTION_VIEWS.map((item) => (
+        <button
+          key={item}
+          type="button"
+          onClick={() => onSelectView(item)}
+          className={view === item ? MODE_BUTTON_ACTIVE : MODE_BUTTON_IDLE}
+          aria-pressed={view === item}
+        >
+          {PROJECTION_VIEW_LABELS[item]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function ProjectionOutcomesLegend({
+  slots,
+}: {
+  slots: SeasonProjectionSpecialSlots | null;
+}) {
+  const showTop = shouldShowTopColumn(slots);
+  const showBot = shouldShowBotColumn(slots);
+
+  return (
+    <dl className="grid grid-cols-3 gap-x-4 text-xs text-subtle">
+      <div className="flex min-w-0 gap-2">
+        <dt className="shrink-0 font-semibold text-muted">Mistrz</dt>
+        <dd>1. miejsce</dd>
+      </div>
+      {showTop && slots !== null ? (
+        <div className="flex min-w-0 gap-2">
+          <dt className="shrink-0 font-semibold text-muted">
+            Top {slots.top_slots}
+          </dt>
+          <dd>miejsca 1…{slots.top_slots} (puchary albo awans)</dd>
+        </div>
+      ) : null}
+      {showBot && slots !== null ? (
+        <div className="flex min-w-0 gap-2">
+          <dt className="shrink-0 font-semibold text-muted">
+            Spadek (BOT {slots.bot_slots})
+          </dt>
+          <dd>ostatnie {slots.bot_slots} miejsca</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
 export function ProjectedSeasonStandingsContent({
   loading,
   error,
@@ -103,6 +171,8 @@ export function ProjectedSeasonStandingsContent({
   modeFlags,
   selectedMode,
   onSelectMode,
+  view = "points",
+  onSelectView,
 }: ProjectedSeasonStandingsContentProps) {
   return (
     <div className="space-y-4">
@@ -113,6 +183,12 @@ export function ProjectedSeasonStandingsContent({
           onSelectMode={onSelectMode}
         />
       ) : null}
+      {data ? (
+        <ProjectionViewToggle
+          view={view}
+          onSelectView={(nextView) => onSelectView?.(nextView)}
+        />
+      ) : null}
       <ProjectionBody
         loading={loading}
         error={error}
@@ -120,6 +196,7 @@ export function ProjectedSeasonStandingsContent({
         data={data}
         leagueId={leagueId}
         seasonId={seasonId}
+        view={view}
       />
     </div>
   );
@@ -132,10 +209,11 @@ function ProjectionBody({
   data,
   leagueId,
   seasonId,
+  view,
 }: Omit<
   ProjectedSeasonStandingsContentProps,
-  "modeFlags" | "selectedMode" | "onSelectMode"
->) {
+  "modeFlags" | "selectedMode" | "onSelectMode" | "onSelectView"
+> & { view: ProjectionView }) {
   if (loading) {
     return <LoadingSpinner label="Ładowanie projekcji sezonu..." />;
   }
@@ -177,12 +255,26 @@ function ProjectionBody({
           message="Terminarz lub wyniki zmieniły się od ostatniego obliczenia. Wyświetlamy ostatnią zapisaną projekcję."
         />
       ) : null}
-      <ProjectionColumnLegend />
-      <ProjectedSeasonStandingsTable
-        standings={data.standings}
-        seasonId={seasonId}
-        leagueId={leagueId}
-      />
+      {view === "points" ? (
+        <>
+          <ProjectionColumnLegend />
+          <ProjectedSeasonStandingsTable
+            standings={data.standings}
+            seasonId={seasonId}
+            leagueId={leagueId}
+          />
+        </>
+      ) : (
+        <>
+          <ProjectionOutcomesLegend slots={data.special_slots} />
+          <ProjectedSeasonOutcomesTable
+            standings={data.standings}
+            specialSlots={data.special_slots}
+            seasonId={seasonId}
+            leagueId={leagueId}
+          />
+        </>
+      )}
     </>
   );
 }
@@ -192,6 +284,7 @@ export function ProjectedSeasonStandingsSection({
   seasonId,
 }: ProjectedSeasonStandingsSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [view, setView] = useState<ProjectionView>("points");
   const projection = useProjectedSeasonStandings(leagueId, seasonId, isOpen);
 
   return (
@@ -219,6 +312,8 @@ export function ProjectedSeasonStandingsSection({
           modeFlags={projection.modeFlags}
           selectedMode={projection.selectedMode}
           onSelectMode={projection.selectMode}
+          view={view}
+          onSelectView={setView}
         />
       </div>
     </details>

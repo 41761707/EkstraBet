@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 09.09.2026
+###### Ostatnia data modyfikacji: 17.09.2026
 
 ## Opis struktury bazy
 
@@ -30,6 +30,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [FINAL_PREDICTIONS](#final_predictions) (Wskaźniki predykcji ostatecznych)
 - [FOOTBALL_PLAYER_STATS](#football_player_stats) (Boxscore meczowy w piłce nożnej)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
+- [FOOTBALL_TABLE_SPECIAL_SLOTS](#football_table_special_slots) (Progi czołówki i spadku w tabeli ligowej)
 - [GAMBLER_PARLAYS](#gambler_parlays) (kupony graczy)
 - [GAMBLERS](#gamblers) (zadeklarowani gracze)
 - [HOCKEY_MATCH_EVENTS](#hockey_match_events) (zdarzenia występujące w danym meczu hokejowym)
@@ -713,6 +714,31 @@ Dane do tabeli generowane są w ramach działania modułu **opta_scrapper.py**
 **Sposób generowania danych do tabeli**:
 
 Dane do tabeli **BĘDĄ** (jeszcze aktualnie nie są) naliczane w ramach scrapperów (głównie **scrapper.py** oraz **update_scrapper.py**)
+
+---
+
+### FOOTBALL_TABLE_SPECIAL_SLOTS
+
+(Progi czołówki i spadku w tabeli ligowej)
+
+
+| POLE        | DOMENA | ZAKRES | UWAGI                                                       | WARTOŚC DOMYŚLNA         |
+| ----------- | ------ | ------ | ----------------------------------------------------------- | ------------------------ |
+| **ID**      | INT    | INT    | ID rekordu                                                  | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *leagues*                   | NULL                     |
+| TOP_SLOTS   | INT    | INT    | Liczba miejsc od góry tabeli (puchary, awans albo czołówka) | NULL                     |
+| BOT_SLOTS   | INT    | INT    | Liczba miejsc od dołu tabeli (spadek)                       | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `LEAGUE_ID` → `leagues(ID)`
+- **Unikalny indeks:** `(LEAGUE_ID)` — jeden zestaw progów na ligę
+
+**Sposób generowania danych do tabeli:**
+
+Dane dodawane ręcznie.
 
 ---
 

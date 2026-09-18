@@ -64,6 +64,15 @@ class SeasonProjectionStandingRow(BaseModel):
     position_probabilities: list[float] = Field(
         ...,
         description="Probabilities for finishing positions 1..N")
+    champion_probability: float = Field(
+        ...,
+        description="Probability of finishing in 1st place")
+    top_probability: float | None = Field(
+        ...,
+        description="Probability of finishing in the top N places")
+    bot_probability: float | None = Field(
+        ...,
+        description="Probability of finishing in the bottom N places")
 
 
 class SeasonProjectionModeFlagsResponse(BaseModel):
@@ -77,6 +86,17 @@ class SeasonProjectionModeFlagsResponse(BaseModel):
     from_season_start: bool = Field(
         ...,
         description="True when a SUCCEEDED from_season_start run exists")
+
+
+class SeasonProjectionSpecialSlots(BaseModel):
+    """League thresholds for top-N and bottom-N table places."""
+
+    top_slots: int = Field(
+        ...,
+        description="Number of places counted from the top of the table")
+    bot_slots: int = Field(
+        ...,
+        description="Number of places counted from the bottom of the table")
 
 
 class SeasonProjectionResponse(BaseModel):
@@ -102,6 +122,9 @@ class SeasonProjectionResponse(BaseModel):
     is_stale: bool = Field(
         ...,
         description="True when schedule/results fingerprint changed")
+    special_slots: SeasonProjectionSpecialSlots | None = Field(
+        None,
+        description="League top/bottom place thresholds, if configured")
     standings: list[SeasonProjectionStandingRow] = Field(
         ...,
         description="Projected table rows ordered by expected position")
