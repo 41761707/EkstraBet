@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 
+from backend.sports.football.event_settlement_registry import MatchBoxscore
 from backend.sports.football.outcome_evaluator import (
     EventFamily,
     InvalidMatchResultError,
@@ -22,7 +23,8 @@ def _candidate(
         home_goals: int | None = 2,
         away_goals: int | None = 1,
         target: SettlementTarget = "final_prediction",
-        record_id: int = 1
+        record_id: int = 1,
+        boxscore: MatchBoxscore | None = None
 ) -> SettlementCandidate:
     return SettlementCandidate(
         record_id=record_id,
@@ -32,7 +34,40 @@ def _candidate(
         family=family,
         result=result,
         home_goals=home_goals,
-        away_goals=away_goals)
+        away_goals=away_goals,
+        boxscore=boxscore)
+
+
+def _boxscore(
+        *,
+        result: str = "1",
+        home_goals: int | None = 2,
+        away_goals: int | None = 1,
+        home_ck: int | None = 5,
+        away_ck: int | None = 4,
+        home_fouls: int | None = 12,
+        away_fouls: int | None = 10,
+        home_yc: int | None = 2,
+        away_yc: int | None = 1,
+        home_rc: int | None = 0,
+        away_rc: int | None = 0,
+        home_off: int | None = 2,
+        away_off: int | None = 1
+) -> MatchBoxscore:
+    return MatchBoxscore(
+        result=result,
+        home_goals=home_goals,
+        away_goals=away_goals,
+        home_ck=home_ck,
+        away_ck=away_ck,
+        home_fouls=home_fouls,
+        away_fouls=away_fouls,
+        home_yc=home_yc,
+        away_yc=away_yc,
+        home_rc=home_rc,
+        away_rc=away_rc,
+        home_off=home_off,
+        away_off=away_off)
 
 
 class TestResultSettlement(unittest.TestCase):
@@ -360,6 +395,16 @@ class TestBetMarketGuard(unittest.TestCase):
         with self.assertRaises(UnsupportedFootballEventError):
             evaluate_football_outcome(candidate)
 
+    def test_bet_target_rejects_corners(self) -> None:
+        candidate = _candidate(
+            event_id=33,
+            event_name="Powyżej 8.5 rożnych",
+            family="OU",
+            target="bet",
+            boxscore=_boxscore())
+        with self.assertRaises(UnsupportedFootballEventError):
+            evaluate_football_outcome(candidate)
+
 
 class TestInvalidAndUnsupportedInputs(unittest.TestCase):
     """Domain errors must never collapse into a guessed loss."""
@@ -399,6 +444,146 @@ class TestInvalidAndUnsupportedInputs(unittest.TestCase):
             home_goals=-1,
             away_goals=2)
         with self.assertRaises(InvalidMatchResultError):
+            evaluate_football_outcome(candidate)
+
+    def test_final_prediction_still_rejects_corners(self) -> None:
+        candidate = _candidate(
+            event_id=33,
+            event_name="Powyżej 8.5 rożnych",
+            family="OU",
+            boxscore=_boxscore())
+        with self.assertRaises(UnsupportedFootballEventError):
+            evaluate_football_outcome(candidate)
+
+
+class TestTipsterLegSettlement(unittest.TestCase):
+    """Tipster legs use goal markets plus registry lines vs boxscore."""
+
+    def test_over_25_at_two_one_is_a_hit(self) -> None:
+        # 2:1 = 3 gole; Over 2.5 wygrywa (plan mylnie podał outcome 0).
+        candidate = _candidate(
+            event_id=8,
+            event_name="Powyżej 2.5 gola",
+            family="OU",
+            target="tipster_leg",
+            home_goals=2,
+            away_goals=1)
+        self.assertEqual(evaluate_football_outcome(candidate), 1)
+
+    def test_over_25_at_one_zero_is_a_miss(self) -> None:
+        candidate = _candidate(
+            event_id=8,
+            event_name="Powyżej 2.5 gola",
+            family="OU",
+            target="tipster_leg",
+            home_goals=1,
+            away_goals=0)
+        self.assertEqual(evaluate_football_outcome(candidate), 0)
+
+    def test_over_85_corners_hits_when_ck_is_five_plus_four(self) -> None:
+        candidate = _candidate(
+            event_id=33,
+            event_name="Powyżej 8.5 rożnych",
+            family="OU",
+            target="tipster_leg",
+            boxscore=_boxscore(home_ck=5, away_ck=4))
+        self.assertEqual(evaluate_football_outcome(candidate), 1)
+
+    def test_over_85_corners_misses_when_total_is_eight(self) -> None:
+        candidate = _candidate(
+            event_id=33,
+            event_name="Powyżej 8.5 rożnych",
+            family="OU",
+            target="tipster_leg",
+            boxscore=_boxscore(home_ck=4, away_ck=4))
+        self.assertEqual(evaluate_football_outcome(candidate), 0)
+
+    def test_missing_home_ck_stays_open(self) -> None:
+        candidate = _candidate(
+            event_id=33,
+            event_name="Powyżej 8.5 rożnych",
+            family="OU",
+            target="tipster_leg",
+            boxscore=_boxscore(home_ck=None, away_ck=4))
+        with self.assertRaises(InvalidMatchResultError):
+            evaluate_football_outcome(candidate)
+
+    def test_missing_boxscore_for_corners_stays_open(self) -> None:
+        candidate = _candidate(
+            event_id=33,
+            event_name="Powyżej 8.5 rożnych",
+            family="OU",
+            target="tipster_leg")
+        with self.assertRaises(InvalidMatchResultError):
+            evaluate_football_outcome(candidate)
+
+    def test_double_chance_home_hits_on_draw(self) -> None:
+        candidate = _candidate(
+            event_id=4,
+            event_name="Gospodarz nie przegra",
+            family="REZULTAT",
+            target="tipster_leg",
+            result="X",
+            home_goals=1,
+            away_goals=1)
+        self.assertEqual(evaluate_football_outcome(candidate), 1)
+
+    def test_double_chance_home_misses_on_away_win(self) -> None:
+        candidate = _candidate(
+            event_id=4,
+            event_name="Gospodarz nie przegra",
+            family="REZULTAT",
+            target="tipster_leg",
+            result="2",
+            home_goals=0,
+            away_goals=1)
+        self.assertEqual(evaluate_football_outcome(candidate), 0)
+
+    def test_handicap_home_minus_15_needs_two_goal_margin(self) -> None:
+        win = _candidate(
+            event_id=49,
+            event_name="Handicap -1.5 dla gospodarza",
+            family="REZULTAT",
+            target="tipster_leg",
+            home_goals=2,
+            away_goals=0)
+        miss = _candidate(
+            event_id=49,
+            event_name="Handicap -1.5 dla gospodarza",
+            family="REZULTAT",
+            target="tipster_leg",
+            home_goals=2,
+            away_goals=1)
+        self.assertEqual(evaluate_football_outcome(win), 1)
+        self.assertEqual(evaluate_football_outcome(miss), 0)
+
+    def test_home_over_15_goals_line_from_registry(self) -> None:
+        candidate = _candidate(
+            event_id=16,
+            event_name="Gospodarz powyżej 1.5 gola",
+            family="OU",
+            target="tipster_leg",
+            home_goals=2,
+            away_goals=0)
+        self.assertEqual(evaluate_football_outcome(candidate), 1)
+
+    def test_exact_score_by_id_without_exact_family(self) -> None:
+        candidate = _candidate(
+            event_id=211,
+            event_name="2:1",
+            family="OU",
+            target="tipster_leg",
+            home_goals=2,
+            away_goals=1)
+        self.assertEqual(evaluate_football_outcome(candidate), 1)
+
+    def test_unsupported_parent_goals_event_raises(self) -> None:
+        candidate = _candidate(
+            event_id=173,
+            event_name="Dokładna liczba goli",
+            family="GOALS",
+            target="tipster_leg")
+        with self.assertRaises(UnsupportedFootballEventError):
             evaluate_football_outcome(candidate)
 
 
