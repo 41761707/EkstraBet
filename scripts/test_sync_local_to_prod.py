@@ -56,10 +56,14 @@ def test_window_cutoff_days() -> None:
 
 
 def test_excluded_and_table_order() -> None:
-    """Users/gamblers stay excluded; dictionaries precede matches."""
+    """Users/tipster tables stay excluded; dictionaries precede matches."""
     mod = _load_module()
     names = [spec.name for spec in mod._selected_specs(None)]
     assert "users" not in names
+    assert "tipster_bankrolls" not in names
+    assert "tipster_coupons" not in names
+    assert "tipster_coupon_legs" not in names
+    assert "tipster_coupon_leg_events" not in names
     assert "gamblers" not in names
     assert names.index("teams") < names.index("matches")
     assert names.index("matches") < names.index("odds")

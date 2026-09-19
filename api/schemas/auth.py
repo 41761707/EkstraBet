@@ -26,6 +26,9 @@ class UserPublic(BaseModel):
     is_admin: bool = Field(
         ...,
         description="True when the user may administer Typer LM")
+    is_system: bool = Field(
+        ...,
+        description="True when the account is a system agent")
 
 
 class TokenResponse(BaseModel):

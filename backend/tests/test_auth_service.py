@@ -12,6 +12,7 @@ from mysql.connector.errors import IntegrityError
 from backend.services.auth_service import (
     AuthError,
     UsernameTakenError,
+    authenticate_user,
     complete_first_login,
     hash_password,
     to_public_user,
@@ -62,6 +63,7 @@ class TestToPublicUser(unittest.TestCase):
         self.assertEqual(public["display_name"], "Alice")
         self.assertTrue(public["first_login"])
         self.assertFalse(public["is_admin"])
+        self.assertFalse(public["is_system"])
         self.assertNotIn("id", public)
         self.assertNotIn("password_hash", public)
 
@@ -75,6 +77,7 @@ class TestToPublicUser(unittest.TestCase):
         }
         self.assertFalse(to_public_user(missing)["first_login"])
         self.assertFalse(to_public_user(missing)["is_admin"])
+        self.assertFalse(to_public_user(missing)["is_system"])
 
     def test_maps_is_admin_tinyint_one_to_true(self) -> None:
         admin = {**_FIRST_LOGIN_USER, "is_admin": 1}
@@ -85,6 +88,32 @@ class TestToPublicUser(unittest.TestCase):
     def test_maps_is_admin_zero_to_false(self) -> None:
         regular = {**_FIRST_LOGIN_USER, "is_admin": 0}
         self.assertFalse(to_public_user(regular)["is_admin"])
+
+    def test_maps_is_system_tinyint_one_to_true(self) -> None:
+        system_user = {**_FIRST_LOGIN_USER, "is_system": 1}
+        public = to_public_user(system_user)
+        self.assertTrue(public["is_system"])
+        self.assertNotIn("id", public)
+
+
+class TestAuthenticateSystemUser(unittest.TestCase):
+    """System accounts must be rejected before the password check."""
+
+    @patch(
+        "backend.services.auth_service.user_repository.fetch_user_by_username")
+    def test_system_account_cannot_log_in(
+            self, mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = {
+            **_FIRST_LOGIN_USER,
+            "username": "agent-kuponowy",
+            "is_active": 1,
+            "is_system": 1,
+            "password_hash": hash_password("secret123")}
+        with self.assertRaises(AuthError) as ctx:
+            authenticate_user("agent-kuponowy", "secret123")
+        self.assertEqual(
+            str(ctx.exception),
+            "System accounts cannot log in")
 
 
 class TestCompleteFirstLogin(unittest.TestCase):

@@ -100,6 +100,9 @@ def authenticate_user(username: str, password: str) -> dict[str, Any]:
     user = user_repository.fetch_user_by_username(username)
     if user is None or not user.get("is_active"):
         raise AuthError("Invalid username or password")
+    # konta systemowe nie logują się hasłem — joby używają user_id
+    if user.get("is_system"):
+        raise AuthError("System accounts cannot log in")
     password_hash = user.get("password_hash") or ""
     if not verify_password(password, str(password_hash)):
         raise AuthError("Invalid username or password")
@@ -136,7 +139,8 @@ def to_public_user(user: dict[str, Any]) -> dict[str, Any]:
         "username": str(user["username"]),
         "display_name": user.get("display_name"),
         "first_login": bool(user.get("first_login")),
-        "is_admin": bool(user.get("is_admin"))
+        "is_admin": bool(user.get("is_admin")),
+        "is_system": bool(user.get("is_system"))
     }
 
 

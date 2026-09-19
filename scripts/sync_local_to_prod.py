@@ -6,7 +6,7 @@ Strategies:
   - append: id > max(id) on prod only
 
 Production MySQL stays private: default transport is SSH + docker compose exec.
-Does not sync users / gamblers / parlays (handled separately).
+Does not sync users / tipster bankrolls / coupons (handled separately).
 """
 
 from __future__ import annotations
@@ -40,9 +40,10 @@ _DEFAULT_WINDOW_DAYS = 3
 _DEFAULT_BATCH_SIZE = 200
 _EXCLUDED_TABLES = frozenset({
     "users",
-    "gamblers",
-    "gambler_parlays",
-    "parlay_events",
+    "tipster_bankrolls",
+    "tipster_coupons",
+    "tipster_coupon_legs",
+    "tipster_coupon_leg_events",
     "model_training_runs"})
 
 
