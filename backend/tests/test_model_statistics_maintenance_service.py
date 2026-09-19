@@ -567,6 +567,94 @@ class TestRefreshModelStatistics(unittest.TestCase):
             preview_limit=10,
             scope=scope)
 
+    @patch(
+        "backend.services.model_statistics_maintenance_service"
+        ".settle_open_coupons")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.settle_outcomes")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.generate_bets")
+    @patch(
+        "backend.services.model_statistics_maintenance_service"
+        ".get_db_connection")
+    def test_write_mode_settles_tipster_coupons_after_bets(
+            self,
+            mock_db: MagicMock,
+            mock_generate: MagicMock,
+            mock_settle: MagicMock,
+            mock_tipster: MagicMock) -> None:
+        conn = MagicMock()
+        mock_db.return_value.__enter__.return_value = conn
+        mock_generate.return_value = StatisticsRefreshReport(
+            generated=1, dry_run=False)
+        mock_settle.return_value = StatisticsRefreshReport(
+            settled=2, dry_run=False)
+        mock_tipster.return_value = {
+            "legs_settled": 3,
+            "coupons_settled": 1,
+            "legs_skipped": 0}
+        report = refresh_model_statistics(
+            BetGenerationScope(), dry_run=False)
+        mock_settle.assert_called_once()
+        mock_tipster.assert_called_once_with()
+        self.assertEqual(report.generated, 1)
+        self.assertEqual(report.settled, 2)
+        self.assertEqual(report.warnings, [])
+        self.assertEqual(report.tipster_legs_settled, 3)
+        self.assertEqual(report.tipster_coupons_settled, 1)
+        self.assertEqual(report.tipster_legs_skipped, 0)
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service"
+        ".settle_open_coupons",
+        side_effect=RuntimeError("tipster down"))
+    @patch(
+        "backend.services.model_statistics_maintenance_service.settle_outcomes")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.generate_bets")
+    @patch(
+        "backend.services.model_statistics_maintenance_service"
+        ".get_db_connection")
+    def test_tipster_error_does_not_undo_bet_settlement(
+            self,
+            mock_db: MagicMock,
+            mock_generate: MagicMock,
+            mock_settle: MagicMock,
+            mock_tipster: MagicMock) -> None:
+        conn = MagicMock()
+        mock_db.return_value.__enter__.return_value = conn
+        mock_generate.return_value = StatisticsRefreshReport(
+            generated=1, dry_run=False)
+        mock_settle.return_value = StatisticsRefreshReport(
+            settled=4, dry_run=False)
+        report = refresh_model_statistics(
+            BetGenerationScope(), dry_run=False)
+        mock_settle.assert_called_once()
+        mock_tipster.assert_called_once_with()
+        self.assertEqual(report.settled, 4)
+        self.assertEqual(
+            report.warnings, ["Tipster coupon settlement failed"])
+        self.assertEqual(report.tipster_legs_settled, 0)
+        self.assertEqual(report.tipster_coupons_settled, 0)
+        self.assertEqual(report.tipster_legs_skipped, 0)
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service"
+        ".settle_open_coupons")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.settle_outcomes")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.generate_bets")
+    def test_dry_run_does_not_settle_tipster_coupons(
+            self,
+            mock_generate: MagicMock,
+            mock_settle: MagicMock,
+            mock_tipster: MagicMock) -> None:
+        mock_generate.return_value = StatisticsRefreshReport(dry_run=True)
+        mock_settle.return_value = StatisticsRefreshReport(dry_run=True)
+        refresh_model_statistics(BetGenerationScope(), dry_run=True)
+        mock_tipster.assert_not_called()
+
 
 class TestPreviewPlannedWrites(unittest.TestCase):
     """Dry-run preview samples planned upserts and settlements."""
@@ -686,11 +774,16 @@ class TestReportMerge(unittest.TestCase):
     def test_merge_sums_counters(self) -> None:
         left = StatisticsRefreshReport(
             read=1, generated=1, warnings=["a"], dry_run=True,
-            preview=[{"action": "upsert_bet"}])
+            preview=[{"action": "upsert_bet"}],
+            tipster_legs_settled=2,
+            tipster_coupons_settled=1)
         right = StatisticsRefreshReport(
             read=2, settled=2, skipped=1, warnings=["b"], dry_run=True,
             preview=[{"action": "settle_outcome"}],
-            preview_truncated=True)
+            preview_truncated=True,
+            tipster_legs_settled=3,
+            tipster_coupons_settled=1,
+            tipster_legs_skipped=4)
         merged = left.merge(right)
         self.assertEqual(merged.read, 3)
         self.assertEqual(merged.generated, 1)
@@ -699,6 +792,9 @@ class TestReportMerge(unittest.TestCase):
         self.assertEqual(merged.warnings, ["a", "b"])
         self.assertEqual(len(merged.preview), 2)
         self.assertTrue(merged.preview_truncated)
+        self.assertEqual(merged.tipster_legs_settled, 5)
+        self.assertEqual(merged.tipster_coupons_settled, 2)
+        self.assertEqual(merged.tipster_legs_skipped, 4)
 
 
 if __name__ == "__main__":

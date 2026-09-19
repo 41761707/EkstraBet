@@ -17,6 +17,7 @@ from backend.repositories import model_statistics_maintenance_repository as repo
 from backend.repositories.model_statistics_maintenance_repository import (
     BetGenerationScope,
     GeneratedBet)
+from backend.services.tipster_settlement_service import settle_open_coupons
 from backend.sports.football.outcome_evaluator import InvalidMatchResultError
 from backend.sports.football.outcome_evaluator import SettlementCandidate
 from backend.sports.football.outcome_evaluator import UnsupportedFootballEventError
@@ -42,6 +43,9 @@ class StatisticsRefreshReport:
     dry_run: bool = True
     preview: list[dict[str, Any]] = field(default_factory=list)
     preview_truncated: bool = False
+    tipster_legs_settled: int = 0
+    tipster_coupons_settled: int = 0
+    tipster_legs_skipped: int = 0
 
     def merge(self, other: StatisticsRefreshReport) -> StatisticsRefreshReport:
         """Return a new report with summed counters and combined warnings."""
@@ -55,7 +59,13 @@ class StatisticsRefreshReport:
             dry_run=self.dry_run and other.dry_run,
             preview=[*self.preview, *other.preview],
             preview_truncated=(
-                self.preview_truncated or other.preview_truncated))
+                self.preview_truncated or other.preview_truncated),
+            tipster_legs_settled=(
+                self.tipster_legs_settled + other.tipster_legs_settled),
+            tipster_coupons_settled=(
+                self.tipster_coupons_settled + other.tipster_coupons_settled),
+            tipster_legs_skipped=(
+                self.tipster_legs_skipped + other.tipster_legs_skipped))
 
 
 def compute_bet_ev(probability_percent: float, odds: float) -> float:
@@ -191,7 +201,27 @@ def refresh_model_statistics(
         generation = generate_bets(scope, dry_run=False, conn=conn)
         settlement = settle_outcomes(
             batch_size, dry_run=False, conn=conn)
-        return generation.merge(settlement)
+        report = generation.merge(settlement)
+    # osobna transakcja — błąd tipsterów nie cofa settlementu bets
+    return _run_tipster_settlement(report)
+
+
+def _run_tipster_settlement(
+        report: StatisticsRefreshReport
+) -> StatisticsRefreshReport:
+    """Settle tipster coupons after bets; failures never undo bet writes."""
+    try:
+        counts = settle_open_coupons()
+    except Exception:
+        # dowolny błąd tipstera ma zostać w logu, bez rollbacku bets
+        logger.exception("Tipster coupon settlement failed")
+        report.warnings.append("Tipster coupon settlement failed")
+        return report
+    logger.info("Tipster coupon settlement %s", counts)
+    report.tipster_legs_settled = counts["legs_settled"]
+    report.tipster_coupons_settled = counts["coupons_settled"]
+    report.tipster_legs_skipped = counts["legs_skipped"]
+    return report
 
 
 def _with_computed_ev(row: GeneratedBet) -> GeneratedBet:
@@ -350,7 +380,10 @@ def _trim_preview(
         warnings=list(report.warnings),
         dry_run=report.dry_run,
         preview=report.preview[:preview_limit],
-        preview_truncated=True)
+        preview_truncated=True,
+        tipster_legs_settled=report.tipster_legs_settled,
+        tipster_coupons_settled=report.tipster_coupons_settled,
+        tipster_legs_skipped=report.tipster_legs_skipped)
 
 
 def _bet_upsert_preview(row: GeneratedBet) -> dict[str, Any]:

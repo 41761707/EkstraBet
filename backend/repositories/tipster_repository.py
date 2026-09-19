@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+import pandas as pd
+
 from backend.database import get_db_connection
 
 
@@ -119,6 +121,123 @@ _SELECT_LEGS_FOR_COUPONS = """
     LEFT JOIN tipster_coupon_leg_events e ON e.leg_id = l.id
     WHERE l.coupon_id IN ({placeholders})
     ORDER BY l.id ASC, e.id ASC
+"""
+
+_FINISHED_RESULTS = ("1", "X", "2")
+
+_OPEN_LEG_COLUMNS = [
+    "leg_id",
+    "coupon_id",
+    "match_id",
+    "leg_outcome",
+    "event_id",
+    "event_name",
+    "family",
+    "result",
+    "home_goals",
+    "away_goals",
+    "home_ck",
+    "away_ck",
+    "home_fouls",
+    "away_fouls",
+    "home_yc",
+    "away_yc",
+    "home_rc",
+    "away_rc",
+    "home_off",
+    "away_off",
+    "stake_amount",
+    "combined_odds"]
+
+_SELECT_OPEN_LEGS_FOR_FINISHED_MATCHES = """
+    SELECT
+        l.id AS leg_id,
+        l.coupon_id,
+        l.match_id,
+        l.outcome AS leg_outcome,
+        e.event_id,
+        ev.name AS event_name,
+        ef.name AS family,
+        m.result,
+        m.home_team_goals AS home_goals,
+        m.away_team_goals AS away_goals,
+        m.home_team_ck AS home_ck,
+        m.away_team_ck AS away_ck,
+        m.home_team_fouls AS home_fouls,
+        m.away_team_fouls AS away_fouls,
+        m.home_team_yc AS home_yc,
+        m.away_team_yc AS away_yc,
+        m.home_team_rc AS home_rc,
+        m.away_team_rc AS away_rc,
+        m.home_team_off AS home_off,
+        m.away_team_off AS away_off,
+        c.stake_amount,
+        c.combined_odds
+    FROM tipster_coupon_legs l
+    INNER JOIN tipster_coupons c ON c.id = l.coupon_id
+    INNER JOIN tipster_coupon_leg_events e ON e.leg_id = l.id
+    INNER JOIN events ev ON ev.id = e.event_id
+    INNER JOIN matches m ON m.id = l.match_id
+    LEFT JOIN (
+        SELECT
+            efm.event_id,
+            MIN(efm.event_family_id) AS event_family_id
+        FROM event_family_mappings efm
+        GROUP BY efm.event_id
+    ) efm_one ON ev.id = efm_one.event_id
+    LEFT JOIN event_families ef ON efm_one.event_family_id = ef.id
+    WHERE c.settled = 0
+      AND (
+        EXISTS (
+            SELECT 1
+            FROM tipster_coupon_legs open_leg
+            INNER JOIN matches open_match
+                ON open_match.id = open_leg.match_id
+            WHERE open_leg.coupon_id = c.id
+              AND open_leg.outcome IS NULL
+              AND open_match.result IN (%s, %s, %s)
+        )
+        OR NOT EXISTS (
+            SELECT 1
+            FROM tipster_coupon_legs pending_leg
+            WHERE pending_leg.coupon_id = c.id
+              AND pending_leg.outcome IS NULL
+        )
+      )
+    ORDER BY l.coupon_id ASC, l.id ASC, e.id ASC
+"""
+
+_WRITE_LEG_OUTCOME = """
+    UPDATE tipster_coupon_legs
+    SET outcome = %s
+    WHERE id = %s
+      AND outcome IS NULL
+"""
+
+_COMPLETE_COUPON = """
+    UPDATE tipster_coupons c
+    INNER JOIN (
+        SELECT
+            coupon_id,
+            IF(MIN(outcome) = 1 AND MAX(outcome) = 1, 1, 0)
+                AS coupon_outcome
+        FROM tipster_coupon_legs
+        GROUP BY coupon_id
+    ) legs ON legs.coupon_id = c.id
+    SET
+        c.settled = 1,
+        c.outcome = legs.coupon_outcome,
+        c.profit = IF(
+            legs.coupon_outcome = 1,
+            ROUND(c.stake_amount * (c.combined_odds - 1), 2),
+            -c.stake_amount)
+    WHERE c.id = %s
+      AND c.settled = 0
+      AND NOT EXISTS (
+          SELECT 1
+          FROM tipster_coupon_legs pending
+          WHERE pending.coupon_id = c.id
+            AND pending.outcome IS NULL)
 """
 
 
@@ -244,6 +363,32 @@ def fetch_coupons(
             legs_by_coupon.get(int(row["id"]), []))
         for row in coupon_rows]
     return items, total
+
+
+def fetch_open_legs_for_finished_matches() -> pd.DataFrame:
+    """Return open-coupon legs that can be settled or closed.
+
+    Includes sibling legs of the same coupon so AND/close can be decided
+    without a second query, plus already-settled coupons still open after
+    a crash between ``write_leg_outcome`` and ``complete_coupon``.
+    """
+    rows = _fetch_all(
+        _SELECT_OPEN_LEGS_FOR_FINISHED_MATCHES, _FINISHED_RESULTS)
+    if not rows:
+        return pd.DataFrame(columns=_OPEN_LEG_COLUMNS)
+    # dtype=object zachowuje DECIMAL z mysql-connector (inaczej pandas
+    # potrafi zrzucić stawkę i kurs do float64)
+    return pd.DataFrame(rows, columns=_OPEN_LEG_COLUMNS, dtype=object)
+
+
+def write_leg_outcome(leg_id: int, outcome: int) -> None:
+    """Set a leg outcome only while it is still NULL."""
+    _execute_write(_WRITE_LEG_OUTCOME, (outcome, leg_id))
+
+
+def complete_coupon(coupon_id: int) -> int:
+    """Close a coupon from persisted leg outcomes; return rows changed."""
+    return _execute_write(_COMPLETE_COUPON, (coupon_id,))
 
 
 def _write_coupon_graph(
@@ -437,12 +582,26 @@ def _fetch_one(query: str, params: tuple[object, ...]) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def _execute_write(query: str, params: tuple[object, ...]) -> None:
+def _fetch_all(
+        query: str, params: tuple[object, ...]) -> list[dict[str, Any]]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(query, params)
+            rows = cursor.fetchall() or []
+        finally:
+            cursor.close()
+    return [dict(row) for row in rows]
+
+
+def _execute_write(query: str, params: tuple[object, ...]) -> int:
     with get_db_connection() as conn:
         cursor = conn.cursor()
         try:
             cursor.execute(query, params)
+            updated = int(cursor.rowcount or 0)
             # mysql-connector bez autocommit — close bez commit cofa zapis
             conn.commit()
+            return updated
         finally:
             cursor.close()

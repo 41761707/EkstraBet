@@ -637,5 +637,126 @@ class TestFetchCoupons(unittest.TestCase):
         cursor.close.assert_called_once()
 
 
+class TestFetchOpenLegsForFinishedMatches(unittest.TestCase):
+    """Settlement fetch covers finished open legs and crash-recovery coupons."""
+
+    def _open_leg_row(self) -> dict[str, object]:
+        return {
+            "leg_id": 10,
+            "coupon_id": 1,
+            "match_id": 100,
+            "leg_outcome": None,
+            "event_id": 1,
+            "event_name": "Zwycięstwo gospodarza",
+            "family": "REZULTAT",
+            "result": "1",
+            "home_goals": 2,
+            "away_goals": 1,
+            "home_ck": 5,
+            "away_ck": 4,
+            "home_fouls": 12,
+            "away_fouls": 10,
+            "home_yc": 1,
+            "away_yc": 1,
+            "home_rc": 0,
+            "away_rc": 0,
+            "home_off": 2,
+            "away_off": 1,
+            "stake_amount": Decimal("10.00"),
+            "combined_odds": Decimal("1.9000")}
+
+    def _assert_settlement_fetch_sql(self, query: str) -> None:
+        self.assertIn("FROM tipster_coupon_legs l", query)
+        self.assertIn("INNER JOIN tipster_coupons c", query)
+        self.assertIn("INNER JOIN tipster_coupon_leg_events e", query)
+        self.assertIn("INNER JOIN matches m", query)
+        self.assertIn("LEFT JOIN event_families ef", query)
+        self.assertIn("c.settled = 0", query)
+        self.assertIn("open_leg.outcome IS NULL", query)
+        self.assertIn("open_match.result IN (%s, %s, %s)", query)
+        self.assertIn("home_team_ck AS home_ck", query)
+        self.assertIn("pending_leg.outcome IS NULL", query)
+
+    @patch(_GET_CONN)
+    def test_returns_dataframe_with_boxscore_aliases(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[self._open_leg_row()]])
+        frame = repo.fetch_open_legs_for_finished_matches()
+        self.assertEqual(list(frame["leg_id"]), [10])
+        self.assertEqual(list(frame["home_ck"]), [5])
+        query, params = cursor.execute.call_args.args
+        self._assert_settlement_fetch_sql(query)
+        self.assertEqual(params, ("1", "X", "2"))
+        cursor.close.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_empty_result_has_expected_columns(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _mock_connection(mock_get_conn, fetchall_results=[[]])
+        frame = repo.fetch_open_legs_for_finished_matches()
+        self.assertTrue(frame.empty)
+        self.assertIn("leg_id", frame.columns)
+        self.assertIn("home_ck", frame.columns)
+        self.assertIn("combined_odds", frame.columns)
+
+
+class TestWriteLegOutcome(unittest.TestCase):
+    """Leg writes are idempotent while outcome is still NULL."""
+
+    @patch(_GET_CONN)
+    def test_updates_only_null_outcome_and_commits(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(mock_get_conn)
+        repo.write_leg_outcome(10, 1)
+        query, params = cursor.execute.call_args.args
+        self.assertIn("UPDATE tipster_coupon_legs", query)
+        self.assertIn("SET outcome = %s", query)
+        self.assertIn("WHERE id = %s", query)
+        self.assertIn("AND outcome IS NULL", query)
+        self.assertEqual(params, (1, 10))
+        conn.commit.assert_called_once()
+        cursor.close.assert_called_once()
+
+
+class TestCompleteCoupon(unittest.TestCase):
+    """Coupon close is idempotent and refuses open legs."""
+
+    @patch(_GET_CONN)
+    def test_sets_settled_outcome_profit_when_all_legs_done(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(mock_get_conn)
+        updated = repo.complete_coupon(1)
+        self.assertEqual(updated, 1)
+        query, params = cursor.execute.call_args.args
+        self.assertIn("UPDATE tipster_coupons", query)
+        self.assertIn(
+            "IF(MIN(outcome) = 1 AND MAX(outcome) = 1, 1, 0)",
+            query)
+        self.assertIn(
+            "ROUND(c.stake_amount * (c.combined_odds - 1), 2)",
+            query)
+        self.assertIn("-c.stake_amount", query)
+        self.assertIn("AND c.settled = 0", query)
+        self.assertIn("NOT EXISTS", query)
+        self.assertEqual(params, (1,))
+        conn.commit.assert_called_once()
+        cursor.close.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_returns_zero_when_update_is_noop(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(mock_get_conn, rowcount=0)
+        updated = repo.complete_coupon(1)
+        self.assertEqual(updated, 0)
+        conn.commit.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
