@@ -66,8 +66,13 @@ _UPSERT_BANKROLL = """
     VALUES (%s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE
         currency = VALUES(currency),
-        initial_capital = VALUES(initial_capital),
         unit_size = VALUES(unit_size)
+"""
+
+_UPDATE_BANKROLL_SETTINGS = """
+    UPDATE tipster_bankrolls
+    SET currency = %s, unit_size = %s
+    WHERE user_id = %s
 """
 
 _ADD_TO_INITIAL_CAPITAL = """
@@ -351,10 +356,17 @@ def upsert_bankroll(
         currency: str,
         initial_capital: float,
         unit_size: float) -> None:
-    """Insert or replace bankroll settings for the given user."""
+    """Insert bankroll settings; duplicate PK does not rewrite capital."""
     _execute_write(
         _UPSERT_BANKROLL,
         (user_id, currency, initial_capital, unit_size))
+
+
+def update_bankroll_settings(
+        user_id: int, currency: str, unit_size: float) -> None:
+    """Update currency and unit_size without touching initial_capital."""
+    _execute_write(
+        _UPDATE_BANKROLL_SETTINGS, (currency, unit_size, user_id))
 
 
 def add_to_initial_capital(
@@ -385,13 +397,17 @@ def insert_coupon(
         stake_amount: float,
         stake_units: float | None,
         stake_input_mode: str,
-        legs: list[dict[str, Any]]) -> dict[str, Any]:
+        legs: list[dict[str, Any]],
+        combined_odds: float | None = None) -> dict[str, Any]:
     """Insert a coupon, legs and events in one transaction.
 
     ``combined_odds`` is the product of per-leg odds. A combined leg still
     contributes a single bookmaker price, not a product of its events.
+    The service may pass the snapshot; otherwise it is computed here.
     """
-    combined_odds = _combined_odds(legs)
+    snapshot = combined_odds
+    if snapshot is None:
+        snapshot = _combined_odds(legs)
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         try:
@@ -401,7 +417,7 @@ def insert_coupon(
                 stake_amount,
                 stake_units,
                 stake_input_mode,
-                combined_odds,
+                snapshot,
                 legs)
             # mysql-connector bez autocommit — close bez commit cofa cały graf
             conn.commit()

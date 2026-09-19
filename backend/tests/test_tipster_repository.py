@@ -269,8 +269,9 @@ class TestUpsertBankroll(unittest.TestCase):
         self.assertIn("VALUES (%s, %s, %s, %s)", query)
         self.assertIn("ON DUPLICATE KEY UPDATE", query)
         self.assertIn("currency = VALUES(currency)", query)
-        self.assertIn("initial_capital = VALUES(initial_capital)", query)
         self.assertIn("unit_size = VALUES(unit_size)", query)
+        self.assertNotIn(
+            "initial_capital = VALUES(initial_capital)", query)
 
     @patch(_GET_CONN)
     def test_inserts_and_commits(
@@ -310,6 +311,25 @@ class TestUpsertBankroll(unittest.TestCase):
             repo.upsert_bankroll(7, "PLN", 1000.00, 10.00)
         self.assertIs(ctx.exception, error)
         conn.commit.assert_not_called()
+        cursor.close.assert_called_once()
+
+
+class TestUpdateBankrollSettings(unittest.TestCase):
+    """Existing-row PUT updates currency and unit, never capital."""
+
+    @patch(_GET_CONN)
+    def test_update_omits_initial_capital(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        conn, cursor = _mock_connection(mock_get_conn)
+        repo.update_bankroll_settings(7, "EUR", 5.00)
+        query, params = cursor.execute.call_args.args
+        self.assertIn("UPDATE tipster_bankrolls", query)
+        self.assertIn("SET currency = %s, unit_size = %s", query)
+        self.assertIn("WHERE user_id = %s", query)
+        self.assertNotIn("initial_capital", query)
+        self.assertEqual(params, ("EUR", 5.00, 7))
+        conn.commit.assert_called_once()
         cursor.close.assert_called_once()
 
 
