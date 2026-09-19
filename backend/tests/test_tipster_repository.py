@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -756,6 +757,588 @@ class TestCompleteCoupon(unittest.TestCase):
         updated = repo.complete_coupon(1)
         self.assertEqual(updated, 0)
         conn.commit.assert_called_once()
+
+
+def _leaderboard_sql_row(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "user_id": 7,
+        "username": "alice",
+        "display_name": "Alice",
+        "is_system": 0,
+        "bets_count": 4,
+        "won_count": 2,
+        "accuracy_pct": Decimal("50.00"),
+        "stake_total": Decimal("40.00"),
+        "profit_total": Decimal("12.50"),
+        "avg_profit": Decimal("3.13"),
+        "avg_odds": Decimal("1.9000"),
+        "roi_pct": Decimal("31.25"),
+        "current_balance": Decimal("1012.50")}
+    row.update(overrides)
+    return row
+
+
+class TestFetchLeaderboard(unittest.TestCase):
+    """Public ranking joins bankrolls; coupon lists stay out of the payload."""
+
+    def _assert_leaderboard_identity_sql(self, query: str) -> None:
+        self.assertIn("FROM users u", query)
+        self.assertIn("INNER JOIN tipster_bankrolls tb", query)
+        self.assertIn("ON tb.user_id = u.id", query)
+        self.assertIn("u.is_system", query)
+        self.assertIn("AS current_balance", query)
+        self.assertIn("LEFT JOIN (", query)
+        self.assertIn("ROUND(stats.avg_odds, 4)", query)
+        self.assertIn("c.settled = 1", query)
+        self.assertNotIn("AS legs", query)
+        self.assertNotIn("tipster_coupon_legs l", query)
+
+    @patch(_GET_CONN)
+    def test_empty_ranking_has_leaderboard_columns(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        frame, total = repo.fetch_leaderboard()
+        self.assertTrue(frame.empty)
+        self.assertEqual(total, 0)
+        self.assertEqual(
+            list(frame.columns),
+            [
+                "user_id",
+                "username",
+                "display_name",
+                "is_system",
+                "bets_count",
+                "won_count",
+                "accuracy_pct",
+                "stake_total",
+                "profit_total",
+                "avg_profit",
+                "avg_odds",
+                "roi_pct",
+                "current_balance"])
+        count_query, count_params = cursor.execute.call_args_list[0].args
+        self.assertIn("SELECT COUNT(*) AS total", count_query)
+        self.assertIn("INNER JOIN tipster_bankrolls tb", count_query)
+        self.assertEqual(count_params, ())
+        query, params = cursor.execute.call_args_list[1].args
+        self._assert_leaderboard_identity_sql(query)
+        self.assertNotIn("WHERE u.is_system", query)
+        self.assertIn("ORDER BY profit_total DESC, u.id ASC", query)
+        self.assertEqual(params, ())
+        cursor.close.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_includes_human_and_system_in_one_result(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            row={"total": 2},
+            fetchall_results=[[
+                _leaderboard_sql_row(),
+                _leaderboard_sql_row(
+                    user_id=8,
+                    username="agent",
+                    display_name="Agent",
+                    is_system=1,
+                    profit_total=Decimal("5.00"),
+                    current_balance=Decimal("1005.00"))]])
+        frame, total = repo.fetch_leaderboard({})
+        self.assertEqual(total, 2)
+        self.assertEqual(list(frame["user_id"]), [7, 8])
+        self.assertEqual(list(frame["is_system"]), [0, 1])
+        self.assertEqual(list(frame["username"]), ["alice", "agent"])
+        self.assertNotIn("legs", frame.columns)
+        self.assertNotIn("coupons", frame.columns)
+        query = cursor.execute.call_args_list[1].args[0]
+        self.assertNotIn("WHERE u.is_system", query)
+        self.assertIsInstance(frame.iloc[0]["profit_total"], float)
+
+    @patch(_GET_CONN)
+    def test_sorts_by_profit_total_desc_by_default(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard({"sort_by": "profit_total"})
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("ORDER BY profit_total DESC, u.id ASC", query)
+        self.assertNotIn("ORDER BY profit_total ASC", query)
+        self.assertEqual(params, ())
+
+    @patch(_GET_CONN)
+    def test_sort_asc_and_page_limit(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard({
+            "sort_by": "roi_pct",
+            "sort_order": "asc",
+            "page": 2,
+            "page_size": 10})
+        count_query = cursor.execute.call_args_list[0].args[0]
+        self.assertNotIn("LIMIT %s OFFSET %s", count_query)
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("ORDER BY roi_pct ASC, u.id ASC", query)
+        self.assertIn("LIMIT %s OFFSET %s", query)
+        self.assertEqual(params, (10, 10))
+
+    @patch(_GET_CONN)
+    def test_tier_filter_uses_exists_on_match_league(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard({"tier": 1})
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("EXISTS", query)
+        self.assertIn("INNER JOIN leagues lg ON lg.id = m.league", query)
+        self.assertIn("lg.tier = %s", query)
+        self.assertIn("l.coupon_id = c.id", query)
+        self.assertEqual(params, (1,))
+        self.assertNotIn("WHERE u.is_system", query)
+        self.assertIn("INNER JOIN (", query)
+        self.assertNotIn("LEFT JOIN (", query)
+        count_query, count_params = cursor.execute.call_args_list[0].args
+        self.assertIn("INNER JOIN (", count_query)
+        self.assertIn("lg.tier = %s", count_query)
+        self.assertEqual(count_params, (1,))
+
+    @patch(_GET_CONN)
+    def test_is_system_and_league_filters_are_parameterized(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard({
+            "is_system": 1,
+            "league_ids": [13, 16]})
+        count_query, count_params = cursor.execute.call_args_list[0].args
+        self.assertIn("WHERE u.is_system = %s", count_query)
+        self.assertIn("INNER JOIN (", count_query)
+        self.assertIn("m.league IN (%s, %s)", count_query)
+        self.assertEqual(count_params, (13, 16, 1))
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("WHERE u.is_system = %s", query)
+        self.assertIn("INNER JOIN (", query)
+        self.assertNotIn("LEFT JOIN (", query)
+        self.assertIn("m.league IN (%s, %s)", query)
+        self.assertEqual(params, (13, 16, 1))
+
+    @patch(_GET_CONN)
+    def test_zero_settled_agent_keeps_optional_metrics_none(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, _cursor = _mock_connection(
+            mock_get_conn,
+            row={"total": 2},
+            fetchall_results=[[
+                _leaderboard_sql_row(),
+                _leaderboard_sql_row(
+                    user_id=8,
+                    username="agent",
+                    display_name="Agent",
+                    is_system=1,
+                    bets_count=0,
+                    won_count=0,
+                    accuracy_pct=None,
+                    stake_total=Decimal("0.00"),
+                    profit_total=Decimal("0.00"),
+                    avg_profit=None,
+                    avg_odds=None,
+                    roi_pct=None,
+                    current_balance=Decimal("1000.00"))]])
+        frame, total = repo.fetch_leaderboard({})
+        self.assertEqual(total, 2)
+        self.assertEqual(list(frame["is_system"]), [0, 1])
+        human = frame.iloc[0]
+        agent = frame.iloc[1]
+        self.assertEqual(human["bets_count"], 4)
+        self.assertEqual(human["accuracy_pct"], 50.0)
+        self.assertEqual(agent["bets_count"], 0)
+        for column in (
+                "accuracy_pct", "avg_odds", "avg_profit", "roi_pct"):
+            self.assertIsNone(agent[column])
+            self.assertNotEqual(str(agent[column]), "nan")
+        self.assertEqual(str(frame["accuracy_pct"].dtype), "object")
+
+    @patch(_GET_CONN)
+    def test_event_family_filter_joins_mappings(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard({"event_family": 4})
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("EXISTS", query)
+        self.assertIn("tipster_coupon_leg_events e", query)
+        self.assertIn("efm.event_family_id = %s", query)
+        self.assertEqual(params, (4,))
+        self.assertIn("INNER JOIN (", query)
+        self.assertNotIn("LEFT JOIN (", query)
+        count_query, count_params = cursor.execute.call_args_list[0].args
+        self.assertIn("INNER JOIN (", count_query)
+        self.assertIn("efm.event_family_id = %s", count_query)
+        self.assertEqual(count_params, (4,))
+
+    @patch(_GET_CONN)
+    def test_event_family_other_matches_unmapped_legs(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_leaderboard({
+            "event_family": repo.UNMAPPED_EVENT_FAMILY_NAME})
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("NOT EXISTS", query)
+        self.assertIn("tipster_coupon_leg_events e", query)
+        self.assertNotIn("efm.event_family_id = %s", query)
+        self.assertEqual(params, ())
+        count_query, count_params = cursor.execute.call_args_list[0].args
+        self.assertIn("NOT EXISTS", count_query)
+        self.assertEqual(count_params, ())
+
+    @patch(_GET_CONN)
+    def test_event_family_zero_matches_unmapped_legs(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(mock_get_conn)
+        for family in (0, "0"):
+            with self.subTest(event_family=family):
+                repo.fetch_leaderboard({"event_family": family})
+                query, params = cursor.execute.call_args.args
+                self.assertIn("NOT EXISTS", query)
+                self.assertIn("INNER JOIN (", query)
+                self.assertNotIn("LEFT JOIN (", query)
+                self.assertNotIn("efm.event_family_id = %s", query)
+                self.assertEqual(params, ())
+                count_query, count_params = (
+                    cursor.execute.call_args_list[-2].args)
+                self.assertIn("INNER JOIN (", count_query)
+                self.assertIn("NOT EXISTS", count_query)
+                self.assertEqual(count_params, ())
+
+    @patch(_GET_CONN)
+    def test_date_filters_use_coupon_created_at(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        date_from = date(2026, 9, 1)
+        date_to = date(2026, 9, 30)
+        repo.fetch_leaderboard({
+            "date_from": date_from,
+            "date_to": date_to})
+        query, params = cursor.execute.call_args_list[1].args
+        self.assertIn("CAST(c.created_at AS DATE) >= %s", query)
+        self.assertIn("CAST(c.created_at AS DATE) <= %s", query)
+        self.assertEqual(params, (date_from, date_to))
+        self.assertIn("INNER JOIN (", query)
+        self.assertNotIn("LEFT JOIN (", query)
+        count_query, count_params = cursor.execute.call_args_list[0].args
+        self.assertIn("INNER JOIN (", count_query)
+        self.assertIn("CAST(c.created_at AS DATE) >= %s", count_query)
+        self.assertEqual(count_params, (date_from, date_to))
+
+
+class TestFetchPerformance(unittest.TestCase):
+    """Settled coupons roll up into family, league and tier buckets."""
+
+    def _fact(
+            self,
+            *,
+            coupon_id: int,
+            outcome: int,
+            stake: str,
+            profit: str,
+            odds: str,
+            league_id: int,
+            league_name: str,
+            league_tier: int,
+            family_id: int | None,
+            family_name: str | None) -> dict[str, object]:
+        return {
+            "coupon_id": coupon_id,
+            "outcome": outcome,
+            "stake_amount": Decimal(stake),
+            "profit": Decimal(profit),
+            "combined_odds": Decimal(odds),
+            "league_id": league_id,
+            "league_name": league_name,
+            "league_tier": league_tier,
+            "event_family_id": family_id,
+            "event_family_name": family_name}
+
+    @patch(_GET_CONN)
+    def test_empty_history_has_none_best_worst(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        payload = repo.fetch_performance(7)
+        self.assertEqual(payload["by_event_family"], [])
+        self.assertEqual(payload["by_league"], [])
+        self.assertEqual(payload["by_league_tier"], [])
+        self.assertIsNone(payload["best_event_family"])
+        self.assertIsNone(payload["worst_event_family"])
+        self.assertIsNone(payload["best_league"])
+        self.assertIsNone(payload["worst_league"])
+        self.assertIsNone(payload["best_league_tier"])
+        self.assertIsNone(payload["worst_league_tier"])
+        query, params = cursor.execute.call_args.args
+        self.assertIn("FROM tipster_coupons c", query)
+        self.assertIn("c.settled = 1", query)
+        self.assertIn("LEFT JOIN event_families ef", query)
+        self.assertEqual(params, (7,))
+
+    @patch(_GET_CONN)
+    def test_dedupes_combined_events_and_picks_best_worst(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, _cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[
+                self._fact(
+                    coupon_id=1,
+                    outcome=1,
+                    stake="10.00",
+                    profit="9.00",
+                    odds="1.9000",
+                    league_id=13,
+                    league_name="Ekstraklasa",
+                    league_tier=1,
+                    family_id=4,
+                    family_name="BTTS"),
+                self._fact(
+                    coupon_id=1,
+                    outcome=1,
+                    stake="10.00",
+                    profit="9.00",
+                    odds="1.9000",
+                    league_id=13,
+                    league_name="Ekstraklasa",
+                    league_tier=1,
+                    family_id=3,
+                    family_name="OU"),
+                self._fact(
+                    coupon_id=2,
+                    outcome=0,
+                    stake="10.00",
+                    profit="-10.00",
+                    odds="2.0000",
+                    league_id=16,
+                    league_name="Premier League",
+                    league_tier=1,
+                    family_id=2,
+                    family_name="REZULTAT")]])
+        payload = repo.fetch_performance(7)
+        families = {
+            item["event_family_name"]: item
+            for item in payload["by_event_family"]}
+        self.assertEqual(families["BTTS"]["count"], 1)
+        self.assertEqual(families["BTTS"]["won"], 1)
+        self.assertEqual(families["BTTS"]["profit_total"], 9.0)
+        self.assertEqual(families["OU"]["count"], 1)
+        self.assertEqual(families["REZULTAT"]["count"], 1)
+        self.assertEqual(families["REZULTAT"]["won"], 0)
+        self.assertEqual(len(payload["by_league"]), 2)
+        self.assertEqual(payload["by_league_tier"][0]["league_tier"], 1)
+        self.assertEqual(payload["by_league_tier"][0]["count"], 2)
+        self.assertEqual(
+            payload["best_event_family"]["event_family_name"], "BTTS")
+        self.assertEqual(
+            payload["worst_event_family"]["event_family_name"],
+            "REZULTAT")
+        self.assertEqual(payload["best_league"]["league_name"], "Ekstraklasa")
+        self.assertEqual(
+            payload["worst_league"]["league_name"], "Premier League")
+        self.assertEqual(payload["best_league_tier"]["league_tier"], 1)
+
+    @patch(_GET_CONN)
+    def test_two_league_parlay_keeps_full_profit_in_each_league(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, _cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[
+                self._fact(
+                    coupon_id=1,
+                    outcome=0,
+                    stake="10.00",
+                    profit="-10.00",
+                    odds="3.4000",
+                    league_id=13,
+                    league_name="Ekstraklasa",
+                    league_tier=1,
+                    family_id=2,
+                    family_name="REZULTAT"),
+                self._fact(
+                    coupon_id=1,
+                    outcome=0,
+                    stake="10.00",
+                    profit="-10.00",
+                    odds="3.4000",
+                    league_id=16,
+                    league_name="Premier League",
+                    league_tier=1,
+                    family_id=4,
+                    family_name="BTTS")]])
+        payload = repo.fetch_performance(7)
+        leagues = {
+            item["league_name"]: item
+            for item in payload["by_league"]}
+        self.assertEqual(leagues["Ekstraklasa"]["count"], 1)
+        self.assertEqual(leagues["Ekstraklasa"]["profit_total"], -10.0)
+        self.assertEqual(leagues["Ekstraklasa"]["stake_total"], 10.0)
+        self.assertEqual(leagues["Premier League"]["profit_total"], -10.0)
+        self.assertEqual(leagues["Premier League"]["stake_total"], 10.0)
+        bucket_profit = sum(
+            item["profit_total"] for item in payload["by_league"])
+        self.assertEqual(bucket_profit, -20.0)
+        self.assertNotEqual(bucket_profit, -10.0)
+
+    @patch(_GET_CONN)
+    def test_unmapped_event_family_uses_other_label(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, _cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[
+                self._fact(
+                    coupon_id=1,
+                    outcome=1,
+                    stake="10.00",
+                    profit="8.50",
+                    odds="1.8500",
+                    league_id=13,
+                    league_name="Ekstraklasa",
+                    league_tier=1,
+                    family_id=None,
+                    family_name=None),
+                self._fact(
+                    coupon_id=2,
+                    outcome=0,
+                    stake="10.00",
+                    profit="-10.00",
+                    odds="1.9000",
+                    league_id=13,
+                    league_name="Ekstraklasa",
+                    league_tier=1,
+                    family_id=4,
+                    family_name="BTTS")]])
+        payload = repo.fetch_performance(7)
+        families = {
+            item["event_family_name"]: item
+            for item in payload["by_event_family"]}
+        other = families[repo.UNMAPPED_EVENT_FAMILY_NAME]
+        self.assertIsNone(other["event_family_id"])
+        self.assertEqual(other["count"], 1)
+        self.assertEqual(other["profit_total"], 8.5)
+        self.assertEqual(families["BTTS"]["count"], 1)
+        self.assertEqual(
+            payload["best_event_family"]["event_family_name"],
+            repo.UNMAPPED_EVENT_FAMILY_NAME)
+        self.assertIsNone(payload["best_event_family"]["event_family_id"])
+        self.assertNotEqual(
+            payload["best_event_family"]["event_family_name"], None)
+
+
+class TestFetchCatalogMatches(unittest.TestCase):
+    """Picker lists unfinished football matches and settleable events."""
+
+    @patch(_GET_CONN)
+    def test_excludes_finished_matches_and_unsupported_events(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        game_date = datetime(2026, 9, 20, 18, 0, 0)
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[
+                [{
+                    "id": 100,
+                    "league_id": 13,
+                    "league_name": "Ekstraklasa",
+                    "league_tier": 1,
+                    "game_date": game_date,
+                    "result": "0",
+                    "home_id": 1,
+                    "home_name": "Legia",
+                    "home_shortcut": "LEG",
+                    "away_id": 2,
+                    "away_name": "Lech",
+                    "away_shortcut": "LCH"}],
+                [
+                    {"id": 1, "name": "Zwycięstwo gospodarza"},
+                    {"id": 33, "name": "Powyżej 8.5 rożnych"},
+                    {"id": 173, "name": "Dokładna liczba goli"},
+                    {"id": 181, "name": "Strzelec bramki"}]])
+        payload = repo.fetch_catalog_matches(None, None, None)
+        self.assertEqual(len(payload["matches"]), 1)
+        self.assertEqual(payload["matches"][0]["id"], 100)
+        self.assertEqual(payload["matches"][0]["result"], "0")
+        event_ids = [event["id"] for event in payload["events"]]
+        self.assertIn(1, event_ids)
+        self.assertIn(33, event_ids)
+        self.assertNotIn(173, event_ids)
+        self.assertNotIn(181, event_ids)
+        match_query, match_params = cursor.execute.call_args_list[0].args
+        self.assertIn("FROM matches m", match_query)
+        self.assertIn(
+            "m.result IS NULL OR m.result NOT IN (%s, %s, %s)",
+            match_query)
+        self.assertIn("m.sport_id = %s", match_query)
+        self.assertIn("m.game_date >= CURRENT_TIMESTAMP", match_query)
+        self.assertNotIn("CAST(m.game_date AS DATE) >= %s", match_query)
+        self.assertEqual(
+            match_params,
+            ("1", "X", "2", repo.FOOTBALL_SPORT_ID))
+        events_query = cursor.execute.call_args_list[1].args[0]
+        self.assertIn("FROM events", events_query)
+        self.assertEqual(cursor.execute.call_count, 2)
+        cursor.close.assert_called_once()
+
+    @patch(_GET_CONN)
+    def test_date_and_league_filters_are_parameterized(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[], []])
+        date_from = datetime(2026, 9, 19).date()
+        date_to = datetime(2026, 9, 21).date()
+        payload = repo.fetch_catalog_matches(date_from, date_to, [13, 16])
+        self.assertEqual(payload["matches"], [])
+        self.assertEqual(payload["events"], [])
+        query, params = cursor.execute.call_args_list[0].args
+        self.assertIn("CAST(m.game_date AS DATE) >= %s", query)
+        self.assertIn("CAST(m.game_date AS DATE) <= %s", query)
+        self.assertIn("m.league IN (%s, %s)", query)
+        self.assertIn("m.game_date >= CURRENT_TIMESTAMP", query)
+        self.assertIn(
+            "m.result IS NULL OR m.result NOT IN (%s, %s, %s)",
+            query)
+        self.assertEqual(
+            params,
+            ("1", "X", "2", repo.FOOTBALL_SPORT_ID, date_from, date_to, 13, 16))
+
+    @patch(_GET_CONN)
+    def test_past_unfinished_match_is_excluded_without_date_from(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[], []])
+        payload = repo.fetch_catalog_matches(None, None, None)
+        self.assertEqual(payload["matches"], [])
+        query, params = cursor.execute.call_args_list[0].args
+        self.assertIn(
+            "m.result IS NULL OR m.result NOT IN (%s, %s, %s)",
+            query)
+        self.assertIn("m.game_date >= CURRENT_TIMESTAMP", query)
+        self.assertNotIn("CAST(m.game_date AS DATE) >= %s", query)
+        self.assertEqual(
+            params, ("1", "X", "2", repo.FOOTBALL_SPORT_ID))
 
 
 if __name__ == "__main__":
