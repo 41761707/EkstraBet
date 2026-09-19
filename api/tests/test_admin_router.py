@@ -59,6 +59,7 @@ _ADMIN_USER_DTO = {
     "display_name": "Alice",
     "is_active": True,
     "is_admin": False,
+    "is_system": False,
     "first_login": True,
     "created_at": None,
     "updated_at": None}
@@ -176,6 +177,27 @@ class TestAdminUsersRouter(AdminRouterTestCase):
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]["uuid"], _USER_UUID)
         self.assertTrue(payload[0]["first_login"])
+        self.assertFalse(payload[0]["is_system"])
+        self._assert_no_secrets(payload[0])
+        mock_list.assert_called_once_with()
+
+    @patch(f"{_USER_SERVICE}.list_users", return_value=[{
+        **_ADMIN_USER_DTO,
+        "username": "agent",
+        "is_system": True}])
+    @patch(_FETCH_UUID, return_value=_ADMIN_USER)
+    def test_list_users_exposes_is_system(
+            self,
+            _mock_fetch: MagicMock,
+            mock_list: MagicMock) -> None:
+        response = self.client.get(
+            "/admin/users",
+            headers=self._auth_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload), 1)
+        self.assertTrue(payload[0]["is_system"])
+        self.assertEqual(payload[0]["username"], "agent")
         self._assert_no_secrets(payload[0])
         mock_list.assert_called_once_with()
 

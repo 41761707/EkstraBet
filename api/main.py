@@ -28,6 +28,7 @@ from api.routers.odds import router as odds_router
 from api.routers.players import router as players_router
 from api.routers.predictions import router as predictions_router
 from api.routers.teams import router as teams_router
+from api.routers.tipsters import router as tipsters_router
 from api.routers.users import router as users_router
 from backend.config import get_settings
 from backend.database import test_connection
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
                 "odds - Bookmaker odds",
                 "predictions - Model predictions",
                 "bets - Bet recommendations and EV",
+                "tipsters - Tipster bankroll, coupons and ranking",
                 "analytics - Model effectiveness statistics",
                 "players - Player statistics by sport",
                 "standings - League tables via /leagues/{id}/standings",
@@ -138,6 +140,7 @@ def create_app() -> FastAPI:
     app.include_router(odds_router)
     app.include_router(predictions_router)
     app.include_router(bets_router)
+    app.include_router(tipsters_router)
     app.include_router(analytics_router)
     app.include_router(players_router)
     app.include_router(champions_league_typer_router)

@@ -59,6 +59,7 @@ def _dto_keys() -> set[str]:
         "display_name",
         "is_active",
         "is_admin",
+        "is_system",
         "first_login",
         "created_at",
         "updated_at"}
@@ -80,6 +81,7 @@ class TestListUsers(unittest.TestCase):
         self.assertEqual(user["display_name"], "Alice")
         self.assertTrue(user["is_active"])
         self.assertFalse(user["is_admin"])
+        self.assertFalse(user["is_system"])
         self.assertTrue(user["first_login"])
         self.assertNotIn("id", user)
         self.assertNotIn("password_hash", user)
@@ -112,6 +114,18 @@ class TestListUsers(unittest.TestCase):
         self.assertTrue(user["is_admin"])
         self.assertFalse(user["first_login"])
         self.assertIsNone(user["display_name"])
+
+    @patch(
+        _FETCH_ALL,
+        return_value=[{
+            **_REPO_USER_ROW,
+            "is_system": 1}])
+    def test_maps_is_system_tinyint_one_to_true(
+            self,
+            _mock_fetch: MagicMock) -> None:
+        user = service.list_users()[0]
+        self.assertTrue(user["is_system"])
+        self.assertFalse(user["is_admin"])
 
 
 class TestCreateUser(unittest.TestCase):

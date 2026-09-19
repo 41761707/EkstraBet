@@ -26,6 +26,9 @@ class AdminUser(BaseModel):
     is_admin: bool = Field(
         ...,
         description="Whether the user has the administrator role")
+    is_system: bool = Field(
+        ...,
+        description="True when the account is a system agent")
     first_login: bool = Field(
         ...,
         description="True when first-login is still required")
