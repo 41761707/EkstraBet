@@ -24,7 +24,8 @@ import {
   MY_BETS_DESCRIPTION,
   MY_BETS_TITLE,
   MyBetsSection,
-  PUBLIC_COUPONS_DESCRIPTION,
+  PUBLIC_BANKROLL_DESCRIPTION,
+  PUBLIC_BANKROLL_TITLE,
   PUBLIC_COUPONS_TITLE,
   SYSTEM_COUPONS_DESCRIPTION,
 } from "@/components/tipsters/MyBetsSection";
@@ -158,7 +159,7 @@ describe("MyBetsSection", () => {
 
     expect(html).toContain(PUBLIC_COUPONS_TITLE);
     expect(html).toContain(SYSTEM_COUPONS_DESCRIPTION);
-    expect(html).not.toContain(PUBLIC_COUPONS_DESCRIPTION);
+    expect(html).not.toContain(PUBLIC_BANKROLL_DESCRIPTION);
     expect(html).not.toContain(COUPON_BUILDER_TITLE);
     expect(html).not.toContain(BANKROLL_ONBOARDING_TITLE);
     expect(html).not.toContain(TOP_UP_TITLE);
@@ -166,13 +167,13 @@ describe("MyBetsSection", () => {
     expect(html).not.toContain(COUPON_HISTORY_EMPTY_MESSAGE);
   });
 
-  it("uses human copy on a public non-system profile", () => {
+  it("hides coupon history on a public human profile when coupons are null", () => {
     const html = renderToStaticMarkup(
       <MyBetsSection
         isOwnProfile={false}
         isSystemProfile={false}
         bankroll={{ currency: "PLN", current_balance: 1000 }}
-        coupons={EMPTY_COUPONS}
+        coupons={null}
         performance={null}
         catalog={null}
         profilePath="/profile/bob"
@@ -180,9 +181,12 @@ describe("MyBetsSection", () => {
       />,
     );
 
-    expect(html).toContain(PUBLIC_COUPONS_TITLE);
-    expect(html).toContain(PUBLIC_COUPONS_DESCRIPTION);
+    expect(html).toContain(PUBLIC_BANKROLL_TITLE);
+    expect(html).toContain(PUBLIC_BANKROLL_DESCRIPTION);
+    expect(html).not.toContain(PUBLIC_COUPONS_TITLE);
     expect(html).not.toContain(SYSTEM_COUPONS_DESCRIPTION);
+    expect(html).not.toContain(COUPON_HISTORY_TITLE);
+    expect(html).not.toContain(COUPON_HISTORY_EMPTY_MESSAGE);
     expect(html).not.toContain(COUPON_BUILDER_TITLE);
   });
 

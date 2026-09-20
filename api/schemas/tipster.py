@@ -225,6 +225,7 @@ class LeaderboardRow(BaseModel):
     is_system: bool = Field(
         ...,
         description="True when the account is a system agent")
+    currency: CurrencyCode = Field(..., description="Bankroll currency")
     bets_count: int = Field(..., description="Settled coupon count")
     won_count: int = Field(..., description="Winning coupon count")
     accuracy_pct: float | None = Field(

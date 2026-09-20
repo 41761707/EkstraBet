@@ -267,6 +267,7 @@ _LEADERBOARD_COLUMNS = [
     "username",
     "display_name",
     "is_system",
+    "currency",
     "bets_count",
     "won_count",
     "accuracy_pct",
@@ -820,6 +821,7 @@ def _leaderboard_query(
             u.username,
             u.display_name,
             u.is_system,
+            tb.currency,
             COALESCE(stats.bets_count, 0) AS bets_count,
             COALESCE(stats.won_count, 0) AS won_count,
             CASE
@@ -1044,6 +1046,7 @@ def _leaderboard_document(row: dict[str, Any]) -> dict[str, Any]:
         "username": str(row["username"]),
         "display_name": row["display_name"],
         "is_system": int(row["is_system"]),
+        "currency": str(row["currency"]),
         "bets_count": int(row["bets_count"] or 0),
         "won_count": int(row["won_count"] or 0),
         "accuracy_pct": _as_optional_float(row["accuracy_pct"]),

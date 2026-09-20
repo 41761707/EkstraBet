@@ -7,6 +7,7 @@ export const PRIMARY_NAV_LINKS = [
 ] as const;
 
 export const MORE_NAV_LINKS = [
+  { href: "/typers", label: "Ranking typerów" },
   { href: "/predictions/simulate", label: "Symulacja" },
   { href: "/o-modelach", label: "O modelach" },
   { href: "/chat", label: "Asystent" },

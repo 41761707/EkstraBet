@@ -186,6 +186,41 @@ export function tipsterLeaderboardPath(
   return query ? `${TYPERS_PATH}?${query}` : TYPERS_PATH;
 }
 
+export function isMissingTipsterProfileError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+/** Coupon lists are owner-or-system; foreign humans stay at coupons: null. */
+export function isPublicCouponHistoryVisible(
+  isOwnProfile: boolean,
+  isSystemProfile: boolean,
+): boolean {
+  return isOwnProfile || isSystemProfile;
+}
+
+export const TIPSTER_FILTER_CATALOG_ERROR_TITLE =
+  "Nie udało się wczytać części filtrów";
+
+export function tipsterFilterCatalogMessage(
+  leaguesFailed: boolean,
+  familiesFailed: boolean,
+): string | null {
+  if (!leaguesFailed && !familiesFailed) {
+    return null;
+  }
+  if (leaguesFailed && familiesFailed) {
+    return (
+      "Listy lig i rodzin eventów są niedostępne. Ranking poniżej jest bez tych filtrów."
+    );
+  }
+  if (leaguesFailed) {
+    return "Lista lig jest niedostępna. Ranking poniżej działa, ale bez filtra lig.";
+  }
+  return (
+    "Lista rodzin eventów jest niedostępna. Ranking poniżej działa, ale bez tego filtra."
+  );
+}
+
 /** Maps URL filters to the GET /tipsters/leaderboard query. */
 export function toTipsterLeaderboardQuery(
   filters: TipsterLeaderboardFilters,
@@ -761,7 +796,7 @@ function parseDraftLegs(
   return parsed;
 }
 
-function parseIsSystemFilter(value: string | undefined): 0 | 1 | null {
+export function parseIsSystemFilter(value: string | undefined): 0 | 1 | null {
   if (value === "0") {
     return 0;
   }
@@ -771,7 +806,7 @@ function parseIsSystemFilter(value: string | undefined): 0 | 1 | null {
   return null;
 }
 
-function parseEventFamilyFilter(
+export function parseEventFamilyFilter(
   value: string | undefined,
 ): TipsterEventFamilyFilter | null {
   if (!value?.trim()) {
@@ -791,7 +826,7 @@ function parseEventFamilyFilter(
   return parsed;
 }
 
-function parseLeaderboardSortBy(value: string | undefined): LeaderboardSortBy {
+export function parseLeaderboardSortBy(value: string | undefined): LeaderboardSortBy {
   if (value !== undefined && isLeaderboardSortBy(value)) {
     return value;
   }
@@ -802,7 +837,7 @@ function isLeaderboardSortBy(value: string): value is LeaderboardSortBy {
   return LEADERBOARD_SORT_BY_VALUES.some((item) => item === value);
 }
 
-function parseLeaderboardSortOrder(
+export function parseLeaderboardSortOrder(
   value: string | undefined,
 ): LeaderboardSortOrder {
   if (value === "asc" || value === "desc") {

@@ -10,6 +10,7 @@ import {
   formatTipsterAmount,
   formatTipsterProfit,
   isOwnerBankroll,
+  isPublicCouponHistoryVisible,
 } from "@/components/tipsters/tipsterModel";
 import type {
   BankrollSettings,
@@ -24,10 +25,11 @@ export const MY_BETS_TITLE = "Moje zakłady";
 export const MY_BETS_DESCRIPTION =
   "Własne kupony, bankroll i rozliczenia z boxscore meczu.";
 export const PUBLIC_COUPONS_TITLE = "Kupony";
-export const PUBLIC_COUPONS_DESCRIPTION =
-  "Publiczna historia kuponów tego użytkownika.";
 export const SYSTEM_COUPONS_DESCRIPTION =
   "Publiczna historia kuponów konta systemowego.";
+export const PUBLIC_BANKROLL_TITLE = "Bankroll";
+export const PUBLIC_BANKROLL_DESCRIPTION =
+  "Publiczne saldo. Lista kuponów tego użytkownika jest prywatna.";
 export const CATALOG_LOAD_ERROR_TITLE = "Nie udało się wczytać katalogu";
 
 interface MyBetsSectionProps {
@@ -66,15 +68,15 @@ function myBetsSectionCopy(isOwnProfile: boolean, isSystemProfile: boolean) {
   if (isOwnProfile) {
     return { title: MY_BETS_TITLE, description: MY_BETS_DESCRIPTION };
   }
-  if (isSystemProfile) {
+  if (isPublicCouponHistoryVisible(isOwnProfile, isSystemProfile)) {
     return {
       title: PUBLIC_COUPONS_TITLE,
       description: SYSTEM_COUPONS_DESCRIPTION,
     };
   }
   return {
-    title: PUBLIC_COUPONS_TITLE,
-    description: PUBLIC_COUPONS_DESCRIPTION,
+    title: PUBLIC_BANKROLL_TITLE,
+    description: PUBLIC_BANKROLL_DESCRIPTION,
   };
 }
 
@@ -120,20 +122,26 @@ function OwnBetsBody(props: MyBetsSectionProps) {
 
 function PublicBetsBody(props: MyBetsSectionProps) {
   const currency = props.bankroll?.currency ?? "PLN";
+  const showCouponHistory = isPublicCouponHistoryVisible(
+    false,
+    props.isSystemProfile,
+  );
   return (
     <>
       <PublicBankrollSummary bankroll={props.bankroll} />
-      <CouponsAndPerformance
-        coupons={props.coupons}
-        couponsError={props.couponsError}
-        performance={props.performance}
-        performanceError={props.performanceError}
-        profilePath={props.profilePath}
-        searchParams={props.searchParams}
-        currency={currency}
-        isOwnProfile={false}
-        isSystemProfile={props.isSystemProfile}
-      />
+      {showCouponHistory ? (
+        <CouponsAndPerformance
+          coupons={props.coupons}
+          couponsError={props.couponsError}
+          performance={props.performance}
+          performanceError={props.performanceError}
+          profilePath={props.profilePath}
+          searchParams={props.searchParams}
+          currency={currency}
+          isOwnProfile={false}
+          isSystemProfile={props.isSystemProfile}
+        />
+      ) : null}
     </>
   );
 }

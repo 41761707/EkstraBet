@@ -1865,6 +1865,7 @@ export interface LeaderboardRow {
   username: string;
   display_name: string | null;
   is_system: boolean;
+  currency: CurrencyCode;
   bets_count: number;
   won_count: number;
   accuracy_pct: number | null;

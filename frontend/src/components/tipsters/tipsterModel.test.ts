@@ -17,16 +17,23 @@ import {
   historyEventLabel,
   historyMatchLabel,
   isCombinedLeg,
+  isMissingTipsterProfileError,
   isOwnerBankroll,
+  isPublicCouponHistoryVisible,
   couponHistoryStatusLabel,
   legOutcomeLabel,
   mergeCatalogMatches,
+  parseEventFamilyFilter,
+  parseIsSystemFilter,
+  parseLeaderboardSortBy,
+  parseLeaderboardSortOrder,
   parsePositiveAmount,
   parseTipsterLeaderboardFilters,
   previewCouponCombinedOdds,
   previewPotentialWin,
   previewStakeMoney,
   removeEventFromDraftLegs,
+  tipsterFilterCatalogMessage,
   tipsterLeaderboardPath,
   tipsterMutationMessage,
   toTipsterCatalogQuery,
@@ -103,6 +110,21 @@ describe("parseTipsterLeaderboardFilters", () => {
   });
 });
 
+describe("leaderboard filter parsers", () => {
+  it("maps ranking select values the same way as the URL query", () => {
+    expect(parseIsSystemFilter("")).toBeNull();
+    expect(parseIsSystemFilter("0")).toBe(0);
+    expect(parseIsSystemFilter("1")).toBe(1);
+    expect(parseEventFamilyFilter("")).toBeNull();
+    expect(parseEventFamilyFilter("OTHER")).toBe("OTHER");
+    expect(parseEventFamilyFilter("4")).toBe(4);
+    expect(parseLeaderboardSortBy("avg_profit")).toBe("avg_profit");
+    expect(parseLeaderboardSortBy("username")).toBe("profit_total");
+    expect(parseLeaderboardSortOrder("asc")).toBe("asc");
+    expect(parseLeaderboardSortOrder("sideways")).toBe("desc");
+  });
+});
+
 describe("tipsterLeaderboardPath", () => {
   it("omits default ranking params", () => {
     expect(tipsterLeaderboardPath(baseFilters())).toBe("/typers");
@@ -164,6 +186,36 @@ describe("toTipsterLeaderboardQuery", () => {
     );
     expect(query.isSystem).toBe(0);
     expect(query.eventFamily).toBe(0);
+  });
+});
+
+describe("public profile visibility", () => {
+  it("404s only when the profile API says the user is missing", () => {
+    expect(
+      isMissingTipsterProfileError(new ApiError(404, "User not found")),
+    ).toBe(true);
+    expect(isMissingTipsterProfileError(new ApiError(500, "boom"))).toBe(false);
+    expect(isMissingTipsterProfileError(new Error("User not found"))).toBe(
+      false,
+    );
+  });
+
+  it("keeps coupon history owner-or-system only", () => {
+    expect(isPublicCouponHistoryVisible(true, false)).toBe(true);
+    expect(isPublicCouponHistoryVisible(false, true)).toBe(true);
+    expect(isPublicCouponHistoryVisible(false, false)).toBe(false);
+  });
+});
+
+describe("tipsterFilterCatalogMessage", () => {
+  it("stays silent when both catalogs loaded", () => {
+    expect(tipsterFilterCatalogMessage(false, false)).toBeNull();
+  });
+
+  it("warns without blocking when a catalog reject empties the options", () => {
+    expect(tipsterFilterCatalogMessage(true, false)).toContain("lig");
+    expect(tipsterFilterCatalogMessage(false, true)).toContain("rodzin");
+    expect(tipsterFilterCatalogMessage(true, true)).toContain("lig i rodzin");
   });
 });
 

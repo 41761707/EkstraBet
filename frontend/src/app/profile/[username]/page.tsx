@@ -9,6 +9,7 @@ import { MyBetsSection } from "@/components/tipsters/MyBetsSection";
 import {
   DEFAULT_TIPSTER_PAGE,
   DEFAULT_TIPSTER_PAGE_SIZE,
+  isMissingTipsterProfileError,
   toTipsterCatalogQuery,
 } from "@/components/tipsters/tipsterModel";
 import {
@@ -45,7 +46,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Profil | EkstraBet",
-  description: "Panel ustawień zalogowanego użytkownika.",
+  description: "Profil użytkownika EkstraBet.",
 };
 
 interface ProfileUsernamePageProps {
@@ -81,7 +82,7 @@ export default async function ProfileUsernamePage({
     return renderOwnProfile(result.user, query);
   }
 
-  return renderPublicSystemProfile(
+  return renderPublicProfile(
     decodeProfileUsername(routeUsername),
     query,
   );
@@ -128,7 +129,7 @@ async function renderOwnProfile(
   );
 }
 
-async function renderPublicSystemProfile(
+async function renderPublicProfile(
   username: string,
   query: Record<string, string | undefined>,
 ) {
@@ -138,12 +139,9 @@ async function renderPublicSystemProfile(
       page: paging.page,
       pageSize: paging.pageSize,
     });
-    if (!profile.is_system) {
-      notFound();
-    }
-    return <PublicSystemProfileView profile={profile} query={query} />;
+    return <PublicProfileView profile={profile} query={query} />;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
+    if (isMissingTipsterProfileError(error)) {
       notFound();
     }
     return (
@@ -159,7 +157,7 @@ async function renderPublicSystemProfile(
   }
 }
 
-function PublicSystemProfileView({
+function PublicProfileView({
   profile,
   query,
 }: {

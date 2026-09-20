@@ -53,8 +53,16 @@ describe("isMoreNavActive", () => {
   it("marks overflow destinations including nested simulate paths", () => {
     expect(isMoreNavActive("/chat")).toBe(true);
     expect(isMoreNavActive("/predictions/simulate")).toBe(true);
+    expect(isMoreNavActive("/typers")).toBe(true);
     expect(isMoreNavActive("/typer-lm")).toBe(false);
     expect(isMoreNavActive("/")).toBe(false);
+  });
+
+  it("includes the tipster ranking in Więcej", () => {
+    expect(MORE_NAV_LINKS).toContainEqual({
+      href: "/typers",
+      label: "Ranking typerów",
+    });
   });
 
   it("marks the admin panel as an overflow destination when the link is shown", () => {

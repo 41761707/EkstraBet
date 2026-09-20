@@ -749,6 +749,7 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
         row = {
             "user_id": 7,
             "username": "alice",
+            "currency": "PLN",
             "profit_total": 12.5,
             "current_balance": 50.0}
         mock_fetch.return_value = (
@@ -756,6 +757,7 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
         payload = get_leaderboard({"sort_by": "profit_total"})
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["username"], "alice")
+        self.assertEqual(payload["items"][0]["currency"], "PLN")
         self.assertNotIn("coupons", payload["items"][0])
         mock_fetch.assert_called_once_with({"sort_by": "profit_total"})
 

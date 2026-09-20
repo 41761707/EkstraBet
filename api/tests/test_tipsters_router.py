@@ -439,6 +439,7 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
             "username": "alice",
             "display_name": "Alice",
             "is_system": 0,
+            "currency": "PLN",
             "bets_count": 0,
             "won_count": 0,
             "accuracy_pct": None,
@@ -462,6 +463,7 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
         payload = response.json()
         self.assertEqual(payload["total"], 1)
         self.assertFalse(payload["items"][0]["is_system"])
+        self.assertEqual(payload["items"][0]["currency"], "PLN")
         self.assertNotIn("coupons", payload["items"][0])
         filters = mock_board.call_args.args[0]
         self.assertEqual(filters["is_system"], 0)

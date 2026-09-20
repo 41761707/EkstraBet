@@ -801,6 +801,7 @@ def _leaderboard_sql_row(**overrides: object) -> dict[str, object]:
         "username": "alice",
         "display_name": "Alice",
         "is_system": 0,
+        "currency": "PLN",
         "bets_count": 4,
         "won_count": 2,
         "accuracy_pct": Decimal("50.00"),
@@ -822,6 +823,7 @@ class TestFetchLeaderboard(unittest.TestCase):
         self.assertIn("INNER JOIN tipster_bankrolls tb", query)
         self.assertIn("ON tb.user_id = u.id", query)
         self.assertIn("u.is_system", query)
+        self.assertIn("tb.currency", query)
         self.assertIn("AS current_balance", query)
         self.assertIn("LEFT JOIN (", query)
         self.assertIn("ROUND(stats.avg_odds, 4)", query)
@@ -845,6 +847,7 @@ class TestFetchLeaderboard(unittest.TestCase):
                 "username",
                 "display_name",
                 "is_system",
+                "currency",
                 "bets_count",
                 "won_count",
                 "accuracy_pct",
@@ -879,6 +882,7 @@ class TestFetchLeaderboard(unittest.TestCase):
                     username="agent",
                     display_name="Agent",
                     is_system=1,
+                    currency="EUR",
                     profit_total=Decimal("5.00"),
                     current_balance=Decimal("1005.00"))]])
         frame, total = repo.fetch_leaderboard({})
@@ -886,6 +890,7 @@ class TestFetchLeaderboard(unittest.TestCase):
         self.assertEqual(list(frame["user_id"]), [7, 8])
         self.assertEqual(list(frame["is_system"]), [0, 1])
         self.assertEqual(list(frame["username"]), ["alice", "agent"])
+        self.assertEqual(list(frame["currency"]), ["PLN", "EUR"])
         self.assertNotIn("legs", frame.columns)
         self.assertNotIn("coupons", frame.columns)
         query = cursor.execute.call_args_list[1].args[0]
