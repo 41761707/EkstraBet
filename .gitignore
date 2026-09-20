@@ -150,6 +150,7 @@ activemq-data/
 # Environments
 .env
 .env.cursor-mcp
+.cursor/skills/ui-test/credentials.md
 .envrc
 deploy/sync.env
 .venv
