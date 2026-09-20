@@ -23,6 +23,7 @@ import {
 import {
   MY_BETS_DESCRIPTION,
   MY_BETS_TITLE,
+  MyBetsContent,
   MyBetsSection,
   PUBLIC_BANKROLL_DESCRIPTION,
   PUBLIC_BANKROLL_TITLE,
@@ -122,6 +123,25 @@ describe("MyBetsSection", () => {
     expect(html).toContain("Wynik meczu");
     expect(html).not.toContain(ALL_LEAGUES_LABEL);
     expect(html).not.toContain("Dodaj nogę");
+  });
+
+  it("renders own bets without profile-card chrome", () => {
+    const html = renderToStaticMarkup(
+      <MyBetsContent
+        isOwnProfile
+        isSystemProfile={false}
+        bankroll={null}
+        coupons={EMPTY_COUPONS}
+        performance={null}
+        catalog={null}
+        profilePath="/moje-zaklady"
+        searchParams={{}}
+      />,
+    );
+
+    expect(html).toContain(BANKROLL_ONBOARDING_TITLE);
+    expect(html).not.toContain(MY_BETS_TITLE);
+    expect(html).not.toContain(MY_BETS_DESCRIPTION);
   });
 
   it("offers all-leagues toggle when favorite leagues are set", () => {

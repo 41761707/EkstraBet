@@ -6,6 +6,7 @@ import {
   getMoreNavLinks,
   isMoreNavActive,
   MORE_NAV_LINKS,
+  MY_BETS_LINK,
   PRIMARY_NAV_LINKS,
   PROFILE_LINK,
 } from "@/lib/appNavLinks";
@@ -58,11 +59,13 @@ describe("isMoreNavActive", () => {
     expect(isMoreNavActive("/")).toBe(false);
   });
 
-  it("includes the tipster ranking in Więcej", () => {
+  it("includes own bets and the tipster ranking in Więcej", () => {
+    expect(MORE_NAV_LINKS).toContainEqual(MY_BETS_LINK);
     expect(MORE_NAV_LINKS).toContainEqual({
       href: "/typers",
       label: "Ranking typerów",
     });
+    expect(isMoreNavActive("/moje-zaklady")).toBe(true);
   });
 
   it("marks the admin panel as an overflow destination when the link is shown", () => {

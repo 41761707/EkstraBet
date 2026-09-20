@@ -10,21 +10,15 @@ import {
   DEFAULT_TIPSTER_PAGE,
   DEFAULT_TIPSTER_PAGE_SIZE,
   isMissingTipsterProfileError,
-  toTipsterCatalogQuery,
 } from "@/components/tipsters/tipsterModel";
 import {
   ApiError,
   getCurrentUser,
   getFavoriteLeagueIds,
   getLeagues,
-  getMyBankroll,
-  getMyCoupons,
-  getMyPerformance,
-  getTipsterCatalog,
   getTipsterProfile,
 } from "@/lib/api";
 import { isAuthEnabled } from "@/lib/authCookie";
-import { getWarsawDateIso } from "@/lib/date";
 import {
   decodeProfileUsername,
   isOwnProfile,
@@ -32,12 +26,7 @@ import {
 } from "@/lib/profilePaths";
 import { parsePositiveInt } from "@/lib/searchParams";
 import type {
-  BankrollSettings,
-  CatalogMatchesResponse,
-  CouponPage,
-  FavoriteLeagueIdsResponse,
   LeagueSummary,
-  PerformanceBreakdown,
   TipsterProfileResponse,
   UserPublic,
 } from "@/types/api";
@@ -79,7 +68,7 @@ export default async function ProfileUsernamePage({
   }
 
   if (isOwnProfile(routeUsername, result.user.username)) {
-    return renderOwnProfile(result.user, query);
+    return renderOwnProfile(result.user);
   }
 
   return renderPublicProfile(
@@ -88,16 +77,8 @@ export default async function ProfileUsernamePage({
   );
 }
 
-async function renderOwnProfile(
-  user: UserPublic,
-  query: Record<string, string | undefined>,
-) {
-  const paging = parseCouponPaging(query);
-  const favoritesPromise = getFavoriteLeagueIds();
-  const [leaguesCatalog, tipster] = await Promise.all([
-    loadProfileCatalog(favoritesPromise),
-    loadOwnTipsterBundle(paging.page, paging.pageSize, favoritesPromise),
-  ]);
+async function renderOwnProfile(user: UserPublic) {
+  const leaguesCatalog = await loadProfileCatalog();
   const displayName = user.display_name?.trim() || user.username;
 
   return (
@@ -108,22 +89,6 @@ async function renderOwnProfile(
         initialFavoriteIds={leaguesCatalog.favoriteIds}
         leaguesError={leaguesCatalog.leaguesError}
         favoritesUnavailable={leaguesCatalog.favoritesUnavailable}
-      />
-      <MyBetsSection
-        isOwnProfile
-        isSystemProfile={false}
-        bankroll={tipster.bankroll}
-        bankrollError={tipster.bankrollError}
-        coupons={tipster.coupons}
-        couponsError={tipster.couponsError}
-        performance={tipster.performance}
-        performanceError={tipster.performanceError}
-        catalog={tipster.catalog}
-        catalogError={tipster.catalogError}
-        favoriteLeagueIds={tipster.favoriteLeagueIds}
-        favoritesUnavailable={tipster.favoritesUnavailable}
-        profilePath={profilePath(user.username)}
-        searchParams={query}
       />
     </ProfilePage>
   );
@@ -193,48 +158,10 @@ interface ProfileCatalog {
   favoritesUnavailable: boolean;
 }
 
-interface OwnTipsterBundle {
-  bankroll: BankrollSettings | null;
-  bankrollError?: string;
-  coupons: CouponPage | null;
-  couponsError?: string;
-  performance: PerformanceBreakdown | null;
-  performanceError?: string;
-  catalog: CatalogMatchesResponse | null;
-  catalogError?: string;
-  favoriteLeagueIds: number[];
-  favoritesUnavailable: boolean;
-}
-
-async function loadProfileUser(): Promise<ProfileUserResult> {
-  try {
-    const user = await getCurrentUser();
-    return { kind: "ok", user };
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      return { kind: "unauthenticated" };
-    }
-    return { kind: "unknown" };
-  }
-}
-
-function resolveLoadErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? error.message : fallback;
-}
-
-function parseCouponPaging(query: Record<string, string | undefined>) {
-  return {
-    page: parsePositiveInt(query.page) ?? DEFAULT_TIPSTER_PAGE,
-    pageSize: parsePositiveInt(query.page_size) ?? DEFAULT_TIPSTER_PAGE_SIZE,
-  };
-}
-
-async function loadProfileCatalog(
-  favoritesPromise: Promise<FavoriteLeagueIdsResponse>,
-): Promise<ProfileCatalog> {
+async function loadProfileCatalog(): Promise<ProfileCatalog> {
   const [leaguesResult, favoritesResult] = await Promise.allSettled([
     getLeagues({ active: true }),
-    favoritesPromise,
+    getFavoriteLeagueIds(),
   ]);
 
   const catalog: ProfileCatalog = {
@@ -261,103 +188,25 @@ async function loadProfileCatalog(
   return catalog;
 }
 
-async function loadOwnTipsterBundle(
-  page: number,
-  pageSize: number,
-  favoritesPromise: Promise<FavoriteLeagueIdsResponse>,
-): Promise<OwnTipsterBundle> {
-  const [bankrollResult, couponsResult, performanceResult, favoritesResult] =
-    await Promise.allSettled([
-      getMyBankroll(),
-      getMyCoupons({ page, pageSize }),
-      getMyPerformance(),
-      favoritesPromise,
-    ]);
-  const favoriteLeagueIds =
-    favoritesResult.status === "fulfilled"
-      ? favoritesResult.value.league_ids
-      : [];
-  const favoritesUnavailable = favoritesResult.status !== "fulfilled";
-  const catalogResult = await loadTipsterCatalog(
-    favoriteLeagueIds,
-    favoritesUnavailable,
-  );
-
-  return {
-    bankroll: readOptionalBankroll(bankrollResult),
-    bankrollError: readBankrollError(bankrollResult),
-    coupons: fulfilledOrNull(couponsResult),
-    couponsError: rejectedMessage(
-      couponsResult,
-      "Nie udało się wczytać kuponów.",
-    ),
-    performance: fulfilledOrNull(performanceResult),
-    performanceError: rejectedMessage(
-      performanceResult,
-      "Nie udało się wczytać analityki.",
-    ),
-    catalog: fulfilledOrNull(catalogResult),
-    catalogError: rejectedMessage(
-      catalogResult,
-      "Nie udało się wczytać katalogu eventów.",
-    ),
-    favoriteLeagueIds,
-    favoritesUnavailable,
-  };
-}
-
-async function loadTipsterCatalog(
-  favoriteLeagueIds: number[],
-  includeAllLeagues = false,
-): Promise<PromiseSettledResult<CatalogMatchesResponse>> {
+async function loadProfileUser(): Promise<ProfileUserResult> {
   try {
-    const catalog = await getTipsterCatalog(
-      toTipsterCatalogQuery(
-        getWarsawDateIso(),
-        favoriteLeagueIds,
-        includeAllLeagues,
-      ),
-    );
-    return { status: "fulfilled", value: catalog };
-  } catch (reason) {
-    return { status: "rejected", reason };
+    const user = await getCurrentUser();
+    return { kind: "ok", user };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return { kind: "unauthenticated" };
+    }
+    return { kind: "unknown" };
   }
 }
 
-function readOptionalBankroll(
-  result: PromiseSettledResult<BankrollSettings>,
-): BankrollSettings | null {
-  if (result.status === "fulfilled") {
-    return result.value;
-  }
-  return null;
+function resolveLoadErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
 }
 
-function readBankrollError(
-  result: PromiseSettledResult<BankrollSettings>,
-): string | undefined {
-  if (result.status === "fulfilled") {
-    return undefined;
-  }
-  if (result.reason instanceof ApiError && result.reason.status === 404) {
-    return undefined;
-  }
-  return resolveLoadErrorMessage(
-    result.reason,
-    "Nie udało się wczytać bankrolla.",
-  );
-}
-
-function fulfilledOrNull<T>(result: PromiseSettledResult<T>): T | null {
-  return result.status === "fulfilled" ? result.value : null;
-}
-
-function rejectedMessage(
-  result: PromiseSettledResult<unknown>,
-  fallback: string,
-): string | undefined {
-  if (result.status === "fulfilled") {
-    return undefined;
-  }
-  return resolveLoadErrorMessage(result.reason, fallback);
+function parseCouponPaging(query: Record<string, string | undefined>) {
+  return {
+    page: parsePositiveInt(query.page) ?? DEFAULT_TIPSTER_PAGE,
+    pageSize: parsePositiveInt(query.page_size) ?? DEFAULT_TIPSTER_PAGE_SIZE,
+  };
 }

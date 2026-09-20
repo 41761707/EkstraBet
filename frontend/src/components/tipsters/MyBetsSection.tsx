@@ -47,20 +47,28 @@ interface MyBetsSectionProps {
   favoritesUnavailable?: boolean;
   profilePath: string;
   searchParams: Record<string, string | undefined>;
+  draftStorageKey?: string;
 }
 
 export function MyBetsSection(props: MyBetsSectionProps) {
   const copy = myBetsSectionCopy(props.isOwnProfile, props.isSystemProfile);
   return (
     <ProfileSection title={copy.title} description={copy.description}>
-      <div className="space-y-6">
-        {props.isOwnProfile ? (
-          <OwnBetsBody {...props} />
-        ) : (
-          <PublicBetsBody {...props} />
-        )}
-      </div>
+      <MyBetsContent {...props} />
     </ProfileSection>
+  );
+}
+
+/** Bankroll, creator and history without the profile-card chrome. */
+export function MyBetsContent(props: MyBetsSectionProps) {
+  return (
+    <div className="space-y-6">
+      {props.isOwnProfile ? (
+        <OwnBetsBody {...props} />
+      ) : (
+        <PublicBetsBody {...props} />
+      )}
+    </div>
   );
 }
 
@@ -182,7 +190,9 @@ function OwnerCreator(props: OwnerCreatorProps) {
           catalog={props.catalog}
           favoriteLeagueIds={props.favoriteLeagueIds ?? []}
           favoritesUnavailable={props.favoritesUnavailable ?? false}
-          draftStorageKey={couponDraftStorageKey(props.profilePath)}
+          draftStorageKey={
+            props.draftStorageKey ?? couponDraftStorageKey(props.profilePath)
+          }
           unitSize={props.bankroll.unit_size}
           currency={props.bankroll.currency}
         />
