@@ -1,16 +1,23 @@
 /** Presentation helpers for tipster bankroll, coupons and ranking. */
 
-import { formatOdds } from "@/lib/format";
+import { ApiError } from "@/lib/apiShared";
+import { formatMatchDateTime, formatOdds } from "@/lib/format";
 import { parseIdList, parsePositiveInt } from "@/lib/searchParams";
 import type {
   BankrollSettings,
+  CatalogEvent,
+  CatalogMatch,
   CouponCreateRequest,
+  CouponLegCreate,
+  CouponLegSummary,
   CouponSummary,
   CurrencyCode,
   LeaderboardSortBy,
   LeaderboardSortOrder,
+  PerformanceItem,
   PublicBankroll,
   StakeInputMode,
+  TipsterCatalogQuery,
   TipsterEventFamilyFilter,
   TipsterLeaderboardQuery,
 } from "@/types/api";
@@ -21,6 +28,52 @@ export const DEFAULT_TIPSTER_PAGE_SIZE = 20;
 export const DEFAULT_LEADERBOARD_SORT_BY: LeaderboardSortBy = "profit_total";
 export const DEFAULT_LEADERBOARD_SORT_ORDER: LeaderboardSortOrder = "desc";
 export const TIPSTER_EMPTY_VALUE = "—";
+export const MAX_COUPON_LEGS = 8;
+export const MIN_LEG_ODDS = 1.01;
+export const TIPSTER_CURRENCIES: readonly CurrencyCode[] = ["PLN", "EUR", "USD"];
+
+const GENERIC_TIPSTER_SAVE_ERROR =
+  "Nie udało się zapisać. Spróbuj ponownie.";
+
+const TIPSTER_API_MESSAGES: Record<string, string> = {
+  "Bankroll not configured": "Najpierw skonfiguruj bankroll.",
+  "Initial capital cannot be changed after onboarding":
+    "Kapitał startowy można zwiększyć tylko doładowaniem.",
+  "Currency cannot be changed after the first coupon":
+    "Waluty nie można zmienić po pierwszym kuponie.",
+  "Odds must be at least 1.01": "Kurs nogi musi wynosić co najmniej 1.01.",
+  "Stake must be greater than 0": "Stawka musi być większa od zera.",
+  "Coupon must have between 1 and 8 legs": "Kupon musi mieć od 1 do 8 nóg.",
+  "Duplicate match on coupon": "Na kuponie może być tylko jedna noga na mecz.",
+  "Duplicate event_id on a leg":
+    "Ten sam event nie może powtórzyć się na nodze.",
+  "Event is not settleable": "Wybrany event nie jest rozliczalny.",
+  "Match is finished or not open for betting":
+    "Mecz jest zakończony albo niedostępny.",
+  "User account is inactive": "Konto użytkownika jest nieaktywne.",
+  "Each leg must have at least one event":
+    "Każda noga musi mieć co najmniej jeden event.",
+  "Invalid coupon leg": "Noga kuponu jest nieprawidłowa.",
+  "Unsupported currency": "Nieobsługiwana waluta.",
+  "Invalid stake_input_mode": "Nieobsługiwany tryb stawki.",
+  "unit_size must be greater than 0": "Unit musi być większy od zera.",
+  "amount must be greater than 0": "Kwota musi być większa od zera.",
+  "Invalid leg source": "Nieobsługiwane źródło kursu nogi.",
+  "Invalid event_id": "Nieprawidłowy event na nodze.",
+  "Invalid bookmaker_id": "Nieprawidłowy bukmacher.",
+  "System accounts cannot use /me mutations":
+    "Konto systemowe nie może zapisywać kuponów z /me.",
+  "User not found": "Nie znaleziono użytkownika.",
+};
+
+export interface DraftCouponLeg {
+  matchId: number;
+  eventIds: number[];
+  odds: string;
+}
+
+export type DraftLegMutationError = "duplicate_event" | "max_legs";
+export type PerformanceDimension = "family" | "league" | "tier";
 
 const LEADERBOARD_SORT_BY_VALUES: readonly LeaderboardSortBy[] = [
   "profit_total",
@@ -151,6 +204,22 @@ export function toTipsterLeaderboardQuery(
   };
 }
 
+/**
+ * Default picker window: one calendar day.
+ * Favorite leagues stay the default; empty leagueIds means the whole slate.
+ */
+export function toTipsterCatalogQuery(
+  catalogDate: string,
+  favoriteLeagueIds: number[],
+  includeAllLeagues = false,
+): TipsterCatalogQuery {
+  return {
+    dateFrom: catalogDate,
+    dateTo: catalogDate,
+    leagueIds: includeAllLeagues ? [] : favoriteLeagueIds,
+  };
+}
+
 export function couponStakeFields(
   mode: StakeInputMode,
   moneyAmount: number | null,
@@ -190,6 +259,34 @@ export function previewStakeMoney(
     return unitCount * unitSize;
   }
   return moneyAmount;
+}
+
+/** Product of entered leg odds; events inside a combined leg are not multiplied. */
+export function previewCouponCombinedOdds(
+  legs: DraftCouponLeg[],
+): number | null {
+  if (legs.length === 0) {
+    return null;
+  }
+  let product = 1;
+  for (const leg of legs) {
+    const odds = parseLegOdds(leg.odds);
+    if (odds === null) {
+      return null;
+    }
+    product *= odds;
+  }
+  return product;
+}
+
+export function previewPotentialWin(
+  stakeMoney: number | null,
+  combinedOdds: number | null,
+): number | null {
+  if (stakeMoney === null || combinedOdds === null) {
+    return null;
+  }
+  return quantizeTipsterAmount(stakeMoney * combinedOdds);
 }
 
 export function formatTipsterRoi(roiPct: number | null): string {
@@ -238,8 +335,430 @@ export function isOwnerBankroll(
   );
 }
 
+export function isCurrencyCode(value: string): value is CurrencyCode {
+  return TIPSTER_CURRENCIES.some((code) => code === value);
+}
+
 export function isCombinedLeg(eventIds: number[]): boolean {
   return eventIds.length >= 2;
+}
+
+/** Same-match events share one odds field; a new match opens a new leg. */
+export function addEventToDraftLegs(
+  legs: DraftCouponLeg[],
+  matchId: number,
+  eventId: number,
+): { legs: DraftCouponLeg[] } | { error: DraftLegMutationError } {
+  const existing = legs.find((leg) => leg.matchId === matchId);
+  if (existing) {
+    if (existing.eventIds.includes(eventId)) {
+      return { error: "duplicate_event" };
+    }
+    const nextEventIds = [...existing.eventIds, eventId];
+    return {
+      legs: legs.map((leg) =>
+        leg.matchId === matchId
+          ? { ...leg, eventIds: nextEventIds, odds: "" }
+          : leg,
+      ),
+    };
+  }
+  if (legs.length >= MAX_COUPON_LEGS) {
+    return { error: "max_legs" };
+  }
+  return {
+    legs: [...legs, { matchId, eventIds: [eventId], odds: "" }],
+  };
+}
+
+export function removeEventFromDraftLegs(
+  legs: DraftCouponLeg[],
+  matchId: number,
+  eventId: number,
+): DraftCouponLeg[] {
+  return legs
+    .map((leg) => {
+      if (leg.matchId !== matchId) {
+        return leg;
+      }
+      const eventIds = leg.eventIds.filter((id) => id !== eventId);
+      if (eventIds.length === leg.eventIds.length) {
+        return leg;
+      }
+      return { ...leg, eventIds, odds: "" };
+    })
+    .filter((leg) => leg.eventIds.length > 0);
+}
+
+export function updateDraftLegOdds(
+  legs: DraftCouponLeg[],
+  matchId: number,
+  odds: string,
+): DraftCouponLeg[] {
+  return legs.map((leg) => (leg.matchId === matchId ? { ...leg, odds } : leg));
+}
+
+export function quantizeTipsterAmount(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function parsePositiveAmount(raw: string): number | null {
+  const value = Number(raw.trim().replace(",", "."));
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  const quantized = quantizeTipsterAmount(value);
+  if (quantized <= 0) {
+    return null;
+  }
+  return quantized;
+}
+
+export function parseLegOdds(raw: string): number | null {
+  const value = Number(raw.trim().replace(",", "."));
+  if (!Number.isFinite(value) || value < MIN_LEG_ODDS) {
+    return null;
+  }
+  return value;
+}
+
+export function buildCouponCreateRequest(
+  legs: DraftCouponLeg[],
+  mode: StakeInputMode,
+  stakeRaw: string,
+): CouponCreateRequest | { error: string } {
+  if (legs.length < 1 || legs.length > MAX_COUPON_LEGS) {
+    return { error: "Kupon musi mieć od 1 do 8 nóg." };
+  }
+  const parsedLegs = parseDraftLegs(legs);
+  if (!Array.isArray(parsedLegs)) {
+    return parsedLegs;
+  }
+  const stake = parsePositiveAmount(stakeRaw);
+  if (stake === null) {
+    return {
+      error: "Stawka musi być większa od zera po zaokrągleniu do 0.01.",
+    };
+  }
+  return {
+    ...couponStakeFields(
+      mode,
+      mode === "money" ? stake : null,
+      mode === "units" ? stake : null,
+    ),
+    legs: parsedLegs,
+  };
+}
+
+export function catalogEventName(
+  events: CatalogEvent[],
+  eventId: number,
+): string {
+  return events.find((event) => event.id === eventId)?.name ?? `#${eventId}`;
+}
+
+/** History labels come from the coupon DTO, never the upcoming picker catalog. */
+export function historyMatchLabel(
+  leg: Pick<CouponLegSummary, "match_id" | "home_name" | "away_name">,
+): string {
+  if (leg.home_name && leg.away_name) {
+    return `${leg.home_name} – ${leg.away_name}`;
+  }
+  return `Mecz ${leg.match_id}`;
+}
+
+export function historyEventLabel(
+  leg: Pick<CouponLegSummary, "event_ids" | "event_names">,
+): string {
+  if (leg.event_names.length > 0) {
+    return leg.event_names.join(" + ");
+  }
+  return leg.event_ids.map((eventId) => `#${eventId}`).join(" + ");
+}
+
+export interface CatalogEventGroup {
+  label: string;
+  events: CatalogEvent[];
+}
+
+const CATALOG_EVENT_GROUP_ORDER = [
+  "Wynik meczu",
+  "BTTS",
+  "Handicap",
+  "Gole",
+  "Rożne",
+  "Faule",
+  "Kartki",
+  "Spalone",
+  "Dokładna liczba goli",
+  "Dokładny wynik",
+  "Inne",
+] as const;
+
+export function catalogEventGroupLabel(event: CatalogEvent): string {
+  const { id, name } = event;
+  if (id >= 1 && id <= 5) {
+    return "Wynik meczu";
+  }
+  if (id === 6 || id === 172) {
+    return "BTTS";
+  }
+  if (id === 8 || id === 12) {
+    return "Gole";
+  }
+  if (id >= 49 && id <= 52) {
+    return "Handicap";
+  }
+  if (id >= 174 && id <= 180) {
+    return "Dokładna liczba goli";
+  }
+  if (id >= 198 && id <= 233) {
+    return "Dokładny wynik";
+  }
+  return catalogEventGroupFromName(name);
+}
+
+export function groupCatalogEvents(events: CatalogEvent[]): CatalogEventGroup[] {
+  const buckets = new Map<string, CatalogEvent[]>();
+  for (const event of events) {
+    const label = catalogEventGroupLabel(event);
+    const bucket = buckets.get(label);
+    if (bucket) {
+      bucket.push(event);
+    } else {
+      buckets.set(label, [event]);
+    }
+  }
+  return CATALOG_EVENT_GROUP_ORDER.filter((label) => buckets.has(label)).map(
+    (label) => ({ label, events: buckets.get(label) ?? [] }),
+  );
+}
+
+function catalogEventGroupFromName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("rożn")) {
+    return "Rożne";
+  }
+  if (lower.includes("faul")) {
+    return "Faule";
+  }
+  if (lower.includes("żółt") || lower.includes("kartk")) {
+    return "Kartki";
+  }
+  if (lower.includes("spalon")) {
+    return "Spalone";
+  }
+  if (lower.includes("gola") || lower.includes("goli") || lower.includes("gol")) {
+    return "Gole";
+  }
+  return "Inne";
+}
+
+export function catalogMatchTitle(
+  matches: CatalogMatch[],
+  matchId: number,
+): string {
+  const match = matches.find((item) => item.id === matchId);
+  if (!match) {
+    return `Mecz ${matchId}`;
+  }
+  return `${match.home_name} – ${match.away_name}`;
+}
+
+/** Option text without league — the select groups matches by league. */
+export function catalogMatchOptionLabel(match: CatalogMatch): string {
+  const kickoff = match.game_date
+    ? ` (${formatMatchDateTime(match.game_date)})`
+    : "";
+  return `${match.home_name} – ${match.away_name}${kickoff}`;
+}
+
+export function filterCatalogMatches(
+  matches: CatalogMatch[],
+  query: string,
+): CatalogMatch[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return matches;
+  }
+  return matches.filter((match) =>
+    catalogMatchSearchText(match).includes(needle),
+  );
+}
+
+export function filterCatalogEvents(
+  events: CatalogEvent[],
+  query: string,
+): CatalogEvent[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return events;
+  }
+  return events.filter((event) => event.name.toLowerCase().includes(needle));
+}
+
+export interface CatalogMatchGroup {
+  label: string;
+  matches: CatalogMatch[];
+}
+
+export function groupCatalogMatches(
+  matches: CatalogMatch[],
+): CatalogMatchGroup[] {
+  const groups: CatalogMatchGroup[] = [];
+  const index = new Map<string, CatalogMatchGroup>();
+  for (const match of matches) {
+    const label = match.league_name?.trim() || "Inne";
+    const existing = index.get(label);
+    if (existing) {
+      existing.matches.push(match);
+    } else {
+      const group = { label, matches: [match] };
+      index.set(label, group);
+      groups.push(group);
+    }
+  }
+  return groups;
+}
+
+export function mergeCatalogMatches(
+  current: CatalogMatch[],
+  incoming: CatalogMatch[],
+): CatalogMatch[] {
+  const byId = new Map<number, CatalogMatch>();
+  for (const match of current) {
+    byId.set(match.id, match);
+  }
+  for (const match of incoming) {
+    byId.set(match.id, match);
+  }
+  return [...byId.values()];
+}
+
+function catalogMatchSearchText(match: CatalogMatch): string {
+  return [
+    match.home_name,
+    match.away_name,
+    match.home_shortcut,
+    match.away_shortcut,
+    match.league_name,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+}
+
+export function formatEventFamilyName(name: string | null): string {
+  if (!name || name === "OTHER") {
+    return "Inne";
+  }
+  return name;
+}
+
+export function performanceItemLabel(
+  item: PerformanceItem,
+  dimension: PerformanceDimension,
+): string {
+  if (dimension === "family") {
+    return formatEventFamilyName(item.event_family_name);
+  }
+  if (dimension === "league") {
+    return item.league_name?.trim() || TIPSTER_EMPTY_VALUE;
+  }
+  if (item.league_tier === null) {
+    return TIPSTER_EMPTY_VALUE;
+  }
+  return `Poziom ${item.league_tier}`;
+}
+
+export function couponOutcomeLabel(
+  settled: number,
+  outcome: number | null,
+): string {
+  if (!settled) {
+    return "Otwarty";
+  }
+  return legOutcomeLabel(outcome);
+}
+
+export function legOutcomeLabel(outcome: number | null): string {
+  if (outcome === null) {
+    return "Otwarty";
+  }
+  return outcome === 1 ? "Wygrany" : "Przegrany";
+}
+
+export function couponHistoryStatusLabel(
+  settled: number,
+  outcome: number | null,
+  legs: Array<Pick<CouponLegSummary, "outcome">>,
+): string {
+  if (!settled && legs.some((leg) => leg.outcome !== null)) {
+    return "W rozliczeniu";
+  }
+  return couponOutcomeLabel(settled, outcome);
+}
+
+export function couponStatusClassName(
+  settled: number,
+  outcome: number | null,
+  legs: Array<Pick<CouponLegSummary, "outcome">>,
+): string {
+  const label = couponHistoryStatusLabel(settled, outcome, legs);
+  if (label === "Wygrany") {
+    return "text-success";
+  }
+  if (label === "Przegrany") {
+    return "text-danger";
+  }
+  if (label === "W rozliczeniu") {
+    return "text-warning";
+  }
+  return "text-muted";
+}
+
+export function legOutcomeClassName(outcome: number | null): string {
+  if (outcome === 1) {
+    return "text-success";
+  }
+  if (outcome === 0) {
+    return "text-danger";
+  }
+  return "text-muted";
+}
+
+export function signedAmountClassName(value: number | null): string {
+  if (value === null || value === 0) {
+    return "text-text";
+  }
+  return value > 0 ? "text-success" : "text-danger";
+}
+
+export function tipsterMutationMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return TIPSTER_API_MESSAGES[error.message] ?? error.message;
+  }
+  return GENERIC_TIPSTER_SAVE_ERROR;
+}
+
+function parseDraftLegs(
+  legs: DraftCouponLeg[],
+): CouponLegCreate[] | { error: string } {
+  const parsed: CouponLegCreate[] = [];
+  for (const leg of legs) {
+    const odds = parseLegOdds(leg.odds);
+    if (odds === null) {
+      return { error: "Każda noga musi mieć kurs co najmniej 1.01." };
+    }
+    parsed.push({
+      match_id: leg.matchId,
+      event_ids: leg.eventIds,
+      odds,
+      source: isCombinedLeg(leg.eventIds) ? "custom_odds" : "catalog",
+      bookmaker_id: null,
+    });
+  }
+  return parsed;
 }
 
 function parseIsSystemFilter(value: string | undefined): 0 | 1 | null {

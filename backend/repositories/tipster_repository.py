@@ -128,9 +128,16 @@ _SELECT_LEGS_FOR_COUPONS = """
         l.bookmaker_id,
         l.source,
         l.outcome,
-        e.event_id
+        e.event_id,
+        ev.name AS event_name,
+        t1.name AS home_name,
+        t2.name AS away_name
     FROM tipster_coupon_legs l
+    LEFT JOIN matches m ON m.id = l.match_id
+    LEFT JOIN teams t1 ON m.home_team = t1.id
+    LEFT JOIN teams t2 ON m.away_team = t2.id
     LEFT JOIN tipster_coupon_leg_events e ON e.leg_id = l.id
+    LEFT JOIN events ev ON ev.id = e.event_id
     WHERE l.coupon_id IN ({placeholders})
     ORDER BY l.id ASC, e.id ASC
 """
@@ -697,11 +704,17 @@ def _group_leg_rows(
                 row["odds"],
                 row["bookmaker_id"],
                 str(row["source"]),
-                row["outcome"])
+                row["outcome"],
+                row.get("home_name"),
+                row.get("away_name"),
+                [])
             order_by_coupon.setdefault(coupon_id, []).append(leg_id)
         event_id = row.get("event_id")
         if event_id is not None:
             legs_by_id[leg_id]["event_ids"].append(int(event_id))
+            event_name = row.get("event_name")
+            legs_by_id[leg_id]["event_names"].append(
+                str(event_name) if event_name else f"#{int(event_id)}")
     return {
         coupon_id: [legs_by_id[leg_id] for leg_id in leg_ids]
         for coupon_id, leg_ids in order_by_coupon.items()}
@@ -731,11 +744,17 @@ def _leg_document(
         odds: object,
         bookmaker_id: object,
         source: str,
-        outcome: object) -> dict[str, Any]:
+        outcome: object,
+        home_name: object = None,
+        away_name: object = None,
+        event_names: list[str] | None = None) -> dict[str, Any]:
     return {
         "id": leg_id,
         "match_id": match_id,
+        "home_name": _as_optional_str(home_name),
+        "away_name": _as_optional_str(away_name),
         "event_ids": event_ids,
+        "event_names": list(event_names or []),
         "odds": float(odds),
         "bookmaker_id": _as_optional_int(bookmaker_id),
         "source": source,
@@ -746,6 +765,15 @@ def _as_decimal(value: object) -> Decimal:
     if isinstance(value, Decimal):
         return value
     return Decimal(str(value))
+
+
+def _as_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text
 
 
 def _as_optional_int(value: object) -> int | None:

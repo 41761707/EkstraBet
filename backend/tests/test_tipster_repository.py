@@ -76,7 +76,10 @@ def _leg_sql_row(
         odds: Decimal = Decimal("1.9000"),
         bookmaker_id: int | None = 1,
         source: str = "catalog",
-        outcome: int | None = None) -> dict[str, object]:
+        outcome: int | None = None,
+        home_name: str | None = "Legia",
+        away_name: str | None = "Lech",
+        event_name: str | None = "BTTS tak") -> dict[str, object]:
     return {
         "leg_id": leg_id,
         "coupon_id": coupon_id,
@@ -85,7 +88,10 @@ def _leg_sql_row(
         "bookmaker_id": bookmaker_id,
         "source": source,
         "outcome": outcome,
-        "event_id": event_id}
+        "event_id": event_id,
+        "event_name": event_name,
+        "home_name": home_name,
+        "away_name": away_name}
 
 
 def _mock_connection(
@@ -545,14 +551,16 @@ class TestFetchCoupons(unittest.TestCase):
                         match_id=100,
                         event_id=6,
                         odds=Decimal("2.5000"),
-                        source="custom_odds"),
+                        source="custom_odds",
+                        event_name="BTTS tak"),
                     _leg_sql_row(
                         leg_id=20,
                         coupon_id=10,
                         match_id=100,
                         event_id=12,
                         odds=Decimal("2.5000"),
-                        source="custom_odds")]])
+                        source="custom_odds",
+                        event_name="Poniżej 2.5 goli")]])
         items, total = repo.fetch_coupons(7, 0, 2, 10)
         self.assertEqual(total, 3)
         self.assertEqual(len(items), 1)
@@ -560,6 +568,11 @@ class TestFetchCoupons(unittest.TestCase):
         self.assertEqual(items[0]["combined_odds"], 2.5)
         self.assertEqual(len(items[0]["legs"]), 1)
         self.assertEqual(items[0]["legs"][0]["event_ids"], [6, 12])
+        self.assertEqual(
+            items[0]["legs"][0]["event_names"],
+            ["BTTS tak", "Poniżej 2.5 goli"])
+        self.assertEqual(items[0]["legs"][0]["home_name"], "Legia")
+        self.assertEqual(items[0]["legs"][0]["away_name"], "Lech")
         self.assertIsInstance(items[0]["stake_amount"], float)
         count_query, count_params = cursor.execute.call_args_list[0].args
         self.assertIn("SELECT COUNT(*) AS total", count_query)
@@ -574,7 +587,10 @@ class TestFetchCoupons(unittest.TestCase):
         self.assertEqual(list_params, (7, 0, 10, 10))
         legs_query, legs_params = cursor.execute.call_args_list[2].args
         self.assertIn("FROM tipster_coupon_legs l", legs_query)
+        self.assertIn("LEFT JOIN matches m", legs_query)
+        self.assertIn("LEFT JOIN teams t1", legs_query)
         self.assertIn("LEFT JOIN tipster_coupon_leg_events e", legs_query)
+        self.assertIn("LEFT JOIN events ev", legs_query)
         self.assertIn("WHERE l.coupon_id IN (%s)", legs_query)
         self.assertEqual(legs_params, (10,))
         cursor.close.assert_called_once()

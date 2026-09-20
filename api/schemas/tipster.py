@@ -107,11 +107,18 @@ class CouponCreateRequest(BaseModel):
 
 
 class CouponLegSummary(BaseModel):
-    """Persisted coupon leg with nested catalog event IDs."""
+    """Persisted coupon leg with match and event labels for history."""
 
     id: int = Field(..., description="Leg ID")
     match_id: int = Field(..., description="Match ID")
     event_ids: list[int] = Field(..., description="Event IDs on this leg")
+    event_names: list[str] = Field(
+        default_factory=list,
+        description="Catalog event names aligned with event_ids")
+    home_name: str | None = Field(
+        None, description="Home team name at read time")
+    away_name: str | None = Field(
+        None, description="Away team name at read time")
     odds: float = Field(..., description="Snapshotted leg odds")
     bookmaker_id: int | None = Field(None, description="Bookmaker ID")
     source: LegSource = Field(..., description="catalog or custom_odds")

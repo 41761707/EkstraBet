@@ -1,23 +1,44 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addEventToDraftLegs,
   areTipsterDateFiltersValid,
+  buildCouponCreateRequest,
   couponStakeFields,
   createDefaultTipsterLeaderboardFilters,
+  filterCatalogEvents,
+  filterCatalogMatches,
   formatCouponCombinedOdds,
   formatTipsterAmount,
   formatTipsterProfit,
   formatTipsterRoi,
+  groupCatalogEvents,
+  groupCatalogMatches,
+  historyEventLabel,
+  historyMatchLabel,
   isCombinedLeg,
   isOwnerBankroll,
+  couponHistoryStatusLabel,
+  legOutcomeLabel,
+  mergeCatalogMatches,
+  parsePositiveAmount,
   parseTipsterLeaderboardFilters,
+  previewCouponCombinedOdds,
+  previewPotentialWin,
   previewStakeMoney,
+  removeEventFromDraftLegs,
   tipsterLeaderboardPath,
+  tipsterMutationMessage,
+  toTipsterCatalogQuery,
   toTipsterLeaderboardQuery,
+  updateDraftLegOdds,
+  type DraftCouponLeg,
   type TipsterLeaderboardFilters,
 } from "@/components/tipsters/tipsterModel";
+import { ApiError } from "@/lib/apiShared";
 import type {
   BankrollSettings,
+  CatalogMatch,
   CouponSummary,
   PublicBankroll,
 } from "@/types/api";
@@ -244,5 +265,291 @@ describe("isCombinedLeg", () => {
   it("treats two or more event ids as a combined leg", () => {
     expect(isCombinedLeg([6])).toBe(false);
     expect(isCombinedLeg([6, 12])).toBe(true);
+  });
+});
+
+describe("addEventToDraftLegs", () => {
+  it("groups a second event of the same match into one odds field", () => {
+    const first = addEventToDraftLegs([], 10, 6);
+    expect("legs" in first).toBe(true);
+    if (!("legs" in first)) {
+      return;
+    }
+    const combined = addEventToDraftLegs(first.legs, 10, 12);
+    expect(combined).toEqual({
+      legs: [{ matchId: 10, eventIds: [6, 12], odds: "" }],
+    });
+  });
+
+  it("opens a new leg for a different match", () => {
+    const first = addEventToDraftLegs([], 10, 6);
+    if (!("legs" in first)) {
+      return;
+    }
+    const ako = addEventToDraftLegs(first.legs, 11, 6);
+    expect("legs" in ako && ako.legs).toHaveLength(2);
+  });
+
+  it("clears single-leg odds when the same match becomes combined", () => {
+    const first = addEventToDraftLegs([], 10, 6);
+    expect("legs" in first).toBe(true);
+    if (!("legs" in first)) {
+      return;
+    }
+    const withOdds = updateDraftLegOdds(first.legs, 10, "1.80");
+    const combined = addEventToDraftLegs(withOdds, 10, 12);
+    expect(combined).toEqual({
+      legs: [{ matchId: 10, eventIds: [6, 12], odds: "" }],
+    });
+  });
+
+  it("clears odds whenever the combined selection changes", () => {
+    const first = addEventToDraftLegs([], 10, 6);
+    if (!("legs" in first)) {
+      return;
+    }
+    const withOdds = updateDraftLegOdds(first.legs, 10, "1.80");
+    const combined = addEventToDraftLegs(withOdds, 10, 12);
+    if (!("legs" in combined)) {
+      return;
+    }
+    const priced = updateDraftLegOdds(combined.legs, 10, "1.55");
+    const third = addEventToDraftLegs(priced, 10, 8);
+    expect(third).toEqual({
+      legs: [{ matchId: 10, eventIds: [6, 12, 8], odds: "" }],
+    });
+    if (!("legs" in third)) {
+      return;
+    }
+    const repriced = updateDraftLegOdds(third.legs, 10, "1.40");
+    expect(removeEventFromDraftLegs(repriced, 10, 8)).toEqual([
+      { matchId: 10, eventIds: [6, 12], odds: "" },
+    ]);
+  });
+
+  it("rejects a duplicate event on the same combined leg", () => {
+    const first = addEventToDraftLegs([], 10, 6);
+    if (!("legs" in first)) {
+      return;
+    }
+    expect(addEventToDraftLegs(first.legs, 10, 6)).toEqual({
+      error: "duplicate_event",
+    });
+  });
+
+  it("rejects a ninth distinct match", () => {
+    let legs: DraftCouponLeg[] = [];
+    for (let matchId = 1; matchId <= 8; matchId += 1) {
+      const result = addEventToDraftLegs(legs, matchId, 6);
+      expect("legs" in result).toBe(true);
+      if ("legs" in result) {
+        legs = result.legs;
+      }
+    }
+    expect(addEventToDraftLegs(legs, 9, 6)).toEqual({ error: "max_legs" });
+  });
+});
+
+describe("parsePositiveAmount and buildCouponCreateRequest", () => {
+  it("rejects money that quantizes to 0.00", () => {
+    expect(parsePositiveAmount("0.001")).toBeNull();
+    expect(parsePositiveAmount("10,5")).toBe(10.5);
+  });
+
+  it("sends custom_odds for combined and catalog for a single event", () => {
+    const request = buildCouponCreateRequest(
+      [
+        { matchId: 10, eventIds: [6, 12], odds: "1.85" },
+        { matchId: 11, eventIds: [1], odds: "2.00" },
+      ],
+      "units",
+      "2",
+    );
+    expect("legs" in request).toBe(true);
+    if (!("legs" in request)) {
+      return;
+    }
+    expect(request.stake_input_mode).toBe("units");
+    expect(request.stake_units).toBe(2);
+    expect(request.legs[0]).toMatchObject({
+      match_id: 10,
+      event_ids: [6, 12],
+      odds: 1.85,
+      source: "custom_odds",
+      bookmaker_id: null,
+    });
+    expect(request.legs[1]?.source).toBe("catalog");
+  });
+});
+
+describe("historyMatchLabel and groupCatalogEvents", () => {
+  it("uses home and away names from the coupon DTO", () => {
+    expect(
+      historyMatchLabel({
+        match_id: 12345,
+        home_name: "Legia",
+        away_name: "Lech",
+      }),
+    ).toBe("Legia – Lech");
+    expect(
+      historyMatchLabel({
+        match_id: 99,
+        home_name: null,
+        away_name: null,
+      }),
+    ).toBe("Mecz 99");
+    expect(
+      historyEventLabel({
+        event_ids: [6, 12],
+        event_names: ["BTTS tak", "Poniżej 2.5 goli"],
+      }),
+    ).toBe("BTTS tak + Poniżej 2.5 goli");
+  });
+
+  it("groups settleable events by market family", () => {
+    const groups = groupCatalogEvents([
+      { id: 1, name: "Gospodarz wygrywa" },
+      { id: 6, name: "Obie drużyny strzelą tak" },
+      { id: 12, name: "Poniżej 2.5 goli" },
+      { id: 50, name: "Handicap gospodarza -1.5" },
+      { id: 210, name: "Dokładny wynik 1:0" },
+      { id: 40, name: "Gospodarz powyżej 8.5 rożnych" },
+    ]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "Wynik meczu",
+      "BTTS",
+      "Handicap",
+      "Gole",
+      "Rożne",
+      "Dokładny wynik",
+    ]);
+  });
+
+  it("treats a settled losing leg as lost while the coupon can stay open", () => {
+    expect(legOutcomeLabel(0)).toBe("Przegrany");
+    expect(legOutcomeLabel(null)).toBe("Otwarty");
+    expect(
+      couponHistoryStatusLabel(0, null, [{ outcome: 0 }, { outcome: null }]),
+    ).toBe("W rozliczeniu");
+    expect(couponHistoryStatusLabel(0, null, [{ outcome: null }])).toBe(
+      "Otwarty",
+    );
+  });
+});
+
+describe("catalog match picker helpers", () => {
+  const legia: CatalogMatch = {
+    id: 10,
+    league_id: 1,
+    league_name: "Ekstraklasa",
+    league_tier: 1,
+    game_date: "2026-09-21T18:00:00Z",
+    result: null,
+    home_id: 1,
+    home_name: "Legia",
+    home_shortcut: "LEG",
+    away_id: 2,
+    away_name: "Lech",
+    away_shortcut: "LPO",
+  };
+  const arsenal: CatalogMatch = {
+    id: 11,
+    league_id: 2,
+    league_name: "Premier League",
+    league_tier: 1,
+    game_date: "2026-09-21T16:00:00Z",
+    result: null,
+    home_id: 3,
+    home_name: "Arsenal",
+    home_shortcut: "ARS",
+    away_id: 4,
+    away_name: "Chelsea",
+    away_shortcut: "CHE",
+  };
+
+  it("filters by team or league text and groups by league", () => {
+    expect(filterCatalogMatches([legia, arsenal], "legia")).toEqual([legia]);
+    expect(filterCatalogMatches([legia, arsenal], "premier")).toEqual([arsenal]);
+    expect(
+      groupCatalogMatches([legia, arsenal]).map((group) => group.label),
+    ).toEqual(["Ekstraklasa", "Premier League"]);
+  });
+
+  it("filters settleable events by name", () => {
+    const events = [
+      { id: 1, name: "Gospodarz wygrywa" },
+      { id: 6, name: "BTTS tak" },
+      { id: 198, name: "Dokładny wynik 1-0" },
+    ];
+    expect(filterCatalogEvents(events, "btts")).toEqual([events[1]]);
+    expect(filterCatalogEvents(events, "1-0")).toEqual([events[2]]);
+  });
+
+  it("keeps previously selected matches when the day changes", () => {
+    expect(mergeCatalogMatches([legia], [arsenal])).toEqual([legia, arsenal]);
+  });
+
+  it("sends one calendar day and favorite league ids to the catalog", () => {
+    expect(toTipsterCatalogQuery("2026-09-20", [48, 2])).toEqual({
+      dateFrom: "2026-09-20",
+      dateTo: "2026-09-20",
+      leagueIds: [48, 2],
+    });
+  });
+
+  it("omits league ids when the picker includes all leagues", () => {
+    expect(toTipsterCatalogQuery("2026-09-20", [48, 2], true)).toEqual({
+      dateFrom: "2026-09-20",
+      dateTo: "2026-09-20",
+      leagueIds: [],
+    });
+  });
+});
+
+describe("previewCouponCombinedOdds", () => {
+  it("multiplies leg odds and ignores events inside a combined leg", () => {
+    expect(
+      previewCouponCombinedOdds([
+        { matchId: 10, eventIds: [6, 12], odds: "1.55" },
+        { matchId: 11, eventIds: [1], odds: "2.00" },
+      ]),
+    ).toBeCloseTo(3.1);
+    expect(
+      previewCouponCombinedOdds([
+        { matchId: 10, eventIds: [6], odds: "" },
+      ]),
+    ).toBeNull();
+    expect(previewPotentialWin(10, 3.1)).toBe(31);
+  });
+});
+
+describe("tipsterMutationMessage", () => {
+  it("translates known service errors", () => {
+    expect(
+      tipsterMutationMessage(new ApiError(403, "User account is inactive")),
+    ).toBe("Konto użytkownika jest nieaktywne.");
+    expect(
+      tipsterMutationMessage(new ApiError(422, "Invalid coupon leg")),
+    ).toBe("Noga kuponu jest nieprawidłowa.");
+    expect(
+      tipsterMutationMessage(new ApiError(422, "Unsupported currency")),
+    ).toBe("Nieobsługiwana waluta.");
+    expect(
+      tipsterMutationMessage(
+        new ApiError(422, "Each leg must have at least one event"),
+      ),
+    ).toBe("Każda noga musi mieć co najmniej jeden event.");
+  });
+
+  it("falls back to the API message for unmapped errors", () => {
+    expect(
+      tipsterMutationMessage(new ApiError(422, "Unexpected coupon rule")),
+    ).toBe("Unexpected coupon rule");
+  });
+
+  it("uses the generic copy for non-API failures", () => {
+    expect(tipsterMutationMessage(new Error("network down"))).toBe(
+      "Nie udało się zapisać. Spróbuj ponownie.",
+    );
   });
 });

@@ -1796,7 +1796,10 @@ export interface CouponCreateRequest {
 export interface CouponLegSummary {
   id: number;
   match_id: number;
+  home_name: string | null;
+  away_name: string | null;
   event_ids: number[];
+  event_names: string[];
   odds: number;
   bookmaker_id: number | null;
   source: LegSource;
