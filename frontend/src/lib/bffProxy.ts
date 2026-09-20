@@ -25,6 +25,7 @@ export const BFF_ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { prefix: "users", methods: ["GET", "PUT", "DELETE"] },
   { prefix: "typer-lm", methods: ["GET", "PUT", "POST", "DELETE"] },
   { prefix: "admin", methods: ["GET", "POST", "PUT"] },
+  { prefix: "tipsters", methods: ["GET", "PUT", "POST"] },
 ];
 
 const MUTATING_METHODS = new Set<HttpMethod>([

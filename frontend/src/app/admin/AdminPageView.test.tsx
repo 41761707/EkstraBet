@@ -19,6 +19,7 @@ function sampleUser(overrides: Partial<AdminUser> = {}): AdminUser {
     display_name: "Alicja",
     is_active: true,
     is_admin: true,
+    is_system: false,
     first_login: false,
     created_at: "2026-09-01T10:00:00",
     updated_at: "2026-09-01T10:00:00",

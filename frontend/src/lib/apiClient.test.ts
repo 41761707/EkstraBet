@@ -4,13 +4,16 @@ import {
   addFavoriteLeague,
   createAdminLeague,
   createAdminUser,
+  createMyCoupon,
   deleteTyperPublication,
   getLeagueRatingProgress,
   getModelAnalytics,
   getModelDetails,
   getModels,
   getModelsGroupedByFamily,
+  getMyBankroll,
   getSeasonProjectionModes,
+  getTipsterCatalog,
   getTyperAdminCandidates,
   getTyperAdminPredictionHistory,
   getTyperLongTermAutoResult,
@@ -18,7 +21,9 @@ import {
   getTyperLongTermAdminHistory,
   getTyperRevealedPredictions,
   getUserPreferences,
+  postMyTopUp,
   publishTyperMatches,
+  putMyBankroll,
   putUserPreferences,
   removeFavoriteLeague,
   saveTyperLongTermPicks,
@@ -664,6 +669,7 @@ const ADMIN_USER = {
   display_name: "Alice",
   is_active: true,
   is_admin: false,
+  is_system: false,
   first_login: true,
   created_at: null,
   updated_at: null,
@@ -1002,5 +1008,160 @@ describe("model analytics BFF client", () => {
         url.includes("/api/backend/models/models/4/details"),
       ),
     ).toBe(true);
+  });
+});
+
+const BANKROLL = {
+  user_id: 7,
+  currency: "PLN",
+  initial_capital: 1000,
+  unit_size: 10,
+  current_balance: 1000,
+  open_stake: 0,
+  realized_pnl: 0,
+};
+
+describe("tipster client", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubBrowserFetch(fetchMock: ReturnType<typeof vi.fn>) {
+    vi.stubGlobal("window", {
+      location: { origin: "http://localhost:3000", replace: vi.fn() },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("GETs the owner bankroll through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(BANKROLL), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(getMyBankroll()).resolves.toEqual(BANKROLL);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/api/backend/tipsters/me/bankroll",
+    );
+  });
+
+  it("PUTs bankroll settings through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(BANKROLL), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await putMyBankroll({
+      currency: "PLN",
+      initial_capital: 1000,
+      unit_size: 10,
+    });
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/tipsters/me/bankroll");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({
+      currency: "PLN",
+      initial_capital: 1000,
+      unit_size: 10,
+    });
+  });
+
+  it("POSTs a top-up through the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(BANKROLL), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await postMyTopUp({ amount: 100 });
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/tipsters/me/top-up");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ amount: 100 });
+  });
+
+  it("POSTs a coupon through the BFF", async () => {
+    const coupon = {
+      id: 1,
+      user_id: 7,
+      stake_amount: 10,
+      stake_units: 2,
+      stake_input_mode: "units",
+      combined_odds: 1.9,
+      settled: 0,
+      outcome: null,
+      profit: null,
+      created_at: "2026-09-20T10:00:00",
+      legs: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(coupon), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    const request = {
+      stake_input_mode: "units" as const,
+      stake_amount: null,
+      stake_units: 2,
+      legs: [
+        {
+          match_id: 10,
+          event_ids: [6, 12],
+          odds: 1.9,
+          source: "custom_odds" as const,
+          bookmaker_id: null,
+        },
+      ],
+    };
+    await expect(createMyCoupon(request)).resolves.toEqual(coupon);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/tipsters/me/coupons");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual(request);
+  });
+
+  it("GETs the catalog with league ids through the BFF", async () => {
+    const payload = { matches: [], events: [] };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(
+      getTipsterCatalog({
+        dateFrom: "2026-09-20",
+        dateTo: "2026-09-27",
+        leagueIds: [48, 2],
+      }),
+    ).resolves.toEqual(payload);
+    const requested = String(fetchMock.mock.calls[0]?.[0]);
+    expect(requested).toContain("/api/backend/tipsters/catalog/matches");
+    expect(requested).toContain("date_from=2026-09-20");
+    expect(requested).toContain("date_to=2026-09-27");
+    expect(requested).toContain("league_ids=48%2C2");
   });
 });
