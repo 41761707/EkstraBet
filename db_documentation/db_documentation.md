@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 17.09.2026
+###### Ostatnia data modyfikacji: 20.09.2026
 
 ## Opis struktury bazy
 
@@ -31,8 +31,6 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [FOOTBALL_PLAYER_STATS](#football_player_stats) (Boxscore meczowy w piłce nożnej)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
 - [FOOTBALL_TABLE_SPECIAL_SLOTS](#football_table_special_slots) (Progi czołówki i spadku w tabeli ligowej)
-- [GAMBLER_PARLAYS](#gambler_parlays) (kupony graczy)
-- [GAMBLERS](#gamblers) (zadeklarowani gracze)
 - [HOCKEY_MATCH_EVENTS](#hockey_match_events) (zdarzenia występujące w danym meczu hokejowym)
 - [HOCKEY_MATCH_PLAYER_STATS](#hockey_match_player_stats) (statystyki każdego gracza w danym meczu)
 - [HOCKEY_MATCH_ROSTERS](#hockey_match_rosters) (składy drużyn hokejowych w danym spotkaniu)
@@ -44,7 +42,6 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [MODELS](#models) (lista stworzonych modeli predykcyjnych)
 - [MODEL_TRAINING_RUNS](#model_training_runs) (audyt przebiegów trenowania / ewaluacji modeli)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
-- [PARLAY_EVENTS](#parlay_events) (Szczegóły kuponów)
 - [PLAYER_NAME_MAPPINGS](#player_name_mappings) (mapowania nazw zawodników dla różnych bukmacherów)
 - [PLAYER_PROPS_LINES](#player_props_lines) (linie bukmacherskie na zdarzenia zawodników)
 - [PLAYERS](#players) (lista graczy)
@@ -56,6 +53,10 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [SPECIAL_ROUNDS](#special_rounds) (Tabela z nazwami rund specjalnych)
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
+- [TIPSTER_BANKROLLS](#tipster_bankrolls) (Kapitał startowy i wielkość unita typerów)
+- [TIPSTER_COUPON_LEG_EVENTS](#tipster_coupon_leg_events) (Zdarzenia przypisane do nogi kuponu)
+- [TIPSTER_COUPON_LEGS](#tipster_coupon_legs) (Nogi kuponów typerów)
+- [TIPSTER_COUPONS](#tipster_coupons) (Kupony typerów)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
 - [TYPER_LONG_TERM_MARKETS](#typer_long_term_markets) (Rynki długoterminowe Typera)
 - [TYPER_LONG_TERM_PICK_CHANGES](#typer_long_term_pick_changes) (Audyt zmian wyborów długoterminowych Typera)
@@ -742,60 +743,6 @@ Dane dodawane ręcznie.
 
 ---
 
-### GAMBLER_PARLAYS
-
-(kupony graczy)
-
-
-| POLE           | DOMENA    | ZAKRES                                | UWAGI                                                                                                                                                                                                                                                                                                          | WARTOŚC DOMYŚLNA         |
-| -------------- | --------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **ID**         | INT       | INT                                   | ID kuponu                                                                                                                                                                                                                                                                                                      | AUTOMATYCZNIE GENEROWANY |
-| *GAMBLER_ID*   | INT       | INT                                   | Klucz obcy, powiązanie z tabelą *gamblers*                                                                                                                                                                                                                                                                     | NULL                     |
-| PARLAY_ODDS    | FLOAT     | > 1                                   | Kurs całego kuponu (mnożenie kursów wszystkich zdarzeń)                                                                                                                                                                                                                                                        | NULL                     |
-| STAKE          | FLOAT     | > 0                                   | Wkład gracza (ile pieniędzy postawił w ramach kuponu), w unitach                                                                                                                                                                                                                                               | 1                        |
-| SETTLED        | INT       | {0,1}                                 | Czy kupon rozliczony (0 - nie, 1 - tak)                                                                                                                                                                                                                                                                        | 0                        |
-| PARLAY_OUTCOME | INT       | {0,1}                                 | Wynik kuponu (0 - przegrany, 1 - wygrany)                                                                                                                                                                                                                                                                      | 0                        |
-| PROFIT         | FLOAT     | {-stake, parlay_odds * stake - stake} | Zysk / Strata gracza w zależności od tego, czy kupon został wygrany czy przegrany. Jeśli kupon wygrany, profitem nazywamy iloczyn stawki oraz kursu kuponu pomniejszonego o jedną stawkę (wkład początkowy nie jest w żadnym wypadku profitem z zakładu). Jeśli kupon przegrany, gracz traci poświęconą stawkę | 0                        |
-| CREATION_DATE  | TIMESTAMP | TIMESTAMP                             | Data utworzenia kuponu                                                                                                                                                                                                                                                                                         | CURRENT_TIMESTAMP        |
-
-
-**Ograniczenia/Indeksy:**
-
-- Klucz główny: `ID`
-- Klucz obcy: `GAMBLER_ID` → `gamblers(ID)`
-
-**Sposób generowania danych do tabeli**:
-
-Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przyszłości przewidywane jest dodawaniez zdarzeń poprzez moduł "Kupony Graczy"). Dane aktualizowane są w ramach modułu **recalc_parlay.py** 
-
----
-
-### GAMBLERS
-
-(zadeklarowani gracze) 
-
-
-| POLE           | DOMENA      | ZAKRES | UWAGI                                                              | WARTOŚC DOMYŚLNA         |
-| -------------- | ----------- | ------ | ------------------------------------------------------------------ | ------------------------ |
-| **ID**         | INT         | INT    | ID kuponu                                                          | AUTOMATYCZNIE GENEROWANY |
-| GAMBLER_NAME   | VARCHAR(30) | STRING | Nazwa typera                                                       | NULL                     |
-| PARLAYS_PLAYED | INT         | >= 0   | Liczba kuponów zagranych przez typera                              | 0                        |
-| PARLAYS_WON    | INT         | >= 0   | Liczba kuponów wygranych przez typera                              | 0                        |
-| BALANCE        | FLOAT       | FLOAT  | Aktualny stan konta typera                                         | 0                        |
-| ACTIVE         | INT         | {0, 1} | Flaga, czy gracz jest aktywny (0 - nie, 1 - tak)                   | 1                        |
-| IS_HUMAN       | INT         | {0, 1} | Flaga, czy gracz jest człowiekiem czy automatem (0 - nie, 1 - tak) | 0                        |
-
-
-**Ograniczenia/Indeksy:**
-
-- Klucz główny: `ID`
-
-**Sposób generowania danych do tabeli**:
-
-Dane do tabeli dodawane są **ręcznie** (Możliwe rozszerzenie na tworzenie nowych typerów przez innych ludzi (np. tworzenie kont w serwisie), jednak jest to BARDZO przyszłościowe rozszerzenie)
-
----
-
 ### HOCKEY_MATCH_EVENTS
 
 (zdarzenia występujące w danym meczu hokejowym)
@@ -1198,29 +1145,6 @@ Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
 
 ---
 
-### PARLAY_EVENTS
-
-(Szczegóły kuponów)
-
-
-| POLE        | DOMENA | ZAKRES | UWAGI                                             | WARTOŚC DOMYŚLNA         |
-| ----------- | ------ | ------ | ------------------------------------------------- | ------------------------ |
-| **ID**      | INT    | INT    | ID zdarzenia                                      | AUTOMATYCZNIE GENEROWANY |
-| *PARLAY_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *gambler_parlays* | NULL                     |
-| *BET_ID*    | INT    | INT    | Klucz obcy, powiązanie z tabelą *bets*            | NULL                     |
-
-
-**Ograniczenia/Indeksy:**
-
-- Klucz główny: `ID`
-- Klucz obcy: `PARLAY_ID` → `gambler_parlays(ID)`
-- Klucz obcy: `BET_ID` → `bets(ID)`
-**Sposób generowania danych do tabeli**:
-
-Aktualnie dane do tabeli dodawane są tylko i wyłącznie **ręcznie** (w przyszłości przewidywane jest dodawaniez zdarzeń poprzez moduł "Kupony Graczy")
-
----
-
 ### PLAYER_PROPS_LINES
 
 (Linie bukmacherskie na zdarzenia zawodników w meczu)
@@ -1542,6 +1466,120 @@ Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. 
 
 ---
 
+### TIPSTER_BANKROLLS
+
+(Kapitał startowy i wielkość unita typerów)
+
+
+| POLE             | DOMENA       | ZAKRES   | UWAGI                                                         | WARTOŚC DOMYŚLNA                         |
+| ---------------- | ------------ | -------- | ------------------------------------------------------------- | ---------------------------------------- |
+| ***USER_ID***    | INT          | INT      | Klucz główny i klucz obcy do *users*                          | NULL                                     |
+| CURRENCY         | VARCHAR(3)   | STRING   | Kod waluty bankrolla                                          | NULL                                     |
+| INITIAL_CAPITAL  | DECIMAL(12,2)| DECIMAL  | Kapitał startowy bankrolla                                    | NULL                                     |
+| UNIT_SIZE        | DECIMAL(12,2)| DECIMAL  | Wielkość jednego unita                                        | NULL                                     |
+| UPDATED_AT       | DATETIME     | DATETIME | Moment ostatniej zmiany wiersza                               | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `USER_ID`
+- Klucz obcy: `USER_ID` → `users(ID)`
+
+**Sposób generowania danych do tabeli:**
+
+Dane wstawiane przez aplikację (użytkownicy).
+
+---
+
+### TIPSTER_COUPON_LEG_EVENTS
+
+(Zdarzenia przypisane do nogi kuponu)
+
+
+| POLE         | DOMENA | ZAKRES | UWAGI                                              | WARTOŚC DOMYŚLNA         |
+| ------------ | ------ | ------ | -------------------------------------------------- | ------------------------ |
+| **ID**       | INT    | INT    | ID powiązania                                      | AUTOMATYCZNIE GENEROWANY |
+| *LEG_ID*     | INT    | INT    | Klucz obcy, powiązanie z tabelą *tipster_coupon_legs* | NULL                  |
+| *EVENT_ID*   | INT    | INT    | Klucz obcy, powiązanie z tabelą *events*           | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `LEG_ID` → `tipster_coupon_legs(ID)` **ON DELETE CASCADE**
+- Klucz obcy: `EVENT_ID` → `events(ID)`
+- **Unikalny indeks:** `(LEG_ID, EVENT_ID)` — jedno zdarzenie na nogę
+- Indeks: `idx_tipster_coupon_leg_events_event` (`EVENT_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wstawiane przez aplikację (użytkownicy).
+
+---
+
+### TIPSTER_COUPON_LEGS
+
+(Nogi kuponów typerów)
+
+
+| POLE           | DOMENA       | ZAKRES        | UWAGI                                                      | WARTOŚC DOMYŚLNA         |
+| -------------- | ------------ | ------------- | ---------------------------------------------------------- | ------------------------ |
+| **ID**         | INT          | INT           | ID nogi                                                    | AUTOMATYCZNIE GENEROWANY |
+| *COUPON_ID*    | INT          | INT           | Klucz obcy, powiązanie z tabelą *tipster_coupons*          | NULL                     |
+| *MATCH_ID*     | INT          | INT           | Klucz obcy, powiązanie z tabelą *matches*                  | NULL                     |
+| ODDS           | DECIMAL(12,4)| DECIMAL       | Kurs nogi (dla combined kurs łączony bukmachera)           | NULL                     |
+| *BOOKMAKER_ID* | INT          | INT / NULL    | Klucz obcy, powiązanie z tabelą *bookmakers*               | NULL                     |
+| SOURCE         | VARCHAR(32)  | STRING        | Źródło kursu nogi                                          | NULL                     |
+| OUTCOME        | TINYINT(1)   | {0,1} / NULL  | `NULL` otwarta, 0 przegrana, 1 wygrana                     | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `COUPON_ID` → `tipster_coupons(ID)` **ON DELETE CASCADE**
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `BOOKMAKER_ID` → `bookmakers(ID)`
+- **Unikalny indeks:** `(COUPON_ID, MATCH_ID)` — co najwyżej jedna noga na mecz w kuponie
+- Indeks: `idx_tipster_coupon_legs_coupon` (`COUPON_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wstawiane przez aplikację (użytkownicy).
+
+---
+
+### TIPSTER_COUPONS
+
+(Kupony typerów)
+
+
+| POLE              | DOMENA       | ZAKRES       | UWAGI                                              | WARTOŚC DOMYŚLNA         |
+| ----------------- | ------------ | ------------ | -------------------------------------------------- | ------------------------ |
+| **ID**            | INT          | INT          | ID kuponu                                          | AUTOMATYCZNIE GENEROWANY |
+| *USER_ID*         | INT          | INT          | Klucz obcy, powiązanie z tabelą *users*            | NULL                     |
+| STAKE_AMOUNT      | DECIMAL(12,2)| DECIMAL      | Stawka kuponu w walucie bankrolla                  | NULL                     |
+| STAKE_UNITS       | DECIMAL(12,4)| DECIMAL / NULL | Stawka w unitach, gdy podano w unitach          | NULL                     |
+| STAKE_INPUT_MODE  | VARCHAR(16)  | STRING       | Tryb wprowadzania stawki                           | NULL                     |
+| COMBINED_ODDS     | DECIMAL(12,4)| DECIMAL      | Iloczyn kursów nóg kuponu                          | NULL                     |
+| SETTLED           | TINYINT(1)   | {0,1}        | 0 = otwarty, 1 = rozliczony                        | 0                        |
+| OUTCOME           | TINYINT(1)   | {0,1} / NULL | `NULL` otwarty, 0 przegrany, 1 wygrany             | NULL                     |
+| PROFIT            | DECIMAL(12,2)| DECIMAL / NULL | Zysk albo strata po rozliczeniu                  | NULL                     |
+| CREATED_AT        | DATETIME     | DATETIME     | Moment utworzenia kuponu                           | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `USER_ID` → `users(ID)`
+- Indeks: `idx_tipster_coupons_user_settled` (`USER_ID`, `SETTLED`)
+- Indeks: `idx_tipster_coupons_user_created` (`USER_ID`, `CREATED_AT`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wstawiane przez aplikację (użytkownicy).
+
+---
+
 ### TRANSFERS
 
 (Zapis transferów zawodników między klubami)
@@ -1781,6 +1819,7 @@ Dane wstawiane przez aplikację (użytkownicy).
 | DISPLAY_NAME  | VARCHAR(50)  | STRING | Nazwa wyświetlana w UI                             | NULL                     |
 | IS_ACTIVE     | TINYINT      | {0,1}  | 1 = konto aktywne, 0 = zablokowane                 | 1                        |
 | IS_ADMIN      | TINYINT(1)   | {0,1}  | 1 = administrator, 0 = zwykły użytkownik           | 0                        |
+| IS_SYSTEM     | TINYINT(1)   | {0,1}  | 0 = konto interaktywne, 1 = konto systemowe        | 0                        |
 | FIRST_LOGIN   | TINYINT      | {0,1}  | 1 = wymagana zmiana danych po pierwszym logowaniu  | 0                        |
 | CREATED_AT    | DATETIME     | DATETIME | Data utworzenia konta                            | CURRENT_TIMESTAMP        |
 | UPDATED_AT    | DATETIME     | DATETIME | Data ostatniej aktualizacji                      | CURRENT_TIMESTAMP        |
