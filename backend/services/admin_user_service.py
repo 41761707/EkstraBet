@@ -92,6 +92,7 @@ def _to_admin_user(row: dict[str, Any]) -> dict[str, Any]:
         "display_name": row.get("display_name"),
         "is_active": bool(row.get("is_active")),
         "is_admin": bool(row.get("is_admin")),
+        "is_system": bool(row.get("is_system")),
         "first_login": bool(row.get("first_login")),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at")}

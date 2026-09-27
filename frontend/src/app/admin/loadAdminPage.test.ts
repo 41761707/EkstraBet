@@ -42,6 +42,7 @@ function sampleUser(overrides: Partial<UserPublic> = {}): UserPublic {
     display_name: "Alicja",
     first_login: false,
     is_admin: false,
+    is_system: false,
     ...overrides,
   };
 }
@@ -53,6 +54,7 @@ function sampleAdminUser(overrides: Partial<AdminUser> = {}): AdminUser {
     display_name: "Alicja",
     is_active: true,
     is_admin: true,
+    is_system: false,
     first_login: false,
     created_at: null,
     updated_at: null,

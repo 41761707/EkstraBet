@@ -16,6 +16,8 @@ interface SignedLeagueProfitChartProps {
   points: SignedProfitPoint[];
   totalProfit: number;
   labelWidthClassName?: string;
+  formatValue?: (value: number) => string;
+  countSuffix?: string;
 }
 
 const ZERO_THRESHOLD = 0.005;
@@ -31,10 +33,14 @@ function SignedProfitRow({
   point,
   maxAbs,
   labelColumn,
+  formatValue,
+  countSuffix,
 }: {
   point: SignedProfitPoint;
   maxAbs: number;
   labelColumn: string;
+  formatValue: (value: number) => string;
+  countSuffix: string;
 }) {
   const widthPct = (Math.abs(point.profit) / maxAbs) * 50;
   const isNegative = point.profit < 0;
@@ -71,7 +77,7 @@ function SignedProfitRow({
         ) : null}
       </div>
       <span className="whitespace-nowrap text-xs tabular-nums text-text">
-        {formatProfit(point.profit)} · {point.totalBets} zakł.
+        {formatValue(point.profit)} · {point.totalBets} {countSuffix}
       </span>
     </div>
   );
@@ -82,6 +88,8 @@ export function SignedLeagueProfitChart({
   points,
   totalProfit,
   labelWidthClassName = "10rem",
+  formatValue = formatProfit,
+  countSuffix = "zakł.",
 }: SignedLeagueProfitChartProps) {
   if (points.length === 0) {
     return null;
@@ -99,7 +107,7 @@ export function SignedLeagueProfitChart({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-sm font-semibold text-text">{title}</h4>
         <span className="text-xs text-muted">
-          Suma: {formatProfit(totalProfit)}
+          Suma: {formatValue(totalProfit)}
         </span>
       </div>
 
@@ -135,6 +143,8 @@ export function SignedLeagueProfitChart({
               point={point}
               maxAbs={maxAbs}
               labelColumn={labelColumn}
+              formatValue={formatValue}
+              countSuffix={countSuffix}
             />
           ))}
         </div>

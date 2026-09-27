@@ -14,7 +14,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
-# Tabele z match_id; dzieci (parlay / final_predictions) kasujemy wcześniej
+# Tabele z match_id; dzieci (zdarzenia kuponu / final_predictions) kasujemy wcześniej
 _MATCH_ID_TABLES = ("bets",
     "odds",
     "predictions",
@@ -78,11 +78,8 @@ def collect_related_counts(
     placeholders = _placeholders(id_list)
     params = tuple(id_list)
     counts: dict[str, int] = {}
-    parlay_sql = (
-        "SELECT COUNT(*) FROM parlay_events pe "
-        "INNER JOIN bets b ON b.id = pe.bet_id "
-        f"WHERE b.match_id IN ({placeholders})")
-    counts["parlay_events"] = _scalar_count(cursor, parlay_sql, params)
+    counts["tipster_coupon_legs"] = _count_by_match_id(
+        cursor, "tipster_coupon_legs", placeholders, params)
     final_sql = (
         "SELECT COUNT(*) FROM final_predictions fp "
         "INNER JOIN predictions p ON p.id = fp.predictions_id "
@@ -110,47 +107,44 @@ def _delete_join(
     return deleted
 
 
-def _affected_parlay_ids(
+def _affected_coupon_ids(
         cursor: Any,
         placeholders: str,
         params: tuple[int, ...]) -> list[int]:
-    """Return parlay ids that include a bet from the given matches."""
+    """Return coupon ids that have a leg on the given matches."""
     sql = (
-        "SELECT DISTINCT pe.parlay_id FROM parlay_events pe "
-        "INNER JOIN bets b ON b.id = pe.bet_id "
-        f"WHERE b.match_id IN ({placeholders}) "
-        "AND pe.parlay_id IS NOT NULL")
+        "SELECT DISTINCT coupon_id FROM tipster_coupon_legs "
+        f"WHERE match_id IN ({placeholders})")
     cursor.execute(sql, params)
     rows = cursor.fetchall()
     return [int(row[0]) for row in rows]
 
 
-def _delete_empty_parlays(cursor: Any, parlay_ids: list[int]) -> None:
-    """Delete parlays that have no remaining legs after match cleanup."""
-    if not parlay_ids:
-        print("Deleted 0 row(s) from gambler_parlays")
+def _delete_empty_coupons(cursor: Any, coupon_ids: list[int]) -> None:
+    """Delete coupons that have no remaining legs after match cleanup."""
+    if not coupon_ids:
+        print("Deleted 0 row(s) from tipster_coupons")
         return
-    placeholders = _placeholders(parlay_ids)
+    placeholders = _placeholders(coupon_ids)
     sql = (
-        f"DELETE FROM gambler_parlays WHERE id IN ({placeholders}) "
+        f"DELETE FROM tipster_coupons WHERE id IN ({placeholders}) "
         "AND NOT EXISTS ("
-        "SELECT 1 FROM parlay_events pe2 "
-        "WHERE pe2.parlay_id = gambler_parlays.id)")
-    _delete_join(cursor, sql, tuple(parlay_ids), "gambler_parlays")
+        "SELECT 1 FROM tipster_coupon_legs l "
+        "WHERE l.coupon_id = tipster_coupons.id)")
+    _delete_join(cursor, sql, tuple(coupon_ids), "tipster_coupons")
 
 
 def _delete_children(
         cursor: Any,
         placeholders: str,
         params: tuple[int, ...]) -> None:
-    """Remove rows that reference bets or predictions of these matches."""
-    parlay_ids = _affected_parlay_ids(cursor, placeholders, params)
-    parlay_sql = (
-        "DELETE pe FROM parlay_events pe "
-        "INNER JOIN bets b ON b.id = pe.bet_id "
-        f"WHERE b.match_id IN ({placeholders})")
-    _delete_join(cursor, parlay_sql, params, "parlay_events")
-    _delete_empty_parlays(cursor, parlay_ids)
+    """Remove rows that reference bets, predictions or tipster legs."""
+    coupon_ids = _affected_coupon_ids(cursor, placeholders, params)
+    legs_sql = (
+        f"DELETE FROM tipster_coupon_legs "
+        f"WHERE match_id IN ({placeholders})")
+    _delete_join(cursor, legs_sql, params, "tipster_coupon_legs")
+    _delete_empty_coupons(cursor, coupon_ids)
     final_sql = (
         "DELETE fp FROM final_predictions fp "
         "INNER JOIN predictions p ON p.id = fp.predictions_id "

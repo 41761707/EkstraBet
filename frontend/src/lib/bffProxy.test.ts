@@ -109,6 +109,28 @@ describe("isMethodAllowedForPath", () => {
     );
   });
 
+  it("allows GET, PUT, and POST for tipsters paths", () => {
+    expect(isMethodAllowedForPath("tipsters/me/bankroll", "GET")).toBe(true);
+    expect(isMethodAllowedForPath("tipsters/me/bankroll", "PUT")).toBe(true);
+    expect(isMethodAllowedForPath("tipsters/me/top-up", "POST")).toBe(true);
+    expect(isMethodAllowedForPath("tipsters/me/coupons", "POST")).toBe(true);
+    expect(isMethodAllowedForPath("tipsters/catalog/matches", "GET")).toBe(
+      true,
+    );
+    expect(isMethodAllowedForPath("tipsters/parlays/settle", "POST")).toBe(
+      true,
+    );
+  });
+
+  it("rejects DELETE and PATCH for the tipsters prefix", () => {
+    expect(isMethodAllowedForPath("tipsters/me/coupons", "DELETE")).toBe(
+      false,
+    );
+    expect(isMethodAllowedForPath("tipsters/me/bankroll", "PATCH")).toBe(
+      false,
+    );
+  });
+
   it("allows GET, PUT, and DELETE for users favorite leagues", () => {
     expect(isMethodAllowedForPath("users/me/favorite-leagues", "GET")).toBe(
       true,

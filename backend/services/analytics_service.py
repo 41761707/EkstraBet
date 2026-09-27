@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Any, Literal
+
 import pandas as pd
+
+from backend.betting_tax import BETTING_TAX_RATE
 from backend.repositories import analytics_repository
-from backend.services.bet_service import BETTING_TAX_RATE
 
 StatType = Literal["ou", "btts", "result", "all"]
 GroupBy = Literal["none", "team", "league"]

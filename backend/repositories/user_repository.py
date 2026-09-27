@@ -8,12 +8,12 @@ from backend.database import get_db_connection
 
 _USER_COLUMNS = (
     "id, uuid, username, password_hash, display_name, is_active, "
-    "is_admin, first_login, created_at, updated_at")
+    "is_admin, is_system, first_login, created_at, updated_at")
 
 # lista admina nigdy nie czyta hash — serwis i API nie mogą go wyciec
 _ADMIN_USER_COLUMNS = (
     "id, uuid, username, display_name, is_active, "
-    "is_admin, first_login, created_at, updated_at")
+    "is_admin, is_system, first_login, created_at, updated_at")
 
 _USER_FLAG_COLUMNS = frozenset({"is_active", "is_admin"})
 

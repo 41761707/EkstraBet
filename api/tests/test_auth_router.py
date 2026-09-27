@@ -146,6 +146,23 @@ class TestAuthRouter(unittest.TestCase):
             "Invalid username or password")
 
     @patch(
+        "backend.services.auth_service.user_repository.fetch_user_by_username")
+    def test_login_rejects_system_user(
+        self,
+        mock_fetch: unittest.mock.MagicMock) -> None:
+        mock_fetch.return_value = {
+            **_TEST_USER,
+            "username": "agent-kuponowy",
+            "is_system": 1}
+        response = self.client.post(
+            "/auth/login",
+            json={"username": "agent-kuponowy", "password": "secret123"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            response.json()["detail"],
+            "System accounts cannot log in")
+
+    @patch(
         "api.routers.leagues.league_service.get_leagues",
         return_value=[])
     def test_protected_endpoint_requires_token(
@@ -184,6 +201,7 @@ class TestAuthRouter(unittest.TestCase):
         self.assertEqual(payload["username"], "alice")
         self.assertFalse(payload["first_login"])
         self.assertFalse(payload["is_admin"])
+        self.assertFalse(payload["is_system"])
         self.assertNotIn("id", payload)
 
     @patch(

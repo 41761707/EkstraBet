@@ -17,6 +17,7 @@ describe("AppNav overflow", () => {
     expect(html).toContain("Kącik statystyczny");
     expect(html).toContain("Więcej");
     expect(html).not.toContain("Symulacja");
+    expect(html).not.toContain("Moje zakłady");
     expect(html).not.toContain("O modelach");
     expect(html).not.toContain("Asystent");
   });

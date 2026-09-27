@@ -38,9 +38,12 @@ import type {
   AnalyticsAggregationMetric,
   AnalyticsGroupBy,
   AnalyticsStatType,
+  BankrollSettings,
   BetRecommendationsResponse,
   BetSortBy,
   BetSortOrder,
+  CatalogMatchesResponse,
+  CouponPage,
   DailyMatchesResponse,
   EventFamilyEventsResponse,
   EventFamilyListResponse,
@@ -52,6 +55,7 @@ import type {
   LeagueRoundsListResponse,
   LeaguesListResponse,
   LeagueStandingsResponse,
+  LeaderboardResponse,
   MatchDetails,
   ModelAnalyticsResponse,
   ModelDetailsResponse,
@@ -62,6 +66,7 @@ import type {
   SportStandingScope,
   SportStandingsResponse,
   SportTeamHistoryResponse,
+  PerformanceBreakdown,
   SportTeamsListResponse,
   StandingScope,
   TeamProfile,
@@ -82,6 +87,11 @@ import type {
   TyperLeaderboardRow,
   LongTermAutoResultResponse,
   LongTermDashboardResponse,
+  TipsterCatalogQuery,
+  TipsterCouponsQuery,
+  TipsterLeaderboardQuery,
+  TipsterProfileQuery,
+  TipsterProfileResponse,
   UserPublic,
 } from "@/types/api";
 
@@ -733,4 +743,90 @@ export async function getAdminSports(): Promise<AdminSport[]> {
 /** Season dropdown rows for the admin league form. */
 export async function getAdminSeasons(): Promise<AdminSeason[]> {
   return fetchApi<AdminSeason[]>("/admin/seasons");
+}
+
+function joinTipsterIdList(ids: number[] | undefined): string | undefined {
+  if (!ids || ids.length === 0) {
+    return undefined;
+  }
+  return ids.join(",");
+}
+
+/** Owner bankroll from GET /tipsters/me/bankroll. */
+export async function getMyBankroll(options?: {
+  applyTax?: boolean;
+}): Promise<BankrollSettings> {
+  return fetchApi<BankrollSettings>("/tipsters/me/bankroll", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Owner coupon page from GET /tipsters/me/coupons. */
+export async function getMyCoupons(
+  options?: TipsterCouponsQuery,
+): Promise<CouponPage> {
+  return fetchApi<CouponPage>("/tipsters/me/coupons", {
+    settled: options?.settled,
+    page: options?.page,
+    page_size: options?.pageSize,
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Owner analytics from GET /tipsters/me/performance. */
+export async function getMyPerformance(options?: {
+  applyTax?: boolean;
+}): Promise<PerformanceBreakdown> {
+  return fetchApi<PerformanceBreakdown>("/tipsters/me/performance", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Ranking page from GET /tipsters/leaderboard. */
+export async function getTipsterLeaderboard(
+  options?: TipsterLeaderboardQuery,
+): Promise<LeaderboardResponse> {
+  return fetchApi<LeaderboardResponse>("/tipsters/leaderboard", {
+    is_system: options?.isSystem,
+    league_ids: joinTipsterIdList(options?.leagueIds),
+    tier: options?.tier,
+    event_ids: joinTipsterIdList(options?.eventIds),
+    event_family:
+      options?.eventFamily === undefined
+        ? undefined
+        : String(options.eventFamily),
+    date_from: options?.dateFrom,
+    date_to: options?.dateTo,
+    sort_by: options?.sortBy,
+    sort_order: options?.sortOrder,
+    page: options?.page,
+    page_size: options?.pageSize,
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Public tipster profile from GET /tipsters/profile/{username}. */
+export async function getTipsterProfile(
+  username: string,
+  options?: TipsterProfileQuery,
+): Promise<TipsterProfileResponse> {
+  return fetchApi<TipsterProfileResponse>(
+    `/tipsters/profile/${encodeURIComponent(username)}`,
+    {
+      page: options?.page,
+      page_size: options?.pageSize,
+      apply_tax: options?.applyTax ? true : undefined,
+    },
+  );
+}
+
+/** Picker catalog from GET /tipsters/catalog/matches. */
+export async function getTipsterCatalog(
+  options?: TipsterCatalogQuery,
+): Promise<CatalogMatchesResponse> {
+  return fetchApi<CatalogMatchesResponse>("/tipsters/catalog/matches", {
+    date_from: options?.dateFrom,
+    date_to: options?.dateTo,
+    league_ids: joinTipsterIdList(options?.leagueIds),
+  });
 }

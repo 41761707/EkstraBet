@@ -456,7 +456,7 @@ Strategie:
 - **mecze**: okno `game_date` (domyślnie 3 dni) **oraz** nowe `id`
 - **dzieci meczów** (`odds`, stats, `predictions`, …): to samo okno przez `match_id`
 - **append-only** (`transfers`): tylko `id > max(id)`
-- **wykluczone**: `users`, `gamblers`, `gambler_parlays`, `parlay_events`
+- **wykluczone**: `users`, `tipster_bankrolls`, `tipster_coupons`, `tipster_coupon_legs`, `tipster_coupon_leg_events`
 
 Konfiguracja: skopiuj [deploy/sync.env.example](../deploy/sync.env.example)
 do `deploy/sync.env` (w `.gitignore`) i uzupełnij `SYNC_SSH_HOST` /

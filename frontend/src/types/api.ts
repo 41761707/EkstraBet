@@ -7,6 +7,7 @@ export interface UserPublic {
   display_name: string | null;
   first_login: boolean;
   is_admin: boolean;
+  is_system: boolean;
 }
 
 /** Favorite league IDs from GET /users/me/favorite-leagues. */
@@ -1642,6 +1643,7 @@ export interface AdminUser {
   display_name: string | null;
   is_active: boolean;
   is_admin: boolean;
+  is_system: boolean;
   first_login: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -1714,4 +1716,268 @@ export interface AdminSport {
 export interface AdminSeason {
   id: number;
   years: string;
+}
+
+/** Stake entry mode for POST /tipsters/me/coupons. */
+export type StakeInputMode = "money" | "units";
+
+/** How the leg odds were sourced. */
+export type LegSource = "catalog" | "custom_odds";
+
+/** Bankroll currency codes accepted by /tipsters. */
+export type CurrencyCode = "PLN" | "EUR" | "USD";
+
+/** Ranking sort fields for GET /tipsters/leaderboard. */
+export type LeaderboardSortBy =
+  | "profit_total"
+  | "roi_pct"
+  | "accuracy_pct"
+  | "avg_odds"
+  | "avg_profit"
+  | "bets_count"
+  | "current_balance";
+
+/** Ranking sort direction for GET /tipsters/leaderboard. */
+export type LeaderboardSortOrder = "asc" | "desc";
+
+/**
+ * Event-family ranking filter. OTHER and 0 are unmapped markets;
+ * a positive id is a catalog family.
+ */
+export type TipsterEventFamilyFilter = "OTHER" | 0 | number;
+
+/** Full bankroll document returned to the owner. */
+export interface BankrollSettings {
+  user_id: number;
+  currency: CurrencyCode;
+  initial_capital: number;
+  unit_size: number;
+  current_balance: number;
+  open_stake: number;
+  realized_pnl: number;
+}
+
+/** Bankroll fields visible to a non-owner. */
+export interface PublicBankroll {
+  currency: CurrencyCode;
+  current_balance: number;
+}
+
+/** Onboarding or settings update for PUT /tipsters/me/bankroll. */
+export interface BankrollConfigureRequest {
+  currency: CurrencyCode;
+  initial_capital: number;
+  unit_size: number;
+}
+
+/** Body for POST /tipsters/me/top-up. */
+export interface TopUpRequest {
+  amount: number;
+}
+
+/** One coupon leg with a single bookmaker price. */
+export interface CouponLegCreate {
+  match_id: number;
+  event_ids: number[];
+  odds: number;
+  source: LegSource;
+  bookmaker_id: number | null;
+}
+
+/** Payload for POST /tipsters/me/coupons. */
+export interface CouponCreateRequest {
+  stake_input_mode: StakeInputMode;
+  stake_amount: number | null;
+  stake_units: number | null;
+  legs: CouponLegCreate[];
+}
+
+/** Persisted coupon leg with nested catalog event IDs. */
+export interface CouponLegSummary {
+  id: number;
+  match_id: number;
+  home_name: string | null;
+  away_name: string | null;
+  event_ids: number[];
+  event_names: string[];
+  odds: number;
+  bookmaker_id: number | null;
+  source: LegSource;
+  outcome: number | null;
+}
+
+/** Coupon row with nested legs; combined_odds comes from the API. */
+export interface CouponSummary {
+  id: number;
+  user_id: number;
+  stake_amount: number;
+  stake_units: number | null;
+  stake_input_mode: StakeInputMode;
+  combined_odds: number;
+  settled: number;
+  outcome: number | null;
+  profit: number | null;
+  created_at: string | null;
+  legs: CouponLegSummary[];
+}
+
+/** Paginated coupon history. */
+export interface CouponPage {
+  items: CouponSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+/** One performance breakdown bucket. */
+export interface PerformanceItem {
+  event_family_id: number | null;
+  event_family_name: string | null;
+  league_id: number | null;
+  league_name: string | null;
+  league_tier: number | null;
+  country_id: number | null;
+  country_name: string | null;
+  country_emoji: string | null;
+  count: number;
+  won: number;
+  accuracy: number | null;
+  legs_count: number;
+  legs_won: number;
+  legs_accuracy: number | null;
+  legs_won_on_lost_coupons: number;
+  stake_total: number;
+  profit_total: number;
+  avg_profit: number | null;
+  avg_odds: number | null;
+  roi_pct: number | null;
+}
+
+/** Settled-coupon analytics by family, league and country. */
+export interface PerformanceBreakdown {
+  by_event_family: PerformanceItem[];
+  by_league: PerformanceItem[];
+  by_country: PerformanceItem[];
+  best_event_family: PerformanceItem | null;
+  worst_event_family: PerformanceItem | null;
+  best_league: PerformanceItem | null;
+  worst_league: PerformanceItem | null;
+  best_country: PerformanceItem | null;
+  worst_country: PerformanceItem | null;
+}
+
+/** One ranking row; coupon lists are never included. */
+export interface LeaderboardRow {
+  user_id: number;
+  username: string;
+  display_name: string | null;
+  is_system: boolean;
+  currency: CurrencyCode;
+  bets_count: number;
+  won_count: number;
+  accuracy_pct: number | null;
+  legs_count: number;
+  legs_won: number;
+  legs_won_on_lost_coupons: number;
+  stake_total: number;
+  profit_total: number;
+  avg_profit: number | null;
+  avg_odds: number | null;
+  roi_pct: number | null;
+  current_balance: number;
+}
+
+/** Paginated ranking of users who have a bankroll row. */
+export interface LeaderboardResponse {
+  items: LeaderboardRow[];
+  total: number;
+}
+
+/** Public identity; coupons only for the owner or a system target. */
+export interface TipsterProfileResponse {
+  user_id: number;
+  username: string;
+  display_name: string | null;
+  is_system: boolean;
+  bankroll: BankrollSettings | PublicBankroll | null;
+  coupons: CouponPage | null;
+  performance: PerformanceBreakdown | null;
+}
+
+/** Upcoming unfinished football match for the coupon picker. */
+export interface CatalogMatch {
+  id: number;
+  league_id: number;
+  league_name: string | null;
+  league_tier: number | null;
+  game_date: string | null;
+  result: string | null;
+  home_id: number;
+  home_name: string;
+  home_shortcut: string | null;
+  away_id: number;
+  away_name: string;
+  away_shortcut: string | null;
+}
+
+/** Settleable catalog event shown in the picker. */
+export interface CatalogEvent {
+  id: number;
+  name: string;
+}
+
+/** Default price for one catalog event; null when the database has none. */
+export interface SuggestedCatalogOdds {
+  odds: number | null;
+}
+
+/** Matches and settleable events as separate lists. */
+export interface CatalogMatchesResponse {
+  matches: CatalogMatch[];
+  events: CatalogEvent[];
+}
+
+/** Counters from an admin-triggered settlement cycle. */
+export interface SettlementResult {
+  legs_settled: number;
+  coupons_settled: number;
+  legs_skipped: number;
+}
+
+/** Query for GET /tipsters/me/coupons. */
+export interface TipsterCouponsQuery {
+  settled?: 0 | 1;
+  page?: number;
+  pageSize?: number;
+  applyTax?: boolean;
+}
+
+/** Query for GET /tipsters/leaderboard. */
+export interface TipsterLeaderboardQuery {
+  isSystem?: 0 | 1;
+  leagueIds?: number[];
+  tier?: number;
+  eventIds?: number[];
+  eventFamily?: TipsterEventFamilyFilter;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: LeaderboardSortBy;
+  sortOrder?: LeaderboardSortOrder;
+  page?: number;
+  pageSize?: number;
+  applyTax?: boolean;
+}
+
+/** Query for GET /tipsters/catalog/matches. */
+export interface TipsterCatalogQuery {
+  dateFrom?: string;
+  dateTo?: string;
+  leagueIds?: number[];
+}
+
+/** Coupon pager for GET /tipsters/profile/{username}. */
+export interface TipsterProfileQuery {
+  page?: number;
+  pageSize?: number;
+  applyTax?: boolean;
 }

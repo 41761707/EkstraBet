@@ -65,12 +65,16 @@ erDiagram
     PLAYERS ||--o{ HOCKEY_ROSTERS : "PLAYER_ID"
     PLAYERS ||--o{ TRANSFERS : "PLAYER_ID"
 
-    %% Tabele związane z kuponami
-    GAMBLERS ||--o{ GAMBLER_PARLAYS : "GAMBLER_ID"
-    GAMBLER_PARLAYS ||--o{ EVENTS_PARLAY : "PARLAY_ID"
-    BETS ||--o{ EVENTS_PARLAY : "BET_ID"
+    %% Kupony typerów (bankroll i nogi na users)
+    USERS ||--o| TIPSTER_BANKROLLS : "USER_ID"
+    USERS ||--o{ TIPSTER_COUPONS : "USER_ID"
+    TIPSTER_COUPONS ||--o{ TIPSTER_COUPON_LEGS : "COUPON_ID"
+    MATCHES ||--o{ TIPSTER_COUPON_LEGS : "MATCH_ID"
+    BOOKMAKERS |o--o{ TIPSTER_COUPON_LEGS : "BOOKMAKER_ID"
+    TIPSTER_COUPON_LEGS ||--o{ TIPSTER_COUPON_LEG_EVENTS : "LEG_ID"
+    EVENTS ||--o{ TIPSTER_COUPON_LEG_EVENTS : "EVENT_ID"
 
-    %% Konta aplikacji (nie mylić z GAMBLERS); SZP-100 / EB-17 / SZP-117
+    %% Konta aplikacji
     USERS ||--o{ USER_FAVORITE_LEAGUES : "USER_ID"
     LEAGUES ||--o{ USER_FAVORITE_LEAGUES : "LEAGUE_ID"
     USERS ||--o| USER_PREFERENCES : "USER_ID"

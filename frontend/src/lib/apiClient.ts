@@ -19,12 +19,20 @@ import {
   type AdminLeague,
   type AdminUser,
   type AnalyticsStatType,
+  type BankrollConfigureRequest,
+  type BankrollSettings,
+  type CatalogMatchesResponse,
+  type CouponCreateRequest,
+  type CouponPage,
+  type CouponSummary,
   type CreateLeagueRequest,
   type CreateUserRequest,
   type FavoriteLeagueMutationResponse,
   type ModelAnalyticsResponse,
   type ModelDetailsResponse,
   type ModelListResponse,
+  type PerformanceBreakdown,
+  type SuggestedCatalogOdds,
   type PlayerMatchStatsResponse,
   type PredictionPreviewRequest,
   type PredictionPreviewResponse,
@@ -41,10 +49,13 @@ import {
   type SettleLongTermResponse,
   type LongTermAutoResultResponse,
   type LongTermPickChange,
+  type TipsterCatalogQuery,
+  type TipsterCouponsQuery,
   type TyperAdminCandidatesResponse,
   type TyperOutcome,
   type TyperPredictionChange,
   type TyperRevealedPredictionsResponse,
+  type TopUpRequest,
   type UserPreferencesResponse,
   type UserPreferencesUpdate,
 } from "@/types/api";
@@ -514,4 +525,89 @@ export async function setAdminLeagueActive(
       body: JSON.stringify({ active }),
     },
   );
+}
+
+/** Owner bankroll from GET /tipsters/me/bankroll. */
+export async function getMyBankroll(options?: {
+  applyTax?: boolean;
+}): Promise<BankrollSettings> {
+  return fetchViaBff<BankrollSettings>("/tipsters/me/bankroll", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Owner coupon page from GET /tipsters/me/coupons. */
+export async function getMyCoupons(
+  options?: TipsterCouponsQuery,
+): Promise<CouponPage> {
+  return fetchViaBff<CouponPage>("/tipsters/me/coupons", {
+    settled: options?.settled,
+    page: options?.page,
+    page_size: options?.pageSize,
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Owner analytics from GET /tipsters/me/performance. */
+export async function getMyPerformance(options?: {
+  applyTax?: boolean;
+}): Promise<PerformanceBreakdown> {
+  return fetchViaBff<PerformanceBreakdown>("/tipsters/me/performance", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Stored default odds from GET /tipsters/catalog/suggested-odds. */
+export async function getSuggestedCatalogOdds(
+  matchId: number,
+  eventId: number,
+): Promise<SuggestedCatalogOdds> {
+  return fetchViaBff<SuggestedCatalogOdds>("/tipsters/catalog/suggested-odds", {
+    match_id: matchId,
+    event_id: eventId,
+  });
+}
+
+/** Picker catalog from GET /tipsters/catalog/matches. */
+export async function getTipsterCatalog(
+  options?: TipsterCatalogQuery,
+): Promise<CatalogMatchesResponse> {
+  return fetchViaBff<CatalogMatchesResponse>("/tipsters/catalog/matches", {
+    date_from: options?.dateFrom,
+    date_to: options?.dateTo,
+    league_ids: joinIdList(options?.leagueIds),
+  });
+}
+
+/** Create or update bankroll settings via PUT /tipsters/me/bankroll. */
+export async function putMyBankroll(
+  request: BankrollConfigureRequest,
+): Promise<BankrollSettings> {
+  return fetchViaBff<BankrollSettings>("/tipsters/me/bankroll", undefined, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+}
+
+/** Increase initial_capital via POST /tipsters/me/top-up. */
+export async function postMyTopUp(
+  request: TopUpRequest,
+): Promise<BankrollSettings> {
+  return fetchViaBff<BankrollSettings>("/tipsters/me/top-up", undefined, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+}
+
+/** Place a coupon via POST /tipsters/me/coupons. */
+export async function createMyCoupon(
+  request: CouponCreateRequest,
+): Promise<CouponSummary> {
+  return fetchViaBff<CouponSummary>("/tipsters/me/coupons", undefined, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
 }
