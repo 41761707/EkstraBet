@@ -15,72 +15,49 @@ export interface AppRelease {
 // patch_notes/<tag>.md (złączone kontynuacje punktów w jeden string).
 
 export const APP_RELEASE: AppRelease = {
-  version: "1.2.0",
-  heading: "EkstraBet 1.2.0 - Sezon 1",
-  releaseDate: "15.09.2026",
+  version: "1.3.0",
+  heading: "EkstraBet 1.3.0 - Sezon 1",
+  releaseDate: "28.09.2026",
   character:
-    "Wydanie funkcjonalne — składy NHL i NBA na stronie meczu, " +
-    "statystyki predykcji na panelach ligi i drużyny oraz rozszerzenie " +
-    "zakładów długoterminowych Typera LM",
+    "Wydanie funkcjonalne — moje zakłady i ranking typerów, przebieg meczu " +
+    "NHL oraz predykcja mistrza, awansu i spadku na stronie ligi",
   changes: [
-    "[EB-25] Długoterminowe TOP 8 i BOT 8 na `/typer-lm`: zmiana kolejności " +
-      "zakładek, przeniesienie regulaminu na dół strony i aktualizacja " +
-      "dokumentacji bazy.",
-    "[EB-26] Wybór drużyn w zakładach długoterminowych jako lista combobox " +
-      "na `/typer-lm` oraz poprawki dokumentacji bazy.",
-    "[EB-27] Porządki po wdrożeniu statystyk predykcji na panelach ligi i drużyny.",
-    "[EB-29] Finalne poprawki wyglądu składów hokejowych na stronie meczu NHL " +
-      "(`/matches/<match_id>/`).",
-    "[EB-30] Zmiana ułożenia panelu składów koszykarskich na stronie meczu NBA " +
-      "(`/matches/<match_id>/`).",
-    "[SZP-178] Punktacja zakładów długoterminowych (TOP 8 / BOT 8) w serwisie " +
-      "Typera LM oraz zmiany bazodanowe.",
-    "[SZP-179] Repozytorium tabeli kolejności i pozycji pod długoterminowe typy Typera LM.",
-    "[SZP-180] Dashboard i rozliczanie zakładów długoterminowych TOP 8 / BOT 8.",
-    "[SZP-181] Kontrakty HTTP pod nową długoterminówkę (TOP 8 / BOT 8) Typera LM.",
-    "[SZP-182] Ranking SQL Typera LM z uwzględnieniem kolejności TOP 8 / BOT 8.",
-    "[SZP-183] Typy i helpery frontendu pod ranking długoterminowy na `/typer-lm`.",
-    "[SZP-184] Tabela długoterminowa (kolejność drużyn TOP 8 / BOT 8) w zakładce " +
-      "Długoterminowe na `/typer-lm`.",
-    "[SZP-185] Aktualizacja regulaminu Typera LM o zakłady długoterminowe TOP 8 / BOT 8.",
-    "[SZP-188] Punktacja nowych zakładów długoterminowych — wskazanie drużyny, " +
-      "zawodnika lub odpowiedzi na pytanie.",
-    "[SZP-189] Repozytoria pod dodatkowe zakłady długoterminowe Typera LM.",
-    "[SZP-190] Mapowanie serwisów Typera LM pod dodatkowe rynki długoterminowe.",
-    "[SZP-191] Schematy API dla dodatkowych zakładów długoterminowych Typera LM.",
-    "[SZP-192] Ranking SQL dla dokładnych typów długoterminowych (drużyna / zawodnik / pytanie).",
-    "[SZP-193] Typy TypeScript i helpery frontendu dla dodatkowych zakładów długoterminowych.",
-    "[SZP-194] Widok uczestnika dodatkowych typów długoterminowych na `/typer-lm`.",
-    "[SZP-195] Panel administratora dodatkowych typów długoterminowych na `/typer-lm`.",
-    "[SZP-196] Poprawka opisów i regulaminu dodatkowych zakładów długoterminowych na `/typer-lm`.",
-    "[SZP-197] Wspólne grupowanie modeli per rodzina (bez magicznych liczb) na " +
-      "`/stats`, `/players` i w czacie.",
-    "[SZP-198] Warstwa BFF frontendu do analityk i modeli statystycznych.",
-    "[SZP-199] Logika filtrów i mapowania statystyk predykcji per liga i zespół.",
-    "[SZP-200] Hook i filtry UI dla statystyk predykcji per liga i zespół.",
-    "[SZP-201] Sekcja wyników statystyk predykcji (rozwijany blok modeli) na " +
-      "panelach ligi i drużyny.",
-    "[SZP-202] Wpięcie statystyk predykcji na stronę ligi `/leagues/<league_id>/`.",
-    "[SZP-203] Wpięcie statystyk predykcji na stronę drużyny `/teams/<team_id>/`.",
-    "[SZP-210] Schemat Pydantic składów hokejowych w API meczu.",
-    "[SZP-211] Odczyt składów hokejowych (`hockey_match_rosters`) z repozytorium meczów.",
-    "[SZP-212] Mapper i serwis szczegółów meczu pod składy hokejowe.",
-    "[SZP-213] Testy backendu składów hokejowych.",
-    "[SZP-214] Typy TypeScript, normalizacja i czat pod składy NHL.",
-    "[SZP-215] Helpery linii i slotów lodowiska na froncie.",
-    "[SZP-216] Lodowisko, panel i zakładka składów na stronie meczu NHL " +
-      "(`/matches/<match_id>/`).",
-    "[SZP-217] Schemat Pydantic składów koszykarskich w API meczu.",
-    "[SZP-218] Odczyt składów koszykarskich z repozytorium meczów.",
-    "[SZP-219] Mapowanie składów koszykarskich i podpięcie w szczegółach meczu (koszykówka).",
-    "[SZP-220] Testy backendu składów koszykarskich.",
-    "[SZP-221] Typy TypeScript do składów koszykarskich (API i czat).",
-    "[SZP-222] Helpery starterów i slotów ustawienia 2-1-2 na boisku.",
-    "[SZP-223] SVG boiska, panel składów i zakładka na stronie meczu NBA " +
-      "(`/matches/<match_id>/`); poprawka wejścia do podstrony NBA w Streamlit.",
-    "[FIX] Wyłączenie tabel projekcji sezonowych ze skryptu poprawy kluczy " +
-      "złożonych (`scripts/sync_local_to_prod.py`).",
-    "[INFO] Expander wersji na stronie głównej `/` z notatkami z najnowszego wydania.",
+    "[EB-11] Moje zakłady i ranking typerów: strona `/moje-zaklady` " +
+      "(bankroll, kupony, historia i wyniki) w menu oraz ranking na " +
+      "`/typers`; sekcja przeniesiona z profilu, z dopracowaniem filtrów " +
+      "i podatku od wygranej po testach.",
+    "[EB-31] Zakładka „Przebieg meczu” na stronie meczu NHL " +
+      "(`/matches/<match_id>/`) — gole, kary, gra w przewadze i puste bramki.",
+    "[EB-32] Predykcja końca sezonu na stronie ligi `/leagues/<league_id>/`: " +
+      "tabela punktów oraz kluczowe miejsca (mistrz, awans do pucharów, spadek).",
+    "[SZP-141] Migracja bankrolla typerów i wycofanie starych tabel kuponów " +
+      "ze skryptu sync local→prod; konta systemowe nie logują się hasłem.",
+    "[SZP-142] Wyliczanie poprawności zdarzeń piłkarskich na kuponie.",
+    "[SZP-143] Repozytorium bankrolla typerów (kapitał startowy i jednostka).",
+    "[SZP-144] Repozytorium kuponów typerów.",
+    "[SZP-145] Rozliczanie kuponów typerów po zakończeniu zdarzeń.",
+    "[SZP-146] Ranking i analityka zakładów (profit, ROI, skuteczność) " +
+      "w repozytorium typerów.",
+    "[SZP-147] Serwis zakładów gracza — bankroll, kupony i wyniki.",
+    "[SZP-148] Router i schematy API sekcji zakładów użytkownika.",
+    "[SZP-149] Typy TypeScript i klient frontendowy zakładów użytkownika.",
+    "[SZP-150] Sekcja „Moje zakłady”: bankroll, budowanie kuponu, historia " +
+      "i podsumowanie wyników.",
+    "[SZP-226] Repozytorium slotów awansu i spadku dla lig piłkarskich.",
+    "[SZP-227] Helpery slotów ligowych (mistrz, puchary, spadek).",
+    "[SZP-228] Serwis, schemat i router projekcji sezonu ze slotami awansu i spadku.",
+    "[SZP-229] Model UI i tabela kluczowych miejsc (mistrz, awans, spadek) " +
+      "w projekcji sezonu.",
+    "[SZP-230] Zakładki „Punkty” i „Kluczowe miejsca” w oknie projekcji " +
+      "sezonu na `/leagues/<league_id>/`.",
+    "[SZP-231] Synchronizacja kolumny slotów w skrypcie local→prod oraz " +
+      "aktualizacja dokumentacji bazy.",
+    "[SZP-232] Ranking typerów na `/typers` — filtry, tabela wyników i link " +
+      "w nawigacji.",
+    "[SZP-233] Poprawki dokumentacji bazy dla struktur typowania (bankroll i kupony).",
+    "[TECH] Paczka SQL do podpinania terminarza pod symulację sezonu " +
+      "(`sql/simulate_season.sql`).",
+    "[TECH] Wykluczenie credentiali Cursora z repozytorium (`.gitignore`).",
   ],
 };
 
