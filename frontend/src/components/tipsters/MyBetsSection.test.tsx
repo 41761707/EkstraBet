@@ -120,6 +120,9 @@ describe("MyBetsSection", () => {
     expect(html).toContain(CATALOG_UPCOMING_HINT);
     expect(html).toContain("Ekstraklasa");
     expect(html).toContain(TOP_UP_TITLE);
+    expect(html.indexOf(COUPON_HISTORY_TITLE)).toBeLessThan(
+      html.indexOf(TOP_UP_TITLE),
+    );
     expect(html).toContain("Wynik meczu");
     expect(html).not.toContain(ALL_LEAGUES_LABEL);
     expect(html).not.toContain("Dodaj nogę");
@@ -236,7 +239,7 @@ describe("MyBetsSection", () => {
         isOwnProfile
         isSystemProfile={false}
         bankroll={null}
-        bankrollError="Serwer bankrolla niedostępny."
+        bankrollError="Serwer kapitału niedostępny."
         coupons={EMPTY_COUPONS}
         performance={null}
         catalog={CATALOG}
@@ -245,7 +248,7 @@ describe("MyBetsSection", () => {
       />,
     );
 
-    expect(html).toContain("Nie udało się wczytać bankrolla");
+    expect(html).toContain("Nie udało się wczytać kapitału");
     expect(html).toContain(COUPON_HISTORY_TITLE);
     expect(html).toContain(COUPON_HISTORY_EMPTY_MESSAGE);
     expect(html).not.toContain(COUPON_BUILDER_TITLE);

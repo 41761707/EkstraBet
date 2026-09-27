@@ -171,7 +171,7 @@ class TestSettleOpenCoupons(unittest.TestCase):
             mock_fetch: MagicMock,
             mock_write: MagicMock,
             mock_complete: MagicMock) -> None:
-        # 1:1 — BTTS wygrywa, Over 2.5 przegrywa; noga combined = 0
+        # 1:1 — BTTS wygrywa, Over 2.5 przegrywa; zdarzenie łączone = 0
         mock_fetch.return_value = _frame(
             _row(
                 event_id=6,

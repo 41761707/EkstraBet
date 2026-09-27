@@ -21,6 +21,7 @@ from api.schemas.tipster import LeaderboardSortBy
 from api.schemas.tipster import LeaderboardSortOrder
 from api.schemas.tipster import PerformanceBreakdown
 from api.schemas.tipster import SettlementResult
+from api.schemas.tipster import SuggestedCatalogOdds
 from api.schemas.tipster import TipsterProfileResponse
 from api.schemas.tipster import TopUpRequest
 from backend.config import get_settings
@@ -104,10 +105,15 @@ def _parse_event_family(raw_value: str | None) -> str | int | None:
 
 @router.get("/me/bankroll", response_model=BankrollSettings)
 async def get_my_bankroll(
-    user: Annotated[dict[str, Any], Depends(get_current_user)]
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
 ) -> BankrollSettings:
     """Return the caller's bankroll, or 404 when onboarding is missing."""
-    payload = _invoke(lambda: tipster_service.get_my_bankroll(user))
+    payload = _invoke(
+        lambda: tipster_service.get_my_bankroll(
+            user, apply_tax=apply_tax))
     return BankrollSettings.model_validate(payload)
 
 
@@ -149,13 +155,16 @@ async def get_my_coupons(
     page_size: int = Query(
         tipster_service.DEFAULT_COUPON_PAGE_SIZE,
         ge=1,
-        description="Page size")
+        description="Page size"),
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
 ) -> CouponPage:
     """Return a coupon page for the authenticated owner."""
     size = _resolved_page_size(page_size)
     payload = _invoke(
         lambda: tipster_service.get_my_coupons(
-            user, settled, page, size))
+            user, settled, page, size, apply_tax=apply_tax))
     return CouponPage.model_validate(payload)
 
 
@@ -175,10 +184,15 @@ async def post_my_coupon(
 
 @router.get("/me/performance", response_model=PerformanceBreakdown)
 async def get_my_performance(
-    user: Annotated[dict[str, Any], Depends(get_current_user)]
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
 ) -> PerformanceBreakdown:
     """Return settled-coupon breakdowns for the authenticated owner."""
-    payload = _invoke(lambda: tipster_service.get_my_performance(user))
+    payload = _invoke(
+        lambda: tipster_service.get_my_performance(
+            user, apply_tax=apply_tax))
     return PerformanceBreakdown.model_validate(payload)
 
 
@@ -196,6 +210,9 @@ async def get_leaderboard(
     event_family: str | None = Query(
         None,
         description="Event family id, 0, or OTHER"),
+    event_ids: str | None = Query(
+        None,
+        description="Comma-separated event IDs"),
     date_from: date | None = Query(
         None,
         description="Inclusive coupon created_at start"),
@@ -213,7 +230,10 @@ async def get_leaderboard(
     page_size: int = Query(
         tipster_service.DEFAULT_COUPON_PAGE_SIZE,
         ge=1,
-        description="Page size")
+        description="Page size"),
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
 ) -> LeaderboardResponse:
     """Return a ranking page of users who have a bankroll row."""
     _assert_date_range(date_from, date_to)
@@ -221,12 +241,14 @@ async def get_leaderboard(
         "league_ids": parse_id_list(league_ids),
         "tier": tier,
         "event_family": _parse_event_family(event_family),
+        "event_ids": parse_id_list(event_ids),
         "date_from": date_from,
         "date_to": date_to,
         "sort_by": sort_by,
         "sort_order": sort_order,
         "page": page,
-        "page_size": _resolved_page_size(page_size)}
+        "page_size": _resolved_page_size(page_size),
+        "apply_tax": apply_tax}
     payload = _invoke(lambda: tipster_service.get_leaderboard(filters))
     return LeaderboardResponse.model_validate(payload)
 
@@ -243,13 +265,16 @@ async def get_tipster_profile(
     page_size: int = Query(
         tipster_service.DEFAULT_COUPON_PAGE_SIZE,
         ge=1,
-        description="Coupon page size")
+        description="Coupon page size"),
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
 ) -> TipsterProfileResponse:
     """Return public identity; coupons only for owner or system target."""
     size = _resolved_page_size(page_size)
     payload = _invoke(
         lambda: tipster_service.get_public_profile(
-            username, viewer, page, size))
+            username, viewer, page, size, apply_tax=apply_tax))
     return TipsterProfileResponse.model_validate(payload)
 
 
@@ -271,6 +296,20 @@ async def get_catalog_matches(
         lambda: tipster_service.get_catalog_matches(
             date_from, date_to, parse_id_list(league_ids)))
     return CatalogMatchesResponse.model_validate(payload)
+
+
+@router.get(
+    "/catalog/suggested-odds",
+    response_model=SuggestedCatalogOdds)
+async def get_suggested_catalog_odds(
+    match_id: int = Query(..., ge=1, description="Match ID"),
+    event_id: int = Query(..., ge=1, description="Catalog event ID")
+) -> SuggestedCatalogOdds:
+    """Suggest stored odds for one predicted event; the value stays editable."""
+    payload = _invoke(
+        lambda: tipster_service.get_suggested_catalog_odds(
+            match_id, event_id))
+    return SuggestedCatalogOdds.model_validate(payload)
 
 
 @router.post(

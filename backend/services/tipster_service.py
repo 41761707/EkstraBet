@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date
 from decimal import Decimal
 from decimal import ROUND_HALF_UP
@@ -86,9 +87,11 @@ class TipsterUnprocessableError(TipsterServiceError):
     """Raised when a coupon payload cannot be processed (HTTP 422)."""
 
 
-def get_my_bankroll(user: dict[str, Any]) -> dict[str, Any]:
+def get_my_bankroll(
+        user: dict[str, Any],
+        apply_tax: bool = False) -> dict[str, Any]:
     """Return the caller's bankroll or raise when onboarding is missing."""
-    bankroll = repo.get_bankroll(_user_id(user))
+    bankroll = repo.get_bankroll(_user_id(user), apply_tax=apply_tax)
     if bankroll is None:
         raise TipsterNotFoundError("Bankroll not configured")
     return bankroll
@@ -158,14 +161,18 @@ def get_my_coupons(
         user: dict[str, Any],
         settled: int | None = None,
         page: int = 1,
-        page_size: int = DEFAULT_COUPON_PAGE_SIZE) -> dict[str, Any]:
+        page_size: int = DEFAULT_COUPON_PAGE_SIZE,
+        apply_tax: bool = False) -> dict[str, Any]:
     """Return a coupon page for the authenticated owner."""
-    return _coupon_page(_user_id(user), settled, page, page_size)
+    return _coupon_page(
+        _user_id(user), settled, page, page_size, apply_tax)
 
 
-def get_my_performance(user: dict[str, Any]) -> dict[str, Any]:
+def get_my_performance(
+        user: dict[str, Any],
+        apply_tax: bool = False) -> dict[str, Any]:
     """Return settled-coupon breakdowns for the authenticated owner."""
-    return repo.fetch_performance(_user_id(user))
+    return repo.fetch_performance(_user_id(user), apply_tax=apply_tax)
 
 
 def get_leaderboard(
@@ -186,7 +193,8 @@ def get_public_profile(
         username: str,
         viewer: dict[str, Any] | None,
         page: int = 1,
-        page_size: int = DEFAULT_COUPON_PAGE_SIZE) -> dict[str, Any]:
+        page_size: int = DEFAULT_COUPON_PAGE_SIZE,
+        apply_tax: bool = False) -> dict[str, Any]:
     """Return public identity; coupons only for owner or system target."""
     target = user_repository.fetch_user_by_username(username)
     if target is None:
@@ -196,15 +204,18 @@ def get_public_profile(
     performance: dict[str, Any] | None = None
     if _can_view_coupons(target, viewer):
         coupons = _coupon_page(
-            target_id, None, page, page_size)
-        performance = repo.fetch_performance(target_id)
+            target_id, None, page, page_size, apply_tax)
+        performance = repo.fetch_performance(
+            target_id, apply_tax=apply_tax)
     return {
         "user_id": target_id,
         "username": str(target["username"]),
         "display_name": target.get("display_name"),
         "is_system": int(target.get("is_system") or 0),
         "bankroll": _visible_bankroll(
-            repo.get_bankroll(target_id), target, viewer),
+            repo.get_bankroll(target_id, apply_tax=apply_tax),
+            target,
+            viewer),
         "coupons": coupons,
         "performance": performance
     }
@@ -216,6 +227,30 @@ def get_catalog_matches(
         league_ids: list[int] | None = None) -> dict[str, Any]:
     """Return upcoming unfinished matches and settleable catalog events."""
     return repo.fetch_catalog_matches(date_from, date_to, league_ids)
+
+
+def get_suggested_catalog_odds(
+        match_id: int, event_id: int) -> dict[str, Any]:
+    """Suggest current bookmaker odds for one predicted catalog event.
+
+    ``odds`` is null when the event has no stored prediction or no price
+    at or above the coupon minimum. The value is a default the user can
+    replace, because prices move after they are fetched.
+    """
+    if match_id < 1 or event_id < 1:
+        raise TipsterUnprocessableError("Invalid match or event")
+    raw = repo.fetch_suggested_catalog_odds(match_id, event_id, MIN_ODDS)
+    return {"odds": _quantize_suggested_odds(raw)}
+
+
+def _quantize_suggested_odds(raw: float | None) -> float | None:
+    if raw is None or not math.isfinite(raw) or raw < MIN_ODDS:
+        return None
+    quantized = Decimal(str(raw)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if quantized < Decimal(str(MIN_ODDS)):
+        return None
+    return float(quantized)
 
 
 def _resolve_stake(
@@ -450,9 +485,10 @@ def _coupon_page(
         user_id: int,
         settled: int | None,
         page: int,
-        page_size: int) -> dict[str, Any]:
+        page_size: int,
+        apply_tax: bool = False) -> dict[str, Any]:
     items, total = repo.fetch_coupons(
-        user_id, settled, page, page_size)
+        user_id, settled, page, page_size, apply_tax=apply_tax)
     return {
         "items": items,
         "total": total,

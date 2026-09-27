@@ -7,10 +7,10 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from backend.betting_tax import BETTING_TAX_RATE
 from backend.repositories import bet_repository
 from backend.services.probability_service import to_unit_probability
 
-BETTING_TAX_RATE = 0.12
 _MAX_OPPORTUNITIES_LIMIT = 20
 _DEFAULT_OPPORTUNITIES_LIMIT = 10
 

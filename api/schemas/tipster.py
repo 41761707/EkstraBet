@@ -33,7 +33,9 @@ class BankrollSettings(BaseModel):
     unit_size: float = Field(..., description="Stake unit size")
     current_balance: float = Field(
         ...,
-        description="initial_capital plus realized profit")
+        description=(
+            "initial_capital plus realized profit, minus stakes "
+            "on unsettled coupons"))
     open_stake: float = Field(
         ...,
         description="Sum of stakes on unsettled coupons")
@@ -50,7 +52,9 @@ class PublicBankroll(BaseModel):
     currency: CurrencyCode = Field(..., description="Bankroll currency")
     current_balance: float = Field(
         ...,
-        description="initial_capital plus realized profit")
+        description=(
+            "initial_capital plus realized profit, minus stakes "
+            "on unsettled coupons"))
 
 
 class BankrollConfigureRequest(BaseModel):
@@ -174,18 +178,36 @@ class PerformanceItem(BaseModel):
     league_id: int | None = Field(None, description="League ID")
     league_name: str | None = Field(None, description="League name")
     league_tier: int | None = Field(None, description="League tier")
+    country_id: int | None = Field(None, description="Country ID")
+    country_name: str | None = Field(None, description="Country name")
+    country_emoji: str | None = Field(
+        None, description="Country flag emoji")
     count: int = Field(..., description="Coupons in this bucket")
     won: int = Field(..., description="Winning coupons")
     accuracy: float | None = Field(None, description="Win percentage")
+    legs_count: int = Field(
+        0,
+        description="Legs in this bucket; one combined leg counts once")
+    legs_won: int = Field(
+        0,
+        description="Legs whose own outcome is a win")
+    legs_accuracy: float | None = Field(
+        None,
+        description="Leg hit rate, independent of the coupon result")
+    legs_won_on_lost_coupons: int = Field(
+        0,
+        description="Winning legs that sit on a lost coupon")
     stake_total: float = Field(..., description="Sum of stakes")
     profit_total: float = Field(..., description="Sum of profit")
     avg_profit: float | None = Field(None, description="Mean profit")
-    avg_odds: float | None = Field(None, description="Mean combined odds")
+    avg_odds: float | None = Field(
+        None,
+        description="Mean odds of the legs in this bucket")
     roi_pct: float | None = Field(None, description="ROI percentage")
 
 
 class PerformanceBreakdown(BaseModel):
-    """Settled-coupon analytics by family, league and tier."""
+    """Settled-coupon analytics by family, league and country."""
 
     by_event_family: list[PerformanceItem] = Field(
         ...,
@@ -193,9 +215,9 @@ class PerformanceBreakdown(BaseModel):
     by_league: list[PerformanceItem] = Field(
         ...,
         description="Buckets by league")
-    by_league_tier: list[PerformanceItem] = Field(
+    by_country: list[PerformanceItem] = Field(
         ...,
-        description="Buckets by league tier")
+        description="Buckets by the league country")
     best_event_family: PerformanceItem | None = Field(
         None,
         description="Family with the highest profit_total")
@@ -208,12 +230,12 @@ class PerformanceBreakdown(BaseModel):
     worst_league: PerformanceItem | None = Field(
         None,
         description="League with the lowest profit_total")
-    best_league_tier: PerformanceItem | None = Field(
+    best_country: PerformanceItem | None = Field(
         None,
-        description="Tier with the highest profit_total")
-    worst_league_tier: PerformanceItem | None = Field(
+        description="Country with the highest profit_total")
+    worst_country: PerformanceItem | None = Field(
         None,
-        description="Tier with the lowest profit_total")
+        description="Country with the lowest profit_total")
 
 
 class LeaderboardRow(BaseModel):
@@ -231,6 +253,15 @@ class LeaderboardRow(BaseModel):
     accuracy_pct: float | None = Field(
         None,
         description="Win percentage; null when bets_count is 0")
+    legs_count: int = Field(
+        0,
+        description="Legs matching the active ranking filters")
+    legs_won: int = Field(
+        0,
+        description="Matching legs whose own outcome is a win")
+    legs_won_on_lost_coupons: int = Field(
+        0,
+        description="Matching legs that won inside a lost coupon")
     stake_total: float = Field(..., description="Sum of settled stakes")
     profit_total: float = Field(..., description="Sum of settled profit")
     avg_profit: float | None = Field(
@@ -238,7 +269,9 @@ class LeaderboardRow(BaseModel):
         description="Mean profit; null when bets_count is 0")
     avg_odds: float | None = Field(
         None,
-        description="Mean combined odds; null when no volume")
+        description=(
+            "Mean combined coupon odds, or mean matching leg odds "
+            "when a league, tier or family filter is set"))
     roi_pct: float | None = Field(
         None,
         description="ROI percentage; null when stake_total is 0")
@@ -296,6 +329,18 @@ class CatalogEvent(BaseModel):
 
     id: int = Field(..., description="Event ID")
     name: str = Field(..., description="Event name")
+
+
+class SuggestedCatalogOdds(BaseModel):
+    """Default price for one catalog event; null when none is stored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    odds: float | None = Field(
+        None,
+        description=(
+            "Best bookmaker odds when a prediction exists; "
+            "the client may edit this value"))
 
 
 class CatalogMatchesResponse(BaseModel):

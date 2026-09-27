@@ -24,6 +24,7 @@ from backend.services.tipster_service import get_my_bankroll
 from backend.services.tipster_service import get_my_coupons
 from backend.services.tipster_service import get_my_performance
 from backend.services.tipster_service import get_public_profile
+from backend.services.tipster_service import get_suggested_catalog_odds
 from backend.services.tipster_service import top_up
 from backend.services.tipster_service import top_up_for_user
 
@@ -151,7 +152,7 @@ class TestGetMyBankroll(unittest.TestCase):
     def test_returns_configured_bankroll(
             self, mock_get: MagicMock) -> None:
         self.assertEqual(get_my_bankroll(_USER), _BANKROLL)
-        mock_get.assert_called_once_with(7)
+        mock_get.assert_called_once_with(7, apply_tax=False)
 
     @patch(f"{_REPO}.get_bankroll", return_value=None)
     def test_missing_bankroll_is_not_found(
@@ -159,7 +160,7 @@ class TestGetMyBankroll(unittest.TestCase):
         with self.assertRaises(TipsterNotFoundError) as ctx:
             get_my_bankroll(_USER)
         self.assertEqual(str(ctx.exception), "Bankroll not configured")
-        mock_get.assert_called_once_with(7)
+        mock_get.assert_called_once_with(7, apply_tax=False)
 
 
 class TestConfigureBankroll(unittest.TestCase):
@@ -651,7 +652,7 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
         mock_coupons.assert_not_called()
         mock_perf.assert_not_called()
         mock_fetch_user.assert_called_once_with("alice")
-        mock_bankroll.assert_called_once_with(7)
+        mock_bankroll.assert_called_once_with(7, apply_tax=False)
 
     @patch(f"{_REPO}.fetch_performance", return_value={"by_league": []})
     @patch(f"{_REPO}.fetch_coupons", return_value=([{"id": 1}], 1))
@@ -671,8 +672,9 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
             "page_size": 10})
         self.assertEqual(profile["performance"], {"by_league": []})
         self.assertEqual(profile["bankroll"], _BANKROLL)
-        mock_coupons.assert_called_once_with(7, None, 2, 10)
-        mock_perf.assert_called_once_with(7)
+        mock_coupons.assert_called_once_with(
+            7, None, 2, 10, apply_tax=False)
+        mock_perf.assert_called_once_with(7, apply_tax=False)
 
     @patch(f"{_REPO}.fetch_performance", return_value={"by_league": []})
     @patch(f"{_REPO}.fetch_coupons", return_value=([], 0))
@@ -692,8 +694,9 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
             "page_size": 20})
         self.assertEqual(profile["is_system"], 1)
         self.assertEqual(profile["bankroll"], _PUBLIC_BANKROLL)
-        mock_coupons.assert_called_once_with(9, None, 1, 20)
-        mock_perf.assert_called_once_with(9)
+        mock_coupons.assert_called_once_with(
+            9, None, 1, 20, apply_tax=False)
+        mock_perf.assert_called_once_with(9, apply_tax=False)
 
     @patch(f"{_REPO}.fetch_performance")
     @patch(f"{_REPO}.fetch_coupons")
@@ -712,7 +715,7 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
         mock_coupons.assert_not_called()
         mock_perf.assert_not_called()
         mock_fetch_user.assert_called_once_with("alice")
-        mock_bankroll.assert_called_once_with(7)
+        mock_bankroll.assert_called_once_with(7, apply_tax=False)
 
     @patch(f"{_REPO}.fetch_performance", return_value={"by_league": []})
     @patch(f"{_REPO}.fetch_coupons", return_value=([], 0))
@@ -732,8 +735,9 @@ class TestPublicProfileAndLeaderboard(unittest.TestCase):
             "page_size": 20})
         self.assertEqual(profile["is_system"], 1)
         self.assertEqual(profile["bankroll"], _PUBLIC_BANKROLL)
-        mock_coupons.assert_called_once_with(9, None, 1, 20)
-        mock_perf.assert_called_once_with(9)
+        mock_coupons.assert_called_once_with(
+            9, None, 1, 20, apply_tax=False)
+        mock_perf.assert_called_once_with(9, apply_tax=False)
 
     @patch(f"{_USERS}.fetch_user_by_username", return_value=None)
     def test_unknown_username_is_not_found(
@@ -781,20 +785,54 @@ class TestThinReads(unittest.TestCase):
             "total": 4,
             "page": 2,
             "page_size": 5})
-        mock_fetch.assert_called_once_with(7, 0, 2, 5)
+        mock_fetch.assert_called_once_with(
+            7, 0, 2, 5, apply_tax=False)
 
     @patch(f"{_REPO}.fetch_performance", return_value={"by_league": []})
     def test_get_my_performance(
             self, mock_fetch: MagicMock) -> None:
         self.assertEqual(
             get_my_performance(_USER), {"by_league": []})
-        mock_fetch.assert_called_once_with(7)
+        mock_fetch.assert_called_once_with(7, apply_tax=False)
+
+    @patch(f"{_REPO}.fetch_performance", return_value={"by_league": []})
+    @patch(f"{_REPO}.fetch_coupons", return_value=([], 0))
+    @patch(f"{_REPO}.get_bankroll", return_value=_BANKROLL)
+    def test_apply_tax_is_forwarded_on_owner_reads(
+            self,
+            mock_bankroll: MagicMock,
+            mock_coupons: MagicMock,
+            mock_perf: MagicMock) -> None:
+        get_my_bankroll(_USER, apply_tax=True)
+        get_my_coupons(_USER, apply_tax=True)
+        get_my_performance(_USER, apply_tax=True)
+        mock_bankroll.assert_called_once_with(7, apply_tax=True)
+        mock_coupons.assert_called_once_with(
+            7, None, 1, 20, apply_tax=True)
+        mock_perf.assert_called_once_with(7, apply_tax=True)
 
     @patch(f"{_REPO}.fetch_catalog_matches", return_value=_CATALOG)
     def test_get_catalog_matches(
             self, mock_fetch: MagicMock) -> None:
         self.assertEqual(get_catalog_matches(None, None, [1]), _CATALOG)
         mock_fetch.assert_called_once_with(None, None, [1])
+
+    @patch(f"{_REPO}.fetch_suggested_catalog_odds", return_value=2.204)
+    def test_suggested_odds_are_rounded_to_two_places(
+            self, mock_fetch: MagicMock) -> None:
+        self.assertEqual(
+            get_suggested_catalog_odds(124426, 1), {"odds": 2.2})
+        mock_fetch.assert_called_once_with(124426, 1, 1.01)
+
+    @patch(f"{_REPO}.fetch_suggested_catalog_odds", return_value=None)
+    def test_missing_suggested_odds_stay_empty(
+            self, _mock_fetch: MagicMock) -> None:
+        self.assertEqual(
+            get_suggested_catalog_odds(10, 8), {"odds": None})
+
+    def test_suggested_odds_reject_non_positive_ids(self) -> None:
+        with self.assertRaises(TipsterUnprocessableError):
+            get_suggested_catalog_odds(0, 1)
 
 
 if __name__ == "__main__":

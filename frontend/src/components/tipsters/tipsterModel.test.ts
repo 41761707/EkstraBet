@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addEventToDraftLegs,
+  applySuggestedLegOdds,
   areTipsterDateFiltersValid,
   buildCouponCreateRequest,
   couponStakeFields,
@@ -9,6 +10,7 @@ import {
   filterCatalogEvents,
   filterCatalogMatches,
   formatCouponCombinedOdds,
+  formatPerformanceLegHits,
   formatTipsterAmount,
   formatTipsterProfit,
   formatTipsterRoi,
@@ -33,7 +35,11 @@ import {
   previewPotentialWin,
   previewStakeMoney,
   removeEventFromDraftLegs,
+  resolveCatalogEventId,
+  resolveCatalogMatchId,
+  slipKickoffParts,
   tipsterFilterCatalogMessage,
+  tipsterApplyTaxPath,
   tipsterLeaderboardPath,
   tipsterMutationMessage,
   toTipsterCatalogQuery,
@@ -80,6 +86,7 @@ describe("parseTipsterLeaderboardFilters", () => {
       isSystem: 1,
       leagueIds: [48, 2],
       tier: 1,
+      eventIds: [],
       eventFamily: "OTHER",
       dateFrom: "2026-09-01",
       dateTo: "2026-09-30",
@@ -87,7 +94,14 @@ describe("parseTipsterLeaderboardFilters", () => {
       sortOrder: "asc",
       page: 2,
       pageSize: 10,
+      applyTax: false,
     });
+  });
+
+  it("parses event_ids as the ranking event filter", () => {
+    expect(
+      parseTipsterLeaderboardFilters({ event_ids: "6,12" }).eventIds,
+    ).toEqual([6, 12]);
   });
 
   it("treats event_family 0 as the unmapped OTHER bucket", () => {
@@ -136,6 +150,7 @@ describe("tipsterLeaderboardPath", () => {
         isSystem: 0,
         leagueIds: [48],
         tier: 2,
+        eventIds: [6, 12],
         eventFamily: "OTHER",
         dateFrom: "2026-09-01",
         dateTo: "2026-09-20",
@@ -149,6 +164,7 @@ describe("tipsterLeaderboardPath", () => {
     expect(path).toContain("is_system=0");
     expect(path).toContain("league_ids=48");
     expect(path).toContain("tier=2");
+    expect(path).toContain("event_ids=6%2C12");
     expect(path).toContain("event_family=OTHER");
     expect(path).toContain("date_from=2026-09-01");
     expect(path).toContain("date_to=2026-09-20");
@@ -156,6 +172,28 @@ describe("tipsterLeaderboardPath", () => {
     expect(path).toContain("sort_order=asc");
     expect(path).toContain("page=3");
     expect(path).toContain("page_size=50");
+    expect(path).not.toContain("apply_tax");
+  });
+
+  it("adds apply_tax only when the tax view is on", () => {
+    const path = tipsterLeaderboardPath(baseFilters({ applyTax: true }));
+    expect(path).toBe("/typers?apply_tax=true");
+  });
+
+  it("parses apply_tax and keeps other query params when toggling", () => {
+    expect(parseTipsterLeaderboardFilters({ apply_tax: "true" }).applyTax).toBe(
+      true,
+    );
+    expect(
+      tipsterApplyTaxPath(
+        "/moje-zaklady",
+        { page: "2", apply_tax: "true" },
+        false,
+      ),
+    ).toBe("/moje-zaklady?page=2");
+    expect(
+      tipsterApplyTaxPath("/typers", { page: "3", sort_by: "roi_pct" }, true, true),
+    ).toBe("/typers?sort_by=roi_pct&apply_tax=true");
   });
 
   it("serializes event_family 0 without dropping it as empty", () => {
@@ -170,6 +208,7 @@ describe("toTipsterLeaderboardQuery", () => {
       isSystem: undefined,
       leagueIds: [],
       tier: undefined,
+      eventIds: [],
       eventFamily: undefined,
       dateFrom: undefined,
       dateTo: undefined,
@@ -177,6 +216,7 @@ describe("toTipsterLeaderboardQuery", () => {
       sortOrder: "desc",
       page: 1,
       pageSize: 20,
+      applyTax: undefined,
     });
   });
 
@@ -214,8 +254,8 @@ describe("tipsterFilterCatalogMessage", () => {
 
   it("warns without blocking when a catalog reject empties the options", () => {
     expect(tipsterFilterCatalogMessage(true, false)).toContain("lig");
-    expect(tipsterFilterCatalogMessage(false, true)).toContain("rodzin");
-    expect(tipsterFilterCatalogMessage(true, true)).toContain("lig i rodzin");
+    expect(tipsterFilterCatalogMessage(false, true)).toContain("zdarzeń");
+    expect(tipsterFilterCatalogMessage(true, true)).toContain("lig i zdarzeń");
   });
 });
 
@@ -310,6 +350,26 @@ describe("isOwnerBankroll", () => {
     expect(isOwnerBankroll(owner)).toBe(true);
     expect(isOwnerBankroll(publicRow)).toBe(false);
     expect(isOwnerBankroll(null)).toBe(false);
+  });
+});
+
+describe("applySuggestedLegOdds", () => {
+  it("fills an empty single-event leg", () => {
+    expect(applySuggestedLegOdds(
+      [{ matchId: 10, eventIds: [1], odds: "" }],
+      10,
+      1,
+      "2.20",
+    )).toEqual([{ matchId: 10, eventIds: [1], odds: "2.20" }]);
+  });
+
+  it("leaves a typed price and a combined leg unchanged", () => {
+    const legs = [
+      { matchId: 10, eventIds: [1], odds: "1.90" },
+      { matchId: 11, eventIds: [1, 6], odds: "" },
+    ];
+    expect(applySuggestedLegOdds(legs, 10, 1, "2.20")).toEqual(legs);
+    expect(applySuggestedLegOdds(legs, 11, 1, "2.20")).toEqual(legs);
   });
 });
 
@@ -527,6 +587,32 @@ describe("catalog match picker helpers", () => {
     ).toEqual(["Ekstraklasa", "Premier League"]);
   });
 
+  it("drops a selected match that does not contain the search text", () => {
+    const granada = {
+      ...legia,
+      id: 20,
+      home_name: "Granada",
+      away_name: "Andorra",
+      league_name: "LaLiga2",
+    };
+    const monterrey = {
+      ...arsenal,
+      id: 21,
+      home_name: "Atlante",
+      away_name: "Monterrey",
+      league_name: "Liga MX",
+    };
+    const matches = [granada, monterrey];
+
+    expect(filterCatalogMatches(matches, "Monte")).toEqual([monterrey]);
+    expect(resolveCatalogMatchId(matches, "Monte", granada.id)).toBe(monterrey.id);
+    expect(resolveCatalogMatchId(matches, "Monte", monterrey.id)).toBe(
+      monterrey.id,
+    );
+    expect(resolveCatalogMatchId(matches, "", granada.id)).toBe(granada.id);
+    expect(resolveCatalogMatchId(matches, "zzzz", granada.id)).toBe(0);
+  });
+
   it("filters settleable events by name", () => {
     const events = [
       { id: 1, name: "Gospodarz wygrywa" },
@@ -535,6 +621,18 @@ describe("catalog match picker helpers", () => {
     ];
     expect(filterCatalogEvents(events, "btts")).toEqual([events[1]]);
     expect(filterCatalogEvents(events, "1-0")).toEqual([events[2]]);
+  });
+
+  it("drops a selected event that does not contain the search text", () => {
+    const events = [
+      { id: 1, name: "Zwycięstwo gospodarza" },
+      { id: 2, name: "Remis" },
+    ];
+    expect(filterCatalogEvents(events, "Re")).toEqual([events[1]]);
+    expect(resolveCatalogEventId(events, "Re", 1)).toBe(2);
+    expect(resolveCatalogEventId(events, "Re", 2)).toBe(2);
+    expect(resolveCatalogEventId(events, "", 1)).toBe(1);
+    expect(resolveCatalogEventId(events, "zzzz", 1)).toBe(0);
   });
 
   it("keeps previously selected matches when the day changes", () => {
@@ -572,6 +670,8 @@ describe("previewCouponCombinedOdds", () => {
       ]),
     ).toBeNull();
     expect(previewPotentialWin(10, 3.1)).toBe(31);
+    expect(previewPotentialWin(5, 2, true)).toBe(8.8);
+    expect(previewPotentialWin(10, 3.1, false)).toBe(31);
   });
 });
 
@@ -582,7 +682,7 @@ describe("tipsterMutationMessage", () => {
     ).toBe("Konto użytkownika jest nieaktywne.");
     expect(
       tipsterMutationMessage(new ApiError(422, "Invalid coupon leg")),
-    ).toBe("Noga kuponu jest nieprawidłowa.");
+    ).toBe("Zdarzenie na kuponie jest nieprawidłowe.");
     expect(
       tipsterMutationMessage(new ApiError(422, "Unsupported currency")),
     ).toBe("Nieobsługiwana waluta.");
@@ -590,7 +690,7 @@ describe("tipsterMutationMessage", () => {
       tipsterMutationMessage(
         new ApiError(422, "Each leg must have at least one event"),
       ),
-    ).toBe("Każda noga musi mieć co najmniej jeden event.");
+    ).toBe("Każde zdarzenie na kuponie musi zawierać co najmniej jeden typ.");
   });
 
   it("falls back to the API message for unmapped errors", () => {
@@ -603,5 +703,39 @@ describe("tipsterMutationMessage", () => {
     expect(tipsterMutationMessage(new Error("network down"))).toBe(
       "Nie udało się zapisać. Spróbuj ponownie.",
     );
+  });
+});
+
+describe("slipKickoffParts", () => {
+  const now = new Date("2026-09-26T10:00:00Z");
+
+  it("labels today and tomorrow without shifting the match clock", () => {
+    expect(slipKickoffParts("2026-09-26T20:45:00", now)).toEqual({
+      dayLabel: "Dzisiaj",
+      timeLabel: "20:45",
+    });
+    expect(slipKickoffParts("2026-09-27T18:00:00Z", now)).toEqual({
+      dayLabel: "Jutro",
+      timeLabel: "18:00",
+    });
+  });
+
+  it("uses a short date for a later kickoff", () => {
+    expect(slipKickoffParts("2026-10-03T15:30:00", now)).toEqual({
+      dayLabel: "03.10",
+      timeLabel: "15:30",
+    });
+  });
+
+  it("returns null when the kickoff is missing", () => {
+    expect(slipKickoffParts(null, now)).toBeNull();
+    expect(slipKickoffParts("not-a-date", now)).toBeNull();
+  });
+});
+
+describe("formatPerformanceLegHits", () => {
+  it("shows hits over settled legs", () => {
+    expect(formatPerformanceLegHits(1, 1)).toBe("1/1");
+    expect(formatPerformanceLegHits(0, 0)).toBe("—");
   });
 });

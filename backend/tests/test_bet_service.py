@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
+from backend.betting_tax import BETTING_TAX_RATE
 from backend.repositories.bet_repository import _build_filters
 from backend.services.bet_service import (
-    BETTING_TAX_RATE,
     _compute_ev_after_tax,
     _map_settlement_status,
     get_bet_recommendations,

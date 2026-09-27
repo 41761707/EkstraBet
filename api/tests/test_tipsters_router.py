@@ -89,13 +89,13 @@ _OTHER_FAMILY_BUCKET = {
 _PERFORMANCE = {
     "by_event_family": [_OTHER_FAMILY_BUCKET],
     "by_league": [],
-    "by_league_tier": [],
+    "by_country": [],
     "best_event_family": _OTHER_FAMILY_BUCKET,
     "worst_event_family": _OTHER_FAMILY_BUCKET,
     "best_league": None,
     "worst_league": None,
-    "best_league_tier": None,
-    "worst_league_tier": None}
+    "best_country": None,
+    "worst_country": None}
 
 _COUPON = {
     "id": 15,
@@ -395,6 +395,7 @@ class TestTipstersCouponsRouter(TipstersRouterTestCase):
         self.assertEqual(settled, 0)
         self.assertEqual(page, 1)
         self.assertEqual(page_size, 20)
+        self.assertFalse(mock_list.call_args.kwargs["apply_tax"])
 
 
 class TestTipstersPerformanceRouter(TipstersRouterTestCase):
@@ -429,9 +430,13 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
         leaderboard = self.client.get("/tipsters/leaderboard")
         profile = self.client.get("/tipsters/profile/alice")
         catalog = self.client.get("/tipsters/catalog/matches")
+        suggested = self.client.get(
+            "/tipsters/catalog/suggested-odds",
+            params={"match_id": 124426, "event_id": 1})
         self.assertEqual(leaderboard.status_code, 401)
         self.assertEqual(profile.status_code, 401)
         self.assertEqual(catalog.status_code, 401)
+        self.assertEqual(suggested.status_code, 401)
 
     @patch(f"{_SERVICE}.get_leaderboard", return_value={
         "items": [{
@@ -468,6 +473,39 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
         filters = mock_board.call_args.args[0]
         self.assertEqual(filters["is_system"], 0)
         self.assertEqual(filters["event_family"], "OTHER")
+        self.assertIsNone(filters["event_ids"])
+        self.assertFalse(filters["apply_tax"])
+
+    @patch(f"{_SERVICE}.get_leaderboard", return_value={
+        "items": [],
+        "total": 0})
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_apply_tax_is_forwarded(
+            self,
+            _mock_fetch: MagicMock,
+            mock_board: MagicMock) -> None:
+        response = self.client.get(
+            "/tipsters/leaderboard",
+            headers=self._auth_headers(),
+            params={"apply_tax": "true"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mock_board.call_args.args[0]["apply_tax"])
+
+    @patch(f"{_SERVICE}.get_leaderboard", return_value={
+        "items": [],
+        "total": 0})
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_event_ids_are_forwarded(
+            self,
+            _mock_fetch: MagicMock,
+            mock_board: MagicMock) -> None:
+        response = self.client.get(
+            "/tipsters/leaderboard",
+            headers=self._auth_headers(),
+            params={"event_ids": "6,12"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            mock_board.call_args.args[0]["event_ids"], [6, 12])
 
     @patch(f"{_SERVICE}.get_public_profile", return_value={
         "user_id": 8,
@@ -530,6 +568,22 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
         self.assertEqual(payload["matches"], [])
         self.assertEqual(payload["events"][0]["id"], 1)
         mock_catalog.assert_called_once_with(None, None, None)
+
+    @patch(
+        f"{_SERVICE}.get_suggested_catalog_odds",
+        return_value={"odds": 2.2})
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_suggested_odds_returns_stored_price(
+            self,
+            _mock_fetch: MagicMock,
+            mock_suggest: MagicMock) -> None:
+        response = self.client.get(
+            "/tipsters/catalog/suggested-odds",
+            headers=self._auth_headers(),
+            params={"match_id": 124426, "event_id": 1})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"odds": 2.2})
+        mock_suggest.assert_called_once_with(124426, 1)
 
     @patch(f"{_SERVICE}.get_leaderboard")
     @patch(_FETCH_UUID, return_value=_TEST_USER)
@@ -611,10 +665,23 @@ class TestTipstersOpenApi(unittest.TestCase):
             "/tipsters/leaderboard",
             "/tipsters/profile/{username}",
             "/tipsters/catalog/matches",
+            "/tipsters/catalog/suggested-odds",
             "/tipsters/parlays/settle"]
         for path in expected:
             with self.subTest(path=path):
                 self.assertIn(path, paths)
+        taxed = [
+            "/tipsters/me/bankroll",
+            "/tipsters/me/coupons",
+            "/tipsters/me/performance",
+            "/tipsters/leaderboard",
+            "/tipsters/profile/{username}"]
+        for path in taxed:
+            names = [
+                item["name"]
+                for item in paths[path]["get"]["parameters"]]
+            with self.subTest(path=path):
+                self.assertIn("apply_tax", names)
 
 
 if __name__ == "__main__":

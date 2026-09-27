@@ -8,19 +8,97 @@ from typing import Any
 
 import pandas as pd
 
+from backend.betting_tax import BETTING_TAX_RATE
 from backend.database import get_db_connection
 from backend.sports.football.event_settlement_registry import (
     is_settleable_event)
 
 
-# saldo: initial_capital + SUM(profit) settled; open_stake osobno, bez
-# pomniejszania current_balance o otwarte kupony
-_CURRENT_BALANCE_EXPR = """
+def _net_odds_factor_sql() -> str:
+    """Stake fraction left after the Polish betting tax."""
+    factor = Decimal("1") - Decimal(str(BETTING_TAX_RATE))
+    return format(factor, "f")
+
+
+def _settled_profit_sql(apply_tax: bool) -> str:
+    """Settled profit. A win pays odds on 88% of stake; a loss takes it all."""
+    if not apply_tax:
+        return "c.profit"
+    # wygrana od stawki netto, przegrana od kwoty, którą gracz wpłacił
+    factor = _net_odds_factor_sql()
+    win = (
+        f"ROUND(c.stake_amount * (c.combined_odds * {factor} - 1), 2)")
+    return f"IF(c.outcome = 1, {win}, -c.stake_amount)"
+
+
+def _open_stake_expr() -> str:
+    """Stakes locked in coupons that are not settled yet."""
+    return """COALESCE((
+        SELECT SUM(c.stake_amount)
+        FROM tipster_coupons c
+        WHERE c.user_id = tb.user_id AND c.settled = 0
+    ), 0)"""
+
+
+def _taxed_balance_expr() -> str:
+    """Capital plus taxed settled profit, minus stakes still in play."""
+    profit = _settled_profit_sql(True)
+    return (
+        "tb.initial_capital + COALESCE(("
+        f"SELECT SUM({profit}) "
+        "FROM tipster_coupons c "
+        "WHERE c.user_id = tb.user_id AND c.settled = 1"
+        f"), 0) - {_open_stake_expr()}")
+
+
+def _bankroll_select_sql() -> str:
+    """Owner bankroll with profit and balance after the 12% tax."""
+    profit = _settled_profit_sql(True)
+    balance = _taxed_balance_expr()
+    return f"""
+    SELECT
+        tb.user_id,
+        tb.currency,
+        tb.initial_capital,
+        tb.unit_size,
+        {balance} AS current_balance,
+        {_open_stake_expr()} AS open_stake,
+        COALESCE((
+            SELECT SUM({profit})
+            FROM tipster_coupons c
+            WHERE c.user_id = tb.user_id AND c.settled = 1
+        ), 0) AS realized_pnl
+    FROM tipster_bankrolls tb
+    WHERE tb.user_id = %s
+    LIMIT 1
+"""
+
+
+def _coupon_list_columns(apply_tax: bool) -> str:
+    """Open rows keep stored NULL profit; settled rows follow the tax view."""
+    if not apply_tax:
+        return _COUPON_COLUMNS
+    taxed = _settled_profit_sql(True)
+    listed = f"IF(c.settled = 1, {taxed}, c.profit) AS profit"
+    return _COUPON_COLUMNS.replace("profit", listed, 1)
+
+
+def _performance_facts_sql(apply_tax: bool) -> str:
+    """Performance facts; taxed profit replaces the stored column."""
+    if not apply_tax:
+        return _PERFORMANCE_FACTS_SQL
+    taxed = _settled_profit_sql(True)
+    return _PERFORMANCE_FACTS_SQL.replace(
+        "c.profit,", f"{taxed} AS profit,", 1)
+
+
+# saldo: kapitał + zysk rozliczony - stawki kuponów, które jeszcze są w grze
+_CURRENT_BALANCE_EXPR = f"""
     tb.initial_capital + COALESCE((
         SELECT SUM(c.profit)
         FROM tipster_coupons c
         WHERE c.user_id = tb.user_id AND c.settled = 1
-    ), 0)
+    ), 0) - {_open_stake_expr()}
 """
 
 _BALANCE_COLUMNS = f"""
@@ -29,11 +107,7 @@ _BALANCE_COLUMNS = f"""
     tb.initial_capital,
     tb.unit_size,
     {_CURRENT_BALANCE_EXPR} AS current_balance,
-    COALESCE((
-        SELECT SUM(c.stake_amount)
-        FROM tipster_coupons c
-        WHERE c.user_id = tb.user_id AND c.settled = 0
-    ), 0) AS open_stake,
+    {_open_stake_expr()} AS open_stake,
     COALESCE((
         SELECT SUM(c.profit)
         FROM tipster_coupons c
@@ -271,6 +345,9 @@ _LEADERBOARD_COLUMNS = [
     "bets_count",
     "won_count",
     "accuracy_pct",
+    "legs_count",
+    "legs_won",
+    "legs_won_on_lost_coupons",
     "stake_total",
     "profit_total",
     "avg_profit",
@@ -288,7 +365,7 @@ _LEADERBOARD_SORT_COLUMNS = {
     "current_balance": "current_balance"}
 
 _INT_DIMENSION_FIELDS = frozenset({
-    "event_family_id", "league_id", "league_tier"})
+    "event_family_id", "league_id", "country_id"})
 
 _EVENT_FAMILY_ONE = """
     SELECT
@@ -304,16 +381,21 @@ _PERFORMANCE_FACTS_SQL = f"""
         c.outcome,
         c.stake_amount,
         c.profit,
-        c.combined_odds,
+        l.id AS leg_id,
+        l.outcome AS leg_outcome,
+        l.odds AS leg_odds,
         lg.id AS league_id,
         lg.name AS league_name,
-        lg.tier AS league_tier,
+        ct.id AS country_id,
+        ct.name AS country_name,
+        ct.emoji AS country_emoji,
         ef.id AS event_family_id,
         ef.name AS event_family_name
     FROM tipster_coupons c
     INNER JOIN tipster_coupon_legs l ON l.coupon_id = c.id
     INNER JOIN matches m ON m.id = l.match_id
     LEFT JOIN leagues lg ON lg.id = m.league
+    LEFT JOIN countries ct ON ct.id = lg.country
     INNER JOIN tipster_coupon_leg_events e ON e.leg_id = l.id
     LEFT JOIN ({_EVENT_FAMILY_ONE}) efm ON efm.event_id = e.event_id
     LEFT JOIN event_families ef ON ef.id = efm.event_family_id
@@ -351,9 +433,18 @@ def get_by_username(username: str) -> dict[str, Any] | None:
     return _joined_bankroll_document(row)
 
 
-def get_bankroll(user_id: int) -> dict[str, Any] | None:
-    """Return bankroll settings and SQL balances, or None if missing."""
-    row = _fetch_one(_SELECT_BANKROLL_BY_USER_ID, (user_id,))
+def get_bankroll(
+        user_id: int,
+        apply_tax: bool = False) -> dict[str, Any] | None:
+    """Return bankroll settings and SQL balances, or None if missing.
+
+    ``apply_tax`` recomputes settled profit for the view. Stored profit
+    stays the no-tax settlement.
+    """
+    query = (
+        _bankroll_select_sql()
+        if apply_tax else _SELECT_BANKROLL_BY_USER_ID)
+    row = _fetch_one(query, (user_id,))
     if row is None:
         return None
     return _bankroll_document(row)
@@ -441,18 +532,25 @@ def fetch_coupons(
         user_id: int,
         settled: int | None,
         page: int,
-        page_size: int) -> tuple[list[dict[str, Any]], int]:
-    """Return a coupon page with nested legs; visibility is a service concern."""
+        page_size: int,
+        apply_tax: bool = False) -> tuple[list[dict[str, Any]], int]:
+    """Return a coupon page with nested legs; visibility is a service concern.
+
+    ``apply_tax`` replaces settled profit in the SELECT. Open coupons
+    keep a NULL profit. The stored column is not rewritten.
+    """
     where_sql, where_params = _coupon_list_filters(user_id, settled)
     offset = (page - 1) * page_size
+    columns = _coupon_list_columns(apply_tax)
+    coupon_from = "tipster_coupons c" if apply_tax else "tipster_coupons"
     count_sql = f"""
         SELECT COUNT(*) AS total
         FROM tipster_coupons
         {where_sql}
     """
     list_sql = f"""
-        SELECT {_COUPON_COLUMNS}
-        FROM tipster_coupons
+        SELECT {columns}
+        FROM {coupon_from}
         {where_sql}
         ORDER BY created_at DESC, id DESC
         LIMIT %s OFFSET %s
@@ -533,14 +631,23 @@ def fetch_leaderboard(
     return _leaderboard_frame(rows), total
 
 
-def fetch_performance(user_id: int) -> dict[str, Any]:
-    """Return settled-coupon breakdowns by family, league and tier.
+def fetch_performance(
+        user_id: int,
+        apply_tax: bool = False) -> dict[str, Any]:
+    """Return settled-coupon breakdowns by family, league and country.
 
     Attribution is membership (coupon belongs to a dimension value),
     not stake allocation. A combined BTTS+O2.5 coupon counts in both
     families with the full stake and profit; a two-league parlay does
-    the same per league. Summing ``profit_total`` across buckets can
-    exceed the user's realized PnL.
+    the same per league and per country. Summing ``profit_total``
+    across buckets can exceed the user's realized PnL.
+
+    ``won`` is the coupon result. ``legs_won`` is the leg result, so a
+    lost accumulator can still show a family whose own leg won. A
+    combined leg has one outcome for every event on it.
+
+    ``avg_odds`` is the mean of those leg prices, not the coupon's
+    combined odds.
 
     Unmapped settleable markets (corners, DNB, handicap) share one
     bucket: ``event_family_id`` is None and ``event_family_name`` is
@@ -551,28 +658,67 @@ def fetch_performance(user_id: int) -> dict[str, Any]:
     # mappingi nie pokrywają rożnych/DNB/AH — jedna etykieta dla UI
     rows = [
         _label_unmapped_event_family(row)
-        for row in _fetch_all(_PERFORMANCE_FACTS_SQL, (user_id,))]
+        for row in _fetch_all(
+            _performance_facts_sql(apply_tax), (user_id,))]
     by_event_family = _aggregate_dimension(
         rows,
         ("event_family_id", "event_family_name"),
         skip_none=False)
     by_league = _aggregate_dimension(
         rows, ("league_id", "league_name"), skip_none=True)
-    by_league_tier = _aggregate_dimension(
-        rows, ("league_tier",), skip_none=True)
+    by_country = _aggregate_dimension(
+        rows,
+        ("country_id", "country_name"),
+        skip_none=True,
+        extra_fields=("country_emoji",))
     best_family, worst_family = _best_worst(by_event_family)
     best_league, worst_league = _best_worst(by_league)
-    best_tier, worst_tier = _best_worst(by_league_tier)
+    best_country, worst_country = _best_worst(by_country)
     return {
         "by_event_family": by_event_family,
         "by_league": by_league,
-        "by_league_tier": by_league_tier,
+        "by_country": by_country,
         "best_event_family": best_family,
         "worst_event_family": worst_family,
         "best_league": best_league,
         "worst_league": worst_league,
-        "best_league_tier": best_tier,
-        "worst_league_tier": worst_tier}
+        "best_country": best_country,
+        "worst_country": worst_country}
+
+
+_SELECT_SUGGESTED_CATALOG_ODDS = """
+    SELECT o.odds AS odds
+    FROM odds o
+    WHERE o.match_id = %s
+      AND o.event = %s
+      AND o.odds IS NOT NULL
+      AND o.odds >= %s
+      AND EXISTS (
+          SELECT 1
+          FROM predictions p
+          WHERE p.match_id = o.match_id
+            AND p.event_id = o.event)
+    ORDER BY o.odds DESC, o.id ASC
+    LIMIT 1
+"""
+
+
+def fetch_suggested_catalog_odds(
+        match_id: int,
+        event_id: int,
+        min_odds: float) -> float | None:
+    """Return the best odds for a predicted event, or None.
+
+    Highest price wins. Equal prices keep the lowest ``odds.id``, the same
+    tie-break as automatic bet generation. No prediction or no price means
+    the coupon field stays empty for the user to type.
+    """
+    row = _fetch_one(
+        _SELECT_SUGGESTED_CATALOG_ODDS,
+        (match_id, event_id, min_odds))
+    if row is None or row.get("odds") is None:
+        return None
+    return float(row["odds"])
 
 
 def fetch_catalog_matches(
@@ -815,6 +961,9 @@ def _leaderboard_query(
     user_where, user_params = _leaderboard_user_filters(filters)
     sort_column, sort_order = _leaderboard_sort(filters)
     limit_sql, limit_params = _leaderboard_limit(filters)
+    apply_tax = bool(filters.get("apply_tax"))
+    balance_expr = (
+        _taxed_balance_expr() if apply_tax else _CURRENT_BALANCE_EXPR)
     query = f"""
         SELECT
             u.id AS user_id,
@@ -829,6 +978,10 @@ def _leaderboard_query(
                 ELSE ROUND(
                     stats.won_count * 100.0 / stats.bets_count, 2)
             END AS accuracy_pct,
+            COALESCE(stats.legs_count, 0) AS legs_count,
+            COALESCE(stats.legs_won, 0) AS legs_won,
+            COALESCE(stats.legs_won_on_lost_coupons, 0)
+                AS legs_won_on_lost_coupons,
             COALESCE(stats.stake_total, 0) AS stake_total,
             COALESCE(stats.profit_total, 0) AS profit_total,
             CASE
@@ -841,7 +994,7 @@ def _leaderboard_query(
                 ELSE ROUND(
                     stats.profit_total * 100.0 / stats.stake_total, 2)
             END AS roi_pct,
-            {_CURRENT_BALANCE_EXPR} AS current_balance
+            {balance_expr} AS current_balance
         FROM users u
         INNER JOIN tipster_bankrolls tb ON tb.user_id = u.id
         {stats_join} (
@@ -881,21 +1034,57 @@ def _leaderboard_count_query(
 
 def _leaderboard_stats_subquery(
         filters: dict[str, Any]) -> tuple[str, list[object]]:
-    stats_where, stats_params = _coupon_stats_filters(filters)
+    """Coupon totals plus leg hits for the same filters.
+
+    A coupon still counts in full when one of its legs matches.
+    Without a league, tier or family filter, ``avg_odds`` is the mean
+    combined coupon price. Those filters narrow the price to the
+    matching legs only.
+    """
+    coupon_where, coupon_params = _coupon_stats_filters(filters)
+    leg_sql, leg_params = _leaderboard_leg_stats_sql(filters)
+    profit_sql = _settled_profit_sql(bool(filters.get("apply_tax")))
+    odds_sql = (
+        "leg_stats.avg_odds"
+        if _ranking_uses_leg_odds(filters)
+        else "coupons.avg_odds")
+    coupon_odds_sql = (
+        ""
+        if _ranking_uses_leg_odds(filters)
+        else ",\n                    AVG(c.combined_odds) AS avg_odds")
     subquery = f"""
             SELECT
-                c.user_id,
-                COUNT(*) AS bets_count,
-                SUM(CASE WHEN c.outcome = 1 THEN 1 ELSE 0 END)
-                    AS won_count,
-                SUM(c.stake_amount) AS stake_total,
-                SUM(c.profit) AS profit_total,
-                AVG(c.combined_odds) AS avg_odds
-            FROM tipster_coupons c
-            WHERE {stats_where}
-            GROUP BY c.user_id
+                coupons.user_id,
+                coupons.bets_count,
+                coupons.won_count,
+                coupons.stake_total,
+                coupons.profit_total,
+                leg_stats.legs_count,
+                leg_stats.legs_won,
+                leg_stats.legs_won_on_lost_coupons,
+                {odds_sql} AS avg_odds
+            FROM (
+                SELECT
+                    c.user_id,
+                    COUNT(*) AS bets_count,
+                    SUM(CASE WHEN c.outcome = 1 THEN 1 ELSE 0 END)
+                        AS won_count,
+                    SUM(c.stake_amount) AS stake_total,
+                    SUM({profit_sql}) AS profit_total{coupon_odds_sql}
+                FROM tipster_coupons c
+                WHERE {coupon_where}
+                GROUP BY c.user_id
+            ) coupons
+            INNER JOIN (
+                {leg_sql}
+            ) leg_stats ON leg_stats.user_id = coupons.user_id
     """
-    return subquery, stats_params
+    return subquery, [*coupon_params, *leg_params]
+
+
+def _ranking_uses_leg_odds(filters: dict[str, Any]) -> bool:
+    """True when a filter narrows odds from the coupon to its legs."""
+    return _has_leg_domain_filters(filters)
 
 
 def _has_coupon_volume_filters(filters: dict[str, Any]) -> bool:
@@ -904,9 +1093,15 @@ def _has_coupon_volume_filters(filters: dict[str, Any]) -> bool:
         return True
     if filters.get("date_to") is not None:
         return True
+    return _has_leg_domain_filters(filters)
+
+
+def _has_leg_domain_filters(filters: dict[str, Any]) -> bool:
     if filters.get("tier") is not None:
         return True
     if filters.get("event_family") is not None:
+        return True
+    if filters.get("event_ids"):
         return True
     return bool(filters.get("league_ids"))
 
@@ -948,8 +1143,53 @@ def _leaderboard_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
         documents, columns=_LEADERBOARD_COLUMNS, dtype=object)
 
 
+def _leaderboard_leg_stats_sql(
+        filters: dict[str, Any]) -> tuple[str, list[object]]:
+    """One row per user: matching legs, their hit rate and mean price."""
+    joins, where, params = _leaderboard_leg_filter(filters)
+    sql = f"""
+                SELECT
+                    matched.user_id,
+                    COUNT(*) AS legs_count,
+                    SUM(matched.leg_won) AS legs_won,
+                    SUM(matched.won_on_lost)
+                        AS legs_won_on_lost_coupons,
+                    AVG(matched.odds) AS avg_odds
+                FROM (
+                    SELECT DISTINCT
+                        c.user_id,
+                        l.id AS leg_id,
+                        l.odds AS odds,
+                        CASE WHEN l.outcome = 1 THEN 1 ELSE 0 END
+                            AS leg_won,
+                        CASE
+                            WHEN l.outcome = 1 AND c.outcome <> 1
+                            THEN 1
+                            ELSE 0
+                        END AS won_on_lost
+                    FROM tipster_coupons c
+                    INNER JOIN tipster_coupon_legs l
+                        ON l.coupon_id = c.id
+                    {joins}
+                    WHERE {where}
+                ) matched
+                GROUP BY matched.user_id
+    """
+    return sql, params
+
+
 def _coupon_stats_filters(
         filters: dict[str, Any]) -> tuple[str, list[object]]:
+    conditions, params = _settled_coupon_conditions(filters)
+    exists_sql, exists_params = _matching_leg_exists(filters)
+    if exists_sql:
+        conditions.append(exists_sql)
+        params.extend(exists_params)
+    return " AND ".join(conditions), params
+
+
+def _settled_coupon_conditions(
+        filters: dict[str, Any]) -> tuple[list[str], list[object]]:
     conditions = ["c.settled = 1"]
     params: list[object] = []
     date_from = filters.get("date_from")
@@ -960,24 +1200,48 @@ def _coupon_stats_filters(
     if date_to is not None:
         conditions.append("CAST(c.created_at AS DATE) <= %s")
         params.append(date_to)
-    exists_sql, exists_params = _matching_leg_exists(filters)
-    if exists_sql:
-        conditions.append(exists_sql)
-        params.extend(exists_params)
-    return " AND ".join(conditions), params
+    return conditions, params
+
+
+def _leaderboard_leg_filter(
+        filters: dict[str, Any]) -> tuple[str, str, list[object]]:
+    """Joins and WHERE for legs that match the ranking filters."""
+    conditions, params = _settled_coupon_conditions(filters)
+    joins, extra_conditions, extra_params = _dimensional_leg_joins(
+        filters)
+    conditions.extend(extra_conditions)
+    params.extend(extra_params)
+    return " ".join(joins), " AND ".join(conditions), params
 
 
 def _matching_leg_exists(
         filters: dict[str, Any]) -> tuple[str, list[object]]:
+    joins, conditions, params = _dimensional_leg_joins(filters)
+    if not joins and not conditions:
+        return "", []
+    exists_sql = (
+        "EXISTS (SELECT 1 FROM tipster_coupon_legs l "
+        + " ".join(joins)
+        + " WHERE l.coupon_id = c.id AND "
+        + " AND ".join(conditions)
+        + ")")
+    return exists_sql, params
+
+
+def _dimensional_leg_joins(
+        filters: dict[str, Any]
+        ) -> tuple[list[str], list[str], list[object]]:
+    """League, tier, family and event constraints for one coupon leg."""
     league_ids = list(filters.get("league_ids") or [])
     tier = filters.get("tier")
     event_family = filters.get("event_family")
-    if not league_ids and tier is None and event_family is None:
-        return "", []
-    joins = [
-        "FROM tipster_coupon_legs l",
-        "INNER JOIN matches m ON m.id = l.match_id"]
-    conditions = ["l.coupon_id = c.id"]
+    event_ids = list(filters.get("event_ids") or [])
+    has_domain = bool(league_ids) or tier is not None
+    has_events = event_family is not None or bool(event_ids)
+    if not has_domain and not has_events:
+        return [], [], []
+    joins = ["INNER JOIN matches m ON m.id = l.match_id"]
+    conditions: list[str] = []
     params: list[object] = []
     if league_ids or tier is not None:
         joins.append("INNER JOIN leagues lg ON lg.id = m.league")
@@ -988,27 +1252,48 @@ def _matching_leg_exists(
     if tier is not None:
         conditions.append("lg.tier = %s")
         params.append(int(tier))
-    if event_family is not None:
+    _append_event_family_leg_filter(
+        joins, conditions, params, event_family)
+    _append_event_ids_leg_filter(joins, conditions, params, event_ids)
+    return joins, conditions, params
+
+
+def _append_event_family_leg_filter(
+        joins: list[str],
+        conditions: list[str],
+        params: list[object],
+        event_family: object) -> None:
+    if event_family is None:
+        return
+    joins.append(
+        "INNER JOIN tipster_coupon_leg_events e ON e.leg_id = l.id")
+    if _is_unmapped_event_family_filter(event_family):
+        conditions.append(
+            "NOT EXISTS ("
+            f"SELECT 1 FROM ({_EVENT_FAMILY_ONE}) efm "
+            "WHERE efm.event_id = e.event_id)")
+        return
+    joins.append(
+        f"INNER JOIN ({_EVENT_FAMILY_ONE}) efm "
+        "ON efm.event_id = e.event_id")
+    conditions.append("efm.event_family_id = %s")
+    params.append(int(event_family))
+
+
+def _append_event_ids_leg_filter(
+        joins: list[str],
+        conditions: list[str],
+        params: list[object],
+        event_ids: list[object]) -> None:
+    if not event_ids:
+        return
+    if "tipster_coupon_leg_events e" not in " ".join(joins):
         joins.append(
-            "INNER JOIN tipster_coupon_leg_events e ON e.leg_id = l.id")
-        if _is_unmapped_event_family_filter(event_family):
-            conditions.append(
-                "NOT EXISTS ("
-                f"SELECT 1 FROM ({_EVENT_FAMILY_ONE}) efm "
-                "WHERE efm.event_id = e.event_id)")
-        else:
-            joins.append(
-                f"INNER JOIN ({_EVENT_FAMILY_ONE}) efm "
-                "ON efm.event_id = e.event_id")
-            conditions.append("efm.event_family_id = %s")
-            params.append(int(event_family))
-    exists_sql = (
-        "EXISTS (SELECT 1 "
-        + " ".join(joins)
-        + " WHERE "
-        + " AND ".join(conditions)
-        + ")")
-    return exists_sql, params
+            "INNER JOIN tipster_coupon_leg_events e "
+            "ON e.leg_id = l.id")
+    placeholders = ", ".join(["%s"] * len(event_ids))
+    conditions.append(f"e.event_id IN ({placeholders})")
+    params.extend(int(event_id) for event_id in event_ids)
 
 
 def _leaderboard_user_filters(
@@ -1050,6 +1335,10 @@ def _leaderboard_document(row: dict[str, Any]) -> dict[str, Any]:
         "bets_count": int(row["bets_count"] or 0),
         "won_count": int(row["won_count"] or 0),
         "accuracy_pct": _as_optional_float(row["accuracy_pct"]),
+        "legs_count": int(row["legs_count"] or 0),
+        "legs_won": int(row["legs_won"] or 0),
+        "legs_won_on_lost_coupons": int(
+            row["legs_won_on_lost_coupons"] or 0),
         "stake_total": float(row["stake_total"] or 0),
         "profit_total": float(row["profit_total"] or 0),
         "avg_profit": _as_optional_float(row["avg_profit"]),
@@ -1061,9 +1350,12 @@ def _leaderboard_document(row: dict[str, Any]) -> dict[str, Any]:
 def _aggregate_dimension(
         rows: list[dict[str, Any]],
         key_fields: tuple[str, ...],
-        skip_none: bool) -> list[dict[str, Any]]:
+        skip_none: bool,
+        extra_fields: tuple[str, ...] = ()) -> list[dict[str, Any]]:
     groups: dict[tuple[object, ...], dict[str, Any]] = {}
     seen: dict[tuple[object, ...], set[int]] = {}
+    seen_legs: dict[tuple[object, ...], set[int]] = {}
+    stored_fields = key_fields + extra_fields
     for row in rows:
         if skip_none and any(
                 row[field] is None for field in key_fields):
@@ -1071,15 +1363,17 @@ def _aggregate_dimension(
         key = tuple(row[field] for field in key_fields)
         coupon_id = int(row["coupon_id"])
         if key not in groups:
-            groups[key] = _empty_performance_bucket(row, key_fields)
+            groups[key] = _empty_performance_bucket(row, stored_fields)
             seen[key] = set()
+            seen_legs[key] = set()
+        _add_leg_hit(groups[key], seen_legs[key], row)
         if coupon_id in seen[key]:
             continue
         # combined ma kilka eventów — kupon w rodzinie liczymy raz
         seen[key].add(coupon_id)
         _add_coupon_to_bucket(groups[key], row)
     items = [
-        _performance_item(bucket, key_fields)
+        _performance_item(bucket, stored_fields)
         for bucket in groups.values()]
     items.sort(
         key=lambda item: (-item["profit_total"], -item["count"]))
@@ -1092,9 +1386,12 @@ def _empty_performance_bucket(
     bucket: dict[str, Any] = {
         "count": 0,
         "won": 0,
+        "legs_count": 0,
+        "legs_won": 0,
+        "legs_won_on_lost_coupons": 0,
         "stake_total": 0.0,
         "profit_total": 0.0,
-        "odds_sum": 0.0}
+        "leg_odds_sum": 0.0}
     for field in key_fields:
         bucket[field] = row[field]
     return bucket
@@ -1107,7 +1404,24 @@ def _add_coupon_to_bucket(
         bucket["won"] += 1
     bucket["stake_total"] += float(row["stake_amount"] or 0)
     bucket["profit_total"] += float(row["profit"] or 0)
-    bucket["odds_sum"] += float(row["combined_odds"] or 0)
+
+
+def _add_leg_hit(
+        bucket: dict[str, Any],
+        seen_legs: set[int],
+        row: dict[str, Any]) -> None:
+    """Count each leg once; a win on a lost coupon stays visible."""
+    leg_id = row.get("leg_id")
+    if leg_id is None or int(leg_id) in seen_legs:
+        return
+    seen_legs.add(int(leg_id))
+    bucket["legs_count"] += 1
+    bucket["leg_odds_sum"] += float(row.get("leg_odds") or 0)
+    if int(row.get("leg_outcome") or 0) != 1:
+        return
+    bucket["legs_won"] += 1
+    if int(row["outcome"] or 0) != 1:
+        bucket["legs_won_on_lost_coupons"] += 1
 
 
 def _dimension_value(field: str, value: object) -> object:
@@ -1123,6 +1437,8 @@ def _performance_item(
         key_fields: tuple[str, ...]) -> dict[str, Any]:
     count = int(bucket["count"])
     won = int(bucket["won"])
+    legs_count = int(bucket["legs_count"])
+    legs_won = int(bucket["legs_won"])
     stake_total = float(bucket["stake_total"])
     profit_total = round(float(bucket["profit_total"]), 2)
     item = {
@@ -1132,11 +1448,19 @@ def _performance_item(
         "count": count,
         "won": won,
         "accuracy": round(won * 100 / count, 2) if count else None,
+        "legs_count": legs_count,
+        "legs_won": legs_won,
+        "legs_accuracy": (
+            round(legs_won * 100 / legs_count, 2)
+            if legs_count else None),
+        "legs_won_on_lost_coupons": int(
+            bucket["legs_won_on_lost_coupons"]),
         "stake_total": round(stake_total, 2),
         "profit_total": profit_total,
         "avg_profit": round(profit_total / count, 2) if count else None,
         "avg_odds": (
-            round(bucket["odds_sum"] / count, 4) if count else None),
+            round(bucket["leg_odds_sum"] / legs_count, 4)
+            if legs_count else None),
         "roi_pct": (
             round(profit_total * 100 / stake_total, 2)
             if stake_total else None)})

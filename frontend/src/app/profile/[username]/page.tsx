@@ -24,7 +24,7 @@ import {
   isOwnProfile,
   profilePath,
 } from "@/lib/profilePaths";
-import { parsePositiveInt } from "@/lib/searchParams";
+import { parseBoolean, parsePositiveInt } from "@/lib/searchParams";
 import type {
   LeagueSummary,
   TipsterProfileResponse,
@@ -103,6 +103,7 @@ async function renderPublicProfile(
     const profile = await getTipsterProfile(username, {
       page: paging.page,
       pageSize: paging.pageSize,
+      applyTax: parseBoolean(query.apply_tax),
     });
     return <PublicProfileView profile={profile} query={query} />;
   } catch (error) {

@@ -1,4 +1,6 @@
+import { ApplyTaxToggle } from "@/components/tipsters/ApplyTaxToggle";
 import { BankrollSetupForm } from "@/components/tipsters/BankrollSetupForm";
+import { BetsPanel } from "@/components/tipsters/BetsPanel";
 import { CouponBuilder } from "@/components/tipsters/CouponBuilder";
 import { CouponHistoryTable } from "@/components/tipsters/CouponHistoryTable";
 import { PerformanceBreakdown } from "@/components/tipsters/PerformanceBreakdown";
@@ -6,6 +8,7 @@ import { TopUpForm } from "@/components/tipsters/TopUpForm";
 import { ProfileSection } from "@/components/profile/ProfileSection";
 import { StatusMessage } from "@/components/StatusMessage";
 import { couponDraftStorageKey } from "@/components/tipsters/couponDraftStorage";
+import { parseBoolean } from "@/lib/searchParams";
 import {
   formatTipsterAmount,
   formatTipsterProfit,
@@ -23,11 +26,13 @@ import type {
 
 export const MY_BETS_TITLE = "Moje zakłady";
 export const MY_BETS_DESCRIPTION =
-  "Własne kupony, bankroll i rozliczenia z boxscore meczu.";
+  "Własne kupony, kapitał i rozliczenia na podstawie statystyk meczu.";
 export const PUBLIC_COUPONS_TITLE = "Kupony";
 export const SYSTEM_COUPONS_DESCRIPTION =
   "Publiczna historia kuponów konta systemowego.";
-export const PUBLIC_BANKROLL_TITLE = "Bankroll";
+export const PUBLIC_BANKROLL_TITLE = "Kapitał";
+export const BANKROLL_LOAD_ERROR_TITLE = "Nie udało się wczytać kapitału";
+export const BANKROLL_SUMMARY_TITLE = "Podsumowanie";
 export const PUBLIC_BANKROLL_DESCRIPTION =
   "Publiczne saldo. Lista kuponów tego użytkownika jest prywatna.";
 export const CATALOG_LOAD_ERROR_TITLE = "Nie udało się wczytać katalogu";
@@ -61,10 +66,16 @@ export function MyBetsSection(props: MyBetsSectionProps) {
 
 /** Bankroll, creator and history without the profile-card chrome. */
 export function MyBetsContent(props: MyBetsSectionProps) {
+  const applyTax = parseBoolean(props.searchParams.apply_tax);
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <ApplyTaxToggle
+        checked={applyTax}
+        pathname={props.profilePath}
+        searchParams={props.searchParams}
+      />
       {props.isOwnProfile ? (
-        <OwnBetsBody {...props} />
+        <OwnBetsBody {...props} applyTax={applyTax} />
       ) : (
         <PublicBetsBody {...props} />
       )}
@@ -88,7 +99,7 @@ function myBetsSectionCopy(isOwnProfile: boolean, isSystemProfile: boolean) {
   };
 }
 
-function OwnBetsBody(props: MyBetsSectionProps) {
+function OwnBetsBody(props: MyBetsSectionProps & { applyTax: boolean }) {
   const ownerBankroll = isOwnerBankroll(props.bankroll) ? props.bankroll : null;
   const hasCoupons = (props.coupons?.total ?? 0) > 0;
   const currency = ownerBankroll?.currency ?? "PLN";
@@ -98,20 +109,23 @@ function OwnBetsBody(props: MyBetsSectionProps) {
       {props.bankrollError ? (
         <StatusMessage
           variant="error"
-          title="Nie udało się wczytać bankrolla"
+          title={BANKROLL_LOAD_ERROR_TITLE}
           message={props.bankrollError}
         />
       ) : null}
       {ownerBankroll ? (
-        <OwnerBankrollPanel
-          bankroll={ownerBankroll}
-          hasCoupons={hasCoupons}
-        />
+        <BetsPanel title={BANKROLL_SUMMARY_TITLE}>
+          <BankrollSummary bankroll={ownerBankroll} />
+        </BetsPanel>
       ) : props.bankrollError ? null : (
         <BankrollSetupForm existing={null} hasCoupons={false} />
       )}
       {ownerBankroll ? (
-        <OwnerCreator {...props} bankroll={ownerBankroll} />
+        <OwnerCreator
+          {...props}
+          bankroll={ownerBankroll}
+          applyTax={props.applyTax}
+        />
       ) : null}
       <CouponsAndPerformance
         coupons={props.coupons}
@@ -124,6 +138,12 @@ function OwnBetsBody(props: MyBetsSectionProps) {
         isOwnProfile
         isSystemProfile={props.isSystemProfile}
       />
+      {ownerBankroll ? (
+        <OwnerCapitalActions
+          bankroll={ownerBankroll}
+          hasCoupons={hasCoupons}
+        />
+      ) : null}
     </>
   );
 }
@@ -159,26 +179,26 @@ interface OwnerBankrollPanelProps {
   hasCoupons: boolean;
 }
 
-function OwnerBankrollPanel({
+function OwnerCapitalActions({
   bankroll,
   hasCoupons,
 }: OwnerBankrollPanelProps) {
   return (
-    <div className="space-y-4">
-      <BankrollSummary bankroll={bankroll} />
+    <>
       <BankrollSetupForm existing={bankroll} hasCoupons={hasCoupons} />
       <TopUpForm currency={bankroll.currency} />
-    </div>
+    </>
   );
 }
 
 interface OwnerCreatorProps extends MyBetsSectionProps {
   bankroll: BankrollSettings;
+  applyTax: boolean;
 }
 
 function OwnerCreator(props: OwnerCreatorProps) {
   return (
-    <div className="space-y-6">
+    <>
       {props.catalogError ? (
         <StatusMessage
           variant="error"
@@ -195,9 +215,10 @@ function OwnerCreator(props: OwnerCreatorProps) {
           }
           unitSize={props.bankroll.unit_size}
           currency={props.bankroll.currency}
+          applyTax={props.applyTax}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -256,29 +277,33 @@ function CouponsAndPerformance({
 }
 
 function BankrollSummary({ bankroll }: { bankroll: BankrollSettings }) {
+  const currency = bankroll.currency;
   return (
-    <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)]">
       <SummaryItem
-        label="Saldo"
-        value={formatTipsterAmount(bankroll.current_balance, bankroll.currency)}
+        label="Aktualne saldo"
+        value={formatTipsterAmount(bankroll.current_balance, currency)}
+        featured
       />
-      <SummaryItem
-        label="Kapitał startowy"
-        value={formatTipsterAmount(bankroll.initial_capital, bankroll.currency)}
-      />
-      <SummaryItem
-        label="Unit"
-        value={formatTipsterAmount(bankroll.unit_size, bankroll.currency)}
-      />
-      <SummaryItem
-        label="Otwarta stawka"
-        value={formatTipsterAmount(bankroll.open_stake, bankroll.currency)}
-      />
-      <SummaryItem
-        label="Zrealizowany PnL"
-        value={formatTipsterProfit(bankroll.realized_pnl, bankroll.currency)}
-      />
-    </dl>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SummaryItem
+          label="Kapitał startowy"
+          value={formatTipsterAmount(bankroll.initial_capital, currency)}
+        />
+        <SummaryItem
+          label="Jednostka (unit)"
+          value={formatTipsterAmount(bankroll.unit_size, currency)}
+        />
+        <SummaryItem
+          label="W obiegu"
+          value={formatTipsterAmount(bankroll.open_stake, currency)}
+        />
+        <SummaryItem
+          label="Zysk"
+          value={formatTipsterProfit(bankroll.realized_pnl, currency)}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -289,30 +314,51 @@ function PublicBankrollSummary({
 }) {
   if (!bankroll) {
     return (
-      <StatusMessage
-        variant="empty"
-        title="Brak bankrolla"
-        message="To konto nie ma jeszcze skonfigurowanego bankrolla."
-      />
+      <BetsPanel title={BANKROLL_SUMMARY_TITLE}>
+        <StatusMessage
+          variant="empty"
+          title="Brak kapitału"
+          message="To konto nie ma jeszcze skonfigurowanego kapitału."
+        />
+      </BetsPanel>
     );
   }
 
   return (
-    <dl className="grid gap-3 text-sm sm:grid-cols-2">
-      <SummaryItem
-        label="Saldo"
-        value={formatTipsterAmount(bankroll.current_balance, bankroll.currency)}
-      />
-      <SummaryItem label="Waluta" value={bankroll.currency} />
-    </dl>
+    <BetsPanel title={BANKROLL_SUMMARY_TITLE}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SummaryItem
+          label="Saldo"
+          value={formatTipsterAmount(bankroll.current_balance, bankroll.currency)}
+          featured
+        />
+        <SummaryItem label="Waluta" value={bankroll.currency} />
+      </div>
+    </BetsPanel>
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
+function SummaryItem({
+  label,
+  value,
+  featured = false,
+}: {
+  label: string;
+  value: string;
+  featured?: boolean;
+}) {
+  const className = featured
+    ? "flex h-full flex-col justify-center rounded-xl border border-border " +
+      "bg-accent-soft px-5 py-5"
+    : "flex h-full flex-col justify-center rounded-lg border border-border " +
+      "bg-surface-raised px-4 py-3";
+  const valueClassName = featured
+    ? "mt-1 text-3xl font-semibold tracking-tight text-text"
+    : "mt-1 text-lg font-semibold text-text";
   return (
-    <div className="rounded-lg border border-border bg-surface-muted px-3 py-2">
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-medium text-text">{value}</dd>
+    <div className={className}>
+      <p className="text-sm text-muted">{label}</p>
+      <p className={valueClassName}>{value}</p>
     </div>
   );
 }

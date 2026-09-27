@@ -1836,9 +1836,16 @@ export interface PerformanceItem {
   league_id: number | null;
   league_name: string | null;
   league_tier: number | null;
+  country_id: number | null;
+  country_name: string | null;
+  country_emoji: string | null;
   count: number;
   won: number;
   accuracy: number | null;
+  legs_count: number;
+  legs_won: number;
+  legs_accuracy: number | null;
+  legs_won_on_lost_coupons: number;
   stake_total: number;
   profit_total: number;
   avg_profit: number | null;
@@ -1846,17 +1853,17 @@ export interface PerformanceItem {
   roi_pct: number | null;
 }
 
-/** Settled-coupon analytics by family, league and tier. */
+/** Settled-coupon analytics by family, league and country. */
 export interface PerformanceBreakdown {
   by_event_family: PerformanceItem[];
   by_league: PerformanceItem[];
-  by_league_tier: PerformanceItem[];
+  by_country: PerformanceItem[];
   best_event_family: PerformanceItem | null;
   worst_event_family: PerformanceItem | null;
   best_league: PerformanceItem | null;
   worst_league: PerformanceItem | null;
-  best_league_tier: PerformanceItem | null;
-  worst_league_tier: PerformanceItem | null;
+  best_country: PerformanceItem | null;
+  worst_country: PerformanceItem | null;
 }
 
 /** One ranking row; coupon lists are never included. */
@@ -1869,6 +1876,9 @@ export interface LeaderboardRow {
   bets_count: number;
   won_count: number;
   accuracy_pct: number | null;
+  legs_count: number;
+  legs_won: number;
+  legs_won_on_lost_coupons: number;
   stake_total: number;
   profit_total: number;
   avg_profit: number | null;
@@ -1916,6 +1926,11 @@ export interface CatalogEvent {
   name: string;
 }
 
+/** Default price for one catalog event; null when the database has none. */
+export interface SuggestedCatalogOdds {
+  odds: number | null;
+}
+
 /** Matches and settleable events as separate lists. */
 export interface CatalogMatchesResponse {
   matches: CatalogMatch[];
@@ -1934,6 +1949,7 @@ export interface TipsterCouponsQuery {
   settled?: 0 | 1;
   page?: number;
   pageSize?: number;
+  applyTax?: boolean;
 }
 
 /** Query for GET /tipsters/leaderboard. */
@@ -1941,6 +1957,7 @@ export interface TipsterLeaderboardQuery {
   isSystem?: 0 | 1;
   leagueIds?: number[];
   tier?: number;
+  eventIds?: number[];
   eventFamily?: TipsterEventFamilyFilter;
   dateFrom?: string;
   dateTo?: string;
@@ -1948,6 +1965,7 @@ export interface TipsterLeaderboardQuery {
   sortOrder?: LeaderboardSortOrder;
   page?: number;
   pageSize?: number;
+  applyTax?: boolean;
 }
 
 /** Query for GET /tipsters/catalog/matches. */
@@ -1961,4 +1979,5 @@ export interface TipsterCatalogQuery {
 export interface TipsterProfileQuery {
   page?: number;
   pageSize?: number;
+  applyTax?: boolean;
 }

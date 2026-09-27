@@ -32,6 +32,7 @@ import {
   type ModelDetailsResponse,
   type ModelListResponse,
   type PerformanceBreakdown,
+  type SuggestedCatalogOdds,
   type PlayerMatchStatsResponse,
   type PredictionPreviewRequest,
   type PredictionPreviewResponse,
@@ -527,8 +528,12 @@ export async function setAdminLeagueActive(
 }
 
 /** Owner bankroll from GET /tipsters/me/bankroll. */
-export async function getMyBankroll(): Promise<BankrollSettings> {
-  return fetchViaBff<BankrollSettings>("/tipsters/me/bankroll");
+export async function getMyBankroll(options?: {
+  applyTax?: boolean;
+}): Promise<BankrollSettings> {
+  return fetchViaBff<BankrollSettings>("/tipsters/me/bankroll", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
 }
 
 /** Owner coupon page from GET /tipsters/me/coupons. */
@@ -539,12 +544,28 @@ export async function getMyCoupons(
     settled: options?.settled,
     page: options?.page,
     page_size: options?.pageSize,
+    apply_tax: options?.applyTax ? true : undefined,
   });
 }
 
 /** Owner analytics from GET /tipsters/me/performance. */
-export async function getMyPerformance(): Promise<PerformanceBreakdown> {
-  return fetchViaBff<PerformanceBreakdown>("/tipsters/me/performance");
+export async function getMyPerformance(options?: {
+  applyTax?: boolean;
+}): Promise<PerformanceBreakdown> {
+  return fetchViaBff<PerformanceBreakdown>("/tipsters/me/performance", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Stored default odds from GET /tipsters/catalog/suggested-odds. */
+export async function getSuggestedCatalogOdds(
+  matchId: number,
+  eventId: number,
+): Promise<SuggestedCatalogOdds> {
+  return fetchViaBff<SuggestedCatalogOdds>("/tipsters/catalog/suggested-odds", {
+    match_id: matchId,
+    event_id: eventId,
+  });
 }
 
 /** Picker catalog from GET /tipsters/catalog/matches. */

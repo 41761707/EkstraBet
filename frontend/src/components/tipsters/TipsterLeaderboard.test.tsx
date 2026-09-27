@@ -5,6 +5,7 @@ import {
   SYSTEM_ACCOUNT_LABEL,
   TIPSTER_LEADERBOARD_EMPTY_MESSAGE,
   TIPSTER_LEADERBOARD_EMPTY_TITLE,
+  TIPSTER_LEADERBOARD_EVENTS_LABEL,
   TipsterLeaderboard,
 } from "@/components/tipsters/TipsterLeaderboard";
 import type { LeaderboardRow } from "@/types/api";
@@ -19,6 +20,9 @@ function sampleRow(overrides: Partial<LeaderboardRow> = {}): LeaderboardRow {
     bets_count: 4,
     won_count: 2,
     accuracy_pct: 50,
+    legs_count: 1,
+    legs_won: 1,
+    legs_won_on_lost_coupons: 1,
     stake_total: 40,
     profit_total: 12.5,
     avg_profit: 3.125,
@@ -76,6 +80,9 @@ describe("TipsterLeaderboard", () => {
     expect(html).toContain("Ala");
     expect(html).toContain("Agent A");
     expect(html).toContain(SYSTEM_ACCOUNT_LABEL);
+    expect(html).toContain(TIPSTER_LEADERBOARD_EVENTS_LABEL);
+    expect(html).toContain("1/1");
+    expect(html).toContain("text-success");
     expect(html).toContain("+12.50 PLN");
     expect(html).toContain("+3.13 PLN");
     expect(html).toContain("1012.50 PLN");

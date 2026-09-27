@@ -2,7 +2,9 @@ import Link from "next/link";
 
 import { PaginationBar } from "@/components/PaginationBar";
 import { StatusMessage } from "@/components/StatusMessage";
+import { BetsPanel } from "@/components/tipsters/BetsPanel";
 import {
+  COMBINED_SELECTION_LABEL,
   couponHistoryStatusLabel,
   couponStatusClassName,
   formatCouponCombinedOdds,
@@ -51,29 +53,27 @@ export function CouponHistoryTable({
 }: CouponHistoryTableProps) {
   if (coupons.total === 0) {
     return (
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-text">{COUPON_HISTORY_TITLE}</h3>
+      <BetsPanel title={COUPON_HISTORY_TITLE}>
         <StatusMessage
           variant="empty"
           title={COUPON_HISTORY_EMPTY_TITLE}
           message={couponHistoryEmptyMessage(isOwnProfile, isSystemProfile)}
         />
-      </div>
+      </BetsPanel>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-text">{COUPON_HISTORY_TITLE}</h3>
+    <BetsPanel title={COUPON_HISTORY_TITLE}>
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="min-w-full text-sm">
           <thead className="bg-surface-muted text-left text-muted">
             <tr>
               <th className="px-3 py-2 font-medium">Data</th>
-              <th className="px-3 py-2 font-medium">Nogi</th>
+              <th className="px-3 py-2 font-medium">Zdarzenia</th>
               <th className="px-3 py-2 text-right font-medium">Kurs</th>
               <th className="px-3 py-2 text-right font-medium">Stawka</th>
-              <th className="px-3 py-2 text-right font-medium">Profit</th>
+              <th className="px-3 py-2 text-right font-medium">Wynik</th>
               <th className="px-3 py-2 font-medium">Status</th>
             </tr>
           </thead>
@@ -95,7 +95,7 @@ export function CouponHistoryTable({
         pageSize={coupons.page_size}
         searchParams={searchParams}
       />
-    </div>
+    </BetsPanel>
   );
 }
 
@@ -156,7 +156,16 @@ function HistoryLegLine({ leg }: { leg: CouponLegSummary }) {
       >
         {historyMatchLabel(leg)}
       </Link>
-      {isCombinedLeg(leg.event_ids) ? " · Combined" : null}
+      {isCombinedLeg(leg.event_ids) ? (
+        <span
+          className={
+            "ml-2 rounded-md bg-accent-soft px-1.5 py-0.5 text-xs " +
+            "font-medium text-accent-text"
+          }
+        >
+          {COMBINED_SELECTION_LABEL}
+        </span>
+      ) : null}
       {`: ${historyEventLabel(leg)} · ${formatOdds(leg.odds)} · `}
       <span className={legOutcomeClassName(leg.outcome)}>
         {legOutcomeLabel(leg.outcome)}

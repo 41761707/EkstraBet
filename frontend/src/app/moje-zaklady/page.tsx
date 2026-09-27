@@ -18,7 +18,7 @@ import { ApiError, getCurrentUser } from "@/lib/api";
 import { MY_BETS_LINK } from "@/lib/appNavLinks";
 import { isAuthEnabled } from "@/lib/authCookie";
 import { profilePath } from "@/lib/profilePaths";
-import { parsePositiveInt } from "@/lib/searchParams";
+import { parseBoolean, parsePositiveInt } from "@/lib/searchParams";
 import type { UserPublic } from "@/types/api";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +55,7 @@ export default async function MyBetsPage({ searchParams }: MyBetsPageProps) {
   const tipster = await loadOwnTipsterBundle(
     parsePositiveInt(query.page) ?? DEFAULT_TIPSTER_PAGE,
     parsePositiveInt(query.page_size) ?? DEFAULT_TIPSTER_PAGE_SIZE,
+    parseBoolean(query.apply_tax),
   );
 
   return (

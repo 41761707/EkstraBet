@@ -753,8 +753,12 @@ function joinTipsterIdList(ids: number[] | undefined): string | undefined {
 }
 
 /** Owner bankroll from GET /tipsters/me/bankroll. */
-export async function getMyBankroll(): Promise<BankrollSettings> {
-  return fetchApi<BankrollSettings>("/tipsters/me/bankroll");
+export async function getMyBankroll(options?: {
+  applyTax?: boolean;
+}): Promise<BankrollSettings> {
+  return fetchApi<BankrollSettings>("/tipsters/me/bankroll", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
 }
 
 /** Owner coupon page from GET /tipsters/me/coupons. */
@@ -765,12 +769,17 @@ export async function getMyCoupons(
     settled: options?.settled,
     page: options?.page,
     page_size: options?.pageSize,
+    apply_tax: options?.applyTax ? true : undefined,
   });
 }
 
 /** Owner analytics from GET /tipsters/me/performance. */
-export async function getMyPerformance(): Promise<PerformanceBreakdown> {
-  return fetchApi<PerformanceBreakdown>("/tipsters/me/performance");
+export async function getMyPerformance(options?: {
+  applyTax?: boolean;
+}): Promise<PerformanceBreakdown> {
+  return fetchApi<PerformanceBreakdown>("/tipsters/me/performance", {
+    apply_tax: options?.applyTax ? true : undefined,
+  });
 }
 
 /** Ranking page from GET /tipsters/leaderboard. */
@@ -781,6 +790,7 @@ export async function getTipsterLeaderboard(
     is_system: options?.isSystem,
     league_ids: joinTipsterIdList(options?.leagueIds),
     tier: options?.tier,
+    event_ids: joinTipsterIdList(options?.eventIds),
     event_family:
       options?.eventFamily === undefined
         ? undefined
@@ -791,6 +801,7 @@ export async function getTipsterLeaderboard(
     sort_order: options?.sortOrder,
     page: options?.page,
     page_size: options?.pageSize,
+    apply_tax: options?.applyTax ? true : undefined,
   });
 }
 
@@ -804,6 +815,7 @@ export async function getTipsterProfile(
     {
       page: options?.page,
       page_size: options?.pageSize,
+      apply_tax: options?.applyTax ? true : undefined,
     },
   );
 }

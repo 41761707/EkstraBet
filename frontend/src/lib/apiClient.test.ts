@@ -13,6 +13,7 @@ import {
   getModelsGroupedByFamily,
   getMyBankroll,
   getSeasonProjectionModes,
+  getSuggestedCatalogOdds,
   getTipsterCatalog,
   getTyperAdminCandidates,
   getTyperAdminPredictionHistory,
@@ -1163,5 +1164,22 @@ describe("tipster client", () => {
     expect(requested).toContain("date_from=2026-09-20");
     expect(requested).toContain("date_to=2026-09-27");
     expect(requested).toContain("league_ids=48%2C2");
+  });
+
+  it("GETs suggested catalog odds through the BFF", async () => {
+    const payload = { odds: 2.2 };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(getSuggestedCatalogOdds(124426, 1)).resolves.toEqual(payload);
+    const requested = String(fetchMock.mock.calls[0]?.[0]);
+    expect(requested).toContain("/api/backend/tipsters/catalog/suggested-odds");
+    expect(requested).toContain("match_id=124426");
+    expect(requested).toContain("event_id=1");
   });
 });

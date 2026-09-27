@@ -32,12 +32,13 @@ export interface OwnTipsterBundle {
 export async function loadOwnTipsterBundle(
   page: number,
   pageSize: number,
+  applyTax = false,
 ): Promise<OwnTipsterBundle> {
   const [bankrollResult, couponsResult, performanceResult, favoritesResult] =
     await Promise.allSettled([
-      getMyBankroll(),
-      getMyCoupons({ page, pageSize }),
-      getMyPerformance(),
+      getMyBankroll({ applyTax }),
+      getMyCoupons({ page, pageSize, applyTax }),
+      getMyPerformance({ applyTax }),
       getFavoriteLeagueIds(),
     ]);
   const favoriteLeagueIds =
@@ -66,7 +67,7 @@ export async function loadOwnTipsterBundle(
     catalog: fulfilledOrNull(catalogResult),
     catalogError: rejectedMessage(
       catalogResult,
-      "Nie udało się wczytać katalogu eventów.",
+      "Nie udało się wczytać katalogu zdarzeń.",
     ),
     favoriteLeagueIds,
     favoritesUnavailable,
@@ -111,7 +112,7 @@ function readBankrollError(
   }
   return resolveLoadErrorMessage(
     result.reason,
-    "Nie udało się wczytać bankrolla.",
+    "Nie udało się wczytać kapitału.",
   );
 }
 

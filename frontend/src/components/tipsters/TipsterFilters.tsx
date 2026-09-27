@@ -8,7 +8,6 @@ import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckb
 import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import {
   createDefaultTipsterLeaderboardFilters,
-  parseEventFamilyFilter,
   parseIsSystemFilter,
   parseLeaderboardSortBy,
   parseLeaderboardSortOrder,
@@ -17,20 +16,20 @@ import {
   type TipsterLeaderboardFilters,
 } from "@/components/tipsters/tipsterModel";
 import { navigateSearch } from "@/lib/clientNavigation";
-import type {
-  FilterOption,
-  LeaderboardSortBy,
-  TipsterEventFamilyFilter,
-} from "@/types/api";
+import {
+  groupBetEventOptions,
+  type EventFilterOption,
+} from "@/lib/betEventOptions";
+import type { FilterOption, LeaderboardSortBy } from "@/types/api";
 
 const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 const LEAGUE_CHECKBOX_HEIGHT_CLASS_NAME = "h-45";
 
 const SORT_BY_OPTIONS: ReadonlyArray<{ value: LeaderboardSortBy; label: string }> = [
-  { value: "profit_total", label: "Profit" },
+  { value: "profit_total", label: "Wynik" },
   { value: "roi_pct", label: "ROI" },
   { value: "accuracy_pct", label: "Skuteczność" },
-  { value: "avg_profit", label: "Średni profit" },
+  { value: "avg_profit", label: "Średni wynik" },
   { value: "avg_odds", label: "Średni kurs" },
   { value: "bets_count", label: "Liczba kuponów" },
   { value: "current_balance", label: "Saldo" },
@@ -47,13 +46,13 @@ const TIER_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
 interface TipsterFiltersProps {
   values: TipsterLeaderboardFilters;
   leagues: FilterOption[];
-  eventFamilies: FilterOption[];
+  events: EventFilterOption[];
 }
 
 export function TipsterFilters({
   values,
   leagues,
-  eventFamilies,
+  events,
 }: TipsterFiltersProps) {
   const router = useRouter();
   const [state, setState] = useState(values);
@@ -75,11 +74,7 @@ export function TipsterFilters({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <TipsterIdentityFilters
-        state={state}
-        eventFamilies={eventFamilies}
-        onChange={setState}
-      />
+      <TipsterAccountAndTier state={state} onChange={setState} />
       <div className="grid gap-4 md:grid-cols-2">
         <MultiSelectCheckboxGroup
           label="Ligi"
@@ -92,8 +87,19 @@ export function TipsterFilters({
             setState((current) => ({ ...current, leagueIds }))
           }
         />
-        <TipsterDateAndTierFields state={state} onChange={setState} />
+        <TipsterEventFilters
+          events={events}
+          selectedIds={state.eventIds}
+          onChange={(eventIds) =>
+            setState((current) => ({
+              ...current,
+              eventIds,
+              eventFamily: null,
+            }))
+          }
+        />
       </div>
+      <TipsterDateFields state={state} onChange={setState} />
       <TipsterSortFields state={state} onChange={setState} />
       <div className="flex flex-wrap gap-3">
         <button
@@ -121,11 +127,7 @@ interface TipsterFilterFieldsProps {
   ) => void;
 }
 
-function TipsterIdentityFilters({
-  state,
-  eventFamilies,
-  onChange,
-}: TipsterFilterFieldsProps & { eventFamilies: FilterOption[] }) {
+function TipsterAccountAndTier({ state, onChange }: TipsterFilterFieldsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <label className="space-y-2 text-sm">
@@ -146,37 +148,6 @@ function TipsterIdentityFilters({
         </select>
       </label>
       <label className="space-y-2 text-sm">
-        <span className="font-medium text-text">Rodzina eventów</span>
-        <select
-          value={eventFamilySelectValue(state.eventFamily)}
-          onChange={(event) =>
-            onChange((current) => ({
-              ...current,
-              eventFamily: parseEventFamilyFilter(event.target.value),
-            }))
-          }
-          className={FILTER_INPUT_CLASS_NAME}
-        >
-          <option value="">Wszystkie</option>
-          <option value="OTHER">Inne</option>
-          {eventFamilies.map((family) => (
-            <option key={family.id} value={family.id}>
-              {family.label}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  );
-}
-
-function TipsterDateAndTierFields({
-  state,
-  onChange,
-}: TipsterFilterFieldsProps) {
-  return (
-    <div className="space-y-4">
-      <label className="block space-y-2 text-sm">
         <span className="font-medium text-text">Poziom ligi</span>
         <select
           value={state.tier === null ? "" : String(state.tier)}
@@ -196,27 +167,55 @@ function TipsterDateAndTierFields({
           ))}
         </select>
       </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2 text-sm">
-          <span className="font-medium text-text">Data od</span>
-          <DateInput
-            value={state.dateFrom}
-            onChange={(dateFrom) =>
-              onChange((current) => ({ ...current, dateFrom }))
-            }
-            ariaLabel="Data od"
-          />
-        </div>
-        <div className="space-y-2 text-sm">
-          <span className="font-medium text-text">Data do</span>
-          <DateInput
-            value={state.dateTo}
-            onChange={(dateTo) =>
-              onChange((current) => ({ ...current, dateTo }))
-            }
-            ariaLabel="Data do"
-          />
-        </div>
+    </div>
+  );
+}
+
+function TipsterEventFilters({
+  events,
+  selectedIds,
+  onChange,
+}: {
+  events: EventFilterOption[];
+  selectedIds: number[];
+  onChange: (eventIds: number[]) => void;
+}) {
+  const groupedEvents = groupBetEventOptions(events);
+  return (
+    <MultiSelectCheckboxGroup
+      label="Zdarzenia"
+      name="tipster-events"
+      sections={[
+        { title: "Najpopularniejsze", options: groupedEvents.popular },
+        { title: "Pozostałe", options: groupedEvents.niche },
+      ]}
+      selectedIds={selectedIds}
+      maxHeightClassName={LEAGUE_CHECKBOX_HEIGHT_CLASS_NAME}
+      onChange={onChange}
+    />
+  );
+}
+
+function TipsterDateFields({ state, onChange }: TipsterFilterFieldsProps) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2 text-sm">
+        <span className="font-medium text-text">Data od</span>
+        <DateInput
+          value={state.dateFrom}
+          onChange={(dateFrom) =>
+            onChange((current) => ({ ...current, dateFrom }))
+          }
+          ariaLabel="Data od"
+        />
+      </div>
+      <div className="space-y-2 text-sm">
+        <span className="font-medium text-text">Data do</span>
+        <DateInput
+          value={state.dateTo}
+          onChange={(dateTo) => onChange((current) => ({ ...current, dateTo }))}
+          ariaLabel="Data do"
+        />
       </div>
     </div>
   );
@@ -270,16 +269,4 @@ function parseTierSelect(value: string): number | null {
   }
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function eventFamilySelectValue(
-  eventFamily: TipsterEventFamilyFilter | null,
-): string {
-  if (eventFamily === null) {
-    return "";
-  }
-  if (eventFamily === 0 || eventFamily === "OTHER") {
-    return "OTHER";
-  }
-  return String(eventFamily);
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { ApplyTaxToggle } from "@/components/tipsters/ApplyTaxToggle";
 import { TipsterFilters } from "@/components/tipsters/TipsterFilters";
 import { TipsterLeaderboard } from "@/components/tipsters/TipsterLeaderboard";
 import {
@@ -10,15 +11,17 @@ import {
   tipsterFilterCatalogMessage,
   TIPSTER_FILTER_CATALOG_ERROR_TITLE,
   tipsterLeaderboardPath,
+  TYPERS_PATH,
   toTipsterLeaderboardQuery,
   type TipsterLeaderboardFilters,
 } from "@/components/tipsters/tipsterModel";
 import {
   ApiError,
-  getEventFamilies,
+  getAllEventOptions,
   getLeagues,
   getTipsterLeaderboard,
 } from "@/lib/api";
+import type { EventFilterOption } from "@/lib/betEventOptions";
 import {
   FOOTBALL_SPORT_ID,
   type FilterOption,
@@ -45,7 +48,11 @@ export default async function TypersPage({ searchParams }: TypersPageProps) {
   if (!areTipsterDateFiltersValid(filters)) {
     const filterOptions = await filterOptionsPromise;
     return (
-      <TypersPageLayout filters={filters} filterOptions={filterOptions}>
+      <TypersPageLayout
+        filters={filters}
+        filterOptions={filterOptions}
+        searchParams={params}
+      >
         <StatusMessage
           variant="error"
           title="Nieprawidłowy przedział dat"
@@ -61,7 +68,11 @@ export default async function TypersPage({ searchParams }: TypersPageProps) {
   ]);
 
   return (
-    <TypersPageLayout filters={filters} filterOptions={filterOptions}>
+    <TypersPageLayout
+      filters={filters}
+      filterOptions={filterOptions}
+      searchParams={params}
+    >
       {ranking.ok ? (
         <TipsterLeaderboard
           rows={ranking.response.items}
@@ -83,23 +94,25 @@ export default async function TypersPage({ searchParams }: TypersPageProps) {
 
 interface TypersFilterOptions {
   leagues: FilterOption[];
-  eventFamilies: FilterOption[];
+  events: EventFilterOption[];
   leaguesFailed: boolean;
-  familiesFailed: boolean;
+  eventsFailed: boolean;
 }
 
 function TypersPageLayout({
   filters,
   filterOptions,
+  searchParams,
   children,
 }: {
   filters: TipsterLeaderboardFilters;
   filterOptions: TypersFilterOptions;
+  searchParams: Record<string, string | undefined>;
   children: ReactNode;
 }) {
   const filterWarning = tipsterFilterCatalogMessage(
     filterOptions.leaguesFailed,
-    filterOptions.familiesFailed,
+    filterOptions.eventsFailed,
   );
   return (
     <div className="space-y-8">
@@ -111,6 +124,12 @@ function TypersPageLayout({
       </section>
       <section className="space-y-4 rounded-xl border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold text-text">Filtry</h2>
+        <ApplyTaxToggle
+          checked={filters.applyTax}
+          pathname={TYPERS_PATH}
+          searchParams={searchParams}
+          resetPage
+        />
         {filterWarning ? (
           <StatusMessage
             variant="info"
@@ -122,7 +141,7 @@ function TypersPageLayout({
           key={tipsterLeaderboardPath(filters)}
           values={filters}
           leagues={filterOptions.leagues}
-          eventFamilies={filterOptions.eventFamilies}
+          events={filterOptions.events}
         />
       </section>
       {children}
@@ -131,9 +150,9 @@ function TypersPageLayout({
 }
 
 async function loadTypersFilterOptions(): Promise<TypersFilterOptions> {
-  const [leaguesResult, familiesResult] = await Promise.allSettled([
+  const [leaguesResult, eventsResult] = await Promise.allSettled([
     getLeagues({ active: true, sportId: FOOTBALL_SPORT_ID }),
-    getEventFamilies(FOOTBALL_SPORT_ID),
+    getAllEventOptions(FOOTBALL_SPORT_ID),
   ]);
 
   return {
@@ -144,15 +163,9 @@ async function loadTypersFilterOptions(): Promise<TypersFilterOptions> {
             label: league.name,
           }))
         : [],
-    eventFamilies:
-      familiesResult.status === "fulfilled"
-        ? familiesResult.value.event_families.map((family) => ({
-            id: family.id,
-            label: family.name,
-          }))
-        : [],
+    events: eventsResult.status === "fulfilled" ? eventsResult.value : [],
     leaguesFailed: leaguesResult.status === "rejected",
-    familiesFailed: familiesResult.status === "rejected",
+    eventsFailed: eventsResult.status === "rejected",
   };
 }
 

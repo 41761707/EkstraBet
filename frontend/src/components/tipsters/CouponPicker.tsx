@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { FIELD_CLASS_NAME } from "@/components/inputStyles";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -10,13 +10,14 @@ import {
   filterCatalogMatches,
   groupCatalogEvents,
   groupCatalogMatches,
+  resolveCatalogEventId,
 } from "@/components/tipsters/tipsterModel";
 import { getWarsawDateIso } from "@/lib/date";
 import type { CatalogMatch, CatalogMatchesResponse } from "@/types/api";
 
-export const ADD_CATALOG_EVENT_LABEL = "Dodaj event";
+export const ADD_CATALOG_EVENT_LABEL = "Dodaj zdarzenie";
 export const MATCH_SEARCH_LABEL = "Szukaj meczu";
-export const EVENT_SEARCH_LABEL = "Szukaj eventu";
+export const EVENT_SEARCH_LABEL = "Szukaj zdarzenia";
 export const CATALOG_DATE_LABEL = "Data";
 export const ALL_LEAGUES_LABEL = "Wszystkie ligi";
 export const CATALOG_UPCOMING_HINT =
@@ -44,7 +45,7 @@ export interface CouponPickerProps {
   onQueryChange: (query: string) => void;
   onMatchChange: (matchId: number) => void;
   onEventChange: (eventId: number) => void;
-  onAdd: () => void;
+  onAdd: (eventId: number) => void;
 }
 
 export function CouponPicker({
@@ -68,30 +69,31 @@ export function CouponPicker({
   onAdd,
 }: CouponPickerProps) {
   const [eventQuery, setEventQuery] = useState("");
+  const selectedEventId = useVisibleEventId(
+    events, eventQuery, eventId, onEventChange,
+  );
   if (events.length === 0) {
     return (
       <StatusMessage
         variant="empty"
-        title="Brak eventów do kuponu"
+        title="Brak zdarzeń do kuponu"
         message="Katalog pokazuje tylko rozliczalne zdarzenia."
       />
     );
   }
 
-  const visibleMatches = matchesForSelect(pickerMatches, matchQuery, matchId);
+  const visibleMatches = filterCatalogMatches(pickerMatches, matchQuery);
   const controlsDisabled = disabled || isLoadingMatches;
-  const visibleEvents = eventsForSelect(events, eventQuery, eventId);
+  const visibleEvents = filterCatalogEvents(events, eventQuery);
+  const canAdd = visibleMatches.length > 0 && visibleEvents.length > 0;
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted">
-        {catalogScopeHint(
-          hasFavoriteLeagues,
-          includeAllLeagues,
-          favoritesUnavailable,
-        )}
-      </p>
-      <p className="text-sm text-muted">{CATALOG_UPCOMING_HINT}</p>
+      <CatalogScopeNote
+        hasFavoriteLeagues={hasFavoriteLeagues}
+        includeAllLeagues={includeAllLeagues}
+        favoritesUnavailable={favoritesUnavailable}
+      />
       {catalogError ? (
         <StatusMessage
           variant="error"
@@ -121,15 +123,19 @@ export function CouponPicker({
         />
         <EventSelect
           events={visibleEvents}
-          eventId={eventId}
+          eventId={selectedEventId}
           emptyLabel={emptyEventsLabel(eventQuery)}
           disabled={controlsDisabled}
           onEventChange={onEventChange}
         />
         <button
           type="button"
-          disabled={controlsDisabled || visibleMatches.length === 0}
-          onClick={onAdd}
+          disabled={controlsDisabled || !canAdd}
+          onClick={() => {
+            onAdd(selectedEventId);
+            onQueryChange("");
+            setEventQuery("");
+          }}
           className={
             "rounded-md border border-border px-4 py-2 text-sm font-medium " +
             "text-text transition hover:bg-surface-raised disabled:opacity-60"
@@ -138,6 +144,34 @@ export function CouponPicker({
           {ADD_CATALOG_EVENT_LABEL}
         </button>
       </div>
+    </div>
+  );
+}
+
+function CatalogScopeNote({
+  hasFavoriteLeagues,
+  includeAllLeagues,
+  favoritesUnavailable,
+}: {
+  hasFavoriteLeagues: boolean;
+  includeAllLeagues: boolean;
+  favoritesUnavailable: boolean;
+}) {
+  return (
+    <div
+      className={
+        "space-y-1 rounded-lg border border-border bg-surface-muted " +
+        "px-3 py-2 text-sm leading-relaxed text-muted"
+      }
+    >
+      <p>
+        {catalogScopeHint(
+          hasFavoriteLeagues,
+          includeAllLeagues,
+          favoritesUnavailable,
+        )}
+      </p>
+      <p>{CATALOG_UPCOMING_HINT}</p>
     </div>
   );
 }
@@ -151,7 +185,7 @@ function catalogScopeHint(
     return FAVORITES_UNAVAILABLE_HINT;
   }
   if (!hasFavoriteLeagues) {
-    return "Brak ulubionych lig — mecze z wybranej daty, wszystkie ligi.";
+    return "Brak ulubionych lig: mecze z wybranej daty, wszystkie ligi.";
   }
   if (includeAllLeagues) {
     return "Wszystkie ligi z wybranej daty.";
@@ -168,9 +202,9 @@ function emptyMatchesLabel(query: string): string {
 
 function emptyEventsLabel(query: string): string {
   if (query.trim()) {
-    return "Brak eventów dla wyszukiwania";
+    return "Brak zdarzeń dla wyszukiwania";
   }
-  return "Brak eventów";
+  return "Brak zdarzeń";
 }
 
 function CatalogFilters({
@@ -249,19 +283,6 @@ function CatalogFilters({
   );
 }
 
-function matchesForSelect(
-  matches: CatalogMatch[],
-  query: string,
-  selectedId: number,
-): CatalogMatch[] {
-  const filtered = filterCatalogMatches(matches, query);
-  if (filtered.some((match) => match.id === selectedId)) {
-    return filtered;
-  }
-  const selected = matches.find((match) => match.id === selectedId);
-  return selected ? [selected, ...filtered] : filtered;
-}
-
 function MatchSelect({
   matches,
   matchId,
@@ -302,17 +323,19 @@ function MatchSelect({
   );
 }
 
-function eventsForSelect(
+function useVisibleEventId(
   events: CatalogMatchesResponse["events"],
   query: string,
-  selectedId: number,
-): CatalogMatchesResponse["events"] {
-  const filtered = filterCatalogEvents(events, query);
-  if (filtered.some((event) => event.id === selectedId)) {
-    return filtered;
-  }
-  const selected = events.find((event) => event.id === selectedId);
-  return selected ? [selected, ...filtered] : filtered;
+  eventId: number,
+  onEventChange: (eventId: number) => void,
+): number {
+  const selectedEventId = resolveCatalogEventId(events, query, eventId);
+  useEffect(() => {
+    if (selectedEventId !== eventId) {
+      onEventChange(selectedEventId);
+    }
+  }, [selectedEventId, eventId, onEventChange]);
+  return selectedEventId;
 }
 
 function EventSelect({
@@ -330,7 +353,7 @@ function EventSelect({
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm text-muted">
-      Event
+      Zdarzenie
       <select
         value={eventId}
         disabled={disabled || events.length === 0}

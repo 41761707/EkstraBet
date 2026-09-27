@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 20.09.2026
+###### Ostatnia data modyfikacji: 22.09.2026
 
 ## Opis struktury bazy
 
@@ -53,9 +53,9 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [SPECIAL_ROUNDS](#special_rounds) (Tabela z nazwami rund specjalnych)
 - [SPORTS](#sports) (Tabela z analizowanymi sportami)
 - [TEAMS](#teams) (Tabela z drużynami)
-- [TIPSTER_BANKROLLS](#tipster_bankrolls) (Kapitał startowy i wielkość unita typerów)
-- [TIPSTER_COUPON_LEG_EVENTS](#tipster_coupon_leg_events) (Zdarzenia przypisane do nogi kuponu)
-- [TIPSTER_COUPON_LEGS](#tipster_coupon_legs) (Nogi kuponów typerów)
+- [TIPSTER_BANKROLLS](#tipster_bankrolls) (Kapitał startowy i wielkość jednostki typerów)
+- [TIPSTER_COUPON_LEG_EVENTS](#tipster_coupon_leg_events) (Typy katalogu wchodzące w zdarzenie kuponu)
+- [TIPSTER_COUPON_LEGS](#tipster_coupon_legs) (Zdarzenia na kuponach typerów)
 - [TIPSTER_COUPONS](#tipster_coupons) (Kupony typerów)
 - [TRANSFERS](#transfers) (Zapis transferów zawodników między klubami)
 - [TYPER_LONG_TERM_MARKETS](#typer_long_term_markets) (Rynki długoterminowe Typera)
@@ -1468,15 +1468,15 @@ Dane do tabeli dodawane ręcznie bądź w ramach pobierania nowych meczów (np. 
 
 ### TIPSTER_BANKROLLS
 
-(Kapitał startowy i wielkość unita typerów)
+(Kapitał startowy i wielkość jednostki typerów)
 
 
 | POLE             | DOMENA       | ZAKRES   | UWAGI                                                         | WARTOŚC DOMYŚLNA                         |
 | ---------------- | ------------ | -------- | ------------------------------------------------------------- | ---------------------------------------- |
 | ***USER_ID***    | INT          | INT      | Klucz główny i klucz obcy do *users*                          | NULL                                     |
-| CURRENCY         | VARCHAR(3)   | STRING   | Kod waluty bankrolla                                          | NULL                                     |
-| INITIAL_CAPITAL  | DECIMAL(12,2)| DECIMAL  | Kapitał startowy bankrolla                                    | NULL                                     |
-| UNIT_SIZE        | DECIMAL(12,2)| DECIMAL  | Wielkość jednego unita                                        | NULL                                     |
+| CURRENCY         | VARCHAR(3)   | STRING   | Kod waluty kapitału                                           | NULL                                     |
+| INITIAL_CAPITAL  | DECIMAL(12,2)| DECIMAL  | Kapitał startowy                                              | NULL                                     |
+| UNIT_SIZE        | DECIMAL(12,2)| DECIMAL  | Wielkość jednej jednostki                                     | NULL                                     |
 | UPDATED_AT       | DATETIME     | DATETIME | Moment ostatniej zmiany wiersza                               | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP |
 
 
@@ -1493,7 +1493,7 @@ Dane wstawiane przez aplikację (użytkownicy).
 
 ### TIPSTER_COUPON_LEG_EVENTS
 
-(Zdarzenia przypisane do nogi kuponu)
+(Typy katalogu wchodzące w zdarzenie kuponu)
 
 
 | POLE         | DOMENA | ZAKRES | UWAGI                                              | WARTOŚC DOMYŚLNA         |
@@ -1508,7 +1508,7 @@ Dane wstawiane przez aplikację (użytkownicy).
 - Klucz główny: `ID`
 - Klucz obcy: `LEG_ID` → `tipster_coupon_legs(ID)` **ON DELETE CASCADE**
 - Klucz obcy: `EVENT_ID` → `events(ID)`
-- **Unikalny indeks:** `(LEG_ID, EVENT_ID)` — jedno zdarzenie na nogę
+- **Unikalny indeks:** `(LEG_ID, EVENT_ID)` — jeden typ katalogu w zdarzeniu kuponu
 - Indeks: `idx_tipster_coupon_leg_events_event` (`EVENT_ID`)
 
 **Sposób generowania danych do tabeli:**
@@ -1519,17 +1519,17 @@ Dane wstawiane przez aplikację (użytkownicy).
 
 ### TIPSTER_COUPON_LEGS
 
-(Nogi kuponów typerów)
+(Zdarzenia na kuponach typerów)
 
 
 | POLE           | DOMENA       | ZAKRES        | UWAGI                                                      | WARTOŚC DOMYŚLNA         |
 | -------------- | ------------ | ------------- | ---------------------------------------------------------- | ------------------------ |
-| **ID**         | INT          | INT           | ID nogi                                                    | AUTOMATYCZNIE GENEROWANY |
+| **ID**         | INT          | INT           | ID zdarzenia na kuponie                                    | AUTOMATYCZNIE GENEROWANY |
 | *COUPON_ID*    | INT          | INT           | Klucz obcy, powiązanie z tabelą *tipster_coupons*          | NULL                     |
 | *MATCH_ID*     | INT          | INT           | Klucz obcy, powiązanie z tabelą *matches*                  | NULL                     |
-| ODDS           | DECIMAL(12,4)| DECIMAL       | Kurs nogi (dla combined kurs łączony bukmachera)           | NULL                     |
+| ODDS           | DECIMAL(12,4)| DECIMAL       | Kurs zdarzenia (przy kilku typach meczu — kurs łączony)    | NULL                     |
 | *BOOKMAKER_ID* | INT          | INT / NULL    | Klucz obcy, powiązanie z tabelą *bookmakers*               | NULL                     |
-| SOURCE         | VARCHAR(32)  | STRING        | Źródło kursu nogi                                          | NULL                     |
+| SOURCE         | VARCHAR(32)  | STRING        | Źródło kursu zdarzenia                                     | NULL                     |
 | OUTCOME        | TINYINT(1)   | {0,1} / NULL  | `NULL` otwarta, 0 przegrana, 1 wygrana                     | NULL                     |
 
 
@@ -1539,7 +1539,7 @@ Dane wstawiane przez aplikację (użytkownicy).
 - Klucz obcy: `COUPON_ID` → `tipster_coupons(ID)` **ON DELETE CASCADE**
 - Klucz obcy: `MATCH_ID` → `matches(ID)`
 - Klucz obcy: `BOOKMAKER_ID` → `bookmakers(ID)`
-- **Unikalny indeks:** `(COUPON_ID, MATCH_ID)` — co najwyżej jedna noga na mecz w kuponie
+- **Unikalny indeks:** `(COUPON_ID, MATCH_ID)` — co najwyżej jedno zdarzenie na mecz w kuponie
 - Indeks: `idx_tipster_coupon_legs_coupon` (`COUPON_ID`)
 
 **Sposób generowania danych do tabeli:**
@@ -1557,10 +1557,10 @@ Dane wstawiane przez aplikację (użytkownicy).
 | ----------------- | ------------ | ------------ | -------------------------------------------------- | ------------------------ |
 | **ID**            | INT          | INT          | ID kuponu                                          | AUTOMATYCZNIE GENEROWANY |
 | *USER_ID*         | INT          | INT          | Klucz obcy, powiązanie z tabelą *users*            | NULL                     |
-| STAKE_AMOUNT      | DECIMAL(12,2)| DECIMAL      | Stawka kuponu w walucie bankrolla                  | NULL                     |
-| STAKE_UNITS       | DECIMAL(12,4)| DECIMAL / NULL | Stawka w unitach, gdy podano w unitach          | NULL                     |
+| STAKE_AMOUNT      | DECIMAL(12,2)| DECIMAL      | Stawka kuponu w walucie kapitału                   | NULL                     |
+| STAKE_UNITS       | DECIMAL(12,4)| DECIMAL / NULL | Stawka w jednostkach, gdy podano w jednostkach  | NULL                     |
 | STAKE_INPUT_MODE  | VARCHAR(16)  | STRING       | Tryb wprowadzania stawki                           | NULL                     |
-| COMBINED_ODDS     | DECIMAL(12,4)| DECIMAL      | Iloczyn kursów nóg kuponu                          | NULL                     |
+| COMBINED_ODDS     | DECIMAL(12,4)| DECIMAL      | Iloczyn kursów zdarzeń kuponu                      | NULL                     |
 | SETTLED           | TINYINT(1)   | {0,1}        | 0 = otwarty, 1 = rozliczony                        | 0                        |
 | OUTCOME           | TINYINT(1)   | {0,1} / NULL | `NULL` otwarty, 0 przegrany, 1 wygrany             | NULL                     |
 | PROFIT            | DECIMAL(12,2)| DECIMAL / NULL | Zysk albo strata po rozliczeniu                  | NULL                     |

@@ -21,6 +21,7 @@ interface CouponStakeFieldsProps {
   stakeRaw: string;
   unitSize: number;
   currency: CurrencyCode;
+  applyTax?: boolean;
   isSubmitting: boolean;
   onModeChange: (mode: StakeInputMode) => void;
   onStakeChange: (value: string) => void;
@@ -32,6 +33,7 @@ export function CouponStakeFields({
   stakeRaw,
   unitSize,
   currency,
+  applyTax = false,
   isSubmitting,
   onModeChange,
   onStakeChange,
@@ -46,6 +48,7 @@ export function CouponStakeFields({
         stakeRaw={stakeRaw}
         unitSize={unitSize}
         currency={currency}
+        applyTax={applyTax}
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <fieldset className="space-y-2">
@@ -70,11 +73,11 @@ export function CouponStakeFields({
               onChange={() => onModeChange("units")}
               className="accent-accent"
             />
-            Unity
+            Jednostki
           </label>
         </fieldset>
         <label className="flex flex-col gap-1.5 text-sm text-muted">
-          {mode === "money" ? `Stawka (${currency})` : "Liczba unitów"}
+          {mode === "money" ? `Stawka (${currency})` : "Liczba jednostek"}
           <input
             type="text"
             inputMode="decimal"
@@ -98,19 +101,21 @@ function DraftCouponPreview({
   stakeRaw,
   unitSize,
   currency,
+  applyTax,
 }: {
   legs: DraftCouponLeg[];
   mode: StakeInputMode;
   stakeRaw: string;
   unitSize: number;
   currency: CurrencyCode;
+  applyTax: boolean;
 }) {
   if (legs.length === 0) {
     return null;
   }
   const combinedOdds = previewCouponCombinedOdds(legs);
   const stake = parseStakePreview(mode, stakeRaw, unitSize);
-  const potentialWin = previewPotentialWin(stake, combinedOdds);
+  const potentialWin = previewPotentialWin(stake, combinedOdds, applyTax);
   return (
     <dl className="grid gap-3 text-sm sm:grid-cols-2">
       <div className="rounded-lg border border-border bg-surface-muted px-3 py-2">

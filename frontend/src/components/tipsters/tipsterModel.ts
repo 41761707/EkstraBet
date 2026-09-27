@@ -1,8 +1,9 @@
 /** Presentation helpers for tipster bankroll, coupons and ranking. */
 
 import { ApiError } from "@/lib/apiShared";
+import { addIsoCalendarDays, getWarsawDateIso, normalizeWarsawNaiveDateTime } from "@/lib/date";
 import { formatMatchDateTime, formatOdds } from "@/lib/format";
-import { parseIdList, parsePositiveInt } from "@/lib/searchParams";
+import { parseBoolean, parseIdList, parsePositiveInt } from "@/lib/searchParams";
 import type {
   BankrollSettings,
   CatalogEvent,
@@ -31,38 +32,45 @@ export const TIPSTER_EMPTY_VALUE = "—";
 export const MAX_COUPON_LEGS = 8;
 export const MIN_LEG_ODDS = 1.01;
 export const TIPSTER_CURRENCIES: readonly CurrencyCode[] = ["PLN", "EUR", "USD"];
+export const TIPSTER_BETTING_TAX_RATE = 0.12;
+export const APPLY_TAX_LABEL = "Uwzględnij podatek 12%";
+export const APPLY_TAX_HINT =
+  "Zaznaczone: wygrana liczona od 88% stawki, przegrana od pełnej kwoty.";
 
 const GENERIC_TIPSTER_SAVE_ERROR =
   "Nie udało się zapisać. Spróbuj ponownie.";
 
+export const COMBINED_SELECTION_LABEL = "Łączone";
+
 const TIPSTER_API_MESSAGES: Record<string, string> = {
-  "Bankroll not configured": "Najpierw skonfiguruj bankroll.",
+  "Bankroll not configured": "Najpierw skonfiguruj kapitał.",
   "Initial capital cannot be changed after onboarding":
     "Kapitał startowy można zwiększyć tylko doładowaniem.",
   "Currency cannot be changed after the first coupon":
     "Waluty nie można zmienić po pierwszym kuponie.",
-  "Odds must be at least 1.01": "Kurs nogi musi wynosić co najmniej 1.01.",
+  "Odds must be at least 1.01": "Kurs zdarzenia musi wynosić co najmniej 1.01.",
   "Stake must be greater than 0": "Stawka musi być większa od zera.",
-  "Coupon must have between 1 and 8 legs": "Kupon musi mieć od 1 do 8 nóg.",
-  "Duplicate match on coupon": "Na kuponie może być tylko jedna noga na mecz.",
-  "Duplicate event_id on a leg":
-    "Ten sam event nie może powtórzyć się na nodze.",
-  "Event is not settleable": "Wybrany event nie jest rozliczalny.",
+  "Coupon must have between 1 and 8 legs":
+    "Kupon musi mieć od 1 do 8 zdarzeń.",
+  "Duplicate match on coupon":
+    "Ten mecz jest już na kuponie. Dodatkowe typy dopisz do istniejącego zdarzenia.",
+  "Duplicate event_id on a leg": "To samo zdarzenie nie może się powtórzyć.",
+  "Event is not settleable": "Wybrane zdarzenie nie jest rozliczalne.",
   "Match is finished or not open for betting":
     "Mecz jest zakończony albo niedostępny.",
   "User account is inactive": "Konto użytkownika jest nieaktywne.",
   "Each leg must have at least one event":
-    "Każda noga musi mieć co najmniej jeden event.",
-  "Invalid coupon leg": "Noga kuponu jest nieprawidłowa.",
+    "Każde zdarzenie na kuponie musi zawierać co najmniej jeden typ.",
+  "Invalid coupon leg": "Zdarzenie na kuponie jest nieprawidłowe.",
   "Unsupported currency": "Nieobsługiwana waluta.",
   "Invalid stake_input_mode": "Nieobsługiwany tryb stawki.",
-  "unit_size must be greater than 0": "Unit musi być większy od zera.",
+  "unit_size must be greater than 0": "Jednostka musi być większa od zera.",
   "amount must be greater than 0": "Kwota musi być większa od zera.",
-  "Invalid leg source": "Nieobsługiwane źródło kursu nogi.",
-  "Invalid event_id": "Nieprawidłowy event na nodze.",
+  "Invalid leg source": "Nieobsługiwane źródło kursu.",
+  "Invalid event_id": "Nieprawidłowe zdarzenie.",
   "Invalid bookmaker_id": "Nieprawidłowy bukmacher.",
   "System accounts cannot use /me mutations":
-    "Konto systemowe nie może zapisywać kuponów z /me.",
+    "Konto systemowe nie może zapisywać kuponów.",
   "User not found": "Nie znaleziono użytkownika.",
 };
 
@@ -73,7 +81,7 @@ export interface DraftCouponLeg {
 }
 
 export type DraftLegMutationError = "duplicate_event" | "max_legs";
-export type PerformanceDimension = "family" | "league" | "tier";
+export type PerformanceDimension = "family" | "league" | "country";
 
 const LEADERBOARD_SORT_BY_VALUES: readonly LeaderboardSortBy[] = [
   "profit_total",
@@ -89,6 +97,7 @@ export interface TipsterLeaderboardFilters {
   isSystem: 0 | 1 | null;
   leagueIds: number[];
   tier: number | null;
+  eventIds: number[];
   eventFamily: TipsterEventFamilyFilter | null;
   dateFrom: string;
   dateTo: string;
@@ -96,6 +105,7 @@ export interface TipsterLeaderboardFilters {
   sortOrder: LeaderboardSortOrder;
   page: number;
   pageSize: number;
+  applyTax: boolean;
 }
 
 export function createDefaultTipsterLeaderboardFilters(
@@ -105,6 +115,7 @@ export function createDefaultTipsterLeaderboardFilters(
     isSystem: null,
     leagueIds: [],
     tier: null,
+    eventIds: [],
     eventFamily: null,
     dateFrom: "",
     dateTo: "",
@@ -112,6 +123,7 @@ export function createDefaultTipsterLeaderboardFilters(
     sortOrder: DEFAULT_LEADERBOARD_SORT_ORDER,
     page: DEFAULT_TIPSTER_PAGE,
     pageSize: DEFAULT_TIPSTER_PAGE_SIZE,
+    applyTax: false,
     ...overrides,
   };
 }
@@ -123,6 +135,7 @@ export function parseTipsterLeaderboardFilters(
     isSystem: parseIsSystemFilter(params.is_system),
     leagueIds: parseIdList(params.league_ids),
     tier: parsePositiveInt(params.tier),
+    eventIds: parseIdList(params.event_ids),
     eventFamily: parseEventFamilyFilter(params.event_family),
     dateFrom: params.date_from ?? "",
     dateTo: params.date_to ?? "",
@@ -130,6 +143,7 @@ export function parseTipsterLeaderboardFilters(
     sortOrder: parseLeaderboardSortOrder(params.sort_order),
     page: parsePositiveInt(params.page) ?? DEFAULT_TIPSTER_PAGE,
     pageSize: parsePositiveInt(params.page_size) ?? DEFAULT_TIPSTER_PAGE_SIZE,
+    applyTax: parseBoolean(params.apply_tax),
   });
 }
 
@@ -155,6 +169,9 @@ export function buildTipsterLeaderboardQuery(
   if (filters.tier !== null) {
     params.set("tier", String(filters.tier));
   }
+  if (filters.eventIds.length > 0) {
+    params.set("event_ids", filters.eventIds.join(","));
+  }
   if (filters.eventFamily !== null) {
     params.set("event_family", String(filters.eventFamily));
   }
@@ -175,6 +192,9 @@ export function buildTipsterLeaderboardQuery(
   }
   if (filters.pageSize !== DEFAULT_TIPSTER_PAGE_SIZE) {
     params.set("page_size", String(filters.pageSize));
+  }
+  if (filters.applyTax) {
+    params.set("apply_tax", "true");
   }
   return params.toString();
 }
@@ -210,14 +230,14 @@ export function tipsterFilterCatalogMessage(
   }
   if (leaguesFailed && familiesFailed) {
     return (
-      "Listy lig i rodzin eventów są niedostępne. Ranking poniżej jest bez tych filtrów."
+      "Listy lig i zdarzeń są niedostępne. Ranking poniżej jest bez tych filtrów."
     );
   }
   if (leaguesFailed) {
     return "Lista lig jest niedostępna. Ranking poniżej działa, ale bez filtra lig.";
   }
   return (
-    "Lista rodzin eventów jest niedostępna. Ranking poniżej działa, ale bez tego filtra."
+    "Lista zdarzeń jest niedostępna. Ranking poniżej działa, ale bez tego filtra."
   );
 }
 
@@ -229,6 +249,7 @@ export function toTipsterLeaderboardQuery(
     isSystem: filters.isSystem ?? undefined,
     leagueIds: filters.leagueIds,
     tier: filters.tier ?? undefined,
+    eventIds: filters.eventIds,
     eventFamily: filters.eventFamily ?? undefined,
     dateFrom: filters.dateFrom || undefined,
     dateTo: filters.dateTo || undefined,
@@ -236,7 +257,32 @@ export function toTipsterLeaderboardQuery(
     sortOrder: filters.sortOrder,
     page: filters.page,
     pageSize: filters.pageSize,
+    applyTax: filters.applyTax || undefined,
   };
+}
+
+/** Keeps the current query and toggles apply_tax. Default stays off the URL. */
+export function tipsterApplyTaxPath(
+  pathname: string,
+  searchParams: Record<string, string | undefined>,
+  applyTax: boolean,
+  resetPage = false,
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value === undefined || key === "apply_tax") {
+      continue;
+    }
+    if (resetPage && key === "page") {
+      continue;
+    }
+    params.set(key, value);
+  }
+  if (applyTax) {
+    params.set("apply_tax", "true");
+  }
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 /**
@@ -317,11 +363,13 @@ export function previewCouponCombinedOdds(
 export function previewPotentialWin(
   stakeMoney: number | null,
   combinedOdds: number | null,
+  applyTax = false,
 ): number | null {
   if (stakeMoney === null || combinedOdds === null) {
     return null;
   }
-  return quantizeTipsterAmount(stakeMoney * combinedOdds);
+  const netFactor = applyTax ? 1 - TIPSTER_BETTING_TAX_RATE : 1;
+  return quantizeTipsterAmount(stakeMoney * combinedOdds * netFactor);
 }
 
 export function formatTipsterRoi(roiPct: number | null): string {
@@ -433,6 +481,27 @@ export function updateDraftLegOdds(
   return legs.map((leg) => (leg.matchId === matchId ? { ...leg, odds } : leg));
 }
 
+/**
+ * Fill an empty single-event leg. Typed odds and combined legs stay as they are
+ * so a late suggestion cannot overwrite a price the user already set.
+ */
+export function applySuggestedLegOdds(
+  legs: DraftCouponLeg[],
+  matchId: number,
+  eventId: number,
+  odds: string,
+): DraftCouponLeg[] {
+  return legs.map((leg) => {
+    if (leg.matchId !== matchId || leg.odds.trim() !== "") {
+      return leg;
+    }
+    if (isCombinedLeg(leg.eventIds) || leg.eventIds[0] !== eventId) {
+      return leg;
+    }
+    return { ...leg, odds };
+  });
+}
+
 export function quantizeTipsterAmount(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -463,7 +532,7 @@ export function buildCouponCreateRequest(
   stakeRaw: string,
 ): CouponCreateRequest | { error: string } {
   if (legs.length < 1 || legs.length > MAX_COUPON_LEGS) {
-    return { error: "Kupon musi mieć od 1 do 8 nóg." };
+    return { error: "Kupon musi mieć od 1 do 8 zdarzeń." };
   }
   const parsedLegs = parseDraftLegs(legs);
   if (!Array.isArray(parsedLegs)) {
@@ -600,6 +669,39 @@ export function catalogMatchTitle(
   return `${match.home_name} – ${match.away_name}`;
 }
 
+export interface SlipKickoffParts {
+  dayLabel: string;
+  timeLabel: string;
+}
+
+/**
+ * Kick-off split for a slip card. Day is relative in Europe/Warsaw;
+ * the clock stays the naive match time from the API.
+ */
+export function slipKickoffParts(
+  gameDate: string | null,
+  now: Date = new Date(),
+): SlipKickoffParts | null {
+  if (!gameDate) {
+    return null;
+  }
+  const normalized = normalizeWarsawNaiveDateTime(gameDate);
+  if (!normalized) {
+    return null;
+  }
+  const datePart = normalized.slice(0, 10);
+  const timeLabel = normalized.slice(11, 16);
+  const today = getWarsawDateIso(now);
+  if (datePart === today) {
+    return { dayLabel: "Dzisiaj", timeLabel };
+  }
+  if (datePart === addIsoCalendarDays(today, 1)) {
+    return { dayLabel: "Jutro", timeLabel };
+  }
+  const [, month, day] = datePart.split("-");
+  return { dayLabel: `${day}.${month}`, timeLabel };
+}
+
 /** Option text without league — the select groups matches by league. */
 export function catalogMatchOptionLabel(match: CatalogMatch): string {
   const kickoff = match.game_date
@@ -621,6 +723,23 @@ export function filterCatalogMatches(
   );
 }
 
+/**
+ * Match id that stays valid for the filtered select.
+ * A selection outside the query is dropped so the closed control cannot
+ * keep showing a match the search did not find.
+ */
+export function resolveCatalogMatchId(
+  matches: CatalogMatch[],
+  query: string,
+  selectedId: number,
+): number {
+  const visible = filterCatalogMatches(matches, query);
+  if (visible.some((match) => match.id === selectedId)) {
+    return selectedId;
+  }
+  return visible[0]?.id ?? 0;
+}
+
 export function filterCatalogEvents(
   events: CatalogEvent[],
   query: string,
@@ -630,6 +749,23 @@ export function filterCatalogEvents(
     return events;
   }
   return events.filter((event) => event.name.toLowerCase().includes(needle));
+}
+
+/**
+ * Event id that stays valid for the filtered select.
+ * A selection outside the query is dropped so the closed control cannot
+ * keep showing an event the search did not find.
+ */
+export function resolveCatalogEventId(
+  events: CatalogEvent[],
+  query: string,
+  selectedId: number,
+): number {
+  const visible = filterCatalogEvents(events, query);
+  if (visible.some((event) => event.id === selectedId)) {
+    return selectedId;
+  }
+  return visible[0]?.id ?? 0;
 }
 
 export interface CatalogMatchGroup {
@@ -700,10 +836,17 @@ export function performanceItemLabel(
   if (dimension === "league") {
     return item.league_name?.trim() || TIPSTER_EMPTY_VALUE;
   }
-  if (item.league_tier === null) {
+  const name = item.country_name?.trim() || TIPSTER_EMPTY_VALUE;
+  const emoji = item.country_emoji?.trim();
+  return emoji ? `${emoji} ${name}` : name;
+}
+
+/** Hit rate of legs in a bucket, independent of the coupon result. */
+export function formatPerformanceLegHits(won: number, count: number): string {
+  if (count <= 0) {
     return TIPSTER_EMPTY_VALUE;
   }
-  return `Poziom ${item.league_tier}`;
+  return `${won}/${count}`;
 }
 
 export function couponOutcomeLabel(
@@ -783,7 +926,7 @@ function parseDraftLegs(
   for (const leg of legs) {
     const odds = parseLegOdds(leg.odds);
     if (odds === null) {
-      return { error: "Każda noga musi mieć kurs co najmniej 1.01." };
+      return { error: "Każde zdarzenie musi mieć kurs co najmniej 1.01." };
     }
     parsed.push({
       match_id: leg.matchId,

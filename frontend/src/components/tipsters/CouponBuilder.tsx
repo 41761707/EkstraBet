@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import { SUBMIT_BUTTON_CLASS_NAME } from "@/components/inputStyles";
 import { StatusMessage } from "@/components/StatusMessage";
+import { BetsPanel, BetsSubsection } from "@/components/tipsters/BetsPanel";
 import { CouponPicker } from "@/components/tipsters/CouponPicker";
 import { CouponStakeFields } from "@/components/tipsters/CouponStakeFields";
 import {
@@ -17,15 +25,19 @@ import {
 import { DraftLegsList } from "@/components/tipsters/DraftLegsList";
 import {
   addEventToDraftLegs,
+  applySuggestedLegOdds,
   buildCouponCreateRequest,
+  isCombinedLeg,
   mergeCatalogMatches,
   removeEventFromDraftLegs,
+  resolveCatalogMatchId,
   tipsterMutationMessage,
   updateDraftLegOdds,
   type DraftCouponLeg,
 } from "@/components/tipsters/tipsterModel";
 import { usePickerCatalog } from "@/components/tipsters/usePickerCatalog";
-import { createMyCoupon } from "@/lib/apiClient";
+import { createMyCoupon, getSuggestedCatalogOdds } from "@/lib/apiClient";
+import { formatOdds } from "@/lib/format";
 import type {
   CatalogMatch,
   CatalogMatchesResponse,
@@ -34,9 +46,12 @@ import type {
 } from "@/types/api";
 
 export const COUPON_BUILDER_TITLE = "Nowy kupon";
+export const COUPON_BUILDER_DESCRIPTION =
+  "Wybierz mecz i zdarzenie, ustaw kurs i stawkę. " +
+  "Jeśli w bazie jest już kurs tego zdarzenia, pole wypełni się samo — możesz je zmienić.";
 export const COUPON_BUILDER_HINT =
-  "Drugi event tego samego meczu trafia do jednej nogi combined. " +
-  "Wpisz kurs łączony bukmachera — nie iloczyn i nie cenę pierwszego eventu.";
+  "Drugie zdarzenie tego samego meczu łączy się z pierwszym. " +
+  "Wpisz kurs łączony z bukmachera — nie iloczyn kursów i nie kurs pierwszego zdarzenia.";
 export {
   ADD_CATALOG_EVENT_LABEL,
   ALL_LEAGUES_LABEL,
@@ -54,6 +69,7 @@ interface CouponBuilderProps {
   draftStorageKey: string;
   unitSize: number;
   currency: CurrencyCode;
+  applyTax?: boolean;
 }
 
 export function CouponBuilder({
@@ -63,34 +79,36 @@ export function CouponBuilder({
   draftStorageKey,
   unitSize,
   currency,
+  applyTax = false,
 }: CouponBuilderProps) {
   const draft = useCouponDraft(catalog, favoriteLeagueIds, draftStorageKey);
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-text">{COUPON_BUILDER_TITLE}</h3>
-        <p className="text-sm text-muted">{COUPON_BUILDER_HINT}</p>
-      </div>
-      <CouponPicker
-        events={catalog.events}
-        pickerMatches={draft.picker.pickerMatches}
-        catalogDate={draft.picker.catalogDate}
-        matchQuery={draft.picker.matchQuery}
-        includeAllLeagues={draft.picker.includeAllLeagues}
-        hasFavoriteLeagues={favoriteLeagueIds.length > 0}
-        favoritesUnavailable={favoritesUnavailable}
-        isLoadingMatches={draft.picker.isLoading}
-        catalogError={draft.picker.error}
-        matchId={draft.matchId}
-        eventId={draft.eventId}
-        disabled={draft.isSubmitting}
-        onDateChange={draft.handleDateChange}
-        onAllLeaguesChange={draft.handleAllLeaguesChange}
-        onQueryChange={draft.picker.setMatchQuery}
-        onMatchChange={draft.setMatchId}
-        onEventChange={draft.setEventId}
-        onAdd={draft.handleAddEvent}
-      />
+    <BetsPanel
+      title={COUPON_BUILDER_TITLE}
+      description={COUPON_BUILDER_DESCRIPTION}
+    >
+      <BetsSubsection title="Katalog">
+        <CouponPicker
+          events={catalog.events}
+          pickerMatches={draft.picker.pickerMatches}
+          catalogDate={draft.picker.catalogDate}
+          matchQuery={draft.picker.matchQuery}
+          includeAllLeagues={draft.picker.includeAllLeagues}
+          hasFavoriteLeagues={favoriteLeagueIds.length > 0}
+          favoritesUnavailable={favoritesUnavailable}
+          isLoadingMatches={draft.picker.isLoading}
+          catalogError={draft.picker.error}
+          matchId={draft.matchId}
+          eventId={draft.eventId}
+          disabled={draft.isSubmitting}
+          onDateChange={draft.handleDateChange}
+          onAllLeaguesChange={draft.handleAllLeaguesChange}
+          onQueryChange={draft.picker.setMatchQuery}
+          onMatchChange={draft.setMatchId}
+          onEventChange={draft.setEventId}
+          onAdd={draft.handleAddEvent}
+        />
+      </BetsSubsection>
       <CouponSlipForm
         catalog={catalog}
         knownMatches={draft.knownMatches}
@@ -99,6 +117,7 @@ export function CouponBuilder({
         stakeRaw={draft.stakeRaw}
         unitSize={unitSize}
         currency={currency}
+        applyTax={applyTax}
         error={draft.error}
         isSubmitting={draft.isSubmitting}
         onOddsChange={draft.handleOddsChange}
@@ -107,8 +126,68 @@ export function CouponBuilder({
         onStakeChange={draft.setStakeRaw}
         onSave={draft.handleSave}
       />
-    </div>
+    </BetsPanel>
   );
+}
+
+type SuggestionTokens = MutableRefObject<Map<number, number>>;
+
+function addCatalogEvent(
+  legs: DraftCouponLeg[],
+  matchId: number,
+  eventId: number,
+  tokens: SuggestionTokens,
+  setLegs: Dispatch<SetStateAction<DraftCouponLeg[]>>,
+  setError: Dispatch<SetStateAction<string | null>>,
+): void {
+  const result = addEventToDraftLegs(legs, matchId, eventId);
+  if ("error" in result) {
+    setError(draftLegErrorMessage(result.error));
+    return;
+  }
+  setError(null);
+  setLegs(result.legs);
+  const added = result.legs.find((leg) => leg.matchId === matchId);
+  if (!added || isCombinedLeg(added.eventIds)) {
+    // kurs łączony wpisuje użytkownik; spóźniona podpowiedź nie może wrócić
+    bumpSuggestionToken(tokens, matchId);
+    return;
+  }
+  queueSuggestedOdds(matchId, eventId, tokens, setLegs);
+}
+
+function bumpSuggestionToken(
+  tokens: SuggestionTokens,
+  matchId: number,
+): number {
+  const nextToken = (tokens.current.get(matchId) ?? 0) + 1;
+  tokens.current.set(matchId, nextToken);
+  return nextToken;
+}
+
+function queueSuggestedOdds(
+  matchId: number,
+  eventId: number,
+  tokens: SuggestionTokens,
+  setLegs: Dispatch<SetStateAction<DraftCouponLeg[]>>,
+): void {
+  const token = bumpSuggestionToken(tokens, matchId);
+  void getSuggestedCatalogOdds(matchId, eventId)
+    .then((suggestion) => {
+      if (tokens.current.get(matchId) !== token) {
+        return;
+      }
+      const odds = suggestion.odds;
+      if (odds === null) {
+        return;
+      }
+      setLegs((current) =>
+        applySuggestedLegOdds(current, matchId, eventId, formatOdds(odds)),
+      );
+    })
+    .catch(() => {
+      // brak podpowiedzi zostawia puste pole do ręcznego kursu
+    });
 }
 
 function useCouponDraft(
@@ -119,6 +198,7 @@ function useCouponDraft(
   const router = useRouter();
   const picker = usePickerCatalog(catalog.matches, favoriteLeagueIds);
   const submittingRef = useRef(false);
+  const suggestionTokens = useRef(new Map<number, number>());
   const [matchId, setMatchId] = useState(catalog.matches[0]?.id ?? 0);
   const [eventId, setEventId] = useState(catalog.events[0]?.id ?? 0);
   const [legs, setLegs] = useState<DraftCouponLeg[]>([]);
@@ -128,6 +208,7 @@ function useCouponDraft(
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [restoredMatches, setRestoredMatches] = useState<CatalogMatch[]>([]);
   const knownMatches = mergeCatalogMatches(picker.knownMatches, restoredMatches);
+  const selectedMatchId = useVisibleMatchId(picker, matchId, setMatchId);
 
   useCouponSlipStorage(storageKey, {
     legs,
@@ -142,14 +223,15 @@ function useCouponDraft(
     },
   });
 
-  function handleAddEvent() {
-    const result = addEventToDraftLegs(legs, matchId, eventId);
-    if ("error" in result) {
-      setError(draftLegErrorMessage(result.error));
-      return;
-    }
-    setError(null);
-    setLegs(result.legs);
+  function handleAddEvent(nextEventId: number) {
+    addCatalogEvent(
+      legs,
+      selectedMatchId,
+      nextEventId,
+      suggestionTokens,
+      setLegs,
+      setError,
+    );
   }
 
   async function handleSave() {
@@ -183,7 +265,7 @@ function useCouponDraft(
   return {
     picker,
     knownMatches,
-    matchId,
+    matchId: selectedMatchId,
     eventId,
     legs,
     mode,
@@ -197,11 +279,11 @@ function useCouponDraft(
     handleAddEvent,
     handleSave,
     handleDateChange: (nextDate: string) =>
-      applyPickerMatches(picker.changeDate(nextDate), matchId, setMatchId),
+      applyPickerMatches(picker.changeDate(nextDate), selectedMatchId, setMatchId),
     handleAllLeaguesChange: (nextValue: boolean) =>
       applyPickerMatches(
         picker.changeIncludeAllLeagues(nextValue),
-        matchId,
+        selectedMatchId,
         setMatchId,
       ),
     handleOddsChange: (id: number, odds: string) =>
@@ -209,6 +291,24 @@ function useCouponDraft(
     handleRemove: (id: number, eventIdToRemove: number) =>
       setLegs(removeEventFromDraftLegs(legs, id, eventIdToRemove)),
   };
+}
+
+function useVisibleMatchId(
+  picker: { pickerMatches: CatalogMatch[]; matchQuery: string },
+  matchId: number,
+  setMatchId: (id: number) => void,
+): number {
+  const selectedMatchId = resolveCatalogMatchId(
+    picker.pickerMatches,
+    picker.matchQuery,
+    matchId,
+  );
+  useEffect(() => {
+    if (selectedMatchId !== matchId) {
+      setMatchId(selectedMatchId);
+    }
+  }, [selectedMatchId, matchId, setMatchId]);
+  return selectedMatchId;
 }
 
 function useCouponSlipStorage(
@@ -276,6 +376,7 @@ interface CouponSlipFormProps {
   stakeRaw: string;
   unitSize: number;
   currency: CurrencyCode;
+  applyTax: boolean;
   error: string | null;
   isSubmitting: boolean;
   onOddsChange: (matchId: number, odds: string) => void;
@@ -293,6 +394,7 @@ function CouponSlipForm({
   stakeRaw,
   unitSize,
   currency,
+  applyTax,
   error,
   isSubmitting,
   onOddsChange,
@@ -302,47 +404,56 @@ function CouponSlipForm({
   onSave,
 }: CouponSlipFormProps) {
   return (
-    <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
-      <DraftLegsList
-        legs={legs}
-        matches={knownMatches}
-        events={catalog.events}
-        isSubmitting={isSubmitting}
-        onOddsChange={onOddsChange}
-        onRemove={onRemove}
-      />
-      <CouponStakeFields
-        legs={legs}
-        mode={mode}
-        stakeRaw={stakeRaw}
-        unitSize={unitSize}
-        currency={currency}
-        isSubmitting={isSubmitting}
-        onModeChange={onModeChange}
-        onStakeChange={onStakeChange}
-      />
-      {error ? (
-        <StatusMessage
-          variant="error"
-          title="Nie udało się dodać kuponu"
-          message={error}
-        />
-      ) : null}
-      <button
-        type="button"
-        disabled={isSubmitting || legs.length === 0}
-        onClick={() => void onSave()}
-        className={SUBMIT_BUTTON_CLASS_NAME}
+    <form onSubmit={(event) => event.preventDefault()} className="space-y-5">
+      <BetsSubsection
+        title="Zdarzenia na kuponie"
+        description={COUPON_BUILDER_HINT}
+        divided
       >
-        {isSubmitting ? "Zapisywanie…" : "Dodaj kupon"}
-      </button>
+        <DraftLegsList
+          legs={legs}
+          matches={knownMatches}
+          events={catalog.events}
+          isSubmitting={isSubmitting}
+          onOddsChange={onOddsChange}
+          onRemove={onRemove}
+        />
+      </BetsSubsection>
+      <BetsSubsection title="Stawka" divided>
+        <CouponStakeFields
+          legs={legs}
+          mode={mode}
+          stakeRaw={stakeRaw}
+          unitSize={unitSize}
+          currency={currency}
+          applyTax={applyTax}
+          isSubmitting={isSubmitting}
+          onModeChange={onModeChange}
+          onStakeChange={onStakeChange}
+        />
+        {error ? (
+          <StatusMessage
+            variant="error"
+            title="Nie udało się dodać kuponu"
+            message={error}
+          />
+        ) : null}
+        <button
+          type="button"
+          disabled={isSubmitting || legs.length === 0}
+          onClick={() => void onSave()}
+          className={SUBMIT_BUTTON_CLASS_NAME}
+        >
+          {isSubmitting ? "Zapisywanie…" : "Dodaj kupon"}
+        </button>
+      </BetsSubsection>
     </form>
   );
 }
 
 function draftLegErrorMessage(error: "duplicate_event" | "max_legs"): string {
   if (error === "max_legs") {
-    return "Kupon może mieć maksymalnie 8 nóg.";
+    return "Kupon może mieć maksymalnie 8 zdarzeń.";
   }
-  return "Ten event jest już na nodze tego meczu.";
+  return "To zdarzenie jest już dodane do tego meczu.";
 }

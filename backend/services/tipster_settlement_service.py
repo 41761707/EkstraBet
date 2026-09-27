@@ -75,7 +75,7 @@ def _complete_ready_coupon(coupon: dict[str, Any]) -> bool:
     outcomes = [leg["outcome"] for leg in coupon["legs"]]
     if not outcomes or any(value is None for value in outcomes):
         return False
-    # rowcount 1 = ten worker zamknął kupon; 0 = no-op (wyścig / otwarta noga)
+    # rowcount 1 = ten worker zamknął kupon; 0 = no-op (wyścig / zdarzenie otwarte)
     return repo.complete_coupon(coupon["id"]) == 1
 
 

@@ -14,7 +14,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
-# Tabele z match_id; dzieci (nogi tipstera / final_predictions) kasujemy wcześniej
+# Tabele z match_id; dzieci (zdarzenia kuponu / final_predictions) kasujemy wcześniej
 _MATCH_ID_TABLES = ("bets",
     "odds",
     "predictions",

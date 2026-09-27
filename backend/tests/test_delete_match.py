@@ -88,7 +88,7 @@ class _TipsterDeleteCursor:
             if leg["match_id"] in match_ids]
         for leg_id in removed:
             del self.legs[leg_id]
-            # ON DELETE CASCADE — eventy nogi znikają razem z nogą
+            # ON DELETE CASCADE — typy znikają razem ze zdarzeniem kuponu
             self.leg_events.pop(leg_id, None)
         self.rowcount = len(removed)
 

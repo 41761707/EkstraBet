@@ -9,6 +9,7 @@ import {
   SUBMIT_BUTTON_CLASS_NAME,
 } from "@/components/inputStyles";
 import { StatusMessage } from "@/components/StatusMessage";
+import { BetsPanel } from "@/components/tipsters/BetsPanel";
 import {
   isCurrencyCode,
   parsePositiveAmount,
@@ -22,8 +23,12 @@ import type {
   CurrencyCode,
 } from "@/types/api";
 
-export const BANKROLL_SETUP_TITLE = "Ustawienia bankrolla";
-export const BANKROLL_ONBOARDING_TITLE = "Konfiguracja bankrolla";
+export const BANKROLL_SETUP_TITLE = "Ustawienia kapitału";
+export const BANKROLL_ONBOARDING_TITLE = "Konfiguracja kapitału";
+const BANKROLL_ONBOARDING_DESCRIPTION =
+  "Ustal walutę, kapitał startowy i wielkość jednostki. Potem możesz dodawać kupony.";
+const BANKROLL_SETUP_DESCRIPTION =
+  "Jednostkę można zmienić w każdej chwili. Kapitał startowy rośnie przez doładowanie.";
 
 interface BankrollSetupFormProps {
   existing: BankrollSettings | null;
@@ -75,30 +80,46 @@ export function BankrollSetupForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-sm font-semibold text-text">
-        {isOnboarding ? BANKROLL_ONBOARDING_TITLE : BANKROLL_SETUP_TITLE}
-      </h3>
-      <BankrollFields
-        currency={currency}
-        initialCapital={
-          existing ? existing.initial_capital.toFixed(2) : initialCapital
-        }
-        unitSize={unitSize}
-        isOnboarding={isOnboarding}
-        hasCoupons={hasCoupons}
-        isSubmitting={isSubmitting}
-        onCurrencyChange={setCurrency}
-        onInitialCapitalChange={setInitialCapital}
-        onUnitSizeChange={setUnitSize}
-      />
-      {error ? (
-        <StatusMessage variant="error" title="Nie udało się zapisać" message={error} />
-      ) : null}
-      <button type="submit" disabled={isSubmitting} className={SUBMIT_BUTTON_CLASS_NAME}>
-        {isSubmitting ? "Zapisywanie…" : isOnboarding ? "Utwórz bankroll" : "Zapisz ustawienia"}
-      </button>
-    </form>
+    <BetsPanel
+      title={isOnboarding ? BANKROLL_ONBOARDING_TITLE : BANKROLL_SETUP_TITLE}
+      description={
+        isOnboarding ? BANKROLL_ONBOARDING_DESCRIPTION : BANKROLL_SETUP_DESCRIPTION
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <BankrollFields
+          currency={currency}
+          initialCapital={
+            existing ? existing.initial_capital.toFixed(2) : initialCapital
+          }
+          unitSize={unitSize}
+          isOnboarding={isOnboarding}
+          hasCoupons={hasCoupons}
+          isSubmitting={isSubmitting}
+          onCurrencyChange={setCurrency}
+          onInitialCapitalChange={setInitialCapital}
+          onUnitSizeChange={setUnitSize}
+        />
+        {error ? (
+          <StatusMessage
+            variant="error"
+            title="Nie udało się zapisać"
+            message={error}
+          />
+        ) : null}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={SUBMIT_BUTTON_CLASS_NAME}
+        >
+          {isSubmitting
+            ? "Zapisywanie…"
+            : isOnboarding
+              ? "Zapisz kapitał"
+              : "Zapisz ustawienia"}
+        </button>
+      </form>
+    </BetsPanel>
   );
 }
 
@@ -160,7 +181,7 @@ function BankrollFields({
         />
       </label>
       <label className="flex flex-col gap-1.5 text-sm text-muted">
-        Wielkość unita
+        Wielkość jednostki
         <input
           type="text"
           inputMode="decimal"
@@ -188,7 +209,7 @@ function buildBankrollRequest(
   if (initialCapital === null || unitSize === null) {
     return {
       error:
-        "Kapitał i unit muszą być większe od zera po zaokrągleniu do 0.01.",
+        "Kapitał startowy i jednostka muszą być większe od zera po zaokrągleniu do 0.01.",
     };
   }
   return { currency, initial_capital: initialCapital, unit_size: unitSize };
