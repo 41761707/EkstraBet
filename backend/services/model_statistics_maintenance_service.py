@@ -22,10 +22,22 @@ from backend.sports.football.outcome_evaluator import InvalidMatchResultError
 from backend.sports.football.outcome_evaluator import SettlementCandidate
 from backend.sports.football.outcome_evaluator import UnsupportedFootballEventError
 from backend.sports.football.outcome_evaluator import evaluate_football_outcome
+from backend.sports.hockey.outcome_evaluator import HockeySettlementCandidate
+from backend.sports.hockey.outcome_evaluator import (
+    InvalidMatchResultError as HockeyInvalidMatchResultError)
+from backend.sports.hockey.outcome_evaluator import (
+    UnsupportedHockeyEventError)
+from backend.sports.hockey.outcome_evaluator import evaluate_hockey_outcome
 
 
 logger = logging.getLogger(__name__)
 
+SettlementRow = SettlementCandidate | HockeySettlementCandidate
+_SETTLEMENT_ERRORS = (
+    UnsupportedFootballEventError,
+    UnsupportedHockeyEventError,
+    InvalidMatchResultError,
+    HockeyInvalidMatchResultError)
 DEFAULT_BATCH_SIZE = 500
 DEFAULT_PREVIEW_LIMIT = 50
 
@@ -280,16 +292,16 @@ def _settle_target_batches(
 
 
 def _evaluate_settlement_batch(
-        batch: list[SettlementCandidate]
-) -> tuple[list[tuple[SettlementCandidate, int]], int, list[str]]:
+        batch: list[SettlementRow]
+) -> tuple[list[tuple[SettlementRow, int]], int, list[str]]:
     """Evaluate a batch; skip invalid/unsupported rows with warnings."""
-    evaluated: list[tuple[SettlementCandidate, int]] = []
+    evaluated: list[tuple[SettlementRow, int]] = []
     warnings: list[str] = []
     skipped = 0
     for candidate in batch:
         try:
-            outcome = evaluate_football_outcome(candidate)
-        except (UnsupportedFootballEventError, InvalidMatchResultError) as exc:
+            outcome = _evaluate_by_sport(candidate)
+        except _SETTLEMENT_ERRORS as exc:
             skipped += 1
             warnings.append(
                 f"Skipped {candidate.target} id={candidate.record_id} "
@@ -297,6 +309,36 @@ def _evaluate_settlement_batch(
             continue
         evaluated.append((candidate, outcome))
     return evaluated, skipped, warnings
+
+
+def _evaluate_by_sport(candidate: SettlementRow) -> int:
+    """Choose the football or hockey evaluator from ``sport_id``."""
+    sport_id = candidate.sport_id
+    if sport_id == repo.HOCKEY_SPORT_ID:
+        return evaluate_hockey_outcome(_require_hockey_candidate(candidate))
+    if sport_id in (None, repo.FOOTBALL_SPORT_ID):
+        return evaluate_football_outcome(
+            _require_football_candidate(candidate))
+    raise UnsupportedFootballEventError(
+        f"Unsupported sport_id={sport_id}")
+
+
+def _require_hockey_candidate(
+        candidate: SettlementRow) -> HockeySettlementCandidate:
+    """Return the hockey candidate selected by hockey ``sport_id``."""
+    if isinstance(candidate, HockeySettlementCandidate):
+        return candidate
+    raise UnsupportedHockeyEventError(
+        "Hockey sport_id requires a hockey settlement candidate")
+
+
+def _require_football_candidate(
+        candidate: SettlementRow) -> SettlementCandidate:
+    """Return the football candidate selected by football ``sport_id``."""
+    if isinstance(candidate, SettlementCandidate):
+        return candidate
+    raise UnsupportedFootballEventError(
+        "Football sport_id requires a football settlement candidate")
 
 
 def _write_generated_bets_transaction(
@@ -407,7 +449,7 @@ def _bet_upsert_preview(row: GeneratedBet) -> dict[str, Any]:
 
 
 def _settlement_preview(
-        candidate: SettlementCandidate,
+        candidate: SettlementRow,
         outcome: int
 ) -> dict[str, Any]:
     """Describe one planned outcome update for dry-run preview."""
