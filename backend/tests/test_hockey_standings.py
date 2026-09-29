@@ -26,4 +26,35 @@ def test_build_hockey_standings_counts_regulation_win() -> None:
     away = next(row for row in standings if row["team_id"] == 2)
     assert home["wins"] == 1
     assert home["points"] == 2
+    assert home["played"] == 1
     assert away["losses"] == 1
+    assert away["played"] == 1
+
+
+def test_overtime_match_counts_as_one_game() -> None:
+    teams = pd.DataFrame([
+        {"team_id": 1, "team_name": "Home", "team_shortcut": "HOM"},
+        {"team_id": 2, "team_name": "Away", "team_shortcut": "AWY"},
+    ])
+    matches = pd.DataFrame([
+        {
+            "home_id": 1,
+            "away_id": 2,
+            "home_team_goals": 2,
+            "away_team_goals": 2,
+            "round": 100,
+            "hma_ot_winner": 1,
+            "hma_so_winner": 0,
+        }
+    ])
+    standings = build_hockey_standings(teams, matches, "overall")
+    home = next(row for row in standings if row["team_id"] == 1)
+    away = next(row for row in standings if row["team_id"] == 2)
+    assert home["played"] == 1
+    assert away["played"] == 1
+    assert home["overtime_wins"] == 1
+    assert away["overtime_losses"] == 1
+    assert home["points"] == 2
+    assert away["points"] == 2
+    assert home["goals_for"] == 3
+    assert away["goals_against"] == 3

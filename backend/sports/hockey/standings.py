@@ -35,9 +35,15 @@ def _update_team(
     won: bool,
     lost: bool,
     ot_win: bool = False,
-    ot_loss: bool = False) -> None:
-    """Apply one side of a match to team standings."""
-    row["played"] += 1
+    ot_loss: bool = False,
+    count_match: bool = True) -> None:
+    """Apply one side of a match to team standings.
+
+    count_match is false for the overtime follow-up. That pass only
+    adds the extra goal and OT points; the match was already counted.
+    """
+    if count_match:
+        row["played"] += 1
     row["goals_for"] += goals_for
     row["goals_against"] += goals_against
     if won:
@@ -100,17 +106,21 @@ def _process_match(
         if ot_winner == 1 or so_winner == 1:
             if process_home:
                 _update_team(
-                    stats[home_id], 0, 0, False, False, True, False)
+                    stats[home_id], 0, 0, False, False, True, False,
+                    count_match=False)
             if process_away:
                 _update_team(
-                    stats[away_id], 0, 0, False, False, False, True)
+                    stats[away_id], 0, 0, False, False, False, True,
+                    count_match=False)
         elif ot_winner == 2 or so_winner == 2:
             if process_home:
                 _update_team(
-                    stats[home_id], 0, 0, False, False, False, True)
+                    stats[home_id], 0, 0, False, False, False, True,
+                    count_match=False)
             if process_away:
                 _update_team(
-                    stats[away_id], 0, 0, False, False, True, False)
+                    stats[away_id], 0, 0, False, False, True, False,
+                    count_match=False)
 
 
 def build_hockey_standings(
