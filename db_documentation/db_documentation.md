@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 22.09.2026
+###### Ostatnia data modyfikacji: 29.09.2026
 
 ## Opis struktury bazy
 
@@ -35,7 +35,10 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [HOCKEY_MATCH_PLAYER_STATS](#hockey_match_player_stats) (statystyki każdego gracza w danym meczu)
 - [HOCKEY_MATCH_ROSTERS](#hockey_match_rosters) (składy drużyn hokejowych w danym spotkaniu)
 - [HOCKEY_MATCHES_ADD](#hockey_matches_add) (dodatkowe statystyki specyficzne dla meczu hokejowego)
+- [HOCKEY_PREDICTION_RUNS](#hockey_prediction_runs) (snapshoty predykcji drużynowych w meczu hokejowym)
+- [HOCKEY_PROBABLE_LINEUPS](#hockey_probable_lineups) (skład drużyny hokejowej na najbliższy mecz)
 - [HOCKEY_ROSTERS](#hockey_rosters) (aktualne składy drużyn hokejowych)
+- [HOCKEY_TEAM_ARENAS](#hockey_team_arenas) (współrzędne i strefa czasowa lodowiska)
 - [LEAGUES](#leagues) (spis analizowanych lig)
 - [MATCHES](#matches) (wszystkie analizowane mecze)
 - [MATCH_MODEL_ASSESSMENTS](#match_model_assessments) (oceny meczów po fakcie z modeli assessment)
@@ -43,6 +46,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [MODEL_TRAINING_RUNS](#model_training_runs) (audyt przebiegów trenowania / ewaluacji modeli)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
 - [PLAYER_NAME_MAPPINGS](#player_name_mappings) (mapowania nazw zawodników dla różnych bukmacherów)
+- [PLAYER_PREDICTIONS](#player_predictions) (prawdopodobieństwa statystyk zawodnika w meczu)
 - [PLAYER_PROPS_LINES](#player_props_lines) (linie bukmacherskie na zdarzenia zawodników)
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
@@ -900,6 +904,73 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 
 ---
 
+### HOCKEY_PREDICTION_RUNS
+
+(Snapshot prawdopodobieństw rynków drużynowych dla jednego etapu predykcji meczu)
+
+
+| POLE                   | DOMENA      | ZAKRES           | UWAGI                                              | WARTOŚĆ DOMYŚLNA         |
+| ---------------------- | ----------- | ---------------- | -------------------------------------------------- | ------------------------ |
+| **ID**                 | INT         | INT              | ID snapshotu                                       | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*             | INT         | INT              | Klucz obcy, powiązanie z tabelą *matches*          | NULL                     |
+| *MODEL_ID*             | INT         | INT              | Klucz obcy, powiązanie z tabelą *models*           | NULL                     |
+| STAGE                  | VARCHAR(20) | {initial, final} | Etap predykcji                                     | NOT NULL                 |
+| MARKET_PROBABILITIES   | JSON        | JSON             | Snapshot prawdopodobieństw rynków                  | NULL                     |
+| CREATED_AT             | TIMESTAMP   | DATETIME         | Czas zapisu snapshotu                              | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `MODEL_ID` → `models(ID)`
+- **Unikalny indeks:** `(MATCH_ID, MODEL_ID, STAGE)` — jeden snapshot etapu na mecz i model
+- Indeks: `idx_hockey_prediction_runs_match_id` (`MATCH_ID`)
+- Indeks: `idx_hockey_prediction_runs_model_id` (`MODEL_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wyliczane przez pipeline ML.
+
+---
+
+### HOCKEY_PROBABLE_LINEUPS
+
+(Skład drużyny hokejowej na jej najbliższy mecz)
+
+
+| POLE                | DOMENA      | ZAKRES                 | UWAGI                                              | WARTOŚĆ DOMYŚLNA              |
+| ------------------- | ----------- | ---------------------- | -------------------------------------------------- | ----------------------------- |
+| **ID**              | INT         | INT                    | ID wiersza składu                                  | AUTOMATYCZNIE GENEROWANY      |
+| *MATCH_ID*          | INT         | INT                    | Klucz obcy, powiązanie z tabelą *matches*          | NULL                          |
+| *TEAM_ID*           | INT         | INT                    | Klucz obcy, powiązanie z tabelą *teams*            | NULL                          |
+| *PLAYER_ID*         | INT         | INT                    | Klucz obcy, powiązanie z tabelą *players*          | NULL                          |
+| POSITION            | VARCHAR(5)  | {G, D, LW, C, RW}      | Pozycja na lodzie                                  | NULL                          |
+| LINE                | INT         | {1, 2, 3, 4}           | Linia w grze równowartej                           | NULL                          |
+| PP_UNIT             | INT         | {0, 1, 2}              | Jednostka gry w przewadze                          | NULL                          |
+| IS_STARTING_GOALIE  | INT         | {0, 1}                 | Czy bramkarz jest starterem (1 - tak)              | NULL                          |
+| CONFIDENCE          | FLOAT       | [0, 1]                 | Udział zawodnika w ostatnich składach              | NULL                          |
+| SOURCE              | VARCHAR(20) | {MODEL, EXTERNAL, CONFIRMED} | Źródło składu                                | NOT NULL                      |
+| CREATED_AT          | TIMESTAMP   | DATETIME               | Czas utworzenia wiersza                            | CURRENT_TIMESTAMP             |
+| UPDATED_AT          | TIMESTAMP   | DATETIME               | Czas ostatniej zmiany wiersza                      | CURRENT_TIMESTAMP ON UPDATE   |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- **Unikalny indeks:** `(TEAM_ID, PLAYER_ID)` — jeden bieżący wiersz zawodnika w drużynie
+- Indeks: `idx_hockey_probable_lineups_match_id` (`MATCH_ID`)
+- Indeks: `idx_hockey_probable_lineups_player_id` (`PLAYER_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wyliczane przez pipeline ML oraz pobierane z internetu (skład na najbliższy mecz).
+
+---
+
 ### HOCKEY_ROSTERS
 
 (aktualne składy drużyn hokejowych)
@@ -915,6 +986,9 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 | POSITION    | VARCHAR(5) | {G, D, LW, C, RW} | Pozycja zawodnika na lodzie (G - bramkarz, D - obrońca, LW - lewy skrzydłowy, C - środkowy, RW - prawy skrzydłowy)                                                                 | NULL                     |
 | PP          | INT        | {0, 1, 2}         | Czy zawodnik jest przypisany do gry w przewadze? (1 - przypisany do pierwszej linii przewagi (1PP), 2 - przypisany do drugiej linii przewagi (PP2), 0 - nieprzypisany do przewagi) | NULL                     |
 | IS_INJURED  | INT        | {0, 1}            | Czy zawodnik jest kontuzjowany? (0 - nie, 1 - tak)                                                                                                                                 | NULL                     |
+| INJURY_STATUS | VARCHAR(30) | STRING          | Krótki status kontuzji                                                                                                                                                             | NULL                     |
+| INJURY_NOTE | VARCHAR(200) | STRING          | Notatka o kontuzji                                                                                                                                                                 | NULL                     |
+| UPDATED_AT  | TIMESTAMP  | DATETIME          | Czas ostatniej zmiany wiersza                                                                                                                                                      | CURRENT_TIMESTAMP ON UPDATE |
 
 
 **Ograniczenia/Indeksy:**
@@ -926,7 +1000,31 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 
 **Sposób generowania danych do tabeli**:
 
-Dane do tabeli BĘDĄ dodawane nowym modułem o potencjalnej nazwie **get_projected_lineups.py**
+Dane pobierane z internetu (bieżący skład drużyny hokejowej, w tym status kontuzji).
+
+---
+
+### HOCKEY_TEAM_ARENAS
+
+(Współrzędne i strefa czasowa lodowiska drużyny hokejowej)
+
+
+| POLE       | DOMENA      | ZAKRES | UWAGI                                         | WARTOŚĆ DOMYŚLNA         |
+| ---------- | ----------- | ------ | --------------------------------------------- | ------------------------ |
+| ***TEAM_ID*** | INT      | INT    | Klucz główny i obcy, powiązanie z tabelą *teams* | NOT NULL              |
+| LATITUDE   | FLOAT       | FLOAT  | Szerokość geograficzna lodowiska, stopnie północne | NULL                  |
+| LONGITUDE  | FLOAT       | FLOAT  | Długość geograficzna lodowiska, stopnie wschodnie | NULL                  |
+| TIMEZONE   | VARCHAR(40) | STRING | Strefa czasowa lodowiska w nazwie IANA        | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `TEAM_ID`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+
+**Sposób generowania danych do tabeli:**
+
+Dane dodawane ręcznie.
 
 ---
 
@@ -1141,7 +1239,47 @@ Dane wyliczane przez pipeline ML (opcjonalny audyt przebiegów trenowania / ewal
 
 **Sposób generowania danych do tabeli**:
 
-Dane do tabeli dodawane są w ramach działania modułu **odds_scrapper.py**
+Dane pobierane z internetu (kursy bukmacherskie, moduł **odds_scrapper.py**): kursy NHL z dogrywką i karnymi to zdarzenia, których nazwa kończy się na `(OT/SO)` (zwycięzca meczu, powyżej/poniżej 5.5 i 6.5, handicap ±1.5, gole drużyny 2.5 i 3.5).
+
+---
+
+### PLAYER_PREDICTIONS
+
+(Prawdopodobieństwa statystyk zawodnika w meczu)
+
+
+| POLE            | DOMENA    | ZAKRES   | UWAGI                                                         | WARTOŚĆ DOMYŚLNA         |
+| --------------- | --------- | -------- | ------------------------------------------------------------- | ------------------------ |
+| **ID**          | INT       | INT      | ID predykcji                                                  | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*      | INT       | INT      | Klucz obcy, powiązanie z tabelą *matches*                     | NULL                     |
+| *PLAYER_ID*     | INT       | INT      | Klucz obcy, powiązanie z tabelą *players*                     | NULL                     |
+| *TEAM_ID*       | INT       | INT      | Klucz obcy, powiązanie z tabelą *teams*                       | NULL                     |
+| *MODEL_ID*      | INT       | INT      | Klucz obcy, powiązanie z tabelą *models*                      | NULL                     |
+| *EVENT_ID*      | INT       | INT      | Klucz obcy, powiązanie z tabelą *events* (linia powyżej)      | NULL                     |
+| LINE            | FLOAT     | FLOAT    | Linia statystyki                                             | NULL                     |
+| EXPECTED_VALUE  | FLOAT     | FLOAT    | Oczekiwana wartość statystyki                                 | NULL                     |
+| PROBABILITY     | FLOAT     | [0, 100] | Prawdopodobieństwo przekroczenia linii, w procentach         | NULL                     |
+| CREATED_AT      | TIMESTAMP | DATETIME | Czas utworzenia wiersza                                       | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)`
+- Klucz obcy: `PLAYER_ID` → `players(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- Klucz obcy: `MODEL_ID` → `models(ID)`
+- Klucz obcy: `EVENT_ID` → `events(ID)`
+- **Unikalny indeks:** `(MATCH_ID, PLAYER_ID, MODEL_ID, EVENT_ID, LINE)` — jedna predykcja na mecz, zawodnika, model, zdarzenie i linię
+- Indeks: `idx_player_predictions_match_id` (`MATCH_ID`)
+- Indeks: `idx_player_predictions_player_id` (`PLAYER_ID`)
+- Indeks: `idx_player_predictions_team_id` (`TEAM_ID`)
+- Indeks: `idx_player_predictions_model_id` (`MODEL_ID`)
+- Indeks: `idx_player_predictions_event_id` (`EVENT_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wyliczane przez pipeline ML.
 
 ---
 
