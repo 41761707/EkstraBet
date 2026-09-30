@@ -171,6 +171,11 @@ def _assign_group(group: pd.DataFrame) -> list[tuple[int, str | None]]:
     return labeled
 
 
+def slot_for_labels(position: object, line: object) -> str | None:
+    """Return F1-F4, D1-D3 or G for a roster position and line."""
+    return _slot_from_labels(_position_code(position), line)
+
+
 def _slot_from_labels(position: str | None, line: object) -> str | None:
     if position == GOALIE_POSITION:
         return GOALIE_SLOT
@@ -221,14 +226,63 @@ def _build_slot_toi(
     observed = _observed_slot_minutes(assigned)
     if observed.empty:
         return _empty_slot_toi(observed)
+    emitted, _state = _walk_slot_state(observed, config)
+    return pd.DataFrame(emitted)
+
+
+def carry_slot_minutes(
+        assigned: pd.DataFrame,
+        config: SlotToiConfig | None = None) -> SlotMinuteCarry:
+    """Expected minutes for the game after the last row in ``assigned``.
+
+    The last box score updates the team EWMA. A later season then
+    starts from that season's league average, the same roll
+    ``build_slot_toi`` applies on an opening night.
+    """
+    settings = config or SlotToiConfig()
+    if assigned.empty:
+        return SlotMinuteCarry.blank()
+    observed = _observed_slot_minutes(assigned)
+    if observed.empty:
+        return SlotMinuteCarry.blank()
+    _emitted, state = _walk_slot_state(observed, settings)
+    return SlotMinuteCarry(state)
+
+
+_EmittedToi = list[dict[str, object]]
+
+
+def _walk_slot_state(
+        observed: pd.DataFrame,
+        config: SlotToiConfig) -> tuple[_EmittedToi, _SlotToiState]:
     state = _SlotToiState(config)
-    emitted: list[dict[str, object]] = []
-    for game_date, slate in observed.groupby("game_date", sort=False):
-        del game_date
+    emitted: _EmittedToi = []
+    for _game_date, slate in observed.groupby("game_date", sort=False):
         state.roll_season(_slate_season(slate))
         emitted.extend(state.snapshot_slate(slate))
         state.update_slate(slate)
-    return pd.DataFrame(emitted)
+    return emitted, state
+
+
+class SlotMinuteCarry:
+    """Minutes after the last box score, ready for the next game."""
+
+    def __init__(self, state: _SlotToiState) -> None:
+        self._state = state
+
+    @classmethod
+    def blank(cls) -> SlotMinuteCarry:
+        """Minutes before any box score: the default slot lengths."""
+        return cls(_SlotToiState(SlotToiConfig()))
+
+    def for_team(self, team_id: int, season: int) -> dict[str, float]:
+        """Prematch minutes for a game in this season."""
+        state = self._state.for_season(int(season))
+        club = int(team_id)
+        minutes: dict[str, float] = {}
+        for slot in SKATER_SLOTS:
+            minutes[slot] = state.expectation(club, slot)
+        return minutes
 
 
 def _observed_slot_minutes(assigned: pd.DataFrame) -> pd.DataFrame:
@@ -325,6 +379,30 @@ class _SlotToiState:
         for team_id in teams_seen:
             self._team_games[team_id] = (
                 self._team_games.get(team_id, 0) + 1)
+
+    def expectation(self, team_id: int, slot: str) -> float:
+        """Prematch minutes for one club slot in the current season."""
+        return self._expectation(team_id, slot)
+
+    def for_season(self, season: int) -> _SlotToiState:
+        """State a game in ``season`` would read. A new season rolls."""
+        if self._season is None or self._season == season:
+            return self
+        # Kopia, żeby odczyt nowego sezonu nie kasował EWMA starego.
+        rolled = self.copy()
+        rolled.roll_season(season)
+        return rolled
+
+    def copy(self) -> _SlotToiState:
+        clone = _SlotToiState(self._config)
+        clone._prior = dict(self._prior)
+        clone._team_minutes = dict(self._team_minutes)
+        clone._team_games = dict(self._team_games)
+        clone._season_sum = dict(self._season_sum)
+        clone._season_count = dict(self._season_count)
+        clone._season = self._season
+        clone._last_date = self._last_date
+        return clone
 
     def _expectation(self, team_id: int, slot: str) -> float:
         stored = self._team_minutes.get((team_id, slot))

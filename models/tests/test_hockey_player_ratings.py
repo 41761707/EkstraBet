@@ -117,6 +117,37 @@ def test_goalie_is_slotted_but_not_rated_as_a_skater() -> None:
     assert rated.loc[0, "slot"] == "D1"
 
 
+def test_future_season_read_does_not_reset_the_season_counter() -> None:
+    start = datetime(2025, 10, 1, 1, 0)
+    config = _off_config(2.0, EarlySeasonConfig())
+    played = HockeyPlayerRatingState(config)
+    quiet = HockeyPlayerRatingState(config)
+    for index, points in ((1, 2.0), (2, 2.0)):
+        moment = start + timedelta(days=index - 1)
+        slate = _rated_slate(index, moment, points, season=1)
+        played.update(slate)
+        quiet.update(slate)
+    peek = played.snapshot(
+        10,
+        "F1",
+        2,
+        start + timedelta(days=30),
+        record_date=False)
+    assert peek.season_games_played == 0
+    still = played.snapshot(
+        10, "F1", 1, start + timedelta(days=2), record_date=False)
+    assert still.season_games_played == 2
+    third = start + timedelta(days=2)
+    played.update(_rated_slate(3, third, 2.0, season=1))
+    quiet.update(_rated_slate(3, third, 2.0, season=1))
+    after = played.snapshot(
+        10, "F1", 1, start + timedelta(days=3), record_date=False)
+    control = quiet.snapshot(
+        10, "F1", 1, start + timedelta(days=3), record_date=False)
+    assert after.season_games_played == 3
+    assert after.off_rating == pytest.approx(control.off_rating)
+
+
 def test_earlier_player_rating_date_is_rejected() -> None:
     state = HockeyPlayerRatingState()
     later = datetime(2025, 10, 2, 1, 0)
@@ -143,6 +174,24 @@ def _off_config(
     return PlayerRatingsConfig(
         initial_off={"F1": f1_off},
         early_season=early_season or EarlySeasonConfig())
+
+
+def _rated_slate(
+        match_id: int,
+        game_date: datetime,
+        points: float,
+        season: int) -> pd.DataFrame:
+    return pd.DataFrame([{
+        "match_id": match_id,
+        "player_id": 10,
+        "team_id": 7,
+        "slot": "F1",
+        "season": season,
+        "game_date": game_date,
+        "points": points,
+        "sog": 2.0,
+        "plus_minus": 0.0,
+        "toi_seconds": 1200}])
 
 
 def _skater(

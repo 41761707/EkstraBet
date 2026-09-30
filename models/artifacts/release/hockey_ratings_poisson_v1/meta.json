@@ -88,6 +88,9 @@
   "shrink_matches": 15.0,
   "goalie_half_life_days": 180.0,
   "goalie_correction": "(1 - sv_starter) / (1 - sv_team_avg)",
+  "beta_off": 0.0,
+  "beta_def": 0.0,
+  "lineup_adjustment": "lambda * off_ratio^beta_off * opp_def_ratio^(-beta_def) * goalie_factor",
   "holdout": "walk_forward_before_each_refit_block",
   "production_fit": "all_finished_matches"
 }

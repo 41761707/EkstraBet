@@ -20,6 +20,7 @@ import logging
 import math
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -41,6 +42,10 @@ from models.pipeline.features.hockey.early_season import (
     early_season_multiplier)
 from models.pipeline.features.hockey.goalies import GOALIE_APPEARANCE_COLUMNS
 from models.pipeline.features.hockey.goalies import build_goalie_ratings
+from models.pipeline.features.hockey.lineup_strength import (
+    apply_lineup_adjustment)
+from models.pipeline.features.hockey.lineup_strength import (
+    build_lineup_ratios)
 from models.pipeline.labels.hockey_goals import HockeyGoalsLabeler
 from models.pipeline.prediction.hockey_markets import DEFAULT_MAX_GOALS
 from models.pipeline.prediction.hockey_markets import HockeyScoreDistribution
@@ -83,6 +88,10 @@ def _default_low_weights() -> dict[int, float]:
     return {4: 0.5}
 
 
+def _default_beta_grid() -> tuple[float, ...]:
+    return (0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0)
+
+
 @dataclass(frozen=True)
 class HockeyDixonColesParams:
     """Decay, holdout season and the tie-inflation search.
@@ -112,6 +121,11 @@ class HockeyDixonColesParams:
     history_weight: float = 0.1
     shrink_matches: float = 15.0
     goalie_half_life_days: float = 180.0
+    lineup_baseline_games: int = 10
+    lineup_beta_off_grid: tuple[float, ...] = field(
+        default_factory=_default_beta_grid)
+    lineup_beta_def_grid: tuple[float, ...] = field(
+        default_factory=_default_beta_grid)
 
     def __post_init__(self) -> None:
         if self.half_life_days <= 0.0:
@@ -132,6 +146,10 @@ class HockeyDixonColesParams:
             raise ValueError("shrink_matches cannot be negative")
         if self.goalie_half_life_days <= 0.0:
             raise ValueError("goalie_half_life_days must be positive")
+        if self.lineup_baseline_games < 1:
+            raise ValueError("lineup_baseline_games must be positive")
+        _require_beta_grid("lineup_beta_off_grid", self.lineup_beta_off_grid)
+        _require_beta_grid("lineup_beta_def_grid", self.lineup_beta_def_grid)
 
 
 @dataclass(frozen=True)
@@ -145,6 +163,8 @@ class HockeyRatingsModel:
     p_ot_home: float
     max_goals: int
     mean_defense: float
+    beta_off: float = 0.0
+    beta_def: float = 0.0
 
     def base_lambdas(
             self,
@@ -173,18 +193,29 @@ class HockeyRatingsModel:
             home_starter_save: float | None = None,
             away_starter_save: float | None = None,
             home_team_save: float | None = None,
-            away_team_save: float | None = None
-            ) -> HockeyScoreDistribution:
-        """Return the final-score distribution for one matchup."""
-        lambda_home, lambda_away = self.base_lambdas(
-            home_team_id, away_team_id)
-        lambda_home, lambda_away = apply_goalie_correction(
-            lambda_home,
-            lambda_away,
+            away_team_save: float | None = None,
+            *,
+            home_off_ratio: float = 1.0,
+            away_off_ratio: float = 1.0,
+            home_def_ratio: float = 1.0,
+            away_def_ratio: float = 1.0) -> HockeyScoreDistribution:
+        """Return the final-score distribution for one matchup.
+
+        Ratios of 1 leave the lineup terms idle. A missing probable
+        lineup therefore keeps the team-average strength.
+        """
+        lambda_home, lambda_away = adjusted_match_rates(
+            self,
+            home_team_id,
+            away_team_id,
             home_starter_save,
             away_starter_save,
             home_team_save,
-            away_team_save)
+            away_team_save,
+            home_off_ratio=home_off_ratio,
+            away_off_ratio=away_off_ratio,
+            home_def_ratio=home_def_ratio,
+            away_def_ratio=away_def_ratio)
         return build_score_distribution(
             lambda_home,
             lambda_away,
@@ -222,7 +253,27 @@ def hockey_params_from_config(
         history_weight=float(raw.get("history_weight", 0.1)),
         shrink_matches=float(raw.get("shrink_matches", 15.0)),
         goalie_half_life_days=float(
-            raw.get("goalie_half_life_days", 180.0)))
+            raw.get("goalie_half_life_days", 180.0)),
+        lineup_baseline_games=int(raw.get("lineup_baseline_games", 10)),
+        lineup_beta_off_grid=_beta_grid(raw, "lineup_beta_off_grid"),
+        lineup_beta_def_grid=_beta_grid(raw, "lineup_beta_def_grid"))
+
+
+def _require_beta_grid(name: str, grid: tuple[float, ...]) -> None:
+    if not grid:
+        raise ValueError(f"{name} must not be empty")
+    for value in grid:
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must contain finite numbers")
+
+
+def _beta_grid(raw: dict[str, Any], key: str) -> tuple[float, ...]:
+    if key not in raw:
+        return _default_beta_grid()
+    source = raw[key]
+    if not isinstance(source, list) or not source:
+        raise ValueError(f"{key} must be a non-empty list")
+    return tuple(float(value) for value in source)
 
 
 def _low_weight_seasons(raw: dict[str, Any]) -> dict[int, float]:
@@ -576,6 +627,42 @@ def apply_goalie_correction(
     return adjusted_home, adjusted_away
 
 
+def adjusted_match_rates(
+        model: HockeyRatingsModel,
+        home_team_id: int,
+        away_team_id: int,
+        home_starter_save: float | None = None,
+        away_starter_save: float | None = None,
+        home_team_save: float | None = None,
+        away_team_save: float | None = None,
+        *,
+        home_off_ratio: float = 1.0,
+        away_off_ratio: float = 1.0,
+        home_def_ratio: float = 1.0,
+        away_def_ratio: float = 1.0) -> tuple[float, float]:
+    """Return goal rates after the goalie and lineup corrections.
+
+    Home goals face the away goalie and the away defence. Zero betas
+    leave only the goalie factor.
+    """
+    base_home, base_away = model.base_lambdas(home_team_id, away_team_id)
+    lambda_home = apply_lineup_adjustment(
+        base_home,
+        home_off_ratio,
+        away_def_ratio,
+        goalie_lambda_factor(away_starter_save, away_team_save),
+        model.beta_off,
+        model.beta_def)
+    lambda_away = apply_lineup_adjustment(
+        base_away,
+        away_off_ratio,
+        home_def_ratio,
+        goalie_lambda_factor(home_starter_save, home_team_save),
+        model.beta_off,
+        model.beta_def)
+    return lambda_home, lambda_away
+
+
 def _save_rate(value: float | None) -> float | None:
     if value is None or isinstance(value, bool):
         return None
@@ -814,8 +901,29 @@ def _update_team_save(
 def fit_model_as_of(
         frame: pd.DataFrame,
         as_of: pd.Timestamp,
-        params: HockeyDixonColesParams) -> HockeyRatingsModel:
-    """Fit rates on matches strictly before ``as_of`` and calibrate scalars."""
+        params: HockeyDixonColesParams,
+        lineup_betas: tuple[float, float] | None = None,
+        *,
+        validation_matches: int | None = None) -> HockeyRatingsModel:
+    """Fit rates on matches strictly before ``as_of`` and calibrate scalars.
+
+    ``lineup_betas`` skips the grid and uses that pair. Tie inflation
+    on the returned model is refit after that correction.
+    ``validation_matches`` scores that many latest games and does not
+    fall back to the whole history.
+    """
+    model, _tie_before = _calibrated_model(
+        frame, as_of, params, lineup_betas, validation_matches)
+    return model
+
+
+def _calibrated_model(
+        frame: pd.DataFrame,
+        as_of: pd.Timestamp,
+        params: HockeyDixonColesParams,
+        lineup_betas: tuple[float, float] | None,
+        validation_matches: int | None) -> tuple[HockeyRatingsModel, float]:
+    """Model plus tie inflation from before the lineup betas."""
     prepared = _require_columns(frame, _FIT_COLUMNS)
     moment = pd.Timestamp(as_of)
     prior = prepared.loc[prepared["game_date"] < moment].copy()
@@ -837,24 +945,69 @@ def fit_model_as_of(
         params.newton_iterations,
         params.shrink_matches)
     mean_defense = float(np.mean(list(defense.values())))
-    validation = _validation_slice(prior, moment, params.validation_days)
+    validation = _validation_window(
+        prior, moment, params, validation_matches)
     lambda_home, lambda_away = _adjusted_rates(
         validation, attack, defense, home_adv, mean_defense)
-    tie_inflation = calibrate_tie_inflation(
+    tie_before = calibrate_tie_inflation(
         lambda_home,
         lambda_away,
         validation["goals_home"].to_numpy(),
         validation["goals_away"].to_numpy(),
         params)
     p_ot_home = _p_ot_for_fit(validation, prior)
-    return HockeyRatingsModel(
+    if lineup_betas is None:
+        beta_off, beta_def = _fit_lineup_betas(
+            validation,
+            attack,
+            defense,
+            home_adv,
+            mean_defense,
+            tie_before,
+            p_ot_home,
+            params)
+    else:
+        beta_off, beta_def = (
+            float(lineup_betas[0]), float(lineup_betas[1]))
+    tie_after = _inflation_after_lineup(
+        validation,
+        attack,
+        defense,
+        home_adv,
+        mean_defense,
+        tie_before,
+        beta_off,
+        beta_def,
+        params)
+    model = HockeyRatingsModel(
         attack=attack,
         defense=defense,
         home_adv=home_adv,
-        tie_inflation=tie_inflation,
+        tie_inflation=tie_after,
         p_ot_home=p_ot_home,
         max_goals=params.max_goals,
-        mean_defense=mean_defense)
+        mean_defense=mean_defense,
+        beta_off=beta_off,
+        beta_def=beta_def)
+    return model, tie_before
+
+
+def _validation_window(
+        prior: pd.DataFrame,
+        as_of: pd.Timestamp,
+        params: HockeyDixonColesParams,
+        validation_matches: int | None) -> pd.DataFrame:
+    if validation_matches is None:
+        return _validation_slice(prior, as_of, params.validation_days)
+    return _last_played_matches(prior, validation_matches)
+
+
+def _last_played_matches(prior: pd.DataFrame, count: int) -> pd.DataFrame:
+    """Latest ``count`` games. A short window is not widened."""
+    if count < 1:
+        raise ValueError("validation match count must be positive")
+    ordered = prior.sort_values(["game_date", "match_id"])
+    return ordered.tail(count).copy()
 
 
 def _validation_slice(
@@ -910,10 +1063,189 @@ def _adjusted_rates(
     return lambda_home, lambda_away
 
 
+def _inflation_after_lineup(
+        validation: pd.DataFrame,
+        attack: dict[int, float],
+        defense: dict[int, float],
+        home_adv: float,
+        mean_defense: float,
+        tie_inflation: float,
+        beta_off: float,
+        beta_def: float,
+        params: HockeyDixonColesParams) -> float:
+    """Refit the diagonal once lambdas include the lineup correction."""
+    if beta_off == 0.0 and beta_def == 0.0:
+        return tie_inflation
+    if not _lineup_columns_ready(validation):
+        return tie_inflation
+    model = HockeyRatingsModel(
+        attack=attack,
+        defense=defense,
+        home_adv=home_adv,
+        tie_inflation=1.0,
+        p_ot_home=0.5,
+        max_goals=params.max_goals,
+        mean_defense=mean_defense,
+        beta_off=beta_off,
+        beta_def=beta_def)
+    lambda_home, lambda_away = _frame_rates(validation, model)
+    return calibrate_tie_inflation(
+        lambda_home,
+        lambda_away,
+        validation["goals_home"].to_numpy(),
+        validation["goals_away"].to_numpy(),
+        params)
+
+
+def _fit_lineup_betas(
+        validation: pd.DataFrame,
+        attack: dict[int, float],
+        defense: dict[int, float],
+        home_adv: float,
+        mean_defense: float,
+        tie_inflation: float,
+        p_ot_home: float,
+        params: HockeyDixonColesParams) -> tuple[float, float]:
+    """Pick betas on the validation window. Ties keep the smaller pair."""
+    if not _lineup_columns_ready(validation):
+        return 0.0, 0.0
+    scored = validation.loc[validation["final_home_win"].notna()]
+    if scored.empty:
+        return 0.0, 0.0
+    best = (0.0, 0.0)
+    best_key = (math.inf, math.inf, math.inf)
+    for beta_off in params.lineup_beta_off_grid:
+        for beta_def in params.lineup_beta_def_grid:
+            loss = _lineup_moneyline_loss(
+                scored,
+                attack,
+                defense,
+                home_adv,
+                mean_defense,
+                tie_inflation,
+                p_ot_home,
+                params.max_goals,
+                float(beta_off),
+                float(beta_def))
+            key = (loss, abs(beta_off) + abs(beta_def), abs(beta_off))
+            if key < best_key:
+                best_key = key
+                best = (float(beta_off), float(beta_def))
+    return best
+
+
+def _lineup_columns_ready(frame: pd.DataFrame) -> bool:
+    required = (
+        "home_lineup_off_ratio",
+        "away_lineup_off_ratio",
+        "home_lineup_def_ratio",
+        "away_lineup_def_ratio",
+        "final_home_win")
+    return all(column in frame.columns for column in required)
+
+
+def _lineup_moneyline_loss(
+        frame: pd.DataFrame,
+        attack: dict[int, float],
+        defense: dict[int, float],
+        home_adv: float,
+        mean_defense: float,
+        tie_inflation: float,
+        p_ot_home: float,
+        max_goals: int,
+        beta_off: float,
+        beta_def: float) -> float:
+    model = HockeyRatingsModel(
+        attack=attack,
+        defense=defense,
+        home_adv=home_adv,
+        tie_inflation=tie_inflation,
+        p_ot_home=p_ot_home,
+        max_goals=max_goals,
+        mean_defense=mean_defense,
+        beta_off=beta_off,
+        beta_def=beta_def)
+    lambda_home, lambda_away = _frame_rates(frame, model)
+    probability = _moneyline_home_probability(
+        lambda_home, lambda_away, tie_inflation, p_ot_home, max_goals)
+    target = frame["final_home_win"].to_numpy(dtype=float)
+    return _log_loss(target, probability)
+
+
+def _frame_rates(
+        frame: pd.DataFrame,
+        model: HockeyRatingsModel) -> tuple[np.ndarray, np.ndarray]:
+    lambda_home = np.empty(len(frame), dtype=float)
+    lambda_away = np.empty(len(frame), dtype=float)
+    for index, row in enumerate(frame.itertuples(index=False)):
+        lambda_home[index], lambda_away[index] = adjusted_match_rates(
+            model,
+            int(row.home_team),
+            int(row.away_team),
+            _float_or_none(row.home_goalie_save_pct),
+            _float_or_none(row.away_goalie_save_pct),
+            _float_or_none(row.home_team_save_pct),
+            _float_or_none(row.away_team_save_pct),
+            home_off_ratio=_ratio_field(row, "home_lineup_off_ratio"),
+            away_off_ratio=_ratio_field(row, "away_lineup_off_ratio"),
+            home_def_ratio=_ratio_field(row, "home_lineup_def_ratio"),
+            away_def_ratio=_ratio_field(row, "away_lineup_def_ratio"))
+    return lambda_home, lambda_away
+
+
+def _ratio_field(row: Any, name: str) -> float:
+    if not hasattr(row, name):
+        return 1.0
+    value = _float_or_none(getattr(row, name))
+    if value is None:
+        return 1.0
+    return value
+
+
+def _record_ratios(record: Any) -> dict[str, float]:
+    return {
+        "home_off_ratio": _ratio_field(record, "home_lineup_off_ratio"),
+        "away_off_ratio": _ratio_field(record, "away_lineup_off_ratio"),
+        "home_def_ratio": _ratio_field(record, "home_lineup_def_ratio"),
+        "away_def_ratio": _ratio_field(record, "away_lineup_def_ratio")}
+
+
+def _moneyline_home_probability(
+        lambda_home: np.ndarray,
+        lambda_away: np.ndarray,
+        tie_inflation: float,
+        p_ot_home: float,
+        max_goals: int) -> np.ndarray:
+    """Return P(home wins including overtime) for each rate pair.
+
+    The diagonal is inflated and the grid is renormalized the same
+    way as ``build_score_distribution``. Overtime then gives each tie
+    to the home club with weight ``p_ot_home``.
+    """
+    home_mass, away_mass = _batch_pmf(
+        np.clip(np.asarray(lambda_home, dtype=float), 0.0, None),
+        np.clip(np.asarray(lambda_away, dtype=float), 0.0, None),
+        max_goals)
+    joint = home_mass[:, :, None] * away_mass[:, None, :]
+    goals = np.arange(max_goals + 1)
+    joint[:, goals, goals] *= tie_inflation
+    totals = np.clip(joint.sum(axis=(1, 2)), 1e-15, None)
+    home_goals = goals[:, None]
+    away_goals = goals[None, :]
+    home_win = (joint * (home_goals > away_goals)).sum(axis=(1, 2))
+    tied = (joint * (home_goals == away_goals)).sum(axis=(1, 2))
+    return home_win / totals + tied / totals * p_ot_home
+
+
 def walk_forward_metrics(
         frame: pd.DataFrame,
-        params: HockeyDixonColesParams) -> dict[str, Any]:
-    """Score the test season in blocks that never see their own results."""
+        params: HockeyDixonColesParams,
+        lineup_betas: tuple[float, float] | None = None) -> dict[str, Any]:
+    """Score the test season in blocks that never see their own results.
+
+    ``lineup_betas`` is the one pair judged on the holdout. Each block
+    still refits attack and defense, then applies that pair.
+    """
     prepared = _require_columns(
         frame, _FIT_COLUMNS + [
             "final_home_win", "final_home_goals", "final_away_goals"])
@@ -929,13 +1261,22 @@ def walk_forward_metrics(
     scored: list[dict[str, float]] = []
     skipped = 0
     inflations: list[float] = []
+    inflations_before: list[float] = []
     for bucket, group in test.groupby("_bucket", sort=True):
         as_of = pd.Timestamp(int(bucket))
-        model = fit_model_as_of(prepared, as_of, params)
+        model, tie_before = _calibrated_model(
+            prepared, as_of, params, lineup_betas, None)
+        # Bety 0 dostają inflację sprzed korekty składu.
+        plain = replace(
+            model,
+            beta_off=0.0,
+            beta_def=0.0,
+            tie_inflation=tie_before)
         inflations.append(model.tie_inflation)
+        inflations_before.append(tie_before)
         naive = _naive_rates(prepared, as_of)
         for record in group.drop(columns=["_bucket"]).itertuples(index=False):
-            row = _score_one(model, record, naive)
+            row = _score_one(model, record, naive, plain)
             if row is None:
                 skipped += 1
                 continue
@@ -945,7 +1286,13 @@ def walk_forward_metrics(
             as_of.isoformat(), len(scored))
     if not scored:
         raise ValueError("Hockey holdout produced no scored matches")
-    return _metrics_from_rows(scored, skipped, inflations, prepared, params)
+    return _metrics_from_rows(
+        scored,
+        skipped,
+        inflations,
+        inflations_before,
+        prepared,
+        params)
 
 
 def _bucket_keys(dates: pd.Series, every_days: int) -> list[int]:
@@ -977,28 +1324,46 @@ def _naive_rates(frame: pd.DataFrame, as_of: pd.Timestamp) -> dict[str, float]:
 def _score_one(
         model: HockeyRatingsModel,
         record: Any,
-        naive: dict[str, float]) -> dict[str, float] | None:
+        naive: dict[str, float],
+        plain: HockeyRatingsModel) -> dict[str, float] | None:
     if _missing(record.final_home_win):
         return None
+    ratios = _record_ratios(record)
     distribution = model.score_distribution(
         int(record.home_team),
         int(record.away_team),
         _float_or_none(record.home_goalie_save_pct),
         _float_or_none(record.away_goalie_save_pct),
         _float_or_none(record.home_team_save_pct),
-        _float_or_none(record.away_team_save_pct))
+        _float_or_none(record.away_team_save_pct),
+        **ratios)
+    plain_distribution = plain.score_distribution(
+        int(record.home_team),
+        int(record.away_team),
+        _float_or_none(record.home_goalie_save_pct),
+        _float_or_none(record.away_goalie_save_pct),
+        _float_or_none(record.home_team_save_pct),
+        _float_or_none(record.away_team_save_pct),
+        **ratios)
     markets = derive_hockey_markets(distribution)
+    plain_markets = derive_hockey_markets(plain_distribution)
     home_goals = int(record.final_home_goals)
     away_goals = int(record.final_away_goals)
     return {
         "y_home": float(record.final_home_win),
         "p_home": markets["ml_home"] / 100.0,
+        "p_home_without_lineup": plain_markets["ml_home"] / 100.0,
+        "beta_off": float(model.beta_off),
+        "beta_def": float(model.beta_def),
         "p_naive_home": naive["home"],
         "y_over": 1.0 if home_goals + away_goals > 5.5 else 0.0,
         "p_over": markets["over_55"] / 100.0,
+        "p_over_without_lineup": plain_markets["over_55"] / 100.0,
         "p_naive_over": naive["over"],
         "y_puck": 1.0 if home_goals - away_goals > 1.5 else 0.0,
         "p_puck": markets["pl_home_minus_15"] / 100.0,
+        "p_puck_without_lineup": (
+            plain_markets["pl_home_minus_15"] / 100.0),
         "p_naive_puck": naive["puck"]}
 
 
@@ -1006,6 +1371,7 @@ def _metrics_from_rows(
         rows: list[dict[str, float]],
         skipped: int,
         inflations: list[float],
+        inflations_before: list[float],
         frame: pd.DataFrame,
         params: HockeyDixonColesParams) -> dict[str, Any]:
     table = pd.DataFrame(rows)
@@ -1016,8 +1382,38 @@ def _metrics_from_rows(
     p_over = table["p_over"].to_numpy(dtype=float)
     y_puck = table["y_puck"].to_numpy(dtype=float)
     p_puck = table["p_puck"].to_numpy(dtype=float)
-    moneyline = _log_loss(y_home, p_home)
+    candidate_moneyline = _log_loss(y_home, p_home)
+    without_lineup = _log_loss(
+        y_home, table["p_home_without_lineup"].to_numpy(dtype=float))
+    candidate_over = _log_loss(y_over, p_over)
+    over_without = _log_loss(
+        y_over, table["p_over_without_lineup"].to_numpy(dtype=float))
+    candidate_puck = _log_loss(y_puck, p_puck)
+    puck_without = _log_loss(
+        y_puck, table["p_puck_without_lineup"].to_numpy(dtype=float))
     naive = _log_loss(y_home, p_naive_home)
+    improves_moneyline = bool(candidate_moneyline < without_lineup)
+    kept = _accept_lineup_adjustment(
+        improves_moneyline,
+        candidate_over,
+        over_without,
+        candidate_puck,
+        puck_without)
+    reported = _reported_market_probabilities(table, kept)
+    if kept:
+        moneyline = candidate_moneyline
+        over_loss = candidate_over
+        puck_loss = candidate_puck
+    else:
+        # Nagłówek to artefakt. Seria z betą zostaje obok.
+        moneyline = without_lineup
+        over_loss = over_without
+        puck_loss = puck_without
+    # Średnia inflacji z wariantu, z którego liczone są log-lossy.
+    if kept:
+        reported_inflation = inflations
+    else:
+        reported_inflation = inflations_before
     return {
         "test_season": int(params.test_season),
         "n_scored": int(len(table)),
@@ -1025,20 +1421,82 @@ def _metrics_from_rows(
         "n_train": int((frame["season"] != params.test_season).sum()),
         "refit_count": int(len(inflations)),
         "moneyline_log_loss": moneyline,
+        "moneyline_log_loss_with_lineup": candidate_moneyline,
+        "moneyline_log_loss_without_lineup": without_lineup,
+        "lineup_adjustment_improves_log_loss": improves_moneyline,
+        "lineup_adjustment_kept": kept,
+        "lineup_holdout_beta_off_mean": float(table["beta_off"].mean()),
+        "lineup_holdout_beta_def_mean": float(table["beta_def"].mean()),
         "naive_home_log_loss": naive,
-        "moneyline_brier": _brier(y_home, p_home),
+        "moneyline_brier": _brier(y_home, reported["home"]),
         "naive_home_brier": _brier(y_home, p_naive_home),
-        "over_55_log_loss": _log_loss(y_over, p_over),
-        "over_55_brier": _brier(y_over, p_over),
+        "over_55_log_loss": over_loss,
+        "over_55_log_loss_with_lineup": candidate_over,
+        "over_55_log_loss_without_lineup": over_without,
+        "over_55_brier": _brier(y_over, reported["over"]),
         "naive_over_55_log_loss": _log_loss(
             y_over, table["p_naive_over"].to_numpy(dtype=float)),
-        "puck_line_home_minus_15_log_loss": _log_loss(y_puck, p_puck),
-        "puck_line_home_minus_15_brier": _brier(y_puck, p_puck),
+        "puck_line_home_minus_15_log_loss": puck_loss,
+        "puck_line_home_minus_15_log_loss_with_lineup": candidate_puck,
+        "puck_line_home_minus_15_log_loss_without_lineup": puck_without,
+        "puck_line_home_minus_15_brier": _brier(y_puck, reported["puck"]),
         "naive_puck_line_log_loss": _log_loss(
             y_puck, table["p_naive_puck"].to_numpy(dtype=float)),
         "beats_naive_moneyline": bool(moneyline < naive),
-        "holdout_tie_inflation_mean": float(np.mean(inflations)),
-        "moneyline_reliability": _reliability(y_home, p_home)}
+        "holdout_tie_inflation_mean": float(np.mean(reported_inflation)),
+        "moneyline_reliability": _reliability(y_home, reported["home"])}
+
+
+def _reported_market_probabilities(
+        table: pd.DataFrame,
+        kept: bool) -> dict[str, np.ndarray]:
+    """Probabilities of the variant that would be saved."""
+    if kept:
+        return {
+            "home": table["p_home"].to_numpy(dtype=float),
+            "over": table["p_over"].to_numpy(dtype=float),
+            "puck": table["p_puck"].to_numpy(dtype=float)}
+    return {
+        "home": table["p_home_without_lineup"].to_numpy(dtype=float),
+        "over": table["p_over_without_lineup"].to_numpy(dtype=float),
+        "puck": table["p_puck_without_lineup"].to_numpy(dtype=float)}
+
+
+def _accept_lineup_adjustment(
+        improves_moneyline: bool,
+        over_loss: float,
+        over_without: float,
+        puck_loss: float,
+        puck_without: float) -> bool:
+    """Keep the correction when moneyline falls and totals do not rise.
+
+    Over 5.5 and the home puck line may stay level. Either one getting
+    worse rejects the pair, even if the winner's log loss improved.
+    """
+    if not improves_moneyline:
+        return False
+    if over_loss > over_without:
+        return False
+    if puck_loss > puck_without:
+        return False
+    return True
+
+
+def _betas_before_test_season(
+        frame: pd.DataFrame,
+        params: HockeyDixonColesParams) -> tuple[float, float]:
+    """Betas from the last played matches before the test season."""
+    test = frame.loc[frame["season"] == params.test_season]
+    if test.empty:
+        return 0.0, 0.0
+    as_of = pd.Timestamp(test["game_date"].min())
+    # Liczba meczów, nie dni. Pusta przerwa nie wciąga całej historii.
+    model = fit_model_as_of(
+        frame,
+        as_of,
+        params,
+        validation_matches=params.validation_days)
+    return float(model.beta_off), float(model.beta_def)
 
 
 def _log_loss(target: np.ndarray, probability: np.ndarray) -> float:
@@ -1076,24 +1534,82 @@ def _reliability(
 
 def load_training_frame(
         league_id: int,
-        half_life_days: float = 180.0) -> pd.DataFrame:
-    """Load finished NHL matches with as-of goalie save rates."""
+        half_life_days: float = 180.0,
+        baseline_games: int | None = None) -> pd.DataFrame:
+    """Load finished NHL matches with as-of goalie save rates.
+
+    ``baseline_games`` also attaches lineup ratios. Prediction omits
+    it and keeps the goalie load unchanged.
+    """
     matches = _finished_matches(fetch_hockey_matches(league_id))
     labeled = matches.join(HockeyGoalsLabeler().build_labels(matches))
     with_games = attach_season_games_before(labeled)
+    player_stats = fetch_hockey_player_stats(league_id)
+    rosters = fetch_hockey_match_rosters(league_id)
     with_goalies = _attach_starter_saves(
-        with_games,
-        fetch_hockey_player_stats(league_id),
-        fetch_hockey_match_rosters(league_id))
+        with_games, player_stats, rosters)
     averaged = attach_team_save_average(
         with_goalies, half_life_days=half_life_days)
     finished = _attach_final_scores(averaged)
     if finished["match_id"].duplicated().any():
         raise ValueError("Starter join duplicated hockey matches")
+    if baseline_games is not None:
+        finished = _attach_lineup_ratios(
+            finished, rosters, player_stats, baseline_games)
     logger.info(
         "Loaded %s finished NHL matches for league %s",
         len(finished), league_id)
     return finished
+
+
+def _attach_lineup_ratios(
+        frame: pd.DataFrame,
+        rosters: pd.DataFrame,
+        player_stats: pd.DataFrame,
+        baseline_games: int) -> pd.DataFrame:
+    ratios = build_lineup_ratios(rosters, player_stats, baseline_games)
+    return _merge_lineup_ratios(frame, ratios)
+
+
+def _merge_lineup_ratios(
+        frame: pd.DataFrame,
+        ratios: pd.DataFrame) -> pd.DataFrame:
+    home = _side_ratios(ratios, "home")
+    away = _side_ratios(ratios, "away")
+    merged = frame.merge(home, on=["match_id", "home_team"], how="left")
+    merged = merged.merge(away, on=["match_id", "away_team"], how="left")
+    columns = [
+        "home_lineup_off_ratio",
+        "home_lineup_def_ratio",
+        "away_lineup_off_ratio",
+        "away_lineup_def_ratio"]
+    missing = int(merged[columns].isna().any(axis=1).sum())
+    if missing:
+        logger.warning(
+            "Lineup ratios missing for %s matches; using average strength",
+            missing)
+    for column in columns:
+        merged[column] = merged[column].fillna(1.0)
+    return merged
+
+
+def _side_ratios(ratios: pd.DataFrame, side: str) -> pd.DataFrame:
+    team_column = "home_team" if side == "home" else "away_team"
+    if ratios.empty:
+        return pd.DataFrame(columns=[
+            "match_id",
+            team_column,
+            f"{side}_lineup_off_ratio",
+            f"{side}_lineup_def_ratio"])
+    renamed = ratios.loc[:, [
+        "match_id",
+        "team_id",
+        "lineup_off_ratio",
+        "lineup_def_ratio"]].rename(columns={
+            "team_id": team_column,
+            "lineup_off_ratio": f"{side}_lineup_off_ratio",
+            "lineup_def_ratio": f"{side}_lineup_def_ratio"})
+    return renamed.drop_duplicates(["match_id", team_column])
 
 
 def _finished_matches(matches: pd.DataFrame) -> pd.DataFrame:
@@ -1259,6 +1775,8 @@ def _production_metrics(
         "home_adv": float(model.home_adv),
         "tie_inflation": float(model.tie_inflation),
         "p_ot_home": float(model.p_ot_home),
+        "beta_off": float(model.beta_off),
+        "beta_def": float(model.beta_def),
         "n_teams": int(len(model.attack)),
         "n_production_matches": int(len(frame))}
 
@@ -1289,6 +1807,11 @@ def _save_run(
         "shrink_matches": params.shrink_matches,
         "goalie_half_life_days": params.goalie_half_life_days,
         "goalie_correction": "(1 - sv_starter) / (1 - sv_team_avg)",
+        "beta_off": model.beta_off,
+        "beta_def": model.beta_def,
+        "lineup_adjustment": (
+            "lambda * off_ratio^beta_off"
+            " * opp_def_ratio^(-beta_def) * goalie_factor"),
         "holdout": "walk_forward_before_each_refit_block",
         "production_fit": "all_finished_matches"})
 
@@ -1316,17 +1839,44 @@ class HockeyRatingsTrainer(Trainer):
         """Fit the production artifact and write holdout metrics."""
         params = hockey_params_from_config(config)
         frame = load_training_frame(
-            params.league_id, params.goalie_half_life_days)
-        metrics = walk_forward_metrics(frame, params)
+            params.league_id,
+            params.goalie_half_life_days,
+            baseline_games=params.lineup_baseline_games)
+        holdout_betas = _betas_before_test_season(frame, params)
+        metrics = walk_forward_metrics(
+            frame, params, lineup_betas=holdout_betas)
         as_of = pd.Timestamp(frame["game_date"].max()) + pd.Timedelta(days=1)
-        model = fit_model_as_of(frame, as_of, params)
+        production = fit_model_as_of(frame, as_of, params)
+        kept = bool(metrics["lineup_adjustment_kept"])
+        # Zapisana para jest tą z holdoutu. Odrzucenie zostawia bety 0
+        # i inflację policzoną na λ bez korekty składu.
+        saved_betas = holdout_betas if kept else (0.0, 0.0)
+        model = fit_model_as_of(
+            frame, as_of, params, lineup_betas=saved_betas)
+        metrics["lineup_holdout_beta_off"] = holdout_betas[0]
+        metrics["lineup_holdout_beta_def"] = holdout_betas[1]
+        metrics["lineup_production_beta_off"] = float(production.beta_off)
+        metrics["lineup_production_beta_def"] = float(production.beta_def)
+        metrics["lineup_beta_off"] = float(model.beta_off)
+        metrics["lineup_beta_def"] = float(model.beta_def)
         metrics.update(_production_metrics(model, frame))
         _save_run(config, model, metrics, params)
         logger.info(
-            "NHL baseline moneyline log loss %.4f vs naive %.4f on %s matches",
+            "NHL moneyline log loss %.4f with lineup, %.4f without, "
+            "artifact %.4f, naive %.4f on %s matches",
+            metrics["moneyline_log_loss_with_lineup"],
+            metrics["moneyline_log_loss_without_lineup"],
             metrics["moneyline_log_loss"],
             metrics["naive_home_log_loss"],
             metrics["n_scored"])
+        if kept:
+            logger.info(
+                "Keeping lineup adjustment beta_off=%.2f beta_def=%.2f",
+                model.beta_off,
+                model.beta_def)
+        else:
+            logger.info(
+                "Lineup adjustment was not kept; betas set to 0")
         if not metrics["beats_naive_moneyline"]:
             logger.warning(
                 "Hockey moneyline log loss did not beat the naive home rate")
@@ -1344,8 +1894,14 @@ class HockeyRatingsTrainer(Trainer):
         """Recompute the walk-forward holdout without saving artifacts."""
         params = hockey_params_from_config(config)
         frame = load_training_frame(
-            params.league_id, params.goalie_half_life_days)
-        metrics = walk_forward_metrics(frame, params)
+            params.league_id,
+            params.goalie_half_life_days,
+            baseline_games=params.lineup_baseline_games)
+        holdout_betas = _betas_before_test_season(frame, params)
+        metrics = walk_forward_metrics(
+            frame, params, lineup_betas=holdout_betas)
+        metrics["lineup_holdout_beta_off"] = holdout_betas[0]
+        metrics["lineup_holdout_beta_def"] = holdout_betas[1]
         return EvaluationReport(
             model_name=config.model_name,
             model_version=config.model_version,

@@ -10,6 +10,7 @@ import warnings
 from dataclasses import asdict, is_dataclass
 from datetime import date
 from datetime import datetime
+from typing import NamedTuple
 from pathlib import Path
 from typing import Any
 from typing import Callable
@@ -38,12 +39,21 @@ from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_model_id
 from models.pipeline.core.registry import validate_events
 from models.pipeline.data.hockey_history_repository import (
+    fetch_hockey_match_rosters)
+from models.pipeline.data.hockey_history_repository import (
+    fetch_hockey_player_stats)
+from models.pipeline.data.hockey_history_repository import (
     fetch_upcoming_hockey_matches)
 from models.pipeline.data.hockey_history_repository import (
     select_predictable_matches)
 from models.pipeline.data.shared_history_context import SharedHistoryContext
 from models.pipeline.data.shared_history_context import (
     build_shared_history_context)
+from models.pipeline.features.hockey.lineup_strength import ProbableLineup
+from models.pipeline.features.hockey.lineup_strength import (
+    prepare_lineup_memory)
+from models.pipeline.features.hockey.lineup_strength import (
+    ratios_for_lineups)
 from models.pipeline.persistence.match_assessment_writer import (
     write_match_assessment)
 from models.pipeline.persistence.prediction_writer import (
@@ -835,13 +845,31 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
 
 _HOCKEY_RATINGS_TRAINER = "HockeyRatingsTrainer"
 _HOCKEY_PREDICTION_CONFIGS = REPO_ROOT / "models" / "configs" / "prediction"
+_NEUTRAL_LINEUP_RATIOS = {
+    "home_off_ratio": 1.0,
+    "away_off_ratio": 1.0,
+    "home_def_ratio": 1.0,
+    "away_def_ratio": 1.0}
+
+
+class _HockeyFixture(NamedTuple):
+    home_team: int
+    away_team: int
+    game_date: datetime | None
+    season: int | None
+
+
+_ClubLineup = ProbableLineup | None
+_PreparedLineup = tuple[int, _HockeyFixture, _ClubLineup, _ClubLineup]
 
 
 def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
     """Predict NHL team markets for the next predictable matches.
 
     Omitting ``--write-db`` is a dry-run. There is no ``--stage`` flag
-    yet: every match uses the team-average goalie until lineups exist.
+    yet, so resolution uses ``initial``. Each club with a lineup is
+    scored through one shared history replay. A missing club stays at
+    ratio 1. Both missing keeps the team-average goalie as well.
     """
     configs = _active_hockey_configs()
     if not configs:
@@ -859,6 +887,7 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
             "No predictable hockey matches for league %s", args.league_id)
         return report
     upcoming = _upcoming_hockey_index(args.league_id)
+    stage = str(getattr(args, "stage", None) or "initial")
     report["models"] = [
         _predict_hockey_config(
             config,
@@ -867,7 +896,8 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
             upcoming,
             args.league_id,
             write_db=bool(args.write_db),
-            select_finals=bool(args.select_finals))
+            select_finals=bool(args.select_finals),
+            stage=stage)
         for config, model_id in configs]
     return report
 
@@ -935,28 +965,62 @@ def _unique_match_ids(match_ids: list[int]) -> list[int]:
     return unique
 
 
-def _upcoming_hockey_index(league_id: int) -> dict[int, tuple[int, int]]:
-    """Map an unplayed match id to its home and away club ids."""
+def _upcoming_hockey_index(league_id: int) -> dict[int, _HockeyFixture]:
+    """Map an unplayed match id to clubs, date and season."""
     frame = fetch_upcoming_hockey_matches(league_id)
-    index: dict[int, tuple[int, int]] = {}
+    return _fixtures_from_frame(frame)
+
+
+def _fixtures_from_frame(frame: pd.DataFrame) -> dict[int, _HockeyFixture]:
+    index: dict[int, _HockeyFixture] = {}
     if frame.empty:
         return index
-    for match_id, home_team, away_team in zip(
+    dates = (
+        frame["game_date"].tolist()
+        if "game_date" in frame.columns
+        else [None] * len(frame))
+    seasons = (
+        frame["season"].tolist()
+        if "season" in frame.columns
+        else [None] * len(frame))
+    for match_id, home_team, away_team, game_date, season in zip(
             frame["match_id"].tolist(),
             frame["home_team"].tolist(),
-            frame["away_team"].tolist()):
-        index[int(match_id)] = (int(home_team), int(away_team))
+            frame["away_team"].tolist(),
+            dates,
+            seasons):
+        index[int(match_id)] = _HockeyFixture(
+            int(home_team),
+            int(away_team),
+            _optional_datetime(game_date),
+            _optional_season(season))
     return index
+
+
+def _optional_datetime(value: object) -> datetime | None:
+    if value is None or pd.isna(value):
+        return None
+    parsed = pd.Timestamp(value).to_pydatetime()
+    if parsed.tzinfo is not None:
+        return parsed.replace(tzinfo=None)
+    return parsed
+
+
+def _optional_season(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    return int(value)
 
 
 def _predict_hockey_config(
         config: ModelRunConfig,
         model_id: int,
         match_ids: list[int],
-        upcoming: dict[int, tuple[int, int]],
+        upcoming: dict[int, _HockeyFixture],
         league_id: int,
         write_db: bool,
-        select_finals: bool) -> dict[str, Any]:
+        select_finals: bool,
+        stage: str) -> dict[str, Any]:
     """Score one active artifact and optionally persist its rows."""
     if config.trainer != _HOCKEY_RATINGS_TRAINER:
         raise ValueError(
@@ -964,24 +1028,26 @@ def _predict_hockey_config(
     model = _load_hockey_ratings_model(config)
     saves = _hockey_team_save_rates(config, league_id)
     event_ids = resolve_event_map(config.events)
+    params = hockey_params_from_config(config)
+    prepared = _in_game_date_order(
+        _prepared_lineups(match_ids, upcoming, stage))
+    history = _lineup_history_if_needed(
+        prepared, league_id, params.lineup_baseline_games)
     matches: list[dict[str, Any]] = []
     written = 0
-    for match_id in match_ids:
-        pair = upcoming.get(match_id)
-        if pair is None:
-            logger.warning(
-                "Predictable hockey match %s is missing from upcoming rows",
-                match_id)
-            continue
+    for match_id, fixture, home_lineup, away_lineup in prepared:
+        ratios = _ratios_or_none(
+            match_id, home_lineup, away_lineup, history, fixture)
         match_report, rows = _predict_one_hockey_match(
             model,
             match_id,
-            pair[0],
-            pair[1],
+            fixture.home_team,
+            fixture.away_team,
             saves,
             model_id,
             event_ids,
-            select_finals)
+            select_finals,
+            ratios)
         match_report["written"] = 0
         if write_db:
             match_report["written"] = write_predictions(
@@ -1022,6 +1088,112 @@ def _hockey_team_save_rates(
     return latest_team_save_rates(frame, params.goalie_half_life_days)
 
 
+def _in_game_date_order(
+        prepared: list[_PreparedLineup]) -> list[_PreparedLineup]:
+    """Score earlier games first so one rating state stays forward."""
+    return sorted(prepared, key=_prepared_date_key)
+
+
+def _prepared_date_key(
+        item: _PreparedLineup) -> tuple[int, datetime, int]:
+    fixture = item[1]
+    moment = fixture.game_date
+    if moment is None:
+        return (1, datetime.max, item[0])
+    return (0, moment, item[0])
+
+
+def _prepared_lineups(
+        match_ids: list[int],
+        upcoming: dict[int, _HockeyFixture],
+        stage: str) -> list[_PreparedLineup]:
+    prepared = []
+    for match_id in match_ids:
+        fixture = upcoming.get(match_id)
+        if fixture is None:
+            logger.warning(
+                "Predictable hockey match %s is missing from upcoming rows",
+                match_id)
+            continue
+        prepared.append((
+            match_id,
+            fixture,
+            _resolve_club_lineup(match_id, fixture.home_team, stage),
+            _resolve_club_lineup(match_id, fixture.away_team, stage)))
+    return prepared
+
+
+def _lineup_history_if_needed(
+        prepared: list[_PreparedLineup],
+        league_id: int,
+        baseline_games: int) -> Any | None:
+    # Jedna strona wystarczy, żeby odtworzyć historię raz na zapytanie.
+    needed = any(
+        home is not None or away is not None
+        for _match_id, _fixture, home, away in prepared)
+    if not needed:
+        return None
+    logger.info("Loading hockey roster history for lineup strength")
+    return prepare_lineup_memory(
+        fetch_hockey_match_rosters(league_id),
+        fetch_hockey_player_stats(league_id),
+        baseline_games)
+
+
+def _ratios_or_none(
+        match_id: int,
+        home: _ClubLineup,
+        away: _ClubLineup,
+        history: Any | None,
+        fixture: _HockeyFixture) -> dict[str, float] | None:
+    if home is None and away is None:
+        return None
+    if history is None:
+        return None
+    if home is None or away is None:
+        missing = fixture.home_team if home is None else fixture.away_team
+        logger.warning(
+            "No probable lineup for match %s team %s; "
+            "using team-average strength for that club",
+            match_id,
+            missing)
+    moment = fixture.game_date or datetime.now().replace(tzinfo=None)
+    season = 0 if fixture.season is None else fixture.season
+    try:
+        return ratios_for_lineups(
+            home,
+            away,
+            None,
+            None,
+            moment,
+            season,
+            memory=history)
+    except ValueError as exc:
+        logger.warning(
+            "Could not score lineup for match %s: %s", match_id, exc)
+        return None
+
+
+def _resolve_club_lineup(
+        match_id: int,
+        team_id: int,
+        stage: str) -> _ClubLineup:
+    """Read one club lineup. Missing resolver means no lineup yet."""
+    resolver = _lineup_stage_resolver()
+    if resolver is None:
+        return None
+    return resolver(match_id, team_id, stage)
+
+
+def _lineup_stage_resolver() -> Callable[..., _ClubLineup] | None:
+    try:
+        from models.pipeline.lineups.hockey_probable_lineup import (
+            resolve_lineup_for_stage)
+    except ImportError:
+        return None
+    return resolve_lineup_for_stage
+
+
 def _predict_one_hockey_match(
         model: HockeyRatingsModel,
         match_id: int,
@@ -1030,15 +1202,20 @@ def _predict_one_hockey_match(
         saves: dict[int, float],
         model_id: int,
         event_ids: dict[str, int],
-        select_finals: bool) -> tuple[dict[str, Any], list[Any]]:
-    """Score one match with team-average goalies and no lineup adjustment."""
-    # Przewidywany skład jeszcze nie istnieje, więc bierzemy średnią drużyny.
-    logger.warning(
-        "No probable lineup for match %s teams %s and %s; "
-        "using team-average strength and team-average goalie save percentage",
-        match_id,
-        home_team,
-        away_team)
+        select_finals: bool,
+        ratios: dict[str, float] | None) -> tuple[dict[str, Any], list[Any]]:
+    """Score one match. Missing ratios keep average lineup strength."""
+    fallback = ratios is None
+    used = _NEUTRAL_LINEUP_RATIOS if fallback else ratios
+    if fallback:
+        # Brak składu obu drużyn: średnia siła i średni bramkarz.
+        logger.warning(
+            "No probable lineup for match %s teams %s and %s; "
+            "using team-average strength and team-average goalie "
+            "save percentage",
+            match_id,
+            home_team,
+            away_team)
     home_save = saves.get(home_team)
     away_save = saves.get(away_team)
     distribution = model.score_distribution(
@@ -1047,7 +1224,11 @@ def _predict_one_hockey_match(
         home_starter_save=home_save,
         away_starter_save=away_save,
         home_team_save=home_save,
-        away_team_save=away_save)
+        away_team_save=away_save,
+        home_off_ratio=used["home_off_ratio"],
+        away_off_ratio=used["away_off_ratio"],
+        home_def_ratio=used["home_def_ratio"],
+        away_def_ratio=used["away_def_ratio"])
     markets = derive_hockey_markets(distribution)
     rows = map_hockey_markets_to_rows(
         match_id, model_id, markets, event_ids, select_finals)
@@ -1063,7 +1244,11 @@ def _predict_one_hockey_match(
         "finals": len(final_keys),
         "final_keys": final_keys,
         "markets": markets,
-        "lineup_fallback": True}
+        "lineup_fallback": fallback,
+        "home_off_ratio": used["home_off_ratio"],
+        "away_off_ratio": used["away_off_ratio"],
+        "home_def_ratio": used["home_def_ratio"],
+        "away_def_ratio": used["away_def_ratio"]}
     return report, rows
 
 

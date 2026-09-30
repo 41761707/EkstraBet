@@ -28,7 +28,10 @@
     "refit_every_days": 7,
     "history_weight": 0.1,
     "shrink_matches": 15,
-    "goalie_half_life_days": 180
+    "goalie_half_life_days": 180,
+    "lineup_baseline_games": 10,
+    "lineup_beta_off_grid": [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0],
+    "lineup_beta_def_grid": [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
   },
   "events": {
     "ml_home": 234,

@@ -160,17 +160,21 @@ class HockeyPlayerRatingState:
             player_id: int,
             slot: str,
             season: int,
-            game_date: datetime) -> PlayerRating:
-        """Return ratings using only games strictly before this one."""
+            game_date: datetime,
+            *,
+            record_date: bool = True) -> PlayerRating:
+        """Return ratings using only games strictly before this one.
+
+        ``record_date`` stays false when scoring a future match, so
+        the read does not move the cursor learned from box scores.
+        A new season reports zero games played. The stored counter
+        changes only in ``update``.
+        """
         self._require_skater_slot(slot)
-        self._require_forward_date(game_date)
+        self._require_forward_date(game_date, record=record_date)
         form = self._players.get(player_id)
-        if form is not None and form.season not in (None, season):
-            # Licznik sezonu wraca do zera, pamięć EWMA zostaje.
-            form.season = season
-            form.season_games = 0
         games = 0 if form is None else form.games
-        season_games = 0 if form is None else form.season_games
+        season_games = _games_before_season(form, season)
         return PlayerRating(
             off_rating=_shrink(
                 None if form is None else form.off_ewma,
@@ -268,13 +272,19 @@ class HockeyPlayerRatingState:
         if slot not in SKATER_SLOTS:
             raise ValueError(f"Unsupported skater slot: {slot}")
 
-    def _require_forward_date(self, game_date: object) -> datetime:
+    def _require_forward_date(
+            self,
+            game_date: object,
+            *,
+            record: bool = True) -> datetime:
         moment = _as_datetime(game_date)
         if self._last_date is not None and moment < self._last_date:
             raise ValueError(
                 "Player ratings require chronological game dates. "
                 f"Got {moment} after {self._last_date}.")
-        self._last_date = moment
+        # Sam odczyt przyszłego meczu nie przesuwa kursora.
+        if record:
+            self._last_date = moment
         return moment
 
 
@@ -385,6 +395,13 @@ def _require_one_match(rows: list[_Appearance]) -> None:
     dates = {row.game_date for row in rows}
     if len(dates) != 1:
         raise ValueError("update() learned rows must share a game date")
+
+
+def _games_before_season(form: _PlayerForm | None, season: int) -> int:
+    """Games already played in ``season``. A new season reads as zero."""
+    if form is None or form.season not in (None, season):
+        return 0
+    return form.season_games
 
 
 def _can_learn(row: _Appearance) -> bool:

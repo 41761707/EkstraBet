@@ -1,4 +1,4 @@
-"""Pre-match NHL ratings for teams, goalies and skaters."""
+"""Pre-match NHL ratings for teams, goalies, skaters and lineups."""
 
 from models.pipeline.features.hockey.early_season import EarlySeasonConfig
 from models.pipeline.features.hockey.early_season import early_season_alpha
@@ -10,6 +10,15 @@ from models.pipeline.features.hockey.goalies import GoalieRatingsConfig
 from models.pipeline.features.hockey.goalies import build_goalie_ratings
 from models.pipeline.features.hockey.line_slots import LineSlotResolver
 from models.pipeline.features.hockey.line_slots import SlotToiConfig
+from models.pipeline.features.hockey.lineup_strength import ProbableLineup
+from models.pipeline.features.hockey.lineup_strength import (
+    ProbableLineupPlayer)
+from models.pipeline.features.hockey.lineup_strength import (
+    apply_lineup_adjustment)
+from models.pipeline.features.hockey.lineup_strength import (
+    build_lineup_ratios)
+from models.pipeline.features.hockey.lineup_strength import (
+    compute_lineup_strength)
 from models.pipeline.features.hockey.player_ratings import (
     HockeyPlayerRatingState)
 from models.pipeline.features.hockey.player_ratings import PlayerRating
@@ -33,11 +42,16 @@ __all__ = [
     "LineSlotResolver",
     "PlayerRating",
     "PlayerRatingsConfig",
+    "ProbableLineup",
+    "ProbableLineupPlayer",
     "SlotToiConfig",
+    "apply_lineup_adjustment",
     "build_goalie_ratings",
     "build_hockey_pre_match_ratings",
     "build_hockey_team_ratings",
+    "build_lineup_ratios",
     "build_player_ratings",
+    "compute_lineup_strength",
     "early_season_alpha",
     "early_season_multiplier"
 ]

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -16,6 +18,7 @@ from models.pipeline.core.registry import get_trainer
 from models.pipeline.features.hockey.early_season import EarlySeasonConfig
 from models.pipeline.labels.hockey_goals import label_hockey_goals
 from models.pipeline.prediction.hockey_markets import build_score_distribution
+from models.pipeline.prediction.hockey_markets import derive_hockey_markets
 from models.pipeline.training.hockey_ratings_trainer import (
     HockeyDixonColesParams)
 from models.pipeline.training.hockey_ratings_trainer import HockeyRatingsModel
@@ -29,6 +32,15 @@ from models.pipeline.training.hockey_ratings_trainer import (
     latest_team_save_rates)
 from models.pipeline.training.hockey_ratings_trainer import estimate_p_ot_home
 from models.pipeline.training.hockey_ratings_trainer import fit_dixon_coles
+from models.pipeline.training.hockey_ratings_trainer import (
+    _accept_lineup_adjustment)
+from models.pipeline.training.hockey_ratings_trainer import (
+    _betas_before_test_season)
+from models.pipeline.training.hockey_ratings_trainer import (
+    _metrics_from_rows)
+from models.pipeline.training.hockey_ratings_trainer import _score_one
+from models.pipeline.training.hockey_ratings_trainer import (
+    calibrate_tie_inflation)
 from models.pipeline.training.hockey_ratings_trainer import fit_model_as_of
 from models.pipeline.training.hockey_ratings_trainer import (
     goalie_lambda_factor)
@@ -263,6 +275,211 @@ def test_later_matches_do_not_leak_into_an_as_of_fit() -> None:
 
     assert held_out.base_lambdas(1, 2) == pytest.approx(
         clean.base_lambdas(1, 2))
+    assert held_out.beta_off == 0.0
+    assert held_out.beta_def == 0.0
+
+
+def test_betas_before_the_test_season_use_the_last_played_matches(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[pd.DataFrame] = []
+
+    def _capture(validation, *_args, **_kwargs):
+        seen.append(validation)
+        return 0.0, 0.0
+
+    monkeypatch.setattr(
+        "models.pipeline.training.hockey_ratings_trainer."
+        "_fit_lineup_betas",
+        _capture)
+    rows = []
+    for index in range(1, 11):
+        day = pd.Timestamp("2024-06-01") + pd.Timedelta(days=index)
+        rows.append(_training_row(index, 1, 2, str(day.date()), 3, 2))
+    opener = _training_row(99, 1, 2, "2025-10-05", 2, 1)
+    opener["season"] = 12
+    frame = pd.DataFrame(rows + [opener])
+    params = replace(_flat_params(), validation_days=3)
+    assert _betas_before_test_season(frame, params) == (0.0, 0.0)
+    assert len(seen) == 1
+    assert set(seen[0]["match_id"]) == {8, 9, 10}
+    assert seen[0]["game_date"].max() < pd.Timestamp("2025-10-05")
+
+
+def test_plain_variant_keeps_inflation_from_before_the_lineup() -> None:
+    model = HockeyRatingsModel(
+        attack={1: 0.0, 2: 0.0},
+        defense={1: 0.0, 2: 0.0},
+        home_adv=0.1,
+        tie_inflation=1.8,
+        p_ot_home=0.55,
+        max_goals=8,
+        mean_defense=0.0,
+        beta_off=1.0,
+        beta_def=0.5)
+    plain = replace(model, beta_off=0.0, beta_def=0.0, tie_inflation=1.0)
+    leaked = replace(model, beta_off=0.0, beta_def=0.0)
+    record = _score_record()
+    row = _score_one(model, record, _naive(), plain)
+    assert row is not None
+    fair = _markets_of(plain)
+    stale = _markets_of(leaked)
+    assert row["p_home_without_lineup"] == pytest.approx(
+        fair["ml_home"] / 100.0)
+    assert row["p_over_without_lineup"] == pytest.approx(
+        fair["over_55"] / 100.0)
+    assert row["p_puck_without_lineup"] == pytest.approx(
+        fair["pl_home_minus_15"] / 100.0)
+    assert fair["ml_home"] != pytest.approx(stale["ml_home"])
+
+
+def test_rejected_lineup_metrics_follow_the_plain_variant() -> None:
+    rows = [_market_row(
+        y_home=1.0,
+        p_home=0.9,
+        p_home_without=0.6,
+        y_over=1.0,
+        p_over=0.2,
+        p_over_without=0.8,
+        y_puck=1.0,
+        p_puck=0.75,
+        p_puck_without=0.6)]
+    metrics = _metrics_from_rows(
+        rows,
+        0,
+        [1.8, 2.0],
+        [1.1, 1.3],
+        pd.DataFrame({"season": [11]}),
+        _flat_params())
+    assert metrics["lineup_adjustment_improves_log_loss"] is True
+    assert metrics["lineup_adjustment_kept"] is False
+    assert metrics["moneyline_log_loss"] == pytest.approx(-math.log(0.6))
+    assert metrics["over_55_log_loss"] == pytest.approx(-math.log(0.8))
+    assert metrics["puck_line_home_minus_15_log_loss"] == pytest.approx(
+        -math.log(0.6))
+    _assert_both_lineup_losses(
+        metrics,
+        "moneyline_log_loss",
+        -math.log(0.9),
+        -math.log(0.6))
+    _assert_both_lineup_losses(
+        metrics,
+        "over_55_log_loss",
+        -math.log(0.2),
+        -math.log(0.8))
+    _assert_both_lineup_losses(
+        metrics,
+        "puck_line_home_minus_15_log_loss",
+        -math.log(0.75),
+        -math.log(0.6))
+    assert metrics["beats_naive_moneyline"] is True
+    assert metrics["moneyline_brier"] == pytest.approx((0.6 - 1.0) ** 2)
+    assert metrics["holdout_tie_inflation_mean"] == pytest.approx(1.2)
+
+
+def test_kept_lineup_metrics_follow_the_adjusted_variant() -> None:
+    rows = [_market_row(
+        y_home=1.0,
+        p_home=0.8,
+        p_home_without=0.55,
+        y_over=1.0,
+        p_over=0.7,
+        p_over_without=0.6,
+        y_puck=1.0,
+        p_puck=0.66,
+        p_puck_without=0.6)]
+    metrics = _metrics_from_rows(
+        rows,
+        0,
+        [1.8, 2.0],
+        [1.1, 1.3],
+        pd.DataFrame({"season": [11]}),
+        _flat_params())
+    assert metrics["lineup_adjustment_kept"] is True
+    assert metrics["moneyline_log_loss"] == pytest.approx(-math.log(0.8))
+    assert metrics["over_55_log_loss"] == pytest.approx(-math.log(0.7))
+    assert metrics["puck_line_home_minus_15_log_loss"] == pytest.approx(
+        -math.log(0.66))
+    _assert_both_lineup_losses(
+        metrics,
+        "moneyline_log_loss",
+        -math.log(0.8),
+        -math.log(0.55))
+    _assert_both_lineup_losses(
+        metrics,
+        "over_55_log_loss",
+        -math.log(0.7),
+        -math.log(0.6))
+    _assert_both_lineup_losses(
+        metrics,
+        "puck_line_home_minus_15_log_loss",
+        -math.log(0.66),
+        -math.log(0.6))
+    assert metrics["holdout_tie_inflation_mean"] == pytest.approx(1.9)
+
+
+def _assert_both_lineup_losses(
+        metrics: dict[str, float],
+        headline: str,
+        with_lineup: float,
+        without_lineup: float) -> None:
+    assert metrics[f"{headline}_with_lineup"] == pytest.approx(with_lineup)
+    assert metrics[f"{headline}_without_lineup"] == pytest.approx(
+        without_lineup)
+    assert metrics[f"{headline}_with_lineup"] != pytest.approx(
+        metrics[f"{headline}_without_lineup"])
+
+
+def test_lineup_correction_is_kept_only_when_totals_hold() -> None:
+    assert _accept_lineup_adjustment(True, 0.4, 0.5, 0.4, 0.4) is True
+    assert _accept_lineup_adjustment(True, 0.5, 0.5, 0.6, 0.6) is True
+    assert _accept_lineup_adjustment(False, 0.4, 0.5, 0.4, 0.5) is False
+    assert _accept_lineup_adjustment(True, 0.51, 0.5, 0.4, 0.5) is False
+    assert _accept_lineup_adjustment(True, 0.4, 0.5, 0.61, 0.6) is False
+
+
+def test_forced_betas_without_ratios_keep_the_tie_inflation() -> None:
+    frame = _prior_frame()
+    as_of = pd.Timestamp("2025-01-01")
+    params = _flat_params()
+    plain = fit_model_as_of(frame, as_of, params)
+    zeros = fit_model_as_of(
+        frame, as_of, params, lineup_betas=(0.0, 0.0))
+    forced = fit_model_as_of(
+        frame, as_of, params, lineup_betas=(1.0, 1.0))
+    assert zeros.tie_inflation == pytest.approx(plain.tie_inflation)
+    assert forced.tie_inflation == pytest.approx(plain.tie_inflation)
+    assert zeros.beta_off == 0.0
+    assert zeros.beta_def == 0.0
+    assert forced.beta_off == 1.0
+    assert forced.beta_def == 1.0
+
+
+def test_nonzero_betas_refit_tie_inflation_on_adjusted_rates(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    frame = _prior_frame()
+    frame["home_lineup_off_ratio"] = 2.0
+    frame["away_lineup_off_ratio"] = 2.0
+    frame["home_lineup_def_ratio"] = 1.0
+    frame["away_lineup_def_ratio"] = 1.0
+    frame["final_home_win"] = 1.0
+    calls: list[float] = []
+    real = calibrate_tie_inflation
+
+    def _record(*args, **kwargs):
+        value = real(*args, **kwargs)
+        calls.append(value)
+        return value
+
+    monkeypatch.setattr(
+        "models.pipeline.training.hockey_ratings_trainer."
+        "calibrate_tie_inflation",
+        _record)
+    as_of = pd.Timestamp("2025-01-01")
+    model = fit_model_as_of(
+        frame, as_of, _flat_params(), lineup_betas=(1.0, 0.0))
+    assert model.beta_off == 1.0
+    assert len(calls) == 2
+    assert model.tie_inflation == pytest.approx(calls[1])
 
 
 def test_ot_labels_and_home_ot_rate() -> None:
@@ -311,6 +528,10 @@ def test_configs_load_and_components_register() -> None:
     assert params.history_weight == pytest.approx(0.1)
     assert params.shrink_matches == pytest.approx(15.0)
     assert params.goalie_half_life_days == pytest.approx(180.0)
+    assert params.lineup_baseline_games == 10
+    assert params.lineup_beta_off_grid[0] == pytest.approx(0.0)
+    assert params.lineup_beta_off_grid[-1] == pytest.approx(2.0)
+    assert params.lineup_beta_def_grid == params.lineup_beta_off_grid
     assert params.early_season.boost == pytest.approx(1.0)
     assert get_trainer("HockeyRatingsTrainer").__class__.__name__ == (
         "HockeyRatingsTrainer")
@@ -320,6 +541,74 @@ def test_configs_load_and_components_register() -> None:
         "ot_winner": 3,
         "so_winner": 1})
     assert labeled.ot_home_win == 1
+
+
+def _naive() -> dict[str, float]:
+    return {"home": 0.5, "over": 0.5, "puck": 0.5}
+
+
+def _score_record() -> SimpleNamespace:
+    return SimpleNamespace(
+        final_home_win=1,
+        home_team=1,
+        away_team=2,
+        home_goalie_save_pct=None,
+        away_goalie_save_pct=None,
+        home_team_save_pct=None,
+        away_team_save_pct=None,
+        final_home_goals=4,
+        final_away_goals=2,
+        home_lineup_off_ratio=1.3,
+        away_lineup_off_ratio=0.8,
+        home_lineup_def_ratio=1.1,
+        away_lineup_def_ratio=0.9)
+
+
+def _markets_of(model: HockeyRatingsModel) -> dict[str, float]:
+    return derive_hockey_markets(model.score_distribution(
+        1,
+        2,
+        home_off_ratio=1.3,
+        away_off_ratio=0.8,
+        home_def_ratio=1.1,
+        away_def_ratio=0.9))
+
+
+def _market_row(
+        y_home: float,
+        p_home: float,
+        p_home_without: float,
+        y_over: float,
+        p_over: float,
+        p_over_without: float,
+        y_puck: float,
+        p_puck: float,
+        p_puck_without: float) -> dict[str, float]:
+    return {
+        "y_home": y_home,
+        "p_home": p_home,
+        "p_home_without_lineup": p_home_without,
+        "beta_off": 1.0,
+        "beta_def": 0.5,
+        "p_naive_home": 0.5,
+        "y_over": y_over,
+        "p_over": p_over,
+        "p_over_without_lineup": p_over_without,
+        "p_naive_over": 0.5,
+        "y_puck": y_puck,
+        "p_puck": p_puck,
+        "p_puck_without_lineup": p_puck_without,
+        "p_naive_puck": 0.5}
+
+
+def _prior_frame() -> pd.DataFrame:
+    prior = [
+        _training_row(index, 1, 2, "2024-11-01", 3, 2)
+        for index in range(1, 21)]
+    prior += [
+        _training_row(index, 2, 1, "2024-11-02", 3, 2)
+        for index in range(21, 41)]
+    return pd.DataFrame(prior)
 
 
 def _match(
