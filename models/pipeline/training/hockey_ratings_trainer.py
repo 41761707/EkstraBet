@@ -730,6 +730,35 @@ def attach_team_save_average(
     The current match is not included. A club with no prior starter
     gets a missing average, and the goalie factor then stays 1.
     """
+    ordered, home_average, away_average, _state = _walk_team_saves(
+        frame, half_life_days)
+    ordered["home_team_save_pct"] = home_average
+    ordered["away_team_save_pct"] = away_average
+    return ordered
+
+
+def latest_team_save_rates(
+        frame: pd.DataFrame,
+        half_life_days: float) -> dict[int, float]:
+    """Return the save rate each club would carry into its next match.
+
+    This is the average after the last starter in ``frame``, which is
+    what a match without a projected lineup should use.
+    """
+    _ordered, _home, _away, state = _walk_team_saves(frame, half_life_days)
+    return {
+        team_id: average
+        for team_id, (_moment, average, _weight) in state.items()}
+
+
+def _walk_team_saves(
+        frame: pd.DataFrame,
+        half_life_days: float) -> tuple[
+            pd.DataFrame,
+            list[float | None],
+            list[float | None],
+            dict[int, tuple[pd.Timestamp, float, float]]]:
+    """Walk starters in order and keep the pre-match average of each row."""
     if half_life_days <= 0.0:
         raise ValueError("half_life_days must be positive")
     ordered = frame.sort_values(
@@ -749,9 +778,7 @@ def attach_team_save_average(
             state, int(row.away_team), moment,
             _save_rate(_float_or_none(row.away_goalie_save_pct)),
             half_life_days)
-    ordered["home_team_save_pct"] = home_average
-    ordered["away_team_save_pct"] = away_average
-    return ordered
+    return ordered, home_average, away_average, state
 
 
 def _snapshot_save(

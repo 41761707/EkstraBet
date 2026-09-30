@@ -25,6 +25,8 @@ from models.pipeline.training.hockey_ratings_trainer import (
     attach_season_games_before)
 from models.pipeline.training.hockey_ratings_trainer import (
     attach_team_save_average)
+from models.pipeline.training.hockey_ratings_trainer import (
+    latest_team_save_rates)
 from models.pipeline.training.hockey_ratings_trainer import estimate_p_ot_home
 from models.pipeline.training.hockey_ratings_trainer import fit_dixon_coles
 from models.pipeline.training.hockey_ratings_trainer import fit_model_as_of
@@ -235,8 +237,13 @@ def test_team_save_average_is_prior_and_decays() -> None:
 
     assert pd.isna(averaged.loc[0, "home_team_save_pct"])
     assert averaged.loc[1, "home_team_save_pct"] == pytest.approx(0.90)
-    assert averaged.loc[2, "home_team_save_pct"] == pytest.approx(
-        (0.90 * 0.5 + 0.80) / 1.5)
+    before_third = (0.90 * 0.5 + 0.80) / 1.5
+    assert averaged.loc[2, "home_team_save_pct"] == pytest.approx(before_third)
+    # Po trzecim starcie średnia jest już gotowa na następny mecz.
+    carried = latest_team_save_rates(frame, half_life_days=60.0)
+    next_rate = (before_third * 0.75 + 0.70) / 1.75
+    assert carried[10] == pytest.approx(next_rate)
+    assert carried[20] == pytest.approx(0.9)
 
 
 def test_later_matches_do_not_leak_into_an_as_of_fit() -> None:

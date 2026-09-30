@@ -19,6 +19,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from backend.config import REPO_ROOT
 from backend.repositories.model_statistics_maintenance_repository import (
     BetGenerationScope)
 from backend.services.model_statistics_maintenance_service import (
@@ -26,18 +27,30 @@ from backend.services.model_statistics_maintenance_service import (
     DEFAULT_PREVIEW_LIMIT,
     StatisticsRefreshReport,
     refresh_model_statistics)
+from models.pipeline.core.artifacts import load_model_artifact
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import MatchupInput
+from models.pipeline.core.config import ModelRunConfig
 from models.pipeline.core.config import load_model_config
+from models.pipeline.core.registry import RegistryError
 from models.pipeline.core.registry import get_trainer
 from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_model_id
 from models.pipeline.core.registry import validate_events
+from models.pipeline.data.hockey_history_repository import (
+    fetch_upcoming_hockey_matches)
+from models.pipeline.data.hockey_history_repository import (
+    select_predictable_matches)
+from models.pipeline.data.shared_history_context import SharedHistoryContext
+from models.pipeline.data.shared_history_context import (
+    build_shared_history_context)
 from models.pipeline.persistence.match_assessment_writer import (
     write_match_assessment)
 from models.pipeline.persistence.prediction_writer import (
-    map_predictions_to_rows,
-    write_predictions)
+    map_hockey_markets_to_rows)
+from models.pipeline.persistence.prediction_writer import (
+    map_predictions_to_rows)
+from models.pipeline.persistence.prediction_writer import write_predictions
 from models.pipeline.persistence.season_projection_writer import (
     ProjectionRunStatus,
     SeasonProjectionRun,
@@ -45,13 +58,16 @@ from models.pipeline.persistence.season_projection_writer import (
     fail_projection_run,
     start_projection_run,
     write_projection)
-from models.pipeline.data.shared_history_context import SharedHistoryContext
-from models.pipeline.data.shared_history_context import (
-    build_shared_history_context)
 from models.pipeline.prediction.future_events_predictor import (
     FeatureCache)
 from models.pipeline.prediction.future_events_predictor import (
     FutureEventsPredictor)
+from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
+from models.pipeline.prediction.hockey_markets import derive_hockey_markets
+from models.pipeline.prediction.predictor import (
+    predict_batch,
+    predict_match,
+    predict_season_batch)
 from models.pipeline.simulation.config import (
     DEFAULT_SEED,
     DEFAULT_TRIALS,
@@ -61,10 +77,12 @@ from models.pipeline.simulation.perf_budget import WallClock
 from models.pipeline.simulation.perf_budget import peak_rss_mb
 from models.pipeline.simulation.season_simulator import (
     DynamicSeasonSimulator)
-from models.pipeline.prediction.predictor import (
-    predict_batch,
-    predict_match,
-    predict_season_batch)
+from models.pipeline.training.hockey_ratings_trainer import HockeyRatingsModel
+from models.pipeline.training.hockey_ratings_trainer import (
+    hockey_params_from_config)
+from models.pipeline.training.hockey_ratings_trainer import (
+    latest_team_save_rates)
+from models.pipeline.training.hockey_ratings_trainer import load_training_frame
 from models.pipeline.training.sklearn_trainer import evaluate, train
 
 logger = logging.getLogger(__name__)
@@ -331,6 +349,34 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable tqdm progress bar on stderr")
     simulate_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
+
+    hockey_parser = subparsers.add_parser(
+        "predict-hockey",
+        help="Predict NHL team markets for the next predictable matches")
+    hockey_parser.add_argument(
+        "--league-id",
+        required=True,
+        type=int,
+        help="Hockey league id (NHL is 45)")
+    hockey_parser.add_argument(
+        "--match-ids",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated match ids; each id must also be the next "
+            "predictable game for both clubs"))
+    hockey_parser.add_argument(
+        "--write-db",
+        action="store_true",
+        help="Persist predictions; omit for a dry-run")
+    hockey_parser.add_argument(
+        "--select-finals",
+        action="store_true",
+        help="Persist each family's highest probability as final")
+    hockey_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging")
@@ -787,6 +833,240 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+_HOCKEY_RATINGS_TRAINER = "HockeyRatingsTrainer"
+_HOCKEY_PREDICTION_CONFIGS = REPO_ROOT / "models" / "configs" / "prediction"
+
+
+def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
+    """Predict NHL team markets for the next predictable matches.
+
+    Omitting ``--write-db`` is a dry-run. There is no ``--stage`` flag
+    yet: every match uses the team-average goalie until lineups exist.
+    """
+    configs = _active_hockey_configs()
+    if not configs:
+        raise ValueError("No active hockey team-model configs were found")
+    requested = _unique_match_ids(_parse_match_ids(args.match_ids))
+    match_ids = _hockey_match_ids(args.league_id, requested)
+    report = {
+        "league_id": args.league_id,
+        "match_ids": match_ids,
+        "ignored_match_ids": _ignored_match_ids(requested, match_ids),
+        "dry_run": not bool(args.write_db),
+        "models": []}
+    if not match_ids:
+        logger.warning(
+            "No predictable hockey matches for league %s", args.league_id)
+        return report
+    upcoming = _upcoming_hockey_index(args.league_id)
+    report["models"] = [
+        _predict_hockey_config(
+            config,
+            model_id,
+            match_ids,
+            upcoming,
+            args.league_id,
+            write_db=bool(args.write_db),
+            select_finals=bool(args.select_finals))
+        for config, model_id in configs]
+    return report
+
+
+def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
+    """Load prediction configs whose NHL team model is active."""
+    if not _HOCKEY_PREDICTION_CONFIGS.is_dir():
+        raise FileNotFoundError(
+            "Hockey prediction configs not found: "
+            f"{_HOCKEY_PREDICTION_CONFIGS}")
+    loaded: list[tuple[ModelRunConfig, int]] = []
+    for path in sorted(_HOCKEY_PREDICTION_CONFIGS.glob("*.json")):
+        config = load_model_config(path)
+        if not _is_hockey_team_config(config):
+            continue
+        try:
+            model_id = resolve_model_id(config.model_name)
+        except RegistryError:
+            logger.info(
+                "Skipping hockey config %s because the model is inactive",
+                config.model_name)
+            continue
+        loaded.append((config, model_id))
+    return loaded
+
+
+def _is_hockey_team_config(config: ModelRunConfig) -> bool:
+    """True for sport 2 configs that emit the 18 team markets."""
+    if config.sport_id != 2:
+        return False
+    return all(key in config.events for key in HOCKEY_MARKET_KEYS)
+
+
+def _hockey_match_ids(league_id: int, requested: list[int]) -> list[int]:
+    """Keep requested ids that are the next game for both clubs."""
+    predictable = select_predictable_matches(league_id, datetime.now())
+    if not requested:
+        return predictable
+    allowed = set(predictable)
+    kept = [match_id for match_id in requested if match_id in allowed]
+    ignored = _ignored_match_ids(requested, kept)
+    if ignored:
+        logger.warning(
+            "Ignoring hockey match ids that are not the next "
+            "predictable game for both clubs: %s",
+            ignored)
+    return kept
+
+
+def _ignored_match_ids(
+        requested: list[int],
+        selected: list[int]) -> list[int]:
+    chosen = set(selected)
+    return [match_id for match_id in requested if match_id not in chosen]
+
+
+def _unique_match_ids(match_ids: list[int]) -> list[int]:
+    seen: set[int] = set()
+    unique: list[int] = []
+    for match_id in match_ids:
+        if match_id in seen:
+            continue
+        seen.add(match_id)
+        unique.append(match_id)
+    return unique
+
+
+def _upcoming_hockey_index(league_id: int) -> dict[int, tuple[int, int]]:
+    """Map an unplayed match id to its home and away club ids."""
+    frame = fetch_upcoming_hockey_matches(league_id)
+    index: dict[int, tuple[int, int]] = {}
+    if frame.empty:
+        return index
+    for match_id, home_team, away_team in zip(
+            frame["match_id"].tolist(),
+            frame["home_team"].tolist(),
+            frame["away_team"].tolist()):
+        index[int(match_id)] = (int(home_team), int(away_team))
+    return index
+
+
+def _predict_hockey_config(
+        config: ModelRunConfig,
+        model_id: int,
+        match_ids: list[int],
+        upcoming: dict[int, tuple[int, int]],
+        league_id: int,
+        write_db: bool,
+        select_finals: bool) -> dict[str, Any]:
+    """Score one active artifact and optionally persist its rows."""
+    if config.trainer != _HOCKEY_RATINGS_TRAINER:
+        raise ValueError(
+            f"Hockey prediction does not support trainer {config.trainer}")
+    model = _load_hockey_ratings_model(config)
+    saves = _hockey_team_save_rates(config, league_id)
+    event_ids = resolve_event_map(config.events)
+    matches: list[dict[str, Any]] = []
+    written = 0
+    for match_id in match_ids:
+        pair = upcoming.get(match_id)
+        if pair is None:
+            logger.warning(
+                "Predictable hockey match %s is missing from upcoming rows",
+                match_id)
+            continue
+        match_report, rows = _predict_one_hockey_match(
+            model,
+            match_id,
+            pair[0],
+            pair[1],
+            saves,
+            model_id,
+            event_ids,
+            select_finals)
+        match_report["written"] = 0
+        if write_db:
+            match_report["written"] = write_predictions(
+                rows, values_are_percent=True)
+            written += int(match_report["written"])
+        matches.append(match_report)
+    return {
+        "model_name": config.model_name,
+        "model_id": model_id,
+        "predictions": sum(item["predictions"] for item in matches),
+        "finals": sum(item["finals"] for item in matches),
+        "written": written,
+        "matches": matches}
+
+
+def _load_hockey_ratings_model(config: ModelRunConfig) -> HockeyRatingsModel:
+    """Load the fitted attack-defense artifact for one config."""
+    model = load_model_artifact(config.artifact_dir)
+    if not isinstance(model, HockeyRatingsModel):
+        raise TypeError(
+            f"Artifact for {config.model_name} is not a HockeyRatingsModel")
+    return model
+
+
+def _hockey_team_save_rates(
+        config: ModelRunConfig,
+        league_id: int) -> dict[int, float]:
+    """Decayed starter save rate each club carries into the next game."""
+    params = hockey_params_from_config(config)
+    if params.league_id != league_id:
+        logger.warning(
+            "Config %s league_id=%s differs from --league-id %s",
+            config.model_name,
+            params.league_id,
+            league_id)
+    logger.info("Loading hockey goalie save rates for league %s", league_id)
+    frame = load_training_frame(league_id, params.goalie_half_life_days)
+    return latest_team_save_rates(frame, params.goalie_half_life_days)
+
+
+def _predict_one_hockey_match(
+        model: HockeyRatingsModel,
+        match_id: int,
+        home_team: int,
+        away_team: int,
+        saves: dict[int, float],
+        model_id: int,
+        event_ids: dict[str, int],
+        select_finals: bool) -> tuple[dict[str, Any], list[Any]]:
+    """Score one match with team-average goalies and no lineup adjustment."""
+    # Przewidywany skład jeszcze nie istnieje, więc bierzemy średnią drużyny.
+    logger.warning(
+        "No probable lineup for match %s teams %s and %s; "
+        "using team-average strength and team-average goalie save percentage",
+        match_id,
+        home_team,
+        away_team)
+    home_save = saves.get(home_team)
+    away_save = saves.get(away_team)
+    distribution = model.score_distribution(
+        home_team,
+        away_team,
+        home_starter_save=home_save,
+        away_starter_save=away_save,
+        home_team_save=home_save,
+        away_team_save=away_save)
+    markets = derive_hockey_markets(distribution)
+    rows = map_hockey_markets_to_rows(
+        match_id, model_id, markets, event_ids, select_finals)
+    final_keys = [
+        key
+        for key, row in zip(HOCKEY_MARKET_KEYS, rows)
+        if row.is_final]
+    report = {
+        "match_id": match_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "predictions": len(rows),
+        "finals": len(final_keys),
+        "final_keys": final_keys,
+        "markets": markets,
+        "lineup_fallback": True}
+    return report, rows
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI main used by models/scripts/model_runner.py."""
     parser = build_parser()
@@ -815,6 +1095,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_refresh_statistics(args)
         elif args.command == "simulate-season":
             payload = run_simulate_season(args)
+        elif args.command == "predict-hockey":
+            payload = run_predict_hockey(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

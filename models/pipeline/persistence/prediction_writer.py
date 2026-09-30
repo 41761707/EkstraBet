@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from contextlib import nullcontext
 from typing import Any
 from typing import Iterable
@@ -11,6 +12,9 @@ from models.pipeline.core.config import BttsPrediction
 from models.pipeline.core.config import GoalsPoissonPrediction
 from models.pipeline.core.config import PredictionWriteRow
 from models.pipeline.core.config import ResultPrediction
+from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_FAMILIES
+from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
+from models.pipeline.prediction.hockey_markets import select_hockey_finals
 from models.pipeline.prediction.score_matrix import exact_score_probabilities
 
 
@@ -46,10 +50,18 @@ WHERE p.match_id = %s
 """
 
 
-def _db_percentage(value: float) -> float:
+def _db_percentage(
+        value: float,
+        values_are_percent: bool = False) -> float:
     probability = float(value)
-    if probability < 0.0 or probability > 100.0:
+    if (
+            not math.isfinite(probability)
+            or probability < 0.0
+            or probability > 100.0):
         raise ValueError("Prediction value must be between 0 and 100")
+    # Wartości NHL są już w procentach; ułamek <= 1 nie może być mnożony.
+    if values_are_percent:
+        return probability
     if probability <= 1.0:
         return probability * 100.0
     return probability
@@ -96,8 +108,15 @@ def _clear_family_finals(
 
 def write_predictions(
         rows: Iterable[PredictionWriteRow],
-        conn: Any | None = None) -> int:
-    """Upsert prediction rows and selected final prediction references."""
+        conn: Any | None = None,
+        *,
+        values_are_percent: bool = False) -> int:
+    """Upsert prediction rows and selected final prediction references.
+
+    Football callers pass probabilities on a 0-1 scale. NHL markets
+    are already 0-100, so they set ``values_are_percent`` and a
+    sub-percent probability is stored unchanged.
+    """
     prepared_rows = list(rows)
     if not prepared_rows:
         return 0
@@ -112,7 +131,7 @@ def write_predictions(
                     row.match_id,
                     row.event_id,
                     row.model_id,
-                    _db_percentage(row.value)))
+                    _db_percentage(row.value, values_are_percent)))
                 prediction_ids.append(_prediction_id(cursor, row))
             cleared_families: set[tuple[int, int]] = set()
             paired = zip(prepared_rows, prediction_ids, strict=True)
@@ -194,6 +213,50 @@ def map_predictions_to_rows(
     if not rows:
         raise ValueError("Prediction output contains no supported families")
     return rows
+
+
+def map_hockey_markets_to_rows(
+        match_id: int,
+        model_id: int,
+        market_probs: dict[str, float],
+        event_ids: dict[str, int],
+        select_finals: bool = False) -> list[PredictionWriteRow]:
+    """Map NHL market percents to rows, one final per binary family.
+
+    Probabilities stay on the 0-100 scale. ``select_finals`` marks the
+    higher side of each family; a tie keeps the first listed key.
+    """
+    missing = [
+        key for key in HOCKEY_MARKET_KEYS if key not in market_probs]
+    if missing:
+        raise KeyError(f"Missing hockey market probabilities: {missing}")
+    final_keys: set[str] = set()
+    if select_finals:
+        final_keys = set(select_hockey_finals(
+            market_probs, HOCKEY_MARKET_FAMILIES))
+    return [
+        _event_row(
+            match_id,
+            model_id,
+            event_ids,
+            key,
+            _hockey_percent(market_probs[key]),
+            key if key in final_keys else None)
+        for key in HOCKEY_MARKET_KEYS]
+
+
+def _hockey_percent(value: float) -> float:
+    """Clip a market percent that drifted off 0-100 by rounding error."""
+    percent = float(value)
+    out_of_range = percent < -1e-6 or percent > 100.0 + 1e-6
+    if not math.isfinite(percent) or out_of_range:
+        raise ValueError(
+            "Hockey market probability must be between 0 and 100")
+    if percent < 0.0:
+        return 0.0
+    if percent > 100.0:
+        return 100.0
+    return percent
 
 
 def _map_result_rows(
