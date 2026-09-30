@@ -59,9 +59,11 @@ def _ensure_components_loaded() -> None:
         "models.pipeline.labels.football_result",
         "models.pipeline.labels.football_btts",
         "models.pipeline.labels.football_goals_poisson",
+        "models.pipeline.labels.hockey_goals",
         "models.pipeline.training.lstm_trainer",
         "models.pipeline.training.poisson_trainer",
-        "models.pipeline.training.sklearn_trainer"
+        "models.pipeline.training.sklearn_trainer",
+        "models.pipeline.training.hockey_ratings_trainer"
     ]
     for module_name in module_names:
         import_module(module_name)

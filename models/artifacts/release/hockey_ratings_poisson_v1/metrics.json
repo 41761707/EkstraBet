@@ -1,0 +1,68 @@
+{
+  "test_season": 12,
+  "n_scored": 1387,
+  "n_skipped": 1,
+  "n_train": 11793,
+  "refit_count": 34,
+  "moneyline_log_loss": 0.6879191058558312,
+  "naive_home_log_loss": 0.6930323836388569,
+  "moneyline_brier": 0.24742667739593116,
+  "naive_home_brier": 0.24994082018217936,
+  "over_55_log_loss": 0.6828811390462575,
+  "over_55_brier": 0.244913306035755,
+  "naive_over_55_log_loss": 0.6853464782548324,
+  "puck_line_home_minus_15_log_loss": 0.6020941471346057,
+  "puck_line_home_minus_15_brier": 0.20613857111424183,
+  "naive_puck_line_log_loss": 0.6109341947839356,
+  "beats_naive_moneyline": true,
+  "holdout_tie_inflation_mean": 1.6876470588235302,
+  "moneyline_reliability": [
+    {
+      "lower": 0.2,
+      "upper": 0.30000000000000004,
+      "n": 1,
+      "p_mean": 0.295123387464109,
+      "y_rate": 0.0
+    },
+    {
+      "lower": 0.30000000000000004,
+      "upper": 0.4,
+      "n": 57,
+      "p_mean": 0.37139840377327193,
+      "y_rate": 0.3333333333333333
+    },
+    {
+      "lower": 0.4,
+      "upper": 0.5,
+      "n": 421,
+      "p_mean": 0.4635615381295239,
+      "y_rate": 0.517814726840855
+    },
+    {
+      "lower": 0.5,
+      "upper": 0.6000000000000001,
+      "n": 720,
+      "p_mean": 0.5456061305773695,
+      "y_rate": 0.5152777777777777
+    },
+    {
+      "lower": 0.6000000000000001,
+      "upper": 0.7000000000000001,
+      "n": 171,
+      "p_mean": 0.6309996058781218,
+      "y_rate": 0.5964912280701754
+    },
+    {
+      "lower": 0.7000000000000001,
+      "upper": 0.8,
+      "n": 17,
+      "p_mean": 0.7216224426502411,
+      "y_rate": 0.7647058823529411
+    }
+  ],
+  "home_adv": 0.04737379351176016,
+  "tie_inflation": 1.4600000000000004,
+  "p_ot_home": 0.5492957746478874,
+  "n_teams": 33,
+  "n_production_matches": 13181
+}
