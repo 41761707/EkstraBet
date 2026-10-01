@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Pre-match NHL ratings for teams, goalies, skaters and lineups."""
 
 from models.pipeline.features.hockey.early_season import EarlySeasonConfig
@@ -26,19 +25,29 @@ from models.pipeline.features.hockey.player_ratings import PlayerRating
 from models.pipeline.features.hockey.player_ratings import PlayerRatingsConfig
 from models.pipeline.features.hockey.player_ratings import (
     build_player_ratings)
+from models.pipeline.features.hockey.lineup_strength import (
+    projected_lineup_strength)
 from models.pipeline.features.hockey.ratings import HockeyRatingsConfig
 from models.pipeline.features.hockey.ratings import HockeyTeamRatingState
 from models.pipeline.features.hockey.ratings import (
     build_hockey_pre_match_ratings)
 from models.pipeline.features.hockey.ratings import build_hockey_team_ratings
+from models.pipeline.features.hockey.team_features import (
+    HOCKEY_GBM_FEATURE_COLUMNS)
+from models.pipeline.features.hockey.team_features import (
+    HockeyTeamFeatureBuilder)
+from models.pipeline.features.hockey.team_features import (
+    build_hockey_team_features)
 
 __all__ = [
     "EarlySeasonConfig",
     "GoalieRating",
     "GoalieRatingState",
     "GoalieRatingsConfig",
+    "HOCKEY_GBM_FEATURE_COLUMNS",
     "HockeyPlayerRatingState",
     "HockeyRatingsConfig",
+    "HockeyTeamFeatureBuilder",
     "HockeyTeamRatingState",
     "LineSlotResolver",
     "PlayerRating",
@@ -49,10 +58,12 @@ __all__ = [
     "apply_lineup_adjustment",
     "build_goalie_ratings",
     "build_hockey_pre_match_ratings",
+    "build_hockey_team_features",
     "build_hockey_team_ratings",
     "build_lineup_ratios",
     "build_player_ratings",
     "compute_lineup_strength",
     "early_season_alpha",
-    "early_season_multiplier"
+    "early_season_multiplier",
+    "projected_lineup_strength"
 ]

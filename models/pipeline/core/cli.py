@@ -28,6 +28,7 @@ from backend.services.model_statistics_maintenance_service import (
     DEFAULT_PREVIEW_LIMIT,
     StatisticsRefreshReport,
     refresh_model_statistics)
+from models.pipeline.core.artifacts import load_meta
 from models.pipeline.core.artifacts import load_model_artifact
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import MatchupInput
@@ -92,6 +93,11 @@ from models.pipeline.simulation.perf_budget import WallClock
 from models.pipeline.simulation.perf_budget import peak_rss_mb
 from models.pipeline.simulation.season_simulator import (
     DynamicSeasonSimulator)
+from models.pipeline.features.hockey.team_features import (
+    load_hockey_team_feature_frame)
+from models.pipeline.training.hockey_gbm_trainer import HockeyGoalsGbmModel
+from models.pipeline.training.hockey_gbm_trainer import (
+    ratings_config_from_params)
 from models.pipeline.training.hockey_ratings_trainer import HockeyRatingsModel
 from models.pipeline.training.hockey_ratings_trainer import (
     hockey_params_from_config)
@@ -853,6 +859,7 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
 
 
 _HOCKEY_RATINGS_TRAINER = "HockeyRatingsTrainer"
+_HOCKEY_GBM_TRAINER = "HockeyGbmTrainer"
 _HOCKEY_PREDICTION_CONFIGS = REPO_ROOT / "models" / "configs" / "prediction"
 # load_model_config wymaga output_columns. Te taski ich nie mają.
 _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS = frozenset({
@@ -900,18 +907,46 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
         return report
     upcoming = _upcoming_hockey_index(args.league_id)
     stage = str(getattr(args, "stage", None) or "initial")
-    report["models"] = [
-        _predict_hockey_config(
-            config,
-            model_id,
-            match_ids,
-            upcoming,
-            args.league_id,
-            write_db=bool(args.write_db),
-            select_finals=bool(args.select_finals),
-            stage=stage)
-        for config, model_id in configs]
+    report["models"] = _score_hockey_configs(
+        configs,
+        match_ids,
+        upcoming,
+        args.league_id,
+        write_db=bool(args.write_db),
+        select_finals=bool(args.select_finals),
+        stage=stage)
     return report
+
+
+def _score_hockey_configs(
+        configs: list[tuple[ModelRunConfig, int]],
+        match_ids: list[int],
+        upcoming: dict[int, _HockeyFixture],
+        league_id: int,
+        write_db: bool,
+        select_finals: bool,
+        stage: str) -> list[dict[str, Any]]:
+    """Score each artifact. One failure does not stop the others."""
+    scored: list[dict[str, Any]] = []
+    for config, model_id in configs:
+        try:
+            scored.append(_predict_hockey_config(
+                config,
+                model_id,
+                match_ids,
+                upcoming,
+                league_id,
+                write_db=write_db,
+                select_finals=select_finals,
+                stage=stage))
+        except Exception as exc:
+            logger.error(
+                "Skipping hockey config %s: %s",
+                config.model_name,
+                exc)
+    if not scored:
+        raise ValueError("No hockey team model produced predictions")
+    return scored
 
 
 def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
@@ -933,6 +968,11 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
         except RegistryError:
             logger.info(
                 "Skipping hockey config %s because the model is inactive",
+                config.model_name)
+            continue
+        if _artifact_recommends_inactive(config):
+            logger.warning(
+                "Skipping hockey config %s because recommended_active is 0",
                 config.model_name)
             continue
         loaded.append((config, model_id))
@@ -1052,6 +1092,16 @@ def _predict_hockey_config(
         select_finals: bool,
         stage: str) -> dict[str, Any]:
     """Score one active artifact and optionally persist its rows."""
+    if config.trainer == _HOCKEY_GBM_TRAINER:
+        return _predict_hockey_gbm(
+            config,
+            model_id,
+            match_ids,
+            upcoming,
+            league_id,
+            write_db,
+            select_finals,
+            stage)
     if config.trainer != _HOCKEY_RATINGS_TRAINER:
         raise ValueError(
             f"Hockey prediction does not support trainer {config.trainer}")
@@ -1091,6 +1141,114 @@ def _predict_hockey_config(
         "finals": sum(item["finals"] for item in matches),
         "written": written,
         "matches": matches}
+
+
+def _artifact_recommends_inactive(config: ModelRunConfig) -> bool:
+    """True when the saved run says this artifact must stay off."""
+    meta = load_meta(config.artifact_dir)
+    if "recommended_active" not in meta:
+        return False
+    return meta.get("recommended_active") in (0, 0.0, False)
+
+
+def _predict_hockey_gbm(
+        config: ModelRunConfig,
+        model_id: int,
+        match_ids: list[int],
+        upcoming: dict[int, _HockeyFixture],
+        league_id: int,
+        write_db: bool,
+        select_finals: bool,
+        stage: str) -> dict[str, Any]:
+    """Score the GBM artifact from pre-match team features."""
+    model = _load_hockey_gbm_model(config)
+    params = hockey_params_from_config(config)
+    prepared = _in_game_date_order(
+        _prepared_lineups(match_ids, upcoming, stage))
+    projected = {
+        match_id: (home, away)
+        for match_id, _fixture, home, away in prepared}
+    features = load_hockey_team_feature_frame(
+        league_id,
+        baseline_games=params.lineup_baseline_games,
+        projected=projected,
+        ratings_config=ratings_config_from_params(params),
+        goalie_half_life_days=params.goalie_half_life_days)
+    indexed = features.drop_duplicates("match_id").set_index("match_id")
+    event_ids = resolve_event_map(config.events)
+    matches: list[dict[str, Any]] = []
+    written = 0
+    for match_id, fixture, home_lineup, away_lineup in prepared:
+        if match_id not in indexed.index:
+            logger.warning(
+                "Hockey GBM features are missing for match %s", match_id)
+            continue
+        _warn_missing_gbm_lineup(
+            match_id, fixture, home_lineup, away_lineup)
+        row = indexed.loc[match_id]
+        if isinstance(row, pd.DataFrame):
+            row = row.iloc[0]
+        markets = derive_hockey_markets(model.score_distribution(row))
+        rows = map_hockey_markets_to_rows(
+            match_id, model_id, markets, event_ids, select_finals)
+        final_keys = [
+            key
+            for key, prediction in zip(HOCKEY_MARKET_KEYS, rows)
+            if prediction.is_final]
+        match_report = {
+            "match_id": match_id,
+            "home_team": fixture.home_team,
+            "away_team": fixture.away_team,
+            "predictions": len(rows),
+            "finals": len(final_keys),
+            "final_keys": final_keys,
+            "markets": markets,
+            "lineup_fallback": home_lineup is None and away_lineup is None,
+            "written": 0}
+        if write_db:
+            match_report["written"] = write_predictions(
+                rows, values_are_percent=True)
+            written += int(match_report["written"])
+        matches.append(match_report)
+    return {
+        "model_name": config.model_name,
+        "model_id": model_id,
+        "predictions": sum(item["predictions"] for item in matches),
+        "finals": sum(item["finals"] for item in matches),
+        "written": written,
+        "matches": matches}
+
+
+def _load_hockey_gbm_model(config: ModelRunConfig) -> HockeyGoalsGbmModel:
+    """Load the fitted Poisson GBM artifact for one config."""
+    model = load_model_artifact(config.artifact_dir)
+    if not isinstance(model, HockeyGoalsGbmModel):
+        raise TypeError(
+            f"Artifact for {config.model_name} is not a HockeyGoalsGbmModel")
+    return model
+
+
+def _warn_missing_gbm_lineup(
+        match_id: int,
+        fixture: _HockeyFixture,
+        home: _ClubLineup,
+        away: _ClubLineup) -> None:
+    if home is None and away is None:
+        logger.warning(
+            "No probable lineup for match %s teams %s and %s; "
+            "using team-average strength and team-average goalie "
+            "save percentage",
+            match_id,
+            fixture.home_team,
+            fixture.away_team)
+        return
+    if home is None or away is None:
+        missing = fixture.home_team if home is None else fixture.away_team
+        logger.warning(
+            "No probable lineup for match %s team %s; "
+            "using team-average strength for that club",
+            match_id,
+            missing)
 
 
 def _load_hockey_ratings_model(config: ModelRunConfig) -> HockeyRatingsModel:
@@ -1208,7 +1366,7 @@ def _resolve_club_lineup(
         match_id: int,
         team_id: int,
         stage: str) -> _ClubLineup:
-    """Read one club lineup. Missing resolver means no lineup yet."""
+    """Read one club lineup. A missing row keeps typical strength."""
     resolver = _lineup_stage_resolver()
     if resolver is None:
         return None
@@ -1219,7 +1377,14 @@ def _lineup_stage_resolver() -> Callable[..., _ClubLineup] | None:
     try:
         from models.pipeline.lineups.hockey_probable_lineup import (
             resolve_lineup_for_stage)
-    except ImportError:
+    except ImportError as exc:
+        # Brak modułu zostawia typową siłę. Nie wyłącza modelu.
+        if not getattr(_lineup_stage_resolver, "missing_logged", False):
+            logger.warning(
+                "resolve_lineup_for_stage is unavailable (%s); "
+                "using team-average strength",
+                exc)
+            _lineup_stage_resolver.missing_logged = True
         return None
     return resolve_lineup_for_stage
 

@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from models.pipeline.core.cli import main
+from models.pipeline.core.registry import RegistryError
 from models.pipeline.core.config import (
     EvaluationReport,
     PredictionResult,
@@ -543,6 +544,13 @@ def _changing_goalie_history():
         }])
 
 
+def _ratings_model_only(name: str) -> int:
+    """Keep predict-hockey tests on the ratings artifact they mock."""
+    if name != "HOCKEY_RATINGS_POISSON_V1":
+        raise RegistryError(f"{name} is inactive in this test")
+    return 21
+
+
 def _run_predict_hockey(
         argv: list[str],
         predictable: list[int],
@@ -567,7 +575,7 @@ def _run_predict_hockey(
             return_value=upcoming))
         stack.enter_context(patch(
             "models.pipeline.core.cli.resolve_model_id",
-            return_value=21))
+            side_effect=_ratings_model_only))
         stack.enter_context(patch(
             "models.pipeline.core.cli.load_model_artifact",
             return_value=artifact))
@@ -581,6 +589,10 @@ def _run_predict_hockey(
             stack.enter_context(patch(
                 "models.pipeline.core.cli._resolve_club_lineup",
                 side_effect=resolver))
+        else:
+            stack.enter_context(patch(
+                "models.pipeline.core.cli._lineup_stage_resolver",
+                return_value=None))
         if rosters is not None:
             stack.enter_context(patch(
                 "models.pipeline.core.cli.fetch_hockey_match_rosters",
@@ -1022,6 +1034,193 @@ def test_cli_predict_hockey_filters_match_ids_through_predictable(
     assert payload["result"]["ignored_match_ids"] == [999]
     assert len(captured) == 18
     assert {row.match_id for row in captured} == {502}
+
+
+def _gbm_model_only(name: str) -> int:
+    """Keep this test on the GBM predict path."""
+    if name != "HOCKEY_GOALS_GBM_V1":
+        raise RegistryError(f"{name} is inactive in this test")
+    return 12
+
+
+def _run_predict_hockey_gbm(
+        argv: list[str],
+        write,
+        lineup=None,
+        *,
+        resolver_available: bool = True):
+    from contextlib import ExitStack
+
+    from models.pipeline.prediction.hockey_markets import (
+        build_score_distribution)
+
+    model = MagicMock()
+    model.score_distribution.side_effect = (
+        lambda features: build_score_distribution(2.8, 2.4, 1.1, 0.52, 8))
+    features = _gbm_feature_frame(501)
+    with ExitStack() as stack:
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.select_predictable_matches",
+            return_value=[501]))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.fetch_upcoming_hockey_matches",
+            return_value=_hockey_upcoming((501, 10, 20))))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.resolve_model_id",
+            side_effect=_gbm_model_only))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli._artifact_recommends_inactive",
+            return_value=False))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli._load_hockey_gbm_model",
+            return_value=model))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.load_hockey_team_feature_frame",
+            return_value=features))
+        writer = stack.enter_context(patch(
+            "models.pipeline.core.cli.write_predictions",
+            side_effect=write))
+        if resolver_available:
+            stack.enter_context(patch(
+                "models.pipeline.core.cli._lineup_stage_resolver",
+                return_value=lambda *_args, **_kwargs: lineup))
+        else:
+            stack.enter_context(patch(
+                "models.pipeline.core.cli._lineup_stage_resolver",
+                return_value=None))
+        code = main(argv)
+    return code, writer
+
+
+def _gbm_feature_frame(match_id: int):
+    import pandas as pd
+
+    from models.pipeline.features.hockey.team_features import (
+        HOCKEY_GBM_FEATURE_COLUMNS)
+
+    row = {column: 0.0 for column in HOCKEY_GBM_FEATURE_COLUMNS}
+    row["match_id"] = match_id
+    return pd.DataFrame([row])
+
+
+def test_cli_predict_hockey_gbm_writes_markets_and_falls_back(
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture) -> None:
+    from models.pipeline.core.config import load_model_config
+    from models.pipeline.prediction.hockey_markets import (
+        HOCKEY_MARKET_FAMILIES)
+
+    captured: list = []
+
+    def _capture(rows, conn=None, *, values_are_percent=False):
+        assert values_are_percent is True
+        materialized = list(rows)
+        captured.extend(materialized)
+        return len(materialized)
+
+    with caplog.at_level(
+            logging.WARNING, logger="models.pipeline.core.cli"):
+        code, writer = _run_predict_hockey_gbm(
+            [
+                "predict-hockey",
+                "--league-id",
+                "45",
+                "--write-db",
+                "--select-finals"],
+            _capture)
+    assert code == 0
+    writer.assert_called_once()
+    assert len(captured) == 18
+    assert sum(row.is_final for row in captured) == 9
+    assert all(0.0 <= row.value <= 100.0 for row in captured)
+    config = load_model_config(
+        REPO_ROOT / "models" / "configs" / "prediction"
+        / "hockey_goals_gbm_v1.json")
+    by_event = {row.event_id: row for row in captured}
+    for keys in HOCKEY_MARKET_FAMILIES.values():
+        left = by_event[int(config.events[keys[0]])]
+        right = by_event[int(config.events[keys[1]])]
+        assert left.value + right.value == pytest.approx(100.0, abs=1e-6)
+        assert left.is_final != right.is_final
+    payload = json.loads(capsys.readouterr().out)
+    match = payload["result"]["models"][0]["matches"][0]
+    assert match["predictions"] == 18
+    assert match["finals"] == 9
+    assert match["written"] == 18
+    assert match["lineup_fallback"] is True
+    assert "team-average" in caplog.text
+
+
+def test_cli_predict_hockey_gbm_uses_a_resolved_lineup(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    code, writer = _run_predict_hockey_gbm(
+        ["predict-hockey", "--league-id", "45"],
+        MagicMock(),
+        lineup=object())
+    assert code == 0
+    writer.assert_not_called()
+    payload = json.loads(capsys.readouterr().out)
+    match = payload["result"]["models"][0]["matches"][0]
+    assert match["predictions"] == 18
+    assert match["lineup_fallback"] is False
+
+
+def test_cli_predict_hockey_gbm_scores_without_a_lineup_module(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    def _write(rows, conn=None, *, values_are_percent=False):
+        return len(list(rows))
+
+    code, writer = _run_predict_hockey_gbm(
+        ["predict-hockey", "--league-id", "45", "--write-db"],
+        _write,
+        resolver_available=False)
+    assert code == 0
+    writer.assert_called()
+    payload = json.loads(capsys.readouterr().out)
+    match = payload["result"]["models"][0]["matches"][0]
+    assert match["lineup_fallback"] is True
+
+
+def test_missing_lineup_module_keeps_the_gbm() -> None:
+    from models.pipeline.core import cli
+
+    def _both(name: str) -> int:
+        if name == "HOCKEY_GOALS_GBM_V1":
+            return 12
+        if name == "HOCKEY_RATINGS_POISSON_V1":
+            return 21
+        raise RegistryError(name)
+
+    with patch(
+            "models.pipeline.core.cli.resolve_model_id",
+            side_effect=_both), patch(
+            "models.pipeline.core.cli._artifact_recommends_inactive",
+            return_value=False), patch(
+            "models.pipeline.core.cli._lineup_stage_resolver",
+            return_value=None):
+        loaded = cli._active_hockey_configs()
+    names = [config.model_name for config, _model_id in loaded]
+    assert "HOCKEY_GOALS_GBM_V1" in names
+    assert "HOCKEY_RATINGS_POISSON_V1" in names
+
+
+def test_predict_hockey_skips_recommended_inactive() -> None:
+    from models.pipeline.core import cli
+
+    def _meta(path: object) -> dict[str, int]:
+        if "hockey_goals_gbm" in str(path):
+            return {"recommended_active": 0}
+        return {}
+
+    with patch(
+            "models.pipeline.core.cli.resolve_model_id",
+            return_value=12), patch(
+            "models.pipeline.core.cli.load_meta",
+            side_effect=_meta):
+        loaded = cli._active_hockey_configs()
+    names = [config.model_name for config, _model_id in loaded]
+    assert "HOCKEY_GOALS_GBM_V1" not in names
+    assert "HOCKEY_RATINGS_POISSON_V1" in names
 
 
 def test_cli_predict_hockey_requires_an_active_model(

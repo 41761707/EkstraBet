@@ -26,6 +26,10 @@ from models.pipeline.features.hockey.line_slots import SlotMinuteCarry
 from models.pipeline.features.hockey.line_slots import carry_slot_minutes
 from models.pipeline.features.hockey.line_slots import slot_for_labels
 from models.pipeline.features.hockey.player_ratings import (
+    DEFAULT_SLOT_OFF)
+from models.pipeline.features.hockey.player_ratings import (
+    DEFAULT_SLOT_SHOT)
+from models.pipeline.features.hockey.player_ratings import (
     HockeyPlayerRatingState)
 
 
@@ -70,7 +74,12 @@ _STAT_FIELDS = ["points", "sog", "plus_minus", "toi_seconds"]
 
 @dataclass(frozen=True)
 class ProbableLineupPlayer:
-    """One skater or goalie in a probable or confirmed lineup."""
+    """One skater or goalie in a probable or confirmed lineup.
+
+    ``confidence`` is the share of the last five lineups. A goalie's
+    ``start_probability`` is P(start) from GoalieStartModel and is
+    separate from that share.
+    """
 
     player_id: int
     position: str
@@ -79,6 +88,7 @@ class ProbableLineupPlayer:
     is_starting_goalie: int | None
     confidence: float | None
     source: str
+    start_probability: float | None = None
 
 
 @dataclass(frozen=True)
@@ -524,6 +534,59 @@ def _finished_memory(
         carried,
         last_moment,
         carry_slot_minutes(assigned))
+
+
+def projected_lineup_strength(
+        memory: _LineupMemory,
+        lineup: ProbableLineup,
+        as_of: datetime,
+        season: int) -> dict[str, float]:
+    """Return full strength for a lineup scored on a replayed history."""
+    return _strength_of_lineup(
+        memory, lineup, _plain_datetime(as_of), int(season))
+
+
+def typical_lineup_strength(
+        memory: _LineupMemory,
+        team_id: int,
+        as_of: datetime,
+        season: int) -> dict[str, float]:
+    """Return the usual slot lineup. Ratios stay at 1.
+
+    A club with no baseline occupants takes the prior of each slot.
+    A date behind the learned cursor cannot be rewound, so that
+    case also uses the slot prior.
+    """
+    moment = _plain_datetime(as_of)
+    try:
+        baseline = _baseline_skaters(
+            memory.ratings,
+            memory.history.get(int(team_id)),
+            int(season),
+            moment,
+            record_date=False)
+    except ValueError:
+        baseline = []
+    minutes = memory.slot_minutes.for_team(int(team_id), int(season))
+    if not baseline:
+        baseline = _prior_slot_skaters()
+    return _strength(baseline, baseline, minutes)
+
+
+def _prior_slot_skaters() -> list[_Skater]:
+    skaters: list[_Skater] = []
+    player_id = -1
+    for slot in SKATER_SLOTS:
+        for _seat in range(SLOT_CAPACITY[slot]):
+            skaters.append(_Skater(
+                player_id=player_id,
+                slot=slot,
+                off_rating=DEFAULT_SLOT_OFF[slot],
+                shot_rating=DEFAULT_SLOT_SHOT[slot],
+                def_rating=0.0,
+                weight=1.0))
+            player_id -= 1
+    return skaters
 
 
 def _strength_of_lineup(

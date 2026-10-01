@@ -1,0 +1,48 @@
+{
+  "test_season": 12,
+  "n_scored": 1387,
+  "n_skipped": 1,
+  "n_train": 11793,
+  "moneyline_log_loss": 0.6881647342810268,
+  "moneyline_brier": 0.24749430269203232,
+  "score_matrix_rps": 0.10646481633675593,
+  "naive_home_log_loss": 0.693100368489931,
+  "beats_naive_moneyline": true,
+  "over_55_log_loss": 0.6875949736726266,
+  "over_55_brier": 0.247232388023028,
+  "puck_line_home_minus_15_log_loss": 0.5981925291342707,
+  "puck_line_home_minus_15_brier": 0.20460741216621553,
+  "moneyline_reliability": [
+    {
+      "lower": 0.2,
+      "upper": 0.4,
+      "n": 70,
+      "p_mean": 0.3694692300211529,
+      "y_rate": 0.4
+    },
+    {
+      "lower": 0.4,
+      "upper": 0.6000000000000001,
+      "n": 863,
+      "p_mean": 0.5149954653915194,
+      "y_rate": 0.4982618771726535
+    },
+    {
+      "lower": 0.6000000000000001,
+      "upper": 0.8,
+      "n": 454,
+      "p_mean": 0.6473678570862681,
+      "y_rate": 0.5837004405286343
+    }
+  ],
+  "holdout_tie_inflation": 1.0,
+  "holdout_fallback_p_ot_home": 0.5139686184462304,
+  "production_tie_inflation": 1.4400000000000004,
+  "production_fallback_p_ot_home": 0.5114107883817427,
+  "baseline_single_fit_moneyline_log_loss": 0.6972231730053329,
+  "baseline_walk_forward_moneyline_log_loss": 0.6879191058558312,
+  "baseline_refit_count": 34,
+  "comparison_protocol": "single_preseason_fit",
+  "beats_baseline_moneyline": true,
+  "recommended_active": 1
+}

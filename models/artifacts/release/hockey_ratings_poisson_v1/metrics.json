@@ -5,6 +5,7 @@
   "n_train": 11793,
   "refit_count": 34,
   "moneyline_log_loss": 0.6879191058558312,
+  "single_fit_moneyline_log_loss": 0.6972231730053329,
   "moneyline_log_loss_with_lineup": 0.6931650617093468,
   "moneyline_log_loss_without_lineup": 0.6879191058558312,
   "lineup_adjustment_improves_log_loss": false,

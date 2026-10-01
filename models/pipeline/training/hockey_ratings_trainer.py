@@ -1295,6 +1295,46 @@ def walk_forward_metrics(
         params)
 
 
+def single_fit_moneyline_log_loss(
+        frame: pd.DataFrame,
+        params: HockeyDixonColesParams,
+        lineup_betas: tuple[float, float] | None = None) -> float:
+    """Score the test season from one fit before its first game."""
+    prepared = _require_columns(
+        frame, _FIT_COLUMNS + [
+            "final_home_win", "final_home_goals", "final_away_goals"])
+    test = prepared.loc[
+        prepared["season"] == params.test_season].sort_values(
+        ["game_date", "match_id"])
+    if test.empty:
+        raise ValueError(
+            f"No finished matches for test season {params.test_season}")
+    as_of = pd.Timestamp(test["game_date"].min())
+    model, tie_before = _calibrated_model(
+        prepared, as_of, params, lineup_betas, None)
+    plain = replace(
+        model,
+        beta_off=0.0,
+        beta_def=0.0,
+        tie_inflation=tie_before)
+    naive = _naive_rates(prepared, as_of)
+    scored: list[dict[str, float]] = []
+    for record in test.itertuples(index=False):
+        row = _score_one(model, record, naive, plain)
+        if row is not None:
+            scored.append(row)
+    if not scored:
+        raise ValueError("Single-fit holdout produced no scored matches")
+    metrics = _metrics_from_rows(
+        scored,
+        0,
+        [float(model.tie_inflation)],
+        [tie_before],
+        prepared,
+        params)
+    return float(metrics["moneyline_log_loss"])
+
+
 def _bucket_keys(dates: pd.Series, every_days: int) -> list[int]:
     starts: list[int] = []
     current: pd.Timestamp | None = None
@@ -1845,6 +1885,9 @@ class HockeyRatingsTrainer(Trainer):
         holdout_betas = _betas_before_test_season(frame, params)
         metrics = walk_forward_metrics(
             frame, params, lineup_betas=holdout_betas)
+        metrics["single_fit_moneyline_log_loss"] = (
+            single_fit_moneyline_log_loss(
+                frame, params, lineup_betas=holdout_betas))
         as_of = pd.Timestamp(frame["game_date"].max()) + pd.Timedelta(days=1)
         production = fit_model_as_of(frame, as_of, params)
         kept = bool(metrics["lineup_adjustment_kept"])
@@ -1900,6 +1943,9 @@ class HockeyRatingsTrainer(Trainer):
         holdout_betas = _betas_before_test_season(frame, params)
         metrics = walk_forward_metrics(
             frame, params, lineup_betas=holdout_betas)
+        metrics["single_fit_moneyline_log_loss"] = (
+            single_fit_moneyline_log_loss(
+                frame, params, lineup_betas=holdout_betas))
         metrics["lineup_holdout_beta_off"] = holdout_betas[0]
         metrics["lineup_holdout_beta_def"] = holdout_betas[1]
         return EvaluationReport(
