@@ -16,15 +16,25 @@ from backend.sports.football.outcome_evaluator import BET_MARKET_EVENT_IDS
 from backend.sports.football.outcome_evaluator import EventFamily
 from backend.sports.football.outcome_evaluator import SettlementCandidate
 from backend.sports.football.outcome_evaluator import SettlementTarget
+from backend.sports.hockey.markets import HOCKEY_BET_MARKET_EVENT_IDS
+from backend.sports.hockey.outcome_evaluator import HockeyEventFamily
+from backend.sports.hockey.outcome_evaluator import HockeySettlementCandidate
 
 
+FOOTBALL_SPORT_ID = 1
+HOCKEY_SPORT_ID = 2
+_FOOTBALL_FINAL_FAMILIES = ("REZULTAT", "BTTS", "OU", "GOALS", "EXACT")
+_HOCKEY_FINAL_FAMILIES = ("HOCKEY_ML", "HOCKEY_OU_55", "HOCKEY_OU_65",
+    "HOCKEY_PL_HOME", "HOCKEY_PL_AWAY", "HOCKEY_HOME_TT_25",
+    "HOCKEY_HOME_TT_35", "HOCKEY_AWAY_TT_25", "HOCKEY_AWAY_TT_35")
+_FOOTBALL_FAMILY_NAMES = frozenset(_FOOTBALL_FINAL_FAMILIES)
+_HOCKEY_FAMILY_NAMES = frozenset(_HOCKEY_FINAL_FAMILIES)
 SUPPORTED_FINAL_FAMILIES = (
-    "REZULTAT",
-    "BTTS",
-    "OU",
-    "GOALS",
-    "EXACT")
-_BET_MARKET_EVENT_ID_LIST = tuple(sorted(BET_MARKET_EVENT_IDS))
+    *_FOOTBALL_FINAL_FAMILIES,
+    *_HOCKEY_FINAL_FAMILIES)
+_PRICED_BET_EVENT_IDS = BET_MARKET_EVENT_IDS | HOCKEY_BET_MARKET_EVENT_IDS
+_BET_MARKET_EVENT_ID_LIST = tuple(sorted(_PRICED_BET_EVENT_IDS))
+SettlementRow = SettlementCandidate | HockeySettlementCandidate
 _FINISHED_RESULTS = ("1", "X", "2")
 
 _EVENT_FAMILY_JOIN = """
@@ -36,6 +46,10 @@ _EVENT_FAMILY_JOIN = """
         GROUP BY efm.event_id
     ) efm_one ON e.id = efm_one.event_id
     INNER JOIN event_families ef ON efm_one.event_family_id = ef.id
+"""
+
+_HOCKEY_MATCH_ADD_JOIN = """
+    LEFT JOIN hockey_matches_add hma ON hma.match_id = m.id
 """
 
 _UPSERT_GENERATED_BET_SQL = """
@@ -124,7 +138,7 @@ def fetch_pending_final_predictions(
         after_id: int,
         limit: int,
         scope: BetGenerationScope | None = None
-) -> list[SettlementCandidate]:
+) -> list[SettlementRow]:
     """Fetch pending final predictions for finished matches (keyset)."""
     if limit <= 0:
         return []
@@ -150,12 +164,16 @@ def fetch_pending_final_predictions(
             ef.name AS family,
             m.result,
             m.home_team_goals AS home_goals,
-            m.away_team_goals AS away_goals
+            m.away_team_goals AS away_goals,
+            m.sport_id AS sport_id,
+            hma.OTwinner AS ot_winner,
+            hma.SOwinner AS so_winner
         FROM final_predictions fp
         JOIN predictions p ON p.id = fp.predictions_id
         JOIN matches m ON m.id = p.match_id
         JOIN events e ON e.id = p.event_id
         {_EVENT_FAMILY_JOIN}
+        {_HOCKEY_MATCH_ADD_JOIN}
         WHERE {" AND ".join(conditions)}
         ORDER BY fp.ID ASC
         LIMIT %s
@@ -171,7 +189,7 @@ def fetch_pending_bets(
         after_id: int,
         limit: int,
         scope: BetGenerationScope | None = None
-) -> list[SettlementCandidate]:
+) -> list[SettlementRow]:
     """Fetch pending bets only for priced settlement markets (keyset)."""
     if limit <= 0:
         return []
@@ -198,11 +216,15 @@ def fetch_pending_bets(
             ef.name AS family,
             m.result,
             m.home_team_goals AS home_goals,
-            m.away_team_goals AS away_goals
+            m.away_team_goals AS away_goals,
+            m.sport_id AS sport_id,
+            hma.OTwinner AS ot_winner,
+            hma.SOwinner AS so_winner
         FROM bets b
         JOIN matches m ON m.id = b.match_id
         JOIN events e ON e.id = b.event_id
         {_EVENT_FAMILY_JOIN}
+        {_HOCKEY_MATCH_ADD_JOIN}
         WHERE {" AND ".join(conditions)}
         ORDER BY b.id ASC
         LIMIT %s
@@ -380,12 +402,53 @@ def _fetch_dicts(
 def _to_settlement_candidate(
         row: dict[str, Any],
         target: SettlementTarget
-) -> SettlementCandidate:
-    """Map a SQL dictionary row to a settlement candidate."""
+) -> SettlementRow:
+    """Map a SQL dictionary row to the sport-specific candidate."""
     family_name = str(row["family"])
+    _require_supported_family(family_name)
+    sport_id = _sport_id_for_row(row, family_name)
+    if sport_id == HOCKEY_SPORT_ID:
+        return _to_hockey_candidate(row, target, family_name)
+    return _to_football_candidate(row, target, family_name)
+
+
+def _require_supported_family(family_name: str) -> None:
+    """Reject a family that settlement does not know how to price."""
     if family_name not in SUPPORTED_FINAL_FAMILIES:
         raise ValueError(
             f"Unsupported event family from database: {family_name}")
+
+
+def _sport_id_for_row(row: dict[str, Any], family_name: str) -> int:
+    """Resolve sport id and check that it matches the event family.
+
+    Missing ``sport_id`` stays football so older fixtures work.
+    A hockey family still requires an explicit hockey sport id.
+    """
+    sport_id = _optional_int(row.get("sport_id"))
+    if sport_id is None:
+        if family_name in _HOCKEY_FAMILY_NAMES:
+            raise ValueError("Hockey family requires matches.sport_id")
+        return FOOTBALL_SPORT_ID
+    if sport_id == HOCKEY_SPORT_ID:
+        if family_name not in _HOCKEY_FAMILY_NAMES:
+            raise ValueError(
+                f"Hockey sport_id with non-hockey family: {family_name}")
+        return sport_id
+    if sport_id == FOOTBALL_SPORT_ID:
+        if family_name not in _FOOTBALL_FAMILY_NAMES:
+            raise ValueError(
+                f"Football sport_id with non-football family: {family_name}")
+        return sport_id
+    raise ValueError(f"Unsupported sport_id from database: {sport_id}")
+
+
+def _to_football_candidate(
+        row: dict[str, Any],
+        target: SettlementTarget,
+        family_name: str
+) -> SettlementCandidate:
+    """Map a football SQL row to a football settlement candidate."""
     return SettlementCandidate(
         record_id=int(row["record_id"]),
         target=target,
@@ -395,7 +458,29 @@ def _to_settlement_candidate(
         result=str(row["result"]),
         home_goals=_optional_int(row.get("home_goals")),
         away_goals=_optional_int(row.get("away_goals")),
-        match_id=_optional_int(row.get("match_id")))
+        match_id=_optional_int(row.get("match_id")),
+        sport_id=FOOTBALL_SPORT_ID)
+
+
+def _to_hockey_candidate(
+        row: dict[str, Any],
+        target: SettlementTarget,
+        family_name: str
+) -> HockeySettlementCandidate:
+    """Map a hockey SQL row, including overtime winner columns."""
+    return HockeySettlementCandidate(
+        record_id=int(row["record_id"]),
+        target=target,
+        event_id=int(row["event_id"]),
+        event_name=str(row["event_name"]),
+        family=cast(HockeyEventFamily, family_name),
+        result=str(row["result"]),
+        home_goals=_optional_int(row.get("home_goals")),
+        away_goals=_optional_int(row.get("away_goals")),
+        ot_winner=_optional_int(row.get("ot_winner")),
+        so_winner=_optional_int(row.get("so_winner")),
+        match_id=_optional_int(row.get("match_id")),
+        sport_id=HOCKEY_SPORT_ID)
 
 
 def _to_generated_bet(row: dict[str, Any]) -> GeneratedBet:

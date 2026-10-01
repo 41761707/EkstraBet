@@ -37,7 +37,8 @@ class HockeySettlementCandidate:
 
     ``family`` uses ``event_families.name`` from the database.
     Goals are regulation totals. ``ot_winner`` is 1 home, 2 away
-    or 3 shootout, matching ``hockey_matches_add``.
+    or 3 shootout, matching ``hockey_matches_add``. ``sport_id``
+    is 2 when maintenance loaded the row.
     """
 
     record_id: int
@@ -51,6 +52,7 @@ class HockeySettlementCandidate:
     ot_winner: int | None = None
     so_winner: int | None = None
     match_id: int | None = None
+    sport_id: int | None = None
 
 
 def final_score(

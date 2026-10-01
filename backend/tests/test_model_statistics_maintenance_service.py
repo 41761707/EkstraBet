@@ -20,6 +20,7 @@ from backend.services.model_statistics_maintenance_service import (
     settle_outcomes)
 from backend.sports.football.outcome_evaluator import EventFamily
 from backend.sports.football.outcome_evaluator import SettlementCandidate
+from backend.sports.hockey.outcome_evaluator import HockeySettlementCandidate
 
 
 def _fp_candidate(
@@ -766,6 +767,101 @@ class TestPreviewPlannedWrites(unittest.TestCase):
                 BetGenerationScope(),
                 dry_run=False,
                 preview=True)
+
+
+class TestMixedSportSettlement(unittest.TestCase):
+    """One batch may contain football and hockey records."""
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".write_bet_outcomes",
+        return_value=1)
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".write_final_prediction_outcomes",
+        return_value=2)
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_bets")
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_pending_final_predictions")
+    def test_mixed_batch_settles_each_sport(
+            self,
+            mock_fp: MagicMock,
+            mock_bets: MagicMock,
+            mock_write_fp: MagicMock,
+            mock_write_bets: MagicMock) -> None:
+        hockey_win = HockeySettlementCandidate(
+            record_id=2,
+            target="final_prediction",
+            event_id=234,
+            event_name="home win",
+            family="HOCKEY_ML",
+            result="X",
+            home_goals=3,
+            away_goals=3,
+            ot_winner=1,
+            match_id=200,
+            sport_id=2)
+        hockey_pending = HockeySettlementCandidate(
+            record_id=3,
+            target="final_prediction",
+            event_id=234,
+            event_name="home win",
+            family="HOCKEY_ML",
+            result="X",
+            home_goals=2,
+            away_goals=2,
+            ot_winner=None,
+            match_id=201,
+            sport_id=2)
+        hockey_bet = HockeySettlementCandidate(
+            record_id=8,
+            target="bet",
+            event_id=238,
+            event_name="over 6.5",
+            family="HOCKEY_OU_65",
+            result="X",
+            home_goals=3,
+            away_goals=3,
+            ot_winner=1,
+            match_id=200,
+            sport_id=2)
+        mock_fp.side_effect = [
+            [_fp_candidate(1), hockey_win, hockey_pending],
+            []]
+        mock_bets.side_effect = [[hockey_bet], []]
+        conn = MagicMock()
+        report = settle_outcomes(batch_size=10, dry_run=False, conn=conn)
+        self.assertEqual(report.read, 4)
+        self.assertEqual(report.settled, 3)
+        self.assertEqual(report.skipped, 1)
+        self.assertEqual(len(report.warnings), 1)
+        self.assertIn("Overtime winner is required", report.warnings[0])
+        fp_rows = mock_write_fp.call_args.args[0]
+        self.assertEqual(fp_rows, [(1, 1), (2, 1)])
+        bet_rows = mock_write_bets.call_args.args[0]
+        self.assertEqual(bet_rows, [(8, 1)])
+
+    @patch(
+        "backend.services.model_statistics_maintenance_service.repo"
+        ".fetch_bet_generation_candidates")
+    def test_generate_bets_accepts_hockey_event(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [
+            GeneratedBet(
+                match_id=900,
+                event_id=234,
+                model_id=8,
+                bookmaker_id=2,
+                odds=1.91,
+                probability=55.0)]
+        report = generate_bets(BetGenerationScope(), dry_run=True)
+        self.assertEqual(report.read, 1)
+        self.assertEqual(report.generated, 1)
+        self.assertEqual(report.skipped, 0)
 
 
 class TestReportMerge(unittest.TestCase):
