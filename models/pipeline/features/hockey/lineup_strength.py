@@ -5,7 +5,8 @@ skaters, weighted by each slot's expected minutes. Ratios compare
 that sum with the club's usual occupants of those slots. A
 projected skater is dressed in full, and ``confidence`` shrinks only
 the gap from the typical lineup: ``1 + confidence * (raw_ratio - 1)``.
-A projection with no confidence is left out, so the ratio stays 1.
+A share of zero still dresses that skater. Only a missing
+``confidence`` leaves him out, so the ratio stays 1.
 """
 
 from __future__ import annotations
@@ -262,7 +263,7 @@ def _skaters_from_lineup(
     skaters: list[_Skater] = []
     for player in lineup.players:
         slot = slot_for_labels(player.position, player.line)
-        if slot not in SKATER_SLOTS:
+        if slot not in SKATER_SLOTS or _left_out(player):
             continue
         rating = ratings.snapshot(
             int(player.player_id),
@@ -280,18 +281,32 @@ def _skaters_from_lineup(
     return skaters
 
 
+def _left_out(player: ProbableLineupPlayer) -> bool:
+    # Brak udziału pomija zawodnika. Udział 0 nadal obsadza slot.
+    if player.source == CONFIRMED_LINEUP_SOURCE:
+        return False
+    return _confidence_value(player) is None
+
+
 def _player_weight(player: ProbableLineupPlayer) -> float:
-    # Protokół jest pewny. Projekcja bez confidence nie wchodzi w całości.
+    """Return the share that shrinks a ratio, not the dressing weight."""
     if player.source == CONFIRMED_LINEUP_SOURCE:
         return 1.0
-    if player.confidence is None:
+    confidence = _confidence_value(player)
+    if confidence is None:
         return 0.0
+    return confidence
+
+
+def _confidence_value(player: ProbableLineupPlayer) -> float | None:
+    if player.confidence is None:
+        return None
     try:
         confidence = float(player.confidence)
     except (TypeError, ValueError):
-        return 0.0
-    if not math.isfinite(confidence) or confidence <= 0.0:
-        return 0.0
+        return None
+    if not math.isfinite(confidence) or confidence < 0.0:
+        return None
     if confidence > 1.0:
         return 1.0
     return confidence
@@ -329,18 +344,14 @@ def _strength(
 
 
 def _dressed(skaters: list[_Skater]) -> list[_Skater]:
-    # Pewność nie obcina poziomu. Obcina tylko odchyłkę w ratio.
-    return [
-        replace(skater, weight=1.0)
-        for skater in skaters
-        if skater.weight > 0.0]
+    # Lista to już obsadzeni. Udział 0 nie wyrzuca zawodnika z sumy.
+    return [replace(skater, weight=1.0) for skater in skaters]
 
 
 def _shrink_toward_typical(raw_ratio: float, skaters: list[_Skater]) -> float:
-    weights = [skater.weight for skater in skaters if skater.weight > 0.0]
-    if not weights:
+    if not skaters:
         return 1.0
-    confidence = sum(weights) / len(weights)
+    confidence = sum(skater.weight for skater in skaters) / len(skaters)
     if confidence > 1.0:
         confidence = 1.0
     return 1.0 + confidence * (raw_ratio - 1.0)
@@ -401,10 +412,7 @@ def _missing(
         current: list[_Skater],
         baseline: list[_Skater],
         slots: frozenset[str]) -> float:
-    present = {
-        skater.player_id
-        for skater in current
-        if skater.weight > 0.0}
+    present = {skater.player_id for skater in current}
     seen: set[int] = set()
     count = 0
     for skater in baseline:

@@ -60,6 +60,10 @@ from models.pipeline.lineups.hockey_goalie_start import (
 from models.pipeline.lineups.hockey_goalie_start import (
     is_goalie_start_config)
 from models.pipeline.lineups.hockey_goalie_start import train_goalie_start
+from models.pipeline.lineups.hockey_probable_lineup import (
+    build_predictable_lineups)
+from models.pipeline.persistence.hockey_lineup_writer import (
+    write_probable_lineups)
 from models.pipeline.persistence.match_assessment_writer import (
     write_match_assessment)
 from models.pipeline.persistence.prediction_writer import (
@@ -398,6 +402,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Persist each family's highest probability as final")
     hockey_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
+
+    lineup_parser = subparsers.add_parser(
+        "build-hockey-lineups",
+        help="Project the next NHL lineup for both clubs")
+    lineup_parser.add_argument(
+        "--league-id",
+        required=True,
+        type=int,
+        help="Hockey league id (NHL is 45)")
+    lineup_parser.add_argument(
+        "--write-db",
+        action="store_true",
+        help="Replace MODEL lineups; omit for a dry-run")
+    lineup_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging")
@@ -880,6 +901,21 @@ class _HockeyFixture(NamedTuple):
 
 _ClubLineup = ProbableLineup | None
 _PreparedLineup = tuple[int, _HockeyFixture, _ClubLineup, _ClubLineup]
+
+
+def run_build_hockey_lineups(args: argparse.Namespace) -> dict[str, Any]:
+    """Project next-game lineups. Omit ``--write-db`` for a dry-run."""
+    lineups = build_predictable_lineups(int(args.league_id), datetime.now())
+    written = 0
+    if args.write_db and lineups:
+        written = write_probable_lineups(lineups)
+    return {
+        "league_id": int(args.league_id),
+        "match_ids": sorted({item.match_id for item in lineups}),
+        "teams": len(lineups),
+        "players": sum(len(item.players) for item in lineups),
+        "dry_run": not bool(args.write_db),
+        "written_rows": written}
 
 
 def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
@@ -1477,6 +1513,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_simulate_season(args)
         elif args.command == "predict-hockey":
             payload = run_predict_hockey(args)
+        elif args.command == "build-hockey-lineups":
+            payload = run_build_hockey_lineups(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

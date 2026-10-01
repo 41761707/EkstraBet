@@ -123,6 +123,31 @@ def test_projection_without_confidence_stays_at_typical() -> None:
     assert empty["lineup_off_ratio"] == pytest.approx(1.0)
 
 
+def test_zero_share_replacement_stays_in_the_level_sum() -> None:
+    toi = {"F1": 60.0}
+    usual = _off_skater(1, "F1", 2.0, weight=1.0)
+    replacement = _off_skater(2, "F1", 1.0, weight=0.0)
+    kept = _off_skater(3, "F1", 2.0, weight=1.0)
+    empty = _strength([], [usual], toi)
+    filled = _strength([replacement], [usual], toi)
+    without = _strength([kept], [usual, usual], toi)
+    mixed = _strength([kept, replacement], [usual, usual], toi)
+    assert empty["lineup_off"] == pytest.approx(0.0)
+    assert filled["lineup_off"] == pytest.approx(1.0)
+    assert mixed["lineup_off"] > without["lineup_off"]
+    assert mixed["lineup_off_ratio"] > without["lineup_off_ratio"]
+
+
+def test_zero_confidence_skater_is_not_left_out() -> None:
+    ratings = HockeyPlayerRatingState()
+    baseline = _lineup(_skater(1, 1))
+    filled = _strength_of(
+        _lineup(_skater(2, 1, source="MODEL", confidence=0.0)),
+        baseline,
+        ratings)
+    assert filled["lineup_off"] > 0.0
+
+
 def test_defence_ratio_follows_the_rating_even_when_it_is_negative() -> None:
     toi = {"D1": 22.5}
     baseline = [_defence_skater(1, 1.0)]
