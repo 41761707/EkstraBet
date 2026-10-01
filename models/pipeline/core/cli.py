@@ -54,6 +54,11 @@ from models.pipeline.features.hockey.lineup_strength import (
     prepare_lineup_memory)
 from models.pipeline.features.hockey.lineup_strength import (
     ratios_for_lineups)
+from models.pipeline.lineups.hockey_goalie_start import (
+    evaluate_goalie_start)
+from models.pipeline.lineups.hockey_goalie_start import (
+    is_goalie_start_config)
+from models.pipeline.lineups.hockey_goalie_start import train_goalie_start
 from models.pipeline.persistence.match_assessment_writer import (
     write_match_assessment)
 from models.pipeline.persistence.prediction_writer import (
@@ -421,6 +426,8 @@ def _json_value(value: Any) -> Any:
 
 
 def run_train(config_path: Path) -> dict[str, Any]:
+    if is_goalie_start_config(config_path):
+        return _result_to_dict(train_goalie_start(config_path))
     config = load_model_config(config_path)
     validate_events(config)
     if isinstance(config, FutureEventsRunConfig):
@@ -431,6 +438,8 @@ def run_train(config_path: Path) -> dict[str, Any]:
 
 
 def run_evaluate(config_path: Path) -> dict[str, Any]:
+    if is_goalie_start_config(config_path):
+        return _result_to_dict(evaluate_goalie_start(config_path))
     config = load_model_config(config_path)
     validate_events(config)
     if isinstance(config, FutureEventsRunConfig):
@@ -845,6 +854,9 @@ def run_simulate_season(args: argparse.Namespace) -> dict[str, Any]:
 
 _HOCKEY_RATINGS_TRAINER = "HockeyRatingsTrainer"
 _HOCKEY_PREDICTION_CONFIGS = REPO_ROOT / "models" / "configs" / "prediction"
+# load_model_config wymaga output_columns. Te taski ich nie mają.
+_HOCKEY_TASKS_WITHOUT_TEAM_MARKETS = frozenset({
+    "goalie_start"})
 _NEUTRAL_LINEUP_RATIOS = {
     "home_off_ratio": 1.0,
     "away_off_ratio": 1.0,
@@ -910,6 +922,9 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
             f"{_HOCKEY_PREDICTION_CONFIGS}")
     loaded: list[tuple[ModelRunConfig, int]] = []
     for path in sorted(_HOCKEY_PREDICTION_CONFIGS.glob("*.json")):
+        task_type = _prediction_task_type(path)
+        if task_type in _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS:
+            continue
         config = load_model_config(path)
         if not _is_hockey_team_config(config):
             continue
@@ -922,6 +937,21 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
             continue
         loaded.append((config, model_id))
     return loaded
+
+
+def _prediction_task_type(path: Path) -> str | None:
+    """Read task_type without validating a team-model config."""
+    try:
+        with path.open(encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    task_type = raw.get("task_type")
+    if not isinstance(task_type, str):
+        return None
+    return task_type
 
 
 def _is_hockey_team_config(config: ModelRunConfig) -> bool:

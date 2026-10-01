@@ -1,0 +1,14 @@
+{
+  "auc": 0.7560238047871769,
+  "starter_selection_accuracy": 0.6229151559100797,
+  "starter_selection_accuracy_contested": 0.6214051692755733,
+  "n_team_games": 2758,
+  "n_contested_team_games": 2747,
+  "n_rows": 6713,
+  "test_season": 12,
+  "n_train_rows": 58741,
+  "n_test_rows": 6713,
+  "scored_fit": "before_first_test_season_game",
+  "artifact_fit": "all_candidate_rows",
+  "n_skipped_team_games": 24
+}

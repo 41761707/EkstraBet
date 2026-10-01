@@ -1,0 +1,20 @@
+{
+  "model_name": "HOCKEY_GOALIE_START_V1",
+  "sport_id": 2,
+  "task_type": "goalie_start",
+  "model_version": "1.0.0",
+  "artifact_dir": "models/artifacts/release/hockey_goalie_start_v1",
+  "goalie_start": {
+    "league_id": 45,
+    "test_season": 12,
+    "pool_games": 20,
+    "start_share_games": 10,
+    "recent_start_days": 4,
+    "days_since_start_cap": 60,
+    "random_state": 42,
+    "opponent_elo_prior": 1500.0,
+    "low_weight_seasons": {
+      "4": 0.5
+    }
+  }
+}
