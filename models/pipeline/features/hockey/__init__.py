@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Pre-match NHL ratings for teams, goalies, skaters and lineups."""
 
 from models.pipeline.features.hockey.early_season import EarlySeasonConfig
