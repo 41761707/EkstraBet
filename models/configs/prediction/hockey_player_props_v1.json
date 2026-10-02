@@ -1,0 +1,35 @@
+{
+  "model_name": "HOCKEY_PLAYER_PROPS_V1",
+  "sport_id": 2,
+  "task_type": "player_props",
+  "model_version": "1.0.0",
+  "artifact_dir": "models/artifacts/release/hockey_player_props_v1",
+  "feature_builder": "HockeyPlayerFeatureBuilder",
+  "labeler": "HockeyPlayerPropsLabeler",
+  "trainer": "HockeyPlayerPropsTrainer",
+  "output_columns": ["sog", "goals", "assists", "points"],
+  "feature_config": {
+    "sport_id": 2
+  },
+  "events": {
+    "sog_over": 190,
+    "points_over": 192,
+    "assists_over": 194,
+    "goals_over": 196
+  },
+  "props": {
+    "league_id": 45,
+    "test_season": 12,
+    "low_weight_seasons": {
+      "4": 0.5
+    },
+    "gbm": {
+      "learning_rate": 0.06,
+      "max_iter": 200,
+      "max_depth": 6,
+      "min_samples_leaf": 20,
+      "l2_regularization": 0.1,
+      "random_state": 42
+    }
+  }
+}

@@ -340,9 +340,10 @@ def _rows_before_validation(
     return train
 
 
-def _season_weights(
+def season_sample_weights(
         seasons: pd.Series,
         low_weight_seasons: dict[int, float]) -> np.ndarray:
+    """Return row weights, lowering seasons listed in the map."""
     weights = np.ones(len(seasons), dtype=float)
     season_values = seasons.to_numpy()
     for season, weight in low_weight_seasons.items():
@@ -350,11 +351,12 @@ def _season_weights(
     return weights
 
 
-def _fit_poisson(
+def fit_poisson_regressor(
         matrix: pd.DataFrame,
         target: np.ndarray,
         weights: np.ndarray,
         settings: HockeyGbmSettings) -> HistGradientBoostingRegressor:
+    """Fit one Poisson histogram gradient booster."""
     model = HistGradientBoostingRegressor(
         loss="poisson",
         learning_rate=settings.learning_rate,
@@ -365,6 +367,11 @@ def _fit_poisson(
         random_state=settings.random_state)
     model.fit(matrix, target, sample_weight=weights)
     return model
+
+
+# Stare nazwy zostają, bo fit drużynowy i testy je podmieniają.
+_season_weights = season_sample_weights
+_fit_poisson = fit_poisson_regressor
 
 
 def _fit_overtime(

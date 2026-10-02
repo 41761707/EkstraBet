@@ -64,6 +64,8 @@ from models.pipeline.lineups.hockey_probable_lineup import (
     build_predictable_lineups)
 from models.pipeline.persistence.hockey_lineup_writer import (
     write_probable_lineups)
+from models.pipeline.prediction.hockey_player_props import (
+    predict_hockey_props)
 from models.pipeline.persistence.match_assessment_writer import (
     write_match_assessment)
 from models.pipeline.persistence.prediction_writer import (
@@ -422,6 +424,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help="Enable debug logging")
+
+    props_parser = subparsers.add_parser(
+        "predict-hockey-props",
+        help="Predict beta NHL skater props for the next matches")
+    props_parser.add_argument(
+        "--league-id",
+        required=True,
+        type=int,
+        help="Hockey league id (NHL is 45)")
+    props_parser.add_argument(
+        "--match-ids",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated match ids; each id must also be the next "
+            "predictable game for both clubs"))
+    props_parser.add_argument(
+        "--write-db",
+        action="store_true",
+        help="Persist player_predictions; omit for a dry-run")
+    props_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
     return parser
 
 
@@ -452,12 +478,19 @@ def _json_value(value: Any) -> Any:
     return value
 
 
+def _uses_registered_trainer(config: ModelRunConfig) -> bool:
+    """True when train/evaluate must call the registry, not sklearn."""
+    if isinstance(config, FutureEventsRunConfig):
+        return True
+    return config.trainer in _REGISTERED_TRAINERS
+
+
 def run_train(config_path: Path) -> dict[str, Any]:
     if is_goalie_start_config(config_path):
         return _result_to_dict(train_goalie_start(config_path))
     config = load_model_config(config_path)
     validate_events(config)
-    if isinstance(config, FutureEventsRunConfig):
+    if _uses_registered_trainer(config):
         report = get_trainer(config.trainer).train(config)
     else:
         report = train(config)
@@ -469,7 +502,7 @@ def run_evaluate(config_path: Path) -> dict[str, Any]:
         return _result_to_dict(evaluate_goalie_start(config_path))
     config = load_model_config(config_path)
     validate_events(config)
-    if isinstance(config, FutureEventsRunConfig):
+    if _uses_registered_trainer(config):
         report = get_trainer(config.trainer).evaluate(config)
     else:
         report = evaluate(config)
@@ -884,7 +917,10 @@ _HOCKEY_GBM_TRAINER = "HockeyGbmTrainer"
 _HOCKEY_PREDICTION_CONFIGS = REPO_ROOT / "models" / "configs" / "prediction"
 # load_model_config wymaga output_columns. Te taski ich nie mają.
 _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS = frozenset({
-    "goalie_start"})
+    "goalie_start",
+    "player_props"})
+_REGISTERED_TRAINERS = frozenset({
+    "HockeyPlayerPropsTrainer"})
 _NEUTRAL_LINEUP_RATIOS = {
     "home_off_ratio": 1.0,
     "away_off_ratio": 1.0,
@@ -916,6 +952,21 @@ def run_build_hockey_lineups(args: argparse.Namespace) -> dict[str, Any]:
         "players": sum(len(item.players) for item in lineups),
         "dry_run": not bool(args.write_db),
         "written_rows": written}
+
+
+def run_predict_hockey_props(args: argparse.Namespace) -> dict[str, Any]:
+    """Predict beta skater props. There is no ``--stage`` flag yet.
+
+    Resolution uses ``initial``. Omitting ``--write-db`` is a dry-run.
+    """
+    requested = _unique_match_ids(_parse_match_ids(args.match_ids))
+    match_ids = _hockey_match_ids(int(args.league_id), requested)
+    report = predict_hockey_props(
+        int(args.league_id),
+        match_ids,
+        write_db=bool(args.write_db))
+    report["ignored_match_ids"] = _ignored_match_ids(requested, match_ids)
+    return report
 
 
 def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
@@ -1513,6 +1564,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_simulate_season(args)
         elif args.command == "predict-hockey":
             payload = run_predict_hockey(args)
+        elif args.command == "predict-hockey-props":
+            payload = run_predict_hockey_props(args)
         elif args.command == "build-hockey-lineups":
             payload = run_build_hockey_lineups(args)
         else:
