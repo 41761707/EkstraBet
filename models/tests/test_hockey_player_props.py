@@ -52,7 +52,7 @@ def test_parser_accepts_predict_hockey_props_without_stage() -> None:
         "45"])
     assert args.command == "predict-hockey-props"
     assert args.write_db is False
-    assert not hasattr(args, "stage")
+    assert args.stage == "initial"
 
 
 def test_first_game_uses_slot_priors_and_does_not_see_the_next_game() -> None:

@@ -660,6 +660,27 @@ def _committed_goalie_state(
     return state
 
 
+def projected_starter_save(
+        lineup: ProbableLineup | None,
+        state: GoalieRatingState,
+        as_of: datetime,
+        match_id: int) -> float | None:
+    """Return the dressed net's shrunk save%, or None.
+
+    A confirmed starter has weight 1. An unconfirmed net is the
+    expectation over ``start_probability``.
+    """
+    expected = _expected_goalie(state, lineup, as_of, match_id)
+    if expected is None:
+        return None
+    return expected[0]
+
+
+def committed_goalie_state(player_stats: pd.DataFrame) -> GoalieRatingState:
+    """Replay goalie appearances so a later snapshot stays as-of."""
+    return _committed_goalie_state(_goalie_appearances(player_stats))
+
+
 def _expected_goalie(
         state: GoalieRatingState,
         lineup: ProbableLineup | None,

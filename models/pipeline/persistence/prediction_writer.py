@@ -106,6 +106,49 @@ def _clear_family_finals(
     cursor.execute(sql, (match_id, model_id, *event_ids))
 
 
+_PREDICTION_IDS_SQL = """
+SELECT id, event_id
+FROM predictions
+WHERE match_id = %s
+  AND model_id = %s
+  AND event_id IN ({placeholders})
+"""
+
+
+def lookup_prediction_ids(
+        match_id: int,
+        model_id: int,
+        event_ids: list[int],
+        conn: Any | None = None) -> dict[int, int]:
+    """Return existing ``predictions.id`` values keyed by event id."""
+    unique_ids = list(dict.fromkeys(int(event_id) for event_id in event_ids))
+    if not unique_ids:
+        return {}
+    placeholders = ", ".join(["%s"] * len(unique_ids))
+    sql = _PREDICTION_IDS_SQL.format(placeholders=placeholders)
+    connection_context = (
+        nullcontext(conn) if conn is not None else get_db_connection())
+    with connection_context as connection:
+        cursor = connection.cursor()
+        try:
+            cursor.execute(sql, (int(match_id), int(model_id), *unique_ids))
+            rows = cursor.fetchall() or []
+        finally:
+            cursor.close()
+    found: dict[int, int] = {}
+    for row in rows:
+        prediction_id, event_id = _prediction_id_and_event(row)
+        found[event_id] = prediction_id
+    return found
+
+
+def _prediction_id_and_event(row: Any) -> tuple[int, int]:
+    """Read ``(predictions.id, event_id)`` from a tuple or dictionary row."""
+    if isinstance(row, dict):
+        return int(row["id"]), int(row["event_id"])
+    return int(row[0]), int(row[1])
+
+
 def write_predictions(
         rows: Iterable[PredictionWriteRow],
         conn: Any | None = None,
@@ -115,11 +158,13 @@ def write_predictions(
 
     Football callers pass probabilities on a 0-1 scale. NHL markets
     are already 0-100, so they set ``values_are_percent`` and a
-    sub-percent probability is stored unchanged.
+    sub-percent probability is stored unchanged. A supplied
+    connection is left uncommitted for the caller.
     """
     prepared_rows = list(rows)
     if not prepared_rows:
         return 0
+    owns_connection = conn is None
     connection_context = (
         nullcontext(conn) if conn is not None else get_db_connection())
     with connection_context as connection:
@@ -147,9 +192,11 @@ def write_predictions(
                         cursor, row.match_id, row.model_id, event_ids)
                     cleared_families.add(family_key)
                 cursor.execute(_FINAL_UPSERT_SQL, (prediction_id,))
-            connection.commit()
+            if owns_connection:
+                connection.commit()
         except Exception:
-            connection.rollback()
+            if owns_connection:
+                connection.rollback()
             raise
         finally:
             cursor.close()

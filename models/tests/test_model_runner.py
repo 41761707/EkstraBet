@@ -551,6 +551,15 @@ def _ratings_model_only(name: str) -> int:
     return 21
 
 
+def _db_connection() -> MagicMock:
+    """Context manager that stands in for one database connection."""
+    connection = MagicMock()
+    manager = MagicMock()
+    manager.__enter__.return_value = connection
+    manager.__exit__.return_value = False
+    return manager
+
+
 def _run_predict_hockey(
         argv: list[str],
         predictable: list[int],
@@ -560,7 +569,11 @@ def _run_predict_hockey(
         model=None,
         resolver=None,
         rosters=None,
-        stats=None):
+        stats=None,
+        *,
+        snapshot_writer=None,
+        finals_replacer=None,
+        id_lookup=None):
     from contextlib import ExitStack
 
     goalie_history = (
@@ -585,6 +598,20 @@ def _run_predict_hockey(
         writer = stack.enter_context(patch(
             "models.pipeline.core.cli.write_predictions",
             side_effect=write))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.write_prediction_run",
+            MagicMock() if snapshot_writer is None else snapshot_writer))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.replace_changed_finals",
+            MagicMock(return_value=0)
+            if finals_replacer is None else finals_replacer))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.lookup_prediction_ids",
+            MagicMock(return_value={})
+            if id_lookup is None else id_lookup))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.get_db_connection",
+            return_value=_db_connection()))
         if resolver is not None:
             stack.enter_context(patch(
                 "models.pipeline.core.cli._resolve_club_lineup",
@@ -1080,6 +1107,17 @@ def _run_predict_hockey_gbm(
         writer = stack.enter_context(patch(
             "models.pipeline.core.cli.write_predictions",
             side_effect=write))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.write_prediction_run"))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.replace_changed_finals",
+            return_value=0))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.lookup_prediction_ids",
+            return_value={}))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.get_db_connection",
+            return_value=_db_connection()))
         if resolver_available:
             stack.enter_context(patch(
                 "models.pipeline.core.cli._lineup_stage_resolver",

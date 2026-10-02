@@ -21,13 +21,15 @@ import numpy as np
 import pandas as pd
 
 from backend.config import REPO_ROOT
+from backend.database import get_db_connection
 from backend.repositories.model_statistics_maintenance_repository import (
     BetGenerationScope)
 from backend.services.model_statistics_maintenance_service import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_PREVIEW_LIMIT,
     StatisticsRefreshReport,
-    refresh_model_statistics)
+    refresh_model_statistics,
+    replace_changed_finals)
 from models.pipeline.core.artifacts import load_meta
 from models.pipeline.core.artifacts import load_model_artifact
 from models.pipeline.core.config import FutureEventsRunConfig
@@ -64,10 +66,16 @@ from models.pipeline.lineups.hockey_probable_lineup import (
     build_predictable_lineups)
 from models.pipeline.persistence.hockey_lineup_writer import (
     write_probable_lineups)
+from models.pipeline.persistence.hockey_prediction_run_writer import (
+    FINAL_STAGE)
+from models.pipeline.persistence.hockey_prediction_run_writer import (
+    write_prediction_run)
 from models.pipeline.prediction.hockey_player_props import (
     predict_hockey_props)
 from models.pipeline.persistence.match_assessment_writer import (
     write_match_assessment)
+from models.pipeline.persistence.prediction_writer import (
+    lookup_prediction_ids)
 from models.pipeline.persistence.prediction_writer import (
     map_hockey_markets_to_rows)
 from models.pipeline.persistence.prediction_writer import (
@@ -100,7 +108,11 @@ from models.pipeline.simulation.perf_budget import peak_rss_mb
 from models.pipeline.simulation.season_simulator import (
     DynamicSeasonSimulator)
 from models.pipeline.features.hockey.team_features import (
+    committed_goalie_state)
+from models.pipeline.features.hockey.team_features import (
     load_hockey_team_feature_frame)
+from models.pipeline.features.hockey.team_features import (
+    projected_starter_save)
 from models.pipeline.training.hockey_gbm_trainer import HockeyGoalsGbmModel
 from models.pipeline.training.hockey_gbm_trainer import (
     ratings_config_from_params)
@@ -395,6 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated match ids; each id must also be the next "
             "predictable game for both clubs"))
+    _add_hockey_stage_argument(hockey_parser)
     hockey_parser.add_argument(
         "--write-db",
         action="store_true",
@@ -440,6 +453,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated match ids; each id must also be the next "
             "predictable game for both clubs"))
+    _add_hockey_stage_argument(props_parser)
     props_parser.add_argument(
         "--write-db",
         action="store_true",
@@ -451,10 +465,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _add_hockey_stage_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the manual initial/final switch. Default stays initial."""
+    parser.add_argument(
+        "--stage",
+        choices=["initial", "final"],
+        default="initial",
+        help=(
+            "initial projects the next games; final requires "
+            "--match-ids and a confirmed lineup for both clubs"))
+
+
 def _parse_match_ids(raw: str | None) -> list[int]:
     if not raw:
         return []
     return [int(part.strip()) for part in raw.split(",") if part.strip()]
+
+
+def _validated_hockey_stage(args: argparse.Namespace) -> str:
+    """Return initial or final. Final without match ids is an error."""
+    stage = str(getattr(args, "stage", None) or "initial")
+    if stage not in ("initial", "final"):
+        raise ValueError("stage must be 'initial' or 'final'")
+    if stage == "final" and not _parse_match_ids(
+            getattr(args, "match_ids", None)):
+        raise ValueError("--stage final requires --match-ids")
+    return stage
 
 
 def _result_to_dict(result: Any) -> dict[str, Any]:
@@ -955,28 +991,33 @@ def run_build_hockey_lineups(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def run_predict_hockey_props(args: argparse.Namespace) -> dict[str, Any]:
-    """Predict beta skater props. There is no ``--stage`` flag yet.
+    """Predict beta skater props for one manual stage.
 
-    Resolution uses ``initial``. Omitting ``--write-db`` is a dry-run.
+    ``final`` requires ``--match-ids`` and skips a match that lacks a
+    confirmed lineup for both clubs. Omitting ``--write-db`` is a
+    dry-run.
     """
+    stage = _validated_hockey_stage(args)
     requested = _unique_match_ids(_parse_match_ids(args.match_ids))
     match_ids = _hockey_match_ids(int(args.league_id), requested)
     report = predict_hockey_props(
         int(args.league_id),
         match_ids,
-        write_db=bool(args.write_db))
+        write_db=bool(args.write_db),
+        stage=stage)
     report["ignored_match_ids"] = _ignored_match_ids(requested, match_ids)
     return report
 
 
 def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
-    """Predict NHL team markets for the next predictable matches.
+    """Predict NHL team markets for one manual stage.
 
-    Omitting ``--write-db`` is a dry-run. There is no ``--stage`` flag
-    yet, so resolution uses ``initial``. Each club with a lineup is
-    scored through one shared history replay. A missing club stays at
-    ratio 1. Both missing keeps the team-average goalie as well.
+    ``initial`` uses the next predictable matches. ``final`` requires
+    ``--match-ids`` and a confirmed lineup for both clubs. Omitting
+    ``--write-db`` is a dry-run. A missing club on the initial stage
+    stays at ratio 1.
     """
+    stage = _validated_hockey_stage(args)
     configs = _active_hockey_configs()
     if not configs:
         raise ValueError("No active hockey team-model configs were found")
@@ -984,6 +1025,7 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
     match_ids = _hockey_match_ids(args.league_id, requested)
     report = {
         "league_id": args.league_id,
+        "stage": stage,
         "match_ids": match_ids,
         "ignored_match_ids": _ignored_match_ids(requested, match_ids),
         "dry_run": not bool(args.write_db),
@@ -993,7 +1035,6 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
             "No predictable hockey matches for league %s", args.league_id)
         return report
     upcoming = _upcoming_hockey_index(args.league_id)
-    stage = str(getattr(args, "stage", None) or "initial")
     report["models"] = _score_hockey_configs(
         configs,
         match_ids,
@@ -1198,27 +1239,35 @@ def _predict_hockey_config(
     params = hockey_params_from_config(config)
     prepared = _in_game_date_order(
         _prepared_lineups(match_ids, upcoming, stage))
-    history = _lineup_history_if_needed(
+    history, goalies = _lineup_history_if_needed(
         prepared, league_id, params.lineup_baseline_games)
     matches: list[dict[str, Any]] = []
     written = 0
     for match_id, fixture, home_lineup, away_lineup in prepared:
         ratios = _ratios_or_none(
             match_id, home_lineup, away_lineup, history, fixture)
+        starter_saves = _lineup_starter_saves(
+            match_id, fixture, home_lineup, away_lineup, saves, goalies)
         match_report, rows = _predict_one_hockey_match(
             model,
             match_id,
             fixture.home_team,
             fixture.away_team,
             saves,
+            starter_saves,
             model_id,
             event_ids,
             select_finals,
             ratios)
         match_report["written"] = 0
         if write_db:
-            match_report["written"] = write_predictions(
-                rows, values_are_percent=True)
+            match_report["written"] = _store_hockey_team_prediction(
+                match_id,
+                model_id,
+                rows,
+                match_report["markets"],
+                stage,
+                select_finals)
             written += int(match_report["written"])
         matches.append(match_report)
     return {
@@ -1293,8 +1342,13 @@ def _predict_hockey_gbm(
             "lineup_fallback": home_lineup is None and away_lineup is None,
             "written": 0}
         if write_db:
-            match_report["written"] = write_predictions(
-                rows, values_are_percent=True)
+            match_report["written"] = _store_hockey_team_prediction(
+                match_id,
+                model_id,
+                rows,
+                markets,
+                stage,
+                select_finals)
             written += int(match_report["written"])
         matches.append(match_report)
     return {
@@ -1304,6 +1358,65 @@ def _predict_hockey_gbm(
         "finals": sum(item["finals"] for item in matches),
         "written": written,
         "matches": matches}
+
+
+def _store_hockey_team_prediction(
+        match_id: int,
+        model_id: int,
+        rows: list[Any],
+        markets: dict[str, float],
+        stage: str,
+        select_finals: bool) -> int:
+    """Persist markets, a changed final and the stage snapshot together.
+
+    The previous pick is read first. Its final and the unsettled bet
+    are removed in the same transaction that inserts the new final.
+    The commit runs only after that insert and the stage snapshot
+    succeed. The other stage's snapshot stays, because the run key
+    includes the stage.
+    """
+    with get_db_connection() as connection:
+        try:
+            if stage == FINAL_STAGE and select_finals:
+                # Stare identyfikatory odczytujemy przed zapisem.
+                _replace_existing_finals(
+                    match_id, model_id, rows, connection)
+            written = write_predictions(
+                rows, connection, values_are_percent=True)
+            write_prediction_run(
+                match_id, model_id, stage, markets, connection)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+    return written
+
+
+def _replace_existing_finals(
+        match_id: int,
+        model_id: int,
+        rows: list[Any],
+        conn: Any) -> None:
+    """Drop a changed pick when its prediction row already exists.
+
+    The caller owns ``conn`` and commits after the new final is
+    written. This read happens before that write so the old event
+    can still be found.
+    """
+    event_ids = [int(row.event_id) for row in rows if row.is_final]
+    found = lookup_prediction_ids(match_id, model_id, event_ids, conn)
+    new_ids = [
+        found[event_id]
+        for event_id in event_ids
+        if event_id in found]
+    if not new_ids:
+        logger.warning(
+            "Skipping changed-final replacement for match %s model %s: "
+            "selected prediction rows do not exist yet",
+            match_id,
+            model_id)
+        return
+    replace_changed_finals(match_id, model_id, new_ids, conn)
 
 
 def _load_hockey_gbm_model(config: ModelRunConfig) -> HockeyGoalsGbmModel:
@@ -1390,29 +1503,83 @@ def _prepared_lineups(
                 "Predictable hockey match %s is missing from upcoming rows",
                 match_id)
             continue
-        prepared.append((
-            match_id,
-            fixture,
-            _resolve_club_lineup(match_id, fixture.home_team, stage),
-            _resolve_club_lineup(match_id, fixture.away_team, stage)))
+        home = _resolve_club_lineup(match_id, fixture.home_team, stage)
+        away = _resolve_club_lineup(match_id, fixture.away_team, stage)
+        if stage == FINAL_STAGE and (home is None or away is None):
+            # Etap ostateczny liczy tylko mecz z oficjalnym składem obu drużyn.
+            logger.warning(
+                "Skipping final hockey prediction for match %s: "
+                "confirmed lineup is missing for one or both clubs",
+                match_id)
+            continue
+        prepared.append((match_id, fixture, home, away))
     return prepared
 
 
 def _lineup_history_if_needed(
         prepared: list[_PreparedLineup],
         league_id: int,
-        baseline_games: int) -> Any | None:
+        baseline_games: int) -> tuple[Any | None, Any | None]:
+    """Load roster memory and goalie form once, when a lineup exists."""
     # Jedna strona wystarczy, żeby odtworzyć historię raz na zapytanie.
     needed = any(
         home is not None or away is not None
         for _match_id, _fixture, home, away in prepared)
     if not needed:
-        return None
+        return None, None
     logger.info("Loading hockey roster history for lineup strength")
-    return prepare_lineup_memory(
-        fetch_hockey_match_rosters(league_id),
-        fetch_hockey_player_stats(league_id),
-        baseline_games)
+    rosters = fetch_hockey_match_rosters(league_id)
+    stats = fetch_hockey_player_stats(league_id)
+    return (
+        prepare_lineup_memory(rosters, stats, baseline_games),
+        committed_goalie_state(stats))
+
+
+def _lineup_starter_saves(
+        match_id: int,
+        fixture: _HockeyFixture,
+        home: _ClubLineup,
+        away: _ClubLineup,
+        team_saves: dict[int, float],
+        goalies: Any | None) -> tuple[float | None, float | None]:
+    """Starter save from the stage lineup. Team average stays separate."""
+    return (
+        _club_starter_save(
+            match_id, fixture.home_team, home, fixture.game_date,
+            team_saves, goalies),
+        _club_starter_save(
+            match_id, fixture.away_team, away, fixture.game_date,
+            team_saves, goalies))
+
+
+def _club_starter_save(
+        match_id: int,
+        team_id: int,
+        lineup: _ClubLineup,
+        moment: datetime | None,
+        team_saves: dict[int, float],
+        goalies: Any | None) -> float | None:
+    """Use the dressed net, or the club average when it cannot be scored."""
+    team_save = team_saves.get(team_id)
+    if lineup is None or goalies is None or moment is None:
+        return team_save
+    dressed = projected_starter_save(lineup, goalies, moment, match_id)
+    if dressed is None:
+        if _lineup_has_goalie(lineup):
+            logger.warning(
+                "No starter save for match %s team %s; "
+                "using the team-average save percentage",
+                match_id,
+                team_id)
+        return team_save
+    return dressed
+
+
+def _lineup_has_goalie(lineup: ProbableLineup) -> bool:
+    return any(
+        player.position is not None
+        and str(player.position).strip().upper() == "G"
+        for player in lineup.players)
 
 
 def _ratios_or_none(
@@ -1481,7 +1648,8 @@ def _predict_one_hockey_match(
         match_id: int,
         home_team: int,
         away_team: int,
-        saves: dict[int, float],
+        team_saves: dict[int, float],
+        starter_saves: tuple[float | None, float | None],
         model_id: int,
         event_ids: dict[str, int],
         select_finals: bool,
@@ -1498,15 +1666,14 @@ def _predict_one_hockey_match(
             match_id,
             home_team,
             away_team)
-    home_save = saves.get(home_team)
-    away_save = saves.get(away_team)
+    home_starter, away_starter = starter_saves
     distribution = model.score_distribution(
         home_team,
         away_team,
-        home_starter_save=home_save,
-        away_starter_save=away_save,
-        home_team_save=home_save,
-        away_team_save=away_save,
+        home_starter_save=home_starter,
+        away_starter_save=away_starter,
+        home_team_save=team_saves.get(home_team),
+        away_team_save=team_saves.get(away_team),
         home_off_ratio=used["home_off_ratio"],
         away_off_ratio=used["away_off_ratio"],
         home_def_ratio=used["home_def_ratio"],

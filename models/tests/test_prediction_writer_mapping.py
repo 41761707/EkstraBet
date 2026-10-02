@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import numpy as np
 
@@ -119,6 +120,31 @@ def test_writer_converts_probability_to_percentage_and_upserts_final() -> None:
     assert "final_predictions" in final_call.args[0]
     assert "INSERT" in final_call.args[0]
     assert final_call.args[1] == (321,)
+    connection.commit.assert_not_called()
+
+
+def test_writer_commits_the_connection_it_opens() -> None:
+    cursor = MagicMock()
+    cursor.lastrowid = 1
+    connection = MagicMock()
+    connection.cursor.return_value = cursor
+    manager = MagicMock()
+    manager.__enter__.return_value = connection
+    manager.__exit__.return_value = False
+    rows = [
+        PredictionWriteRow(
+            match_id=100,
+            model_id=10,
+            event_id=1,
+            value=0.5,
+            is_final=True)
+    ]
+    with patch(
+            "models.pipeline.persistence.prediction_writer."
+            "get_db_connection",
+            return_value=manager):
+        written = write_predictions(rows)
+    assert written == 1
     connection.commit.assert_called_once()
 
 

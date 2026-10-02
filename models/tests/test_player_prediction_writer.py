@@ -58,6 +58,31 @@ def test_write_upserts_every_bound_row() -> None:
     connection.commit.assert_called_once()
 
 
+def test_write_drops_skaters_absent_from_the_stage_lineup() -> None:
+    rows = build_player_prediction_rows(
+        8, 21, 3, 13, _RATES, _EVENTS)
+    connection, cursor = _connection()
+    written = write_player_predictions(
+        rows,
+        connection,
+        match_id=8,
+        model_id=13,
+        dressed_player_ids={3: {21, 22}, 4: set()})
+    assert written == 7
+    deletes = [
+        call for call in cursor.execute.call_args_list
+        if "DELETE FROM player_predictions" in call.args[0]]
+    assert len(deletes) == 2
+    kept_sql, kept_params = deletes[0].args
+    assert "player_id NOT IN" in kept_sql
+    assert kept_params == (8, 13, 3, 21, 22)
+    dropped_sql, dropped_params = deletes[1].args
+    assert "NOT IN" not in dropped_sql
+    assert dropped_params == (8, 13, 4)
+    connection.commit.assert_called_once()
+    cursor.executemany.assert_called_once()
+
+
 def test_write_rejects_a_probability_above_100() -> None:
     rows = build_player_prediction_rows(
         8, 21, 3, 13, _RATES, _EVENTS)

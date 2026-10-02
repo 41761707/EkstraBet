@@ -1,7 +1,8 @@
-"""Score beta skater props for the next predictable NHL matches.
+"""Score beta skater props for one manual NHL prediction stage.
 
-There is no ``--stage`` flag yet. Lineups are resolved as ``initial``
-(confirmed, then external, then model). SZP-249 adds the stage flag.
+``initial`` prefers a confirmed lineup, then external, then model.
+``final`` keeps only a confirmed lineup and skips the match when
+either club is missing.
 """
 
 from __future__ import annotations
@@ -32,6 +33,10 @@ from models.pipeline.features.hockey.player_features import (
 from models.pipeline.labels.hockey_player_props import LINES_PER_SKATER
 from models.pipeline.lineups.hockey_probable_lineup import (
     resolve_lineup_for_stage)
+from models.pipeline.persistence.hockey_prediction_run_writer import (
+    FINAL_STAGE)
+from models.pipeline.persistence.hockey_prediction_run_writer import (
+    INITIAL_STAGE)
 from models.pipeline.persistence.player_prediction_writer import (
     PlayerPredictionRow)
 from models.pipeline.persistence.player_prediction_writer import (
@@ -46,7 +51,6 @@ from models.pipeline.training.hockey_player_props_trainer import (
 
 logger = logging.getLogger(__name__)
 
-INITIAL_STAGE = "initial"
 PROPS_PREDICTION_CONFIG = (
     REPO_ROOT / "models" / "configs" / "prediction"
     / "hockey_player_props_v1.json")
@@ -55,10 +59,14 @@ PROPS_PREDICTION_CONFIG = (
 def predict_hockey_props(
         league_id: int,
         match_ids: list[int],
-        write_db: bool) -> dict[str, object]:
-    """Score dressed skaters. Omit ``write_db`` for a dry-run."""
+        write_db: bool,
+        stage: str = INITIAL_STAGE) -> dict[str, object]:
+    """Score dressed skaters for one stage. Omit ``write_db`` for a dry-run."""
+    if stage not in (INITIAL_STAGE, FINAL_STAGE):
+        raise ValueError("stage must be 'initial' or 'final'")
     report: dict[str, object] = {
         "league_id": int(league_id),
+        "stage": stage,
         "match_ids": list(match_ids),
         "dry_run": not write_db,
         "lines_per_skater": LINES_PER_SKATER,
@@ -84,7 +92,8 @@ def predict_hockey_props(
         fixtures,
         model_id,
         event_ids,
-        write_db)
+        write_db,
+        stage)
     report["model_name"] = config.model_name
     report["model_id"] = model_id
     report["matches"] = scored
@@ -128,7 +137,8 @@ def _score_matches(
         fixtures: pd.DataFrame,
         model_id: int,
         event_ids: dict[str, int],
-        write_db: bool) -> list[dict[str, object]]:
+        write_db: bool,
+        stage: str) -> list[dict[str, object]]:
     scored: list[dict[str, object]] = []
     for fixture in fixtures.itertuples(index=False):
         moment = _naive_datetime(fixture.game_date)
@@ -138,11 +148,18 @@ def _score_matches(
                 "Skipping hockey props for match %s without date or season",
                 int(fixture.match_id))
             continue
+        match_id = int(fixture.match_id)
         home = resolve_lineup_for_stage(
-            int(fixture.match_id), int(fixture.home_team), INITIAL_STAGE)
+            match_id, int(fixture.home_team), stage)
         away = resolve_lineup_for_stage(
-            int(fixture.match_id), int(fixture.away_team), INITIAL_STAGE)
-        _warn_missing_lineup(int(fixture.match_id), home, away)
+            match_id, int(fixture.away_team), stage)
+        if stage == FINAL_STAGE and (home is None or away is None):
+            logger.warning(
+                "Skipping final hockey props for match %s: "
+                "confirmed lineup is missing for one or both clubs",
+                match_id)
+            continue
+        _warn_missing_lineup(match_id, home, away)
         try:
             rows = rows_for_match(
                 model,
@@ -163,8 +180,12 @@ def _score_matches(
                 exc)
             continue
         written = 0
-        if write_db and rows:
-            written = write_player_predictions(rows)
+        if write_db:
+            written = write_player_predictions(
+                rows,
+                match_id=match_id,
+                model_id=model_id,
+                dressed_player_ids=_dressed_player_ids(home, away))
         skaters = len(rows) // LINES_PER_SKATER
         scored.append({
             "match_id": int(fixture.match_id),
@@ -271,6 +292,19 @@ def _lineup_save(
             lineup.team_id,
             exc)
         return math.nan
+
+
+def _dressed_player_ids(
+        home: ProbableLineup | None,
+        away: ProbableLineup | None) -> dict[int, set[int]]:
+    """Map each resolved club to the players still in its lineup."""
+    dressed: dict[int, set[int]] = {}
+    for lineup in (home, away):
+        if lineup is None:
+            continue
+        dressed[int(lineup.team_id)] = {
+            int(player.player_id) for player in lineup.players}
+    return dressed
 
 
 def _warn_missing_lineup(

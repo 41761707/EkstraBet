@@ -177,6 +177,62 @@ def settle_outcomes(
     return _trim_preview(report, preview_limit if preview else None)
 
 
+def replace_changed_finals(
+        match_id: int,
+        model_id: int,
+        new_final_prediction_ids: list[int],
+        conn: Any | None = None) -> int:
+    """Drop finals whose pick changed, and their unsettled bets.
+
+    ``new_final_prediction_ids`` are the prediction rows that remain
+    the selected side. Any other final for this match and model is
+    removed together with the unsettled bet on that event. A bet
+    that already has an outcome stays. Returns the number of removed
+    finals. A caller that passes ``conn`` commits that connection
+    after the replacement final is stored.
+    """
+    kept = {int(item) for item in new_final_prediction_ids}
+    context = (
+        nullcontext(conn) if conn is not None else get_db_connection())
+    with context as connection:
+        try:
+            removed = _drop_stale_finals(
+                int(match_id), int(model_id), kept, connection)
+            if conn is None and removed:
+                connection.commit()
+            return removed
+        except Exception:
+            connection.rollback()
+            raise
+
+
+def _drop_stale_finals(
+        match_id: int,
+        model_id: int,
+        kept_prediction_ids: set[int],
+        connection: Any) -> int:
+    """Delete finals outside ``kept_prediction_ids`` and their open bets."""
+    stored = repo.fetch_stored_finals(match_id, model_id, connection)
+    stale = [
+        row for row in stored
+        if row.prediction_id not in kept_prediction_ids]
+    if not stale:
+        return 0
+    removed = repo.delete_final_predictions(
+        [row.final_id for row in stale], connection)
+    repo.delete_unsettled_bets(
+        match_id,
+        model_id,
+        [row.event_id for row in stale],
+        connection)
+    logger.info(
+        "Removed %s changed finals for match %s model %s",
+        removed,
+        match_id,
+        model_id)
+    return removed
+
+
 def refresh_model_statistics(
         scope: BetGenerationScope,
         batch_size: int = DEFAULT_BATCH_SIZE,

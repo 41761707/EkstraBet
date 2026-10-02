@@ -342,6 +342,99 @@ def write_bet_outcomes(
     return _write_outcomes(rows, conn, _UPDATE_BET_OUTCOME_SQL)
 
 
+@dataclass(frozen=True)
+class StoredFinalPick:
+    """One selected final and the event it currently points at."""
+
+    final_id: int
+    prediction_id: int
+    event_id: int
+
+
+_STORED_FINALS_SQL = """
+SELECT
+    fp.ID AS final_id,
+    fp.predictions_id AS prediction_id,
+    p.event_id AS event_id
+FROM final_predictions fp
+INNER JOIN predictions p ON p.id = fp.predictions_id
+WHERE p.match_id = %s
+  AND p.model_id = %s
+"""
+
+_DELETE_FINALS_SQL = """
+DELETE FROM final_predictions
+WHERE ID IN ({placeholders})
+"""
+
+_DELETE_UNSETTLED_BETS_SQL = """
+DELETE FROM bets
+WHERE match_id = %s
+  AND model_id = %s
+  AND outcome IS NULL
+  AND event_id IN ({placeholders})
+"""
+
+
+def fetch_stored_finals(
+        match_id: int,
+        model_id: int,
+        conn: Any) -> list[StoredFinalPick]:
+    """Return the finals currently stored for one match and model."""
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(_STORED_FINALS_SQL, (int(match_id), int(model_id)))
+        rows = cursor.fetchall() or []
+    finally:
+        cursor.close()
+    return [
+        StoredFinalPick(
+            final_id=int(row["final_id"]),
+            prediction_id=int(row["prediction_id"]),
+            event_id=int(row["event_id"]))
+        for row in rows]
+
+
+def delete_final_predictions(
+        final_ids: list[int],
+        conn: Any) -> int:
+    """Delete final rows by primary key. Returns the requested count."""
+    unique_ids = list(dict.fromkeys(int(item) for item in final_ids))
+    if not unique_ids:
+        return 0
+    placeholders = ", ".join(["%s"] * len(unique_ids))
+    sql = _DELETE_FINALS_SQL.format(placeholders=placeholders)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, tuple(unique_ids))
+    finally:
+        cursor.close()
+    return len(unique_ids)
+
+
+def delete_unsettled_bets(
+        match_id: int,
+        model_id: int,
+        event_ids: list[int],
+        conn: Any) -> int:
+    """Delete unsettled bets for the given events.
+
+    A bet with ``outcome`` already set stays. Settled rows are not
+    part of a pre-match lineup refresh.
+    """
+    unique_ids = list(dict.fromkeys(int(item) for item in event_ids))
+    if not unique_ids:
+        return 0
+    placeholders = ", ".join(["%s"] * len(unique_ids))
+    sql = _DELETE_UNSETTLED_BETS_SQL.format(placeholders=placeholders)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, (int(match_id), int(model_id), *unique_ids))
+        return int(cursor.rowcount or 0)
+    finally:
+        cursor.close()
+
+
 def _write_outcomes(
         rows: list[tuple[int, int]],
         conn: Any,
