@@ -32,6 +32,26 @@ def test_model_does_not_overwrite_confirmed_for_the_same_match() -> None:
     connection.commit.assert_not_called()
 
 
+def test_write_stores_goalie_start_probability() -> None:
+    connection, cursor = _connection([(4, "MODEL")])
+    goalie = ProbableLineupPlayer(
+        player_id=9,
+        position="G",
+        line=1,
+        pp_unit=None,
+        is_starting_goalie=1,
+        confidence=0.4,
+        source="MODEL",
+        start_probability=0.62)
+    written = write_probable_lineups(
+        [ProbableLineup(match_id=4, team_id=7, players=[goalie])],
+        connection)
+    inserted = cursor.executemany.call_args.args[1]
+    assert written == 1
+    assert inserted[0][8] == "MODEL"
+    assert inserted[0][9] == 0.62
+
+
 def test_model_overwrites_a_confirmed_lineup_from_an_older_match() -> None:
     connection, cursor = _connection([(3, "CONFIRMED")])
     written = write_probable_lineups([_lineup(4, [1, 2])], connection)

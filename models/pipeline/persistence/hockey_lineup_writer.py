@@ -42,8 +42,9 @@ INSERT INTO hockey_probable_lineups (
     pp_unit,
     is_starting_goalie,
     confidence,
-    source
-) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    source,
+    start_probability
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 
@@ -179,7 +180,8 @@ def _insert_row(
         player.pp_unit,
         player.is_starting_goalie,
         _confidence(player.confidence),
-        _MODEL_SOURCE)
+        _MODEL_SOURCE,
+        _unit_interval(player.start_probability))
 
 
 def _confidence(value: float | None) -> float | None:
@@ -190,5 +192,13 @@ def _confidence(value: float | None) -> float | None:
     except (TypeError, ValueError):
         return None
     if not math.isfinite(number):
+        return None
+    return number
+
+
+def _unit_interval(value: float | None) -> float | None:
+    """Keep a saved start probability inside 0 to 1."""
+    number = _confidence(value)
+    if number is None or number < 0.0 or number > 1.0:
         return None
     return number

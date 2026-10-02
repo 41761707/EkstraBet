@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 29.09.2026
+###### Ostatnia data modyfikacji: 02.10.2026
 
 ## Opis struktury bazy
 
@@ -950,6 +950,7 @@ Dane wyliczane przez pipeline ML.
 | PP_UNIT             | INT         | {0, 1, 2}              | Jednostka gry w przewadze                          | NULL                          |
 | IS_STARTING_GOALIE  | INT         | {0, 1}                 | Czy bramkarz jest starterem (1 - tak)              | NULL                          |
 | CONFIDENCE          | FLOAT       | [0, 1]                 | Udział zawodnika w ostatnich składach              | NULL                          |
+| START_PROBABILITY   | FLOAT       | [0, 1]                 | Prawdopodobieństwo startu bramkarza                | NULL                          |
 | SOURCE              | VARCHAR(20) | {MODEL, EXTERNAL, CONFIRMED} | Źródło składu                                | NOT NULL                      |
 | CREATED_AT          | TIMESTAMP   | DATETIME               | Czas utworzenia wiersza                            | CURRENT_TIMESTAMP             |
 | UPDATED_AT          | TIMESTAMP   | DATETIME               | Czas ostatniej zmiany wiersza                      | CURRENT_TIMESTAMP ON UPDATE   |

@@ -531,3 +531,90 @@ def fetch_basketball_match_lineups(match_id: int) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=(match_id,))
 
 
+def fetch_hockey_probable_lineups(match_id: int) -> pd.DataFrame:
+    """Return the stored probable lineup for this match only."""
+    query = """
+        SELECT
+            hpl.player_id,
+            p.common_name AS player_name,
+            hpl.team_id,
+            t.name AS team_name,
+            hpl.position,
+            hr.number,
+            hpl.line,
+            hpl.is_starting_goalie,
+            hpl.source,
+            hpl.start_probability
+        FROM hockey_probable_lineups hpl
+        JOIN players p ON p.id = hpl.player_id
+        JOIN teams t ON t.id = hpl.team_id
+        LEFT JOIN hockey_rosters hr
+            ON hr.team_id = hpl.team_id
+            AND hr.player_id = hpl.player_id
+        WHERE hpl.match_id = %s
+        ORDER BY hpl.team_id, hpl.line, hr.number, p.common_name
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=(match_id,))
+
+
+def fetch_hockey_team_arenas() -> pd.DataFrame:
+    """Return home-arena coordinates and time zones."""
+    query = """
+        SELECT
+            team_id,
+            latitude,
+            longitude,
+            timezone
+        FROM hockey_team_arenas
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn)
+
+
+def fetch_hockey_prediction_stage(match_id: int) -> str | None:
+    """Return the stage of the newest hockey prediction run."""
+    query = """
+        SELECT stage
+        FROM hockey_prediction_runs
+        WHERE match_id = %s
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    """
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn, params=(match_id,))
+    if frame.empty:
+        return None
+    stage = frame.iloc[0]["stage"]
+    if stage is None or (isinstance(stage, float) and pd.isna(stage)):
+        return None
+    return str(stage)
+
+
+def fetch_hockey_player_predictions(
+    match_id: int,
+    model_name: str) -> pd.DataFrame:
+    """Return beta skater lines for one props model and match."""
+    query = """
+        SELECT
+            pp.player_id,
+            p.common_name AS player_name,
+            pp.team_id,
+            pp.event_id,
+            pp.line,
+            pp.expected_value,
+            pp.probability
+        FROM player_predictions pp
+        JOIN players p ON p.id = pp.player_id
+        JOIN models m ON m.id = pp.model_id
+        WHERE pp.match_id = %s
+            AND m.name = %s
+        ORDER BY pp.team_id, p.common_name, pp.event_id, pp.line
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(
+            query,
+            conn,
+            params=(match_id, model_name))
+
+

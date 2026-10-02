@@ -28,7 +28,14 @@ from backend.sports.hockey.boxscore import map_hockey_boxscore
 from backend.sports.hockey.events import map_hockey_match_events
 from backend.sports.hockey.first_period_goals import fetch_first_period_goals
 from backend.sports.hockey.lineups import map_hockey_lineups
+from backend.sports.hockey.lineups import map_probable_hockey_lineups
 from backend.sports.hockey.match_stats import map_hockey_match_stats
+from backend.sports.hockey.player_predictions import (
+    HOCKEY_PLAYER_PROPS_MODEL_NAME)
+from backend.sports.hockey.player_predictions import (
+    map_hockey_player_predictions)
+from backend.sports.hockey.schedule_context import (
+    build_hockey_schedule_context)
 from backend.sports.hockey.season_match_point import map_hockey_season_match_point
 from backend.services.team_service import (
     _build_head_to_head_summary,
@@ -499,6 +506,141 @@ def search_matches(
     }
 
 
+_HOCKEY_SECTION_EMPTY = {
+    "hockey_stats": None,
+    "hockey_lineups": None,
+    "hockey_boxscore": None,
+    "hockey_events": None,
+    "hockey_prediction_stage": None,
+    "hockey_schedule_context": None,
+    "hockey_player_predictions": None
+}
+_PREMATCH_EMPTY = {
+    "hockey_prediction_stage": None,
+    "hockey_schedule_context": None,
+    "hockey_player_predictions": None
+}
+_PREDICTION_STAGES = frozenset({"initial", "final"})
+
+
+def _hockey_lineups_for_match(
+    match_id: int,
+    roster_frame: pd.DataFrame,
+    home_team_id: int,
+    home_team_name: str,
+    away_team_id: int,
+    away_team_name: str,
+    is_played: bool) -> dict[str, Any] | None:
+    """Use the box score, or the stored projection before the game."""
+    lineups = map_hockey_lineups(
+        roster_frame,
+        home_team_id,
+        home_team_name,
+        away_team_id,
+        away_team_name)
+    if lineups is not None or is_played:
+        return lineups
+    probable = match_repository.fetch_hockey_probable_lineups(match_id)
+    lineups = map_probable_hockey_lineups(
+        probable,
+        home_team_id,
+        home_team_name,
+        away_team_id,
+        away_team_name)
+    return lineups
+
+
+def _hockey_prematch_fields(
+    match_id: int,
+    sport_id: int | None,
+    is_played: bool,
+    game_date: object,
+    home_team_id: int,
+    away_team_id: int,
+    home_history: pd.DataFrame,
+    away_history: pd.DataFrame) -> dict[str, Any]:
+    """Stage, schedule and props for an unplayed NHL match."""
+    if sport_id != HOCKEY_SPORT_ID or is_played:
+        return dict(_PREMATCH_EMPTY)
+    stage = match_repository.fetch_hockey_prediction_stage(match_id)
+    if stage not in _PREDICTION_STAGES:
+        stage = None
+    predictions = match_repository.fetch_hockey_player_predictions(
+        match_id,
+        HOCKEY_PLAYER_PROPS_MODEL_NAME)
+    arenas = match_repository.fetch_hockey_team_arenas()
+    return {
+        "hockey_prediction_stage": stage,
+        "hockey_schedule_context": build_hockey_schedule_context(
+            home_history,
+            away_history,
+            arenas,
+            match_id=match_id,
+            home_team_id=home_team_id,
+            away_team_id=away_team_id,
+            game_date=game_date),
+        "hockey_player_predictions": map_hockey_player_predictions(
+            predictions,
+            home_team_id,
+            away_team_id)
+    }
+
+
+def _hockey_detail_sections(
+    match_id: int,
+    row: pd.Series,
+    summary: dict[str, Any],
+    sport_id: int | None,
+    game_date: object,
+    home_team_id: int,
+    away_team_id: int,
+    home_history: pd.DataFrame,
+    away_history: pd.DataFrame) -> dict[str, Any]:
+    """Stats, lineups, box score, events and prematch fields for NHL."""
+    sections = dict(_HOCKEY_SECTION_EMPTY)
+    if sport_id != HOCKEY_SPORT_ID:
+        return sections
+    sections["hockey_stats"] = map_hockey_match_stats(row)
+    lineup_frame = match_repository.fetch_hockey_match_lineups(match_id)
+    sections["hockey_lineups"] = _hockey_lineups_for_match(
+        match_id,
+        lineup_frame,
+        home_team_id,
+        summary["home_team"]["name"],
+        away_team_id,
+        summary["away_team"]["name"],
+        summary["is_played"])
+    if summary["is_played"]:
+        _fill_played_hockey(sections, match_id, home_team_id)
+    sections.update(_hockey_prematch_fields(
+        match_id,
+        sport_id,
+        summary["is_played"],
+        game_date,
+        home_team_id,
+        away_team_id,
+        home_history,
+        away_history))
+    return sections
+
+
+def _fill_played_hockey(
+    sections: dict[str, Any],
+    match_id: int,
+    home_team_id: int) -> None:
+    """Attach the box score and the play-by-play of a finished game."""
+    goalies_frame, skaters_frame = (
+        match_repository.fetch_hockey_match_boxscore(match_id))
+    if not goalies_frame.empty or not skaters_frame.empty:
+        sections["hockey_boxscore"] = map_hockey_boxscore(
+            goalies_frame,
+            skaters_frame)
+    events_frame = match_repository.fetch_hockey_match_events(match_id)
+    sections["hockey_events"] = map_hockey_match_events(
+        events_frame,
+        home_team_id)
+
+
 def get_match_details(
     match_id: int,
     model_ids: list[int] | None = None) -> dict[str, Any] | None:
@@ -543,39 +685,24 @@ def get_match_details(
         exclude_match_id=match_id)
 
     boxscore = None
-    hockey_boxscore = None
     if has_player_stats and summary["is_played"]:
         boxscore = _map_match_boxscore(match_id)
 
     sport_id = _optional_int(row.get("sport_id"))
-    hockey_stats = None
-    hockey_lineups = None
-    hockey_events = None
     football_stats = None
     basketball_lineups = None
-    if sport_id == HOCKEY_SPORT_ID:
-        hockey_stats = map_hockey_match_stats(row)
-        lineup_frame = match_repository.fetch_hockey_match_lineups(match_id)
-        hockey_lineups = map_hockey_lineups(
-            lineup_frame,
-            home_team_id,
-            summary["home_team"]["name"],
-            away_team_id,
-            summary["away_team"]["name"])
-        if summary["is_played"]:
-            goalies_frame, skaters_frame = (
-                match_repository.fetch_hockey_match_boxscore(match_id))
-            if not goalies_frame.empty or not skaters_frame.empty:
-                hockey_boxscore = map_hockey_boxscore(
-                    goalies_frame,
-                    skaters_frame)
-            events_frame = match_repository.fetch_hockey_match_events(
-                match_id)
-            hockey_events = map_hockey_match_events(
-                events_frame,
-                home_team_id)
-    else:
+    if sport_id != HOCKEY_SPORT_ID:
         football_stats = _map_basic_stats(row)
+    hockey = _hockey_detail_sections(
+        match_id,
+        row,
+        summary,
+        sport_id,
+        game_date,
+        home_team_id,
+        away_team_id,
+        home_history_frame,
+        away_history_frame)
 
     if sport_id == BASKETBALL_SPORT_ID:
         lineup_frame = match_repository.fetch_basketball_match_lineups(
@@ -587,7 +714,7 @@ def get_match_details(
             away_team_id,
             summary["away_team"]["name"])
 
-    has_hockey_boxscore = hockey_boxscore is not None
+    has_hockey_boxscore = hockey["hockey_boxscore"] is not None
     model_assessments = _safe_fetch_match_assessments(match_id)
 
     return {
@@ -597,7 +724,6 @@ def get_match_details(
         "prediction_analysis": prediction_analysis,
         "odds": odds,
         "stats": football_stats,
-        "hockey_stats": hockey_stats,
         "has_player_stats": has_player_stats or has_hockey_boxscore,
         "head_to_head": head_to_head,
         "home_team_history": _map_team_history(
@@ -607,9 +733,7 @@ def get_match_details(
             away_team_id,
             away_history_frame),
         "boxscore": boxscore,
-        "hockey_boxscore": hockey_boxscore,
-        "hockey_lineups": hockey_lineups,
-        "hockey_events": hockey_events,
+        **hockey,
         "basketball_lineups": basketball_lineups,
         "model_assessments": model_assessments
     }

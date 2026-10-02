@@ -10,6 +10,8 @@ from api.schemas.prediction import MatchPredictionItem
 from api.schemas.prediction import PredictionPreviewResponse
 
 FormResult = Literal["W", "D", "L", "WPD", "PPD"]
+HockeyLineupStatus = Literal["confirmed", "probable"]
+HockeyPredictionStage = Literal["initial", "final"]
 
 
 class TeamInMatch(BaseModel):
@@ -440,6 +442,11 @@ class HockeyLineupPlayer(BaseModel):
         description="Raw position code (C/LW/RW/D/G/NN)")
     number: int | None = Field(None, description="Jersey number")
     line: int = Field(..., description="Line number from 1 to 4")
+    start_probability: float | None = Field(
+        None,
+        description=(
+            "Probability from 0 to 1 that this goalie starts. "
+            "Null for skaters and for official box-score lineups"))
 
 
 class HockeyLineupLine(BaseModel):
@@ -459,6 +466,15 @@ class HockeyTeamLineup(BaseModel):
     lines: list[HockeyLineupLine] = Field(
         ...,
         description="Four lineup lines (line=1..4)")
+    lineup_status: HockeyLineupStatus | None = Field(
+        None,
+        description=(
+            "confirmed for an official sheet, probable for a "
+            "projected one. Null for a played box-score lineup"))
+    source: str | None = Field(
+        None,
+        description=(
+            "Stored lineup source: CONFIRMED, EXTERNAL or MODEL"))
 
 
 class HockeyMatchLineups(BaseModel):
@@ -568,6 +584,62 @@ class MatchModelAssessment(BaseModel):
         description="Last upsert timestamp")
 
 
+class HockeyScheduleSide(BaseModel):
+    """Rest and recent workload for one club before a match."""
+
+    rest_days: int = Field(
+        ...,
+        description="Days since the previous completed game, or 0")
+    is_b2b: bool = Field(
+        ...,
+        description="Whether the previous game was exactly one day earlier")
+    games_last_7_days: int = Field(
+        ...,
+        description="Completed games in the last 7 days, including this match")
+
+
+class HockeyScheduleContext(BaseModel):
+    """Prematch schedule context for both clubs."""
+
+    home: HockeyScheduleSide = Field(..., description="Home club")
+    away: HockeyScheduleSide = Field(..., description="Away club")
+
+
+class HockeyPlayerPredictionLine(BaseModel):
+    """One beta over-probability for a skater."""
+
+    event_id: int = Field(..., description="Player prop event id")
+    line: float = Field(..., description="Half-point line")
+    expected_value: float = Field(
+        ...,
+        description="Poisson mean for this counting stat")
+    probability: float = Field(
+        ...,
+        description="P(stat > line) in percent, from 0 to 100")
+
+
+class HockeyPlayerPrediction(BaseModel):
+    """Beta prop lines for one skater."""
+
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    team_id: int = Field(..., description="Team ID")
+    lines: list[HockeyPlayerPredictionLine] = Field(
+        ...,
+        description="Prop lines for this skater")
+
+
+class HockeyPlayerPredictions(BaseModel):
+    """Beta skater props grouped by club."""
+
+    home: list[HockeyPlayerPrediction] = Field(
+        ...,
+        description="Home skaters")
+    away: list[HockeyPlayerPrediction] = Field(
+        ...,
+        description="Away skaters")
+
+
 class MatchDetails(BaseModel):
     """Full match payload for the match detail page."""
 
@@ -627,6 +699,16 @@ class MatchDetails(BaseModel):
     hockey_lineups: HockeyMatchLineups | None = Field(
         None,
         description="Hockey match lineups grouped by team and line")
+    hockey_prediction_stage: HockeyPredictionStage | None = Field(
+        None,
+        description=(
+            "Latest hockey team-model stage: initial or final"))
+    hockey_schedule_context: HockeyScheduleContext | None = Field(
+        None,
+        description="Rest, back-to-back and games in 7 days")
+    hockey_player_predictions: HockeyPlayerPredictions | None = Field(
+        None,
+        description="Beta skater probabilities grouped by team")
     hockey_events: list[HockeyMatchEvent] | None = Field(
         None,
         description="Hockey play-by-play events for a played match")
