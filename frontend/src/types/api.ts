@@ -480,6 +480,47 @@ export interface TeamProfile {
   head_to_head: HeadToHeadSummary | null;
 }
 
+/** One player on the current NHL roster, with season counting stats. */
+export interface HockeyRosterPlayer {
+  player_id: number;
+  first_name: string;
+  last_name: string;
+  common_name: string;
+  country: string;
+  position: string;
+  number: number | null;
+  line: number | null;
+  is_injured: boolean;
+  injury_status: string | null;
+  injury_note: string | null;
+  games_played: number;
+  goals: number;
+  assists: number;
+  points: number;
+  shots_on_goal: number;
+  average_toi: string | null;
+  save_percentage: number | null;
+  goals_against_average: number | null;
+  in_last_lineup: boolean;
+}
+
+/** Players sharing one section of the team roster. */
+export interface HockeyRosterGroup {
+  group_id: string;
+  players: HockeyRosterPlayer[];
+}
+
+/** Current hockey roster from GET /teams/{id}/roster. */
+export interface HockeyTeamRoster {
+  team_id: number;
+  team_name: string;
+  goalkeepers: HockeyRosterPlayer[];
+  defensemen: HockeyRosterPlayer[];
+  forwards: HockeyRosterPlayer[];
+  injured_players: number;
+  groups: HockeyRosterGroup[];
+}
+
 export interface EventFamilyRef {
   id: number;
   name: string;

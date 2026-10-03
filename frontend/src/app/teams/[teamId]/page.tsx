@@ -4,16 +4,22 @@ import { ExpandableSection } from "@/components/ExpandableSection";
 import { MatchCard } from "@/components/MatchCard";
 import { StatusMessage } from "@/components/StatusMessage";
 import { ScopedPredictionStatsSection } from "@/components/stats/ScopedPredictionStatsSection";
+import { HockeyTeamRosterSection } from "@/components/teams/HockeyTeamRosterSection";
 import { TeamSeasonChartsSection } from "@/components/teams/TeamSeasonChartsSection";
 import { TeamSportSeasonChartsSection } from "@/components/teams/TeamSportSeasonChartsSection";
 import { TeamSplitStatsTable } from "@/components/TeamSplitStatsTable";
 import {
   ApiError,
+  getHockeyTeamRoster,
   getLeagueDetails,
   getTeamProfile,
 } from "@/lib/api";
 import { leaguePath } from "@/lib/leaguePaths";
-import { BASKETBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
+import {
+  BASKETBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type HockeyTeamRoster,
+} from "@/types/api";
 
 interface TeamPageProps {
   params: Promise<{ teamId: string }>;
@@ -154,6 +160,10 @@ export default async function TeamPage({
     const predictionStatsDescription =
       `Podsumowanie predykcji dla drużyny ${profile.team.name}` +
       (selectedSeasonYears ? ` w sezonie ${selectedSeasonYears}` : "");
+    const hockeyRoster =
+      sportId === HOCKEY_SPORT_ID
+        ? await loadOptionalHockeyRoster(teamId, selectedSeasonId)
+        : null;
 
     return (
       <div className="space-y-8">
@@ -215,6 +225,13 @@ export default async function TeamPage({
                 })}
               </div>
             </ExpandableSection>
+          ) : null}
+
+          {hockeyRoster ? (
+            <HockeyTeamRosterSection
+              roster={hockeyRoster.roster}
+              errorMessage={hockeyRoster.errorMessage}
+            />
           ) : null}
 
           <ExpandableSection title="Statystyki sezonowe" defaultOpen>
@@ -329,6 +346,27 @@ export default async function TeamPage({
         message={message}
       />
     );
+  }
+}
+
+async function loadOptionalHockeyRoster(
+  teamId: number,
+  seasonId: number,
+): Promise<{
+  roster: HockeyTeamRoster | null;
+  errorMessage: string | null;
+}> {
+  try {
+    return {
+      roster: await getHockeyTeamRoster(teamId, seasonId),
+      errorMessage: null,
+    };
+  } catch (error) {
+    const message =
+      error instanceof ApiError
+        ? error.message
+        : "Nie udało się załadować składu drużyny.";
+    return { roster: null, errorMessage: message };
   }
 }
 

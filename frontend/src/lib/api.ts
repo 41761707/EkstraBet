@@ -70,6 +70,7 @@ import type {
   SportTeamsListResponse,
   StandingScope,
   TeamProfile,
+  HockeyTeamRoster,
   FilterOption,
   PlayerSportsListResponse,
   PlayerCountriesResponse,
@@ -334,6 +335,16 @@ export async function getTeamProfile(
     league_id: options.leagueId,
     limit: options.limit,
     opponent_id: options.opponentId,
+  });
+}
+
+/** Current NHL roster from GET /teams/{id}/roster. */
+export async function getHockeyTeamRoster(
+  teamId: number,
+  seasonId: number,
+): Promise<HockeyTeamRoster> {
+  return fetchApi<HockeyTeamRoster>(`/teams/${teamId}/roster`, {
+    season_id: seasonId,
   });
 }
 
