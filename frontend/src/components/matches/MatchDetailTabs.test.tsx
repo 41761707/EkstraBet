@@ -75,6 +75,9 @@ function minimalMatchDetails(sportId: number): MatchDetails {
     boxscore: null,
     hockey_boxscore: null,
     hockey_lineups: null,
+    hockey_prediction_stage: null,
+    hockey_schedule_context: null,
+    hockey_player_predictions: null,
     hockey_events: null,
     basketball_lineups: null,
     model_assessments: [],
@@ -127,6 +130,15 @@ describe("MatchDetailTabs", () => {
     const html = renderTabs(HOCKEY_SPORT_ID);
 
     expect(html).not.toContain("Przebieg meczu");
+    expect(html).toContain("Zawodnicy (beta)");
+  });
+
+  it("hides Zawodnicy (beta) for a played hockey match and for football", () => {
+    const played = renderTabs(HOCKEY_SPORT_ID, { is_played: true });
+    const football = renderTabs(FOOTBALL_SPORT_ID);
+
+    expect(played).not.toContain("Zawodnicy (beta)");
+    expect(football).not.toContain("Zawodnicy (beta)");
   });
 
   it("hides Przebieg meczu for football matches", () => {

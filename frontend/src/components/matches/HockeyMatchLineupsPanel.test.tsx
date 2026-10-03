@@ -6,6 +6,7 @@ import type {
   HockeyLineupLine,
   HockeyLineupPlayer,
   HockeyMatchLineups,
+  HockeyPredictionStage,
   HockeyTeamLineup,
 } from "@/types/api";
 
@@ -36,8 +37,9 @@ function teamLineup(
   teamId: number,
   teamName: string,
   lines: HockeyLineupLine[],
+  extras: Partial<Pick<HockeyTeamLineup, "lineup_status" | "source">> = {},
 ): HockeyTeamLineup {
-  return { team_id: teamId, team_name: teamName, lines };
+  return { team_id: teamId, team_name: teamName, lines, ...extras };
 }
 
 function firstLinePlayers(): HockeyLineupPlayer[] {
@@ -90,12 +92,16 @@ function lineupsWithHomeFirstLine(): HockeyMatchLineups {
   };
 }
 
-function renderPanel(lineups: HockeyMatchLineups): string {
+function renderPanel(
+  lineups: HockeyMatchLineups,
+  predictionStage: HockeyPredictionStage | null = null,
+): string {
   return renderToStaticMarkup(
     <HockeyMatchLineupsPanel
       lineups={lineups}
       homeTeamName={HOME_TEAM_NAME}
       awayTeamName={AWAY_TEAM_NAME}
+      predictionStage={predictionStage}
     />,
   );
 }
@@ -136,5 +142,83 @@ describe("HockeyMatchLineupsPanel", () => {
     expect(html).toContain("Czwarta linia");
     expect(html).toContain("Brak zawodników");
     expect(html).toContain("Ta linia nie ma wpisów w składzie.");
+    expect(html).not.toContain("Przewidywany skład");
+  });
+
+  it("shows both goalie start weights beside the badge while line 1 is open", () => {
+    const homeLines = emptyLines();
+    homeLines[0] = {
+      line: 1,
+      players: [
+        samplePlayer({
+          player_id: 1334,
+          player_name: "Merzlikins E.",
+          position: "G",
+          number: 90,
+          line: 1,
+          start_probability: 0.62,
+        }),
+        samplePlayer({
+          player_id: 1898,
+          player_name: "Fantilli A.",
+          position: "C",
+          number: 19,
+          line: 1,
+        }),
+      ],
+    };
+    homeLines[1] = {
+      line: 2,
+      players: [
+        samplePlayer({
+          player_id: 1400,
+          player_name: "Greaves J.",
+          position: "G",
+          number: 73,
+          line: 2,
+          start_probability: 0.38,
+        }),
+        samplePlayer({
+          player_id: 1776,
+          player_name: "Marchenko K.",
+          position: "RW",
+          number: 86,
+          line: 2,
+        }),
+      ],
+    };
+
+    const html = renderPanel(
+      {
+        home: teamLineup(HOME_TEAM_ID, HOME_TEAM_NAME, homeLines, {
+          lineup_status: "probable",
+          source: "MODEL",
+        }),
+        away: teamLineup(AWAY_TEAM_ID, AWAY_TEAM_NAME, emptyLines(), {
+          lineup_status: "confirmed",
+          source: "CONFIRMED",
+        }),
+      },
+      "initial",
+    );
+    const tableStart = html.indexOf("<table");
+    const tableEnd = html.indexOf("</table>");
+    const beforeTable = html.slice(0, tableStart);
+    const table = html.slice(tableStart, tableEnd);
+
+    expect(beforeTable).toContain("Przewidywany skład");
+    expect(beforeTable).toContain("Źródło: model");
+    expect(beforeTable).toContain("Merzlikins E.");
+    expect(beforeTable).toContain("62%");
+    expect(beforeTable).toContain("Greaves J.");
+    expect(beforeTable).toContain("38%");
+    expect(table).toContain("Merzlikins E.");
+    expect(table).toContain("Fantilli A.");
+    expect(table).not.toContain("Greaves J.");
+    expect(html).not.toContain("Marchenko K.");
+    expect(html).not.toContain(">Start<");
+    expect(html.split("Greaves J.").length - 1).toBe(1);
+    expect(html).toContain("Skład potwierdzony");
+    expect(html).toContain("Predykcja pierwotna");
   });
 });

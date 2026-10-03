@@ -31,6 +31,7 @@ export function MatchLineupsTabContent({ match }: MatchLineupsTabContentProps) {
         lineups={match.hockey_lineups}
         homeTeamName={match.home_team.name}
         awayTeamName={match.away_team.name}
+        predictionStage={match.hockey_prediction_stage}
       />
     );
   }

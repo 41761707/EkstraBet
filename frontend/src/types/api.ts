@@ -662,6 +662,10 @@ export interface HockeyMatchBoxscore {
   skaters: HockeySkaterBoxscoreRow[];
 }
 
+export type HockeyLineupStatus = "confirmed" | "probable";
+
+export type HockeyPredictionStage = "initial" | "final";
+
 export interface HockeyLineupPlayer {
   player_id: number;
   player_name: string;
@@ -669,6 +673,7 @@ export interface HockeyLineupPlayer {
   position: string;
   number: number | null;
   line: number;
+  start_probability?: number | null;
 }
 
 export interface HockeyLineupLine {
@@ -680,6 +685,38 @@ export interface HockeyTeamLineup {
   team_id: number;
   team_name: string;
   lines: HockeyLineupLine[];
+  lineup_status?: HockeyLineupStatus | null;
+  source?: string | null;
+}
+
+export interface HockeyScheduleSide {
+  rest_days: number;
+  is_b2b: boolean;
+  games_last_7_days: number;
+}
+
+export interface HockeyScheduleContext {
+  home: HockeyScheduleSide;
+  away: HockeyScheduleSide;
+}
+
+export interface HockeyPlayerPredictionLine {
+  event_id: number;
+  line: number;
+  expected_value: number;
+  probability: number;
+}
+
+export interface HockeyPlayerPrediction {
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  lines: HockeyPlayerPredictionLine[];
+}
+
+export interface HockeyPlayerPredictions {
+  home: HockeyPlayerPrediction[];
+  away: HockeyPlayerPrediction[];
 }
 
 export interface HockeyMatchLineups {
@@ -771,6 +808,9 @@ export interface MatchDetails {
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
   hockey_lineups: HockeyMatchLineups | null;
+  hockey_prediction_stage: HockeyPredictionStage | null;
+  hockey_schedule_context: HockeyScheduleContext | null;
+  hockey_player_predictions: HockeyPlayerPredictions | null;
   hockey_events: HockeyMatchEvent[] | null;
   basketball_lineups: BasketballMatchLineups | null;
   model_assessments: MatchModelAssessment[];

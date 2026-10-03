@@ -2,22 +2,10 @@
 
 import { useState } from "react";
 
-import { HockeyMatchBoxscorePanel } from "@/components/matches/HockeyMatchBoxscorePanel";
-import { HockeyMatchEventsPanel } from "@/components/matches/HockeyMatchEventsPanel";
-import { MatchBoxscorePanel } from "@/components/matches/MatchBoxscorePanel";
-import { HockeyMatchStatsPanel } from "@/components/matches/HockeyMatchStatsPanel";
-import { MatchLineupsTabContent } from "@/components/matches/MatchLineupsTabContent";
-import { MatchPrematchStatsSection } from "@/components/matches/MatchPrematchStatsSection";
-import { MatchOddsGroupedTables } from "@/components/MatchOddsGroupedTables";
-import { buildUstaloneMarketPredictions } from "@/components/matchOddsTableModel";
-import { MatchPredictionsTable } from "@/components/MatchPredictionsTable";
-import { MatchStatsPanel } from "@/components/MatchStatsPanel";
-import { PlayedBetterAssessmentPanel } from "@/components/matches/PlayedBetterAssessmentPanel";
-import { ExpandableSection } from "@/components/ExpandableSection";
-import { StatusMessage } from "@/components/StatusMessage";
-import { usePreferences } from "@/components/preferences/PreferencesProvider";
-import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
-import { teamChartLabel } from "@/components/predictions/predictionChartModel";
+import {
+  MatchDetailTabPanel,
+  type MatchTab,
+} from "@/components/matches/MatchDetailTabPanel";
 import {
   BASKETBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
@@ -28,19 +16,17 @@ interface MatchDetailTabsProps {
   match: MatchDetails;
 }
 
-type MatchTab =
-  | "prematch"
-  | "predictions"
-  | "lineups"
-  | "events"
-  | "stats"
-  | "boxscore";
+interface MatchTabButton {
+  id: MatchTab;
+  label: string;
+  visible: boolean;
+}
 
-export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
-  const [activeTab, setActiveTab] = useState<MatchTab>("prematch");
-  const { preferences } = usePreferences();
+const TAB_ACTIVE_CLASS = "border-accent text-accent-text-hover";
+const TAB_IDLE_CLASS = "border-transparent text-muted hover:text-text";
 
-  const tabs: { id: MatchTab; label: string; visible: boolean }[] = [
+function visibleMatchTabs(match: MatchDetails): MatchTabButton[] {
+  const tabs: MatchTabButton[] = [
     { id: "prematch", label: "Statystyki przedmeczowe", visible: true },
     { id: "predictions", label: "Predykcje i kursy", visible: true },
     {
@@ -49,6 +35,11 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
       visible:
         match.sport_id === HOCKEY_SPORT_ID ||
         match.sport_id === BASKETBALL_SPORT_ID,
+    },
+    {
+      id: "players",
+      label: "Zawodnicy (beta)",
+      visible: match.sport_id === HOCKEY_SPORT_ID && !match.is_played,
     },
     {
       id: "events",
@@ -68,157 +59,54 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
       visible: match.has_player_stats && match.is_played,
     },
   ];
+  return tabs.filter((tab) => tab.visible);
+}
 
-  const visibleTabs = tabs.filter((tab) => tab.visible);
+function MatchDetailTabBar({
+  tabs,
+  activeTab,
+  onChange,
+}: {
+  tabs: MatchTabButton[];
+  activeTab: MatchTab;
+  onChange: (tab: MatchTab) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 border-b border-border pb-1">
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeTab;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
+              isActive ? TAB_ACTIVE_CLASS : TAB_IDLE_CLASS
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
+  const [activeTab, setActiveTab] = useState<MatchTab>("prematch");
+  const visibleTabs = visibleMatchTabs(match);
   const resolvedTab = visibleTabs.some((tab) => tab.id === activeTab)
     ? activeTab
     : "prematch";
-  const homeTeamLabel = teamChartLabel(
-    match.home_team,
-    preferences.teamNameDisplay,
-  );
-  const awayTeamLabel = teamChartLabel(
-    match.away_team,
-    preferences.teamNameDisplay,
-  );
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="flex flex-wrap gap-2 border-b border-border pb-1">
-        {visibleTabs.map((tab) => {
-          const isActive = tab.id === resolvedTab;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
-                isActive
-                  ? "border-accent text-accent-text-hover"
-                  : "border-transparent text-muted hover:text-text"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {resolvedTab === "prematch" ? (
-        <MatchPrematchStatsSection
-          sportId={match.sport_id}
-          homeTeamName={match.home_team.name}
-          awayTeamName={match.away_team.name}
-          seasonId={match.season_id}
-          leagueId={match.league_id}
-          headToHead={match.head_to_head}
-          homeTeamHistory={match.home_team_history}
-          awayTeamHistory={match.away_team_history}
-        />
-      ) : null}
-
-      {resolvedTab === "predictions" ? (
-        <div className="space-y-4">
-          {match.prediction_analysis ? (
-            <PredictionSimulationResult
-              result={match.prediction_analysis}
-              homeTeamLabel={homeTeamLabel}
-              awayTeamLabel={awayTeamLabel}
-              title="Analiza predykcji"
-            />
-          ) : null}
-
-          <ExpandableSection
-            title={`Predykcje (${match.final_predictions.length})`}
-            defaultOpen
-          >
-            {match.final_predictions.length === 0 ? (
-              <StatusMessage
-                variant="empty"
-                title="Brak predykcji"
-                message="Predykcje końcowe nie są dostępne dla tego meczu."
-              />
-            ) : (
-              <MatchPredictionsTable predictions={match.final_predictions} />
-            )}
-          </ExpandableSection>
-
-          <ExpandableSection title={`Kursy (${match.odds.length})`} defaultOpen>
-            {match.odds.length === 0 ? (
-              <StatusMessage
-                variant="empty"
-                title="Brak kursów"
-                message="Kursy bukmacherskie nie są dostępne dla tego meczu."
-              />
-            ) : (
-              <MatchOddsGroupedTables
-                odds={match.odds}
-                predictions={buildUstaloneMarketPredictions(
-                  match.prediction_analysis,
-                  match.final_predictions,
-                )}
-              />
-            )}
-          </ExpandableSection>
-        </div>
-      ) : null}
-
-      {resolvedTab === "lineups" ? (
-        <MatchLineupsTabContent match={match} />
-      ) : null}
-
-      {resolvedTab === "events" ? (
-        <HockeyMatchEventsPanel
-          events={match.hockey_events ?? []}
-          homeTeamName={match.home_team.name}
-          awayTeamName={match.away_team.name}
-        />
-      ) : null}
-
-      {resolvedTab === "stats" && match.hockey_stats ? (
-        <HockeyMatchStatsPanel
-          stats={match.hockey_stats}
-          homeTeamName={match.home_team.name}
-          awayTeamName={match.away_team.name}
-        />
-      ) : null}
-
-      {resolvedTab === "stats" && !match.hockey_stats && match.stats ? (
-        <div className="space-y-6">
-          <MatchStatsPanel
-            stats={match.stats}
-            homeTeamName={match.home_team.name}
-            awayTeamName={match.away_team.name}
-          />
-          <PlayedBetterAssessmentPanel
-            assessments={match.model_assessments}
-            homeTeamName={match.home_team.name}
-            awayTeamName={match.away_team.name}
-            homeGoals={match.home_goals}
-            awayGoals={match.away_goals}
-          />
-        </div>
-      ) : null}
-
-      {resolvedTab === "boxscore" && match.has_player_stats ? (
-        match.hockey_boxscore ? (
-          <HockeyMatchBoxscorePanel boxscore={match.hockey_boxscore} />
-        ) : match.boxscore && match.boxscore.length > 0 ? (
-          <MatchBoxscorePanel
-            homeTeamId={match.home_team.id}
-            homeTeamName={match.home_team.name}
-            awayTeamId={match.away_team.id}
-            awayTeamName={match.away_team.name}
-            players={match.boxscore}
-          />
-        ) : (
-          <StatusMessage
-            variant="empty"
-            title="Brak statystyk zawodników"
-            message="Statystyki zawodników nie są dostępne dla tego meczu."
-          />
-        )
-      ) : null}
+      <MatchDetailTabBar
+        tabs={visibleTabs}
+        activeTab={resolvedTab}
+        onChange={setActiveTab}
+      />
+      <MatchDetailTabPanel match={match} tab={resolvedTab} />
     </div>
   );
 }

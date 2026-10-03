@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatGoalieStartPercent,
+  goalieStartLabels,
   HOCKEY_LINE_TABS,
   linePlayers,
+  lineupSourceLabel,
+  lineupStatusLabel,
+  playersOnLineSheet,
+  predictionStageLabel,
   rinkMarkersForLine,
   sortPlayersForLineTable,
 } from "@/components/matches/hockeyLineupModel";
@@ -174,5 +180,81 @@ describe("rinkMarkersForLine", () => {
     ]);
 
     expect(markers).toHaveLength(0);
+  });
+});
+
+describe("lineup labels", () => {
+  it("names a projected sheet and its source", () => {
+    expect(lineupStatusLabel("probable")).toBe("Przewidywany skład");
+    expect(lineupStatusLabel("confirmed")).toBe("Skład potwierdzony");
+    expect(lineupStatusLabel(null)).toBeNull();
+    expect(lineupSourceLabel("MODEL")).toBe("model");
+    expect(lineupSourceLabel(" external ")).toBe("zewnętrzny");
+    expect(lineupSourceLabel("CONFIRMED")).toBe("potwierdzony");
+  });
+
+  it("names the prediction stage", () => {
+    expect(predictionStageLabel("initial")).toBe("Predykcja pierwotna");
+    expect(predictionStageLabel("final")).toBe("Predykcja ostateczna");
+    expect(predictionStageLabel(null)).toBeNull();
+  });
+
+  it("formats a goalie start weight as a whole percent", () => {
+    expect(formatGoalieStartPercent(0.62)).toBe("62%");
+    expect(formatGoalieStartPercent(1)).toBe("100%");
+    expect(formatGoalieStartPercent(null)).toBeNull();
+    expect(formatGoalieStartPercent(1.2)).toBeNull();
+  });
+});
+
+describe("goalie placement", () => {
+  const starter = samplePlayer({
+    player_id: 11,
+    player_name: "Merzlikins E.",
+    position: "G",
+    line: 1,
+    start_probability: 0.62,
+  });
+  const backup = samplePlayer({
+    player_id: 12,
+    player_name: "Greaves J.",
+    position: "G",
+    line: 2,
+    start_probability: 0.38,
+  });
+  const secondLineForward = samplePlayer({
+    player_id: 13,
+    player_name: "Marchenko K.",
+    position: "RW",
+    line: 2,
+  });
+
+  function teamWithSplitGoalies(): HockeyTeamLineup {
+    return sampleTeam([
+      { line: 1, players: [starter] },
+      { line: 2, players: [backup, secondLineForward] },
+    ]);
+  }
+
+  it("lists every goalie start weight, line 1 before line 2", () => {
+    expect(goalieStartLabels(teamWithSplitGoalies())).toEqual([
+      { playerId: 11, playerName: "Merzlikins E.", percent: "62%" },
+      { playerId: 12, playerName: "Greaves J.", percent: "38%" },
+    ]);
+  });
+
+  it("keeps the starter on line 1 and drops the backup from line 2", () => {
+    const team = teamWithSplitGoalies();
+    const lineOne = playersOnLineSheet(linePlayers(team, 1), 1);
+    const lineTwo = playersOnLineSheet(linePlayers(team, 2), 2);
+
+    expect(lineOne.map((player) => player.player_id)).toEqual([11]);
+    expect(lineTwo.map((player) => player.player_id)).toEqual([13]);
+    expect(rinkMarkersForLine(lineTwo).map((marker) => marker.position)).toEqual([
+      "RW",
+    ]);
+    expect(rinkMarkersForLine(lineOne).map((marker) => marker.position)).toEqual([
+      "G",
+    ]);
   });
 });
