@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from backend.services.model_metadata_service import get_model_details
+from backend.services.model_metadata_service import (
+    get_model_details,
+    get_sport_market_families)
 
 
 class TestModelMetadataService(unittest.TestCase):
@@ -59,6 +61,35 @@ class TestModelMetadataService(unittest.TestCase):
         self.assertEqual(details["name"], "Model A")
         self.assertEqual(len(details["event_families"]), 1)
         self.assertEqual(details["total_events"], 1)
+
+    @patch(
+        "backend.services.model_metadata_service.model_metadata_repository"
+        ".fetch_sport_family_events")
+    def test_get_sport_market_families_groups_events(
+        self,
+        mock_fetch: unittest.mock.MagicMock) -> None:
+        mock_fetch.return_value = pd.DataFrame([
+            {
+                "family_id": 7,
+                "family_name": "HOCKEY_ML",
+                "description": "Zwycięzca",
+                "event_id": 234,
+                "event_name": "Gospodarz"
+            },
+            {
+                "family_id": 7,
+                "family_name": "HOCKEY_ML",
+                "description": "Zwycięzca",
+                "event_id": 235,
+                "event_name": "Gość"
+            }
+        ])
+        families = get_sport_market_families(2)
+        self.assertEqual(len(families), 1)
+        self.assertEqual(families[0]["name"], "HOCKEY_ML")
+        self.assertEqual(
+            [event["event_id"] for event in families[0]["events"]],
+            [234, 235])
 
 
 if __name__ == "__main__":

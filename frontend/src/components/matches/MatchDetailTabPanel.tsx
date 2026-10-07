@@ -17,7 +17,11 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { PredictionSimulationResult } from "@/components/predictions/PredictionSimulationResult";
 import { teamChartLabel } from "@/components/predictions/predictionChartModel";
-import type { MatchDetails } from "@/types/api";
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type MatchDetails,
+} from "@/types/api";
 
 export type MatchTab =
   | "prematch"
@@ -115,21 +119,28 @@ function PredictionsTab({ match }: { match: MatchDetails }) {
 }
 
 function OddsSection({ match }: { match: MatchDetails }) {
+  const predictions = buildUstaloneMarketPredictions(
+    match.prediction_analysis,
+    match.final_predictions,
+  );
+  const sportId = match.sport_id ?? FOOTBALL_SPORT_ID;
+  const hasHockeyPredictions =
+    sportId === HOCKEY_SPORT_ID && predictions.length > 0;
+  const hasOdds = match.odds.length > 0 || hasHockeyPredictions;
+
   return (
     <ExpandableSection title={`Kursy (${match.odds.length})`} defaultOpen>
-      {match.odds.length === 0 ? (
+      {hasOdds ? (
+        <MatchOddsGroupedTables
+          odds={match.odds}
+          predictions={predictions}
+          sportId={sportId}
+        />
+      ) : (
         <StatusMessage
           variant="empty"
           title="Brak kursów"
           message="Kursy bukmacherskie nie są dostępne dla tego meczu."
-        />
-      ) : (
-        <MatchOddsGroupedTables
-          odds={match.odds}
-          predictions={buildUstaloneMarketPredictions(
-            match.prediction_analysis,
-            match.final_predictions,
-          )}
         />
       )}
     </ExpandableSection>

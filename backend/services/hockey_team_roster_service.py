@@ -33,6 +33,9 @@ _LINE_GROUPS = frozenset({
     "D2",
     "D3"})
 _FORWARD_POSITIONS = frozenset({"LW", "C", "RW"})
+_GOALIE_POSITION = "G"
+_GOALIE_DEPTH = frozenset({1, 2})
+_POWER_PLAY_UNITS = frozenset({1, 2})
 _POSITION_ORDER = {"LW": 0, "C": 1, "RW": 2, "D": 3, "G": 4}
 _SECONDS_PER_HOUR = 3600
 
@@ -129,9 +132,10 @@ def _one_player(
         match_number = match["number"]
     position = roster_position or match_position or _position(
         _optional_text(row.player_position)) or ""
+    roster_line = _optional_int(row.roster_line)
     slot = _chosen_slot(
         position or None,
-        _optional_int(row.roster_line),
+        roster_line,
         match_slots.get(player_id))
     injured = _is_injured(row.is_injured)
     counting = stats.get(player_id, _zero_stats())
@@ -143,7 +147,8 @@ def _one_player(
         "country": _text(row.country_name),
         "position": position,
         "number": _jersey_number(row.roster_number, match_number),
-        "line": _line_from_slot(slot),
+        "line": _published_line(position, slot, roster_line),
+        "pp_unit": _power_play_unit(getattr(row, "roster_pp", None)),
         "is_injured": injured,
         "injury_status": _optional_text(row.injury_status),
         "injury_note": _optional_text(row.injury_note),
@@ -447,6 +452,24 @@ def _jersey_number(
     if number is not None:
         return number
     return match_number
+
+
+def _power_play_unit(value: object) -> int | None:
+    # 0 i NULL znaczą „poza przewagą”; tylko 1PP i 2PP idą na zakładki.
+    unit = _optional_int(value)
+    if unit not in _POWER_PLAY_UNITS:
+        return None
+    return unit
+
+
+def _published_line(
+        position: str,
+        slot: str | None,
+        roster_line: int | None) -> int | None:
+    # Głębokość bramkarza jest w hockey_rosters.line, nie w meczu.
+    if position == _GOALIE_POSITION and roster_line in _GOALIE_DEPTH:
+        return roster_line
+    return _line_from_slot(slot)
 
 
 def _line_from_slot(slot: str | None) -> int | None:

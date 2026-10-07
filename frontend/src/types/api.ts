@@ -489,7 +489,10 @@ export interface HockeyRosterPlayer {
   country: string;
   position: string;
   number: number | null;
+  /** Skater line, or goalie depth: 1 primary, 2 backup. */
   line: number | null;
+  /** Power-play unit 1 or 2. Null when the player is not on a unit. */
+  pp_unit: number | null;
   is_injured: boolean;
   injury_status: string | null;
   injury_note: string | null;
@@ -925,9 +928,22 @@ export interface PredictionBetBreakdown {
   charts: ChartData;
 }
 
+export interface ModelCategoryRow {
+  model_id: number;
+  model_name: string;
+  prediction_total: number;
+  prediction_correct: number;
+  prediction_accuracy_pct: number | null;
+  bet_total: number;
+  bet_correct: number;
+  bet_accuracy_pct: number | null;
+  profit_total: number;
+}
+
 export interface CategoryStatistics {
   predictions: PredictionBetBreakdown;
   bets: PredictionBetBreakdown;
+  models?: ModelCategoryRow[];
 }
 
 export interface DistributionBucket {

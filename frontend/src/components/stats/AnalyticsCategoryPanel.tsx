@@ -5,7 +5,7 @@ import {
 import { formatAnalyticsTypeLabel } from "@/lib/analyticsLabels";
 import { getSemanticBarColor } from "@/lib/chartColors";
 import { formatPercent, formatProfit } from "@/lib/format";
-import type { CategoryStatistics } from "@/types/api";
+import type { CategoryStatistics, ModelCategoryRow } from "@/types/api";
 
 interface AnalyticsCategoryPanelProps {
   title: string;
@@ -145,6 +145,51 @@ function SummaryCards({
   );
 }
 
+function ModelComparisonTable({ rows }: { rows: ModelCategoryRow[] }) {
+  if (rows.length < 2) {
+    return null;
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border">
+      <table className="min-w-full text-sm">
+        <thead className="bg-surface text-left text-muted">
+          <tr>
+            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">
+              Model
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Skuteczność predykcji
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Skuteczność zakładów
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">
+              Zysk
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.model_id} className="border-t border-border">
+              <td className="px-4 py-3 font-medium text-text">{row.model_name}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-accent-text">
+                {formatPercent(row.prediction_accuracy_pct)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-text">
+                {formatPercent(row.bet_accuracy_pct)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-warning-text">
+                {formatProfit(row.profit_total)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function AnalyticsCategoryPanel({
   title,
   category,
@@ -154,6 +199,7 @@ export function AnalyticsCategoryPanel({
       <h3 className="text-xl font-semibold tracking-tight text-text">
         {title}
       </h3>
+      <ModelComparisonTable rows={category.models ?? []} />
 
       <div className="space-y-4">
         <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">

@@ -7,7 +7,7 @@ import { DateInput } from "@/components/filters/DateInput";
 import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckboxGroup";
 import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import {
-  groupBetEventOptions,
+  betEventFilterSections,
   type EventFilterOption,
 } from "@/lib/betEventOptions";
 import {
@@ -16,11 +16,13 @@ import {
   type BetsFilterValues,
 } from "@/lib/betsFilterParams";
 import { navigateSearch } from "@/lib/clientNavigation";
-import type {
-  BetSortBy,
-  BetSortOrder,
-  FilterOption,
-  SettlementStatus,
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type BetSortBy,
+  type BetSortOrder,
+  type FilterOption,
+  type SettlementStatus,
 } from "@/types/api";
 
 export type { BetsFilterValues };
@@ -34,6 +36,10 @@ interface BetsFiltersProps {
 
 const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 const BETS_CHECKBOX_LIST_HEIGHT_CLASS_NAME = "h-45";
+const SPORT_OPTIONS = [
+  { id: FOOTBALL_SPORT_ID, label: "Piłka nożna" },
+  { id: HOCKEY_SPORT_ID, label: "Hokej" },
+] as const;
 
 export function BetsFilters({
   leagues,
@@ -53,14 +59,39 @@ export function BetsFilters({
     applyFilters({ ...state, page: 1 });
   }
 
+  function handleSportChange(nextSportId: number) {
+    if (nextSportId === state.sportId) {
+      return;
+    }
+    const reset = createDefaultBetsFilterValues({ sportId: nextSportId });
+    setState(reset);
+    navigateSearch(betsFilterPath(reset), router);
+  }
+
   function handleReset() {
-    const resetState = createDefaultBetsFilterValues();
+    const resetState = createDefaultBetsFilterValues({
+      sportId: state.sportId,
+    });
     setState(resetState);
-    navigateSearch("/bets", router);
+    navigateSearch(betsFilterPath(resetState), router);
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <label className="block max-w-xs space-y-2 text-sm">
+        <span className="font-medium text-text">Sport</span>
+        <select
+          value={state.sportId}
+          onChange={(event) => handleSportChange(Number(event.target.value))}
+          className={FILTER_INPUT_CLASS_NAME}
+        >
+          {SPORT_OPTIONS.map((sport) => (
+            <option key={sport.id} value={sport.id}>
+              {sport.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <BetsCheckboxFilters
         leagues={leagues}
         events={events}
@@ -105,7 +136,7 @@ function BetsCheckboxFilters({
   events: EventFilterOption[];
   models: FilterOption[];
 }) {
-  const groupedEvents = groupBetEventOptions(events);
+  const eventSections = betEventFilterSections(events);
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <MultiSelectCheckboxGroup
@@ -120,10 +151,7 @@ function BetsCheckboxFilters({
       <MultiSelectCheckboxGroup
         label="Wydarzenia"
         name="events"
-        sections={[
-          { title: "Najpopularniejsze", options: groupedEvents.popular },
-          { title: "Pozostałe", options: groupedEvents.niche },
-        ]}
+        sections={eventSections}
         selectedIds={state.eventIds}
         maxHeightClassName={BETS_CHECKBOX_LIST_HEIGHT_CLASS_NAME}
         onChange={(eventIds) => onChange((current) => ({ ...current, eventIds }))}

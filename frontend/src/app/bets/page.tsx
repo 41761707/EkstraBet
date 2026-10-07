@@ -19,7 +19,12 @@ import {
   parseBetsFilterValues,
   type BetsFilterValues,
 } from "@/lib/betsFilterParams";
-import type { BetRecommendationsResponse, FilterOption } from "@/types/api";
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type BetRecommendationsResponse,
+  type FilterOption,
+} from "@/types/api";
 
 const PAGE_SIZE = 50;
 
@@ -31,8 +36,12 @@ interface BetsPageProps {
 
 export default async function BetsPage({ searchParams }: BetsPageProps) {
   const params = await searchParams;
-  const filters = parseBetsFilterValues(params);
-  const filterOptions = await loadBetsFilterOptions();
+  const parsedFilters = parseBetsFilterValues(params);
+  const sportId =
+    parsedFilters.sportId === HOCKEY_SPORT_ID
+      ? HOCKEY_SPORT_ID
+      : FOOTBALL_SPORT_ID;
+  const filterOptions = await loadBetsFilterOptions(sportId);
 
   if (!filterOptions.ok) {
     return (
@@ -43,6 +52,26 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
       />
     );
   }
+
+  const filters = {
+    ...parsedFilters,
+    sportId,
+    leagueIds: parsedFilters.leagueIds.filter((id) =>
+      filterOptions.ok
+        ? filterOptions.leagues.some((league) => league.id === id)
+        : true,
+    ),
+    eventIds: parsedFilters.eventIds.filter((id) =>
+      filterOptions.ok
+        ? filterOptions.events.some((event) => event.id === id)
+        : true,
+    ),
+    modelIds: parsedFilters.modelIds.filter((id) =>
+      filterOptions.ok
+        ? filterOptions.models.some((model) => model.id === id)
+        : true,
+    ),
+  };
 
   const filtersSection = (
     <BetsFiltersSection
@@ -70,7 +99,10 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
   try {
     const dateParams = betsDateQueryParams(filters);
     const response = await getBetRecommendations({
-      leagueIds: filters.leagueIds,
+      leagueIds:
+        filters.leagueIds.length > 0
+          ? filters.leagueIds
+          : filterOptions.leagues.map((league) => league.id),
       eventIds: filters.eventIds,
       modelIds: filters.modelIds,
       minOdds: filters.minOdds,
@@ -110,7 +142,7 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
   }
 }
 
-async function loadBetsFilterOptions(): Promise<
+async function loadBetsFilterOptions(sportId: number): Promise<
   | {
       ok: true;
       leagues: FilterOption[];
@@ -121,8 +153,8 @@ async function loadBetsFilterOptions(): Promise<
 > {
   try {
     const [leaguesResponse, eventsResponse, modelsResponse] = await Promise.all([
-      getLeagues({ active: true }),
-      getAllEventOptions(),
+      getLeagues({ active: true, sportId }),
+      getAllEventOptions(sportId),
       getModels(),
     ]);
     return {
@@ -133,7 +165,7 @@ async function loadBetsFilterOptions(): Promise<
       })),
       events: eventsResponse,
       models: modelsResponse.models
-        .filter((model) => model.active === 1)
+        .filter((model) => model.active === 1 && model.sport_id === sportId)
         .map((model) => ({ id: model.id, label: model.name }))
         .sort((left, right) => left.label.localeCompare(right.label, "pl")),
     };

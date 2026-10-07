@@ -8,15 +8,18 @@ import { MultiSelectCheckboxGroup } from "@/components/filters/MultiSelectCheckb
 import { INPUT_CLASS_NAME } from "@/components/inputStyles";
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
+  createDefaultStatsFilterValues,
   resetModelStatsFilters,
   statsFilterPath,
   type StatsFilterValues,
 } from "@/lib/statsFilterParams";
-import type {
-  AnalyticsAggregationMetric,
-  AnalyticsGroupBy,
-  AnalyticsStatType,
-  FilterOption,
+import {
+  FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
+  type AnalyticsAggregationMetric,
+  type AnalyticsGroupBy,
+  type AnalyticsStatType,
+  type FilterOption,
 } from "@/types/api";
 
 export type { StatsFilterValues };
@@ -27,8 +30,14 @@ interface StatsFiltersProps {
   resultModels: FilterOption[];
   ouModels: FilterOption[];
   bttsModels: FilterOption[];
+  hockeyModels: FilterOption[];
   values: StatsFilterValues;
 }
+
+const SPORT_OPTIONS = [
+  { id: FOOTBALL_SPORT_ID, label: "Piłka nożna" },
+  { id: HOCKEY_SPORT_ID, label: "Hokej" },
+] as const;
 
 const FILTER_INPUT_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
 
@@ -38,6 +47,7 @@ export function StatsFilters({
   resultModels,
   ouModels,
   bttsModels,
+  hockeyModels,
   values,
 }: StatsFiltersProps) {
   const router = useRouter();
@@ -63,6 +73,18 @@ export function StatsFilters({
     applyFilters(state);
   }
 
+  function handleSportChange(nextSportId: number) {
+    if (nextSportId === state.sportId) {
+      return;
+    }
+    const reset = createDefaultStatsFilterValues({
+      sportId: nextSportId,
+      compareLeagueIds: values.compareLeagueIds,
+      compareSeasonId: values.compareSeasonId,
+    });
+    navigateSearch(statsFilterPath(reset, []), router);
+  }
+
   function handleReset() {
     const resetState = resetModelStatsFilters({
       ...state,
@@ -73,8 +95,24 @@ export function StatsFilters({
     applyFilters(resetState);
   }
 
+  const isHockey = state.sportId === HOCKEY_SPORT_ID;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <label className="block max-w-xs space-y-2 text-sm">
+        <span className="font-medium text-text">Sport</span>
+        <select
+          value={state.sportId}
+          onChange={(event) => handleSportChange(Number(event.target.value))}
+          className={FILTER_INPUT_CLASS_NAME}
+        >
+          {SPORT_OPTIONS.map((sport) => (
+            <option key={sport.id} value={sport.id}>
+              {sport.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <MultiSelectCheckboxGroup
           label="Ligi"
@@ -86,33 +124,47 @@ export function StatsFilters({
             setState((current) => ({ ...current, leagueIds }))
           }
         />
-        <MultiSelectCheckboxGroup
-          label="Modele rezultatu"
-          name="stats-result-models"
-          options={resultModels}
-          selectedIds={state.modelResultIds}
-          onChange={(modelResultIds) =>
-            setState((current) => ({ ...current, modelResultIds }))
-          }
-        />
-        <MultiSelectCheckboxGroup
-          label="Modele OU"
-          name="stats-ou-models"
-          options={ouModels}
-          selectedIds={state.modelOuIds}
-          onChange={(modelOuIds) =>
-            setState((current) => ({ ...current, modelOuIds }))
-          }
-        />
-        <MultiSelectCheckboxGroup
-          label="Modele BTTS"
-          name="stats-btts-models"
-          options={bttsModels}
-          selectedIds={state.modelBttsIds}
-          onChange={(modelBttsIds) =>
-            setState((current) => ({ ...current, modelBttsIds }))
-          }
-        />
+        {isHockey ? (
+          <MultiSelectCheckboxGroup
+            label="Modele"
+            name="stats-hockey-models"
+            options={hockeyModels}
+            selectedIds={state.modelIds}
+            onChange={(modelIds) =>
+              setState((current) => ({ ...current, modelIds }))
+            }
+          />
+        ) : (
+          <>
+            <MultiSelectCheckboxGroup
+              label="Modele rezultatu"
+              name="stats-result-models"
+              options={resultModels}
+              selectedIds={state.modelResultIds}
+              onChange={(modelResultIds) =>
+                setState((current) => ({ ...current, modelResultIds }))
+              }
+            />
+            <MultiSelectCheckboxGroup
+              label="Modele OU"
+              name="stats-ou-models"
+              options={ouModels}
+              selectedIds={state.modelOuIds}
+              onChange={(modelOuIds) =>
+                setState((current) => ({ ...current, modelOuIds }))
+              }
+            />
+            <MultiSelectCheckboxGroup
+              label="Modele BTTS"
+              name="stats-btts-models"
+              options={bttsModels}
+              selectedIds={state.modelBttsIds}
+              onChange={(modelBttsIds) =>
+                setState((current) => ({ ...current, modelBttsIds }))
+              }
+            />
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -139,6 +191,8 @@ export function StatsFilters({
           </select>
         </label>
 
+        {isHockey ? null : (
+        <>
         <label className="space-y-2 text-sm">
           <span className="font-medium text-text">Typ statystyki</span>
           <select
@@ -193,6 +247,8 @@ export function StatsFilters({
             <option value="profit">Zysk</option>
           </select>
         </label>
+        </>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

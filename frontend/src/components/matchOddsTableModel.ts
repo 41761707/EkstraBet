@@ -1,6 +1,8 @@
-import type {
-  MatchPredictionItem,
-  PredictionPreviewResponse,
+import { hockeyFamilyLabel } from "@/lib/hockeyMarketLabels";
+import {
+  HOCKEY_SPORT_ID,
+  type MatchPredictionItem,
+  type PredictionPreviewResponse,
 } from "@/types/api";
 
 export type OddsSortDirection = "asc" | "desc";
@@ -14,6 +16,12 @@ export interface OddsColumn {
   key: string;
   label: string;
   eventId: number;
+}
+
+export interface OddsFamilyTable {
+  key: string;
+  title: string;
+  columns: OddsColumn[];
 }
 
 /** Unit probability for a market event (enough for USTALONE odds). */
@@ -35,6 +43,117 @@ export const ODDS_MARKET_EVENT_IDS = {
 } as const;
 
 const USTALONE_ROW_NAME = "USTALONE";
+
+function hockeyOddsTable(
+  familyName: string,
+  columns: OddsColumn[],
+): OddsFamilyTable {
+  return {
+    key: familyName,
+    title: `Porównanie kursów z estymacją na ${hockeyFamilyLabel(familyName)}:`,
+    columns,
+  };
+}
+
+const FOOTBALL_ODDS_FAMILY_TABLES: OddsFamilyTable[] = [
+  {
+    key: "REZULTAT",
+    title: "Porównanie kursów z estymacją na rezultat:",
+    columns: [
+      { key: "home", label: "Gospodarz", eventId: ODDS_MARKET_EVENT_IDS.home },
+      { key: "draw", label: "Remis", eventId: ODDS_MARKET_EVENT_IDS.draw },
+      { key: "away", label: "Gość", eventId: ODDS_MARKET_EVENT_IDS.away },
+    ],
+  },
+  {
+    key: "OU",
+    title: "Porównanie kursów z estymacją na OU:",
+    columns: [
+      { key: "under", label: "UNDER 2.5", eventId: ODDS_MARKET_EVENT_IDS.under },
+      { key: "over", label: "OVER 2.5", eventId: ODDS_MARKET_EVENT_IDS.over },
+    ],
+  },
+  {
+    key: "BTTS",
+    title: "Porównanie kursów z estymacją na BTTS:",
+    columns: [
+      {
+        key: "bttsYes",
+        label: "BTTS TAK",
+        eventId: ODDS_MARKET_EVENT_IDS.bttsYes,
+      },
+      {
+        key: "bttsNo",
+        label: "BTTS NIE",
+        eventId: ODDS_MARKET_EVENT_IDS.bttsNo,
+      },
+    ],
+  },
+];
+
+const HOCKEY_ODDS_FAMILY_TABLES: OddsFamilyTable[] = [
+  hockeyOddsTable("HOCKEY_ML", [
+    { key: "mlHome", label: "Gospodarz", eventId: 234 },
+    { key: "mlAway", label: "Gość", eventId: 235 },
+  ]),
+  hockeyOddsTable("HOCKEY_OU_55", [
+    { key: "over55", label: "Powyżej 5.5", eventId: 236 },
+    { key: "under55", label: "Poniżej 5.5", eventId: 237 },
+  ]),
+  hockeyOddsTable("HOCKEY_OU_65", [
+    { key: "over65", label: "Powyżej 6.5", eventId: 238 },
+    { key: "under65", label: "Poniżej 6.5", eventId: 239 },
+  ]),
+  hockeyOddsTable("HOCKEY_PL_HOME", [
+    { key: "homeMinus15", label: "Gospodarz -1.5", eventId: 240 },
+    { key: "awayPlus15", label: "Gość +1.5", eventId: 243 },
+  ]),
+  hockeyOddsTable("HOCKEY_PL_AWAY", [
+    { key: "awayMinus15", label: "Gość -1.5", eventId: 242 },
+    { key: "homePlus15", label: "Gospodarz +1.5", eventId: 241 },
+  ]),
+  hockeyOddsTable("HOCKEY_HOME_TT_25", [
+    { key: "homeOver25", label: "Powyżej 2.5", eventId: 244 },
+    { key: "homeUnder25", label: "Poniżej 2.5", eventId: 245 },
+  ]),
+  hockeyOddsTable("HOCKEY_HOME_TT_35", [
+    { key: "homeOver35", label: "Powyżej 3.5", eventId: 246 },
+    { key: "homeUnder35", label: "Poniżej 3.5", eventId: 247 },
+  ]),
+  hockeyOddsTable("HOCKEY_AWAY_TT_25", [
+    { key: "awayOver25", label: "Powyżej 2.5", eventId: 248 },
+    { key: "awayUnder25", label: "Poniżej 2.5", eventId: 249 },
+  ]),
+  hockeyOddsTable("HOCKEY_AWAY_TT_35", [
+    { key: "awayOver35", label: "Powyżej 3.5", eventId: 250 },
+    { key: "awayUnder35", label: "Poniżej 3.5", eventId: 251 },
+  ]),
+];
+
+/** Family tables for the match odds comparison. Football always shows all three. */
+export function oddsFamilyTablesForSport(sportId: number): OddsFamilyTable[] {
+  if (sportId === HOCKEY_SPORT_ID) {
+    return HOCKEY_ODDS_FAMILY_TABLES;
+  }
+  return FOOTBALL_ODDS_FAMILY_TABLES;
+}
+
+/**
+ * Hockey hides families with no odds and no prediction.
+ * Football keeps every table, including empty markets.
+ */
+export function visibleOddsFamilyTables(
+  sportId: number,
+  tables: readonly OddsFamilyTable[],
+  eventIds: ReadonlySet<number>,
+): OddsFamilyTable[] {
+  if (sportId !== HOCKEY_SPORT_ID) {
+    return [...tables];
+  }
+  return tables.filter((table) =>
+    table.columns.some((column) => eventIds.has(column.eventId)),
+  );
+}
 
 /**
  * Build USTALONE probabilities for all odds-table markets.

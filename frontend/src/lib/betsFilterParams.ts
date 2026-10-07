@@ -4,13 +4,15 @@ import {
   parsePositiveInt,
   todayIsoDate,
 } from "@/lib/searchParams";
-import type {
-  BetSortBy,
-  BetSortOrder,
-  SettlementStatus,
+import {
+  FOOTBALL_SPORT_ID,
+  type BetSortBy,
+  type BetSortOrder,
+  type SettlementStatus,
 } from "@/types/api";
 
 export interface BetsFilterValues {
+  sportId: number;
   leagueIds: number[];
   eventIds: number[];
   modelIds: number[];
@@ -31,6 +33,7 @@ export function createDefaultBetsFilterValues(
 ): BetsFilterValues {
   const today = todayIsoDate();
   return {
+    sportId: FOOTBALL_SPORT_ID,
     leagueIds: [],
     eventIds: [],
     modelIds: [],
@@ -71,6 +74,7 @@ export function parseBetsFilterValues(
   params: Record<string, string | undefined>,
 ): BetsFilterValues {
   return createDefaultBetsFilterValues({
+    sportId: parsePositiveInt(params.sport_id) ?? FOOTBALL_SPORT_ID,
     leagueIds: parseIdList(params.league_ids),
     eventIds: parseIdList(params.event_ids),
     modelIds: parseIdList(params.model_ids),
@@ -110,6 +114,9 @@ export function betsDateQueryParams(filters: BetsFilterValues): {
 
 export function buildBetsFilterQuery(nextState: BetsFilterValues): string {
   const params = new URLSearchParams();
+  if (nextState.sportId !== FOOTBALL_SPORT_ID) {
+    params.set("sport_id", String(nextState.sportId));
+  }
   if (nextState.leagueIds.length > 0) {
     params.set("league_ids", nextState.leagueIds.join(","));
   }

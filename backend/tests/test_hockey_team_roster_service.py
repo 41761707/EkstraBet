@@ -242,6 +242,79 @@ def test_short_defense_pair_fills_from_a_healthy_scratch() -> None:
     assert "outside" not in _group_ids(payload)
 
 
+def test_goalie_depth_comes_from_the_roster_line() -> None:
+    roster = _roster_frame([
+        _roster(
+            player_id=1,
+            common_name="Starter S.",
+            player_position="G",
+            roster_line=1),
+        _roster(
+            player_id=2,
+            common_name="Backup B.",
+            player_position="G",
+            roster_line=2),
+        _roster(
+            player_id=3,
+            common_name="Third T.",
+            player_position="G")])
+    last_match = _match_frame([
+        _match(player_id=2, position="G", line=1, number=30),
+        _match(player_id=1, position="G", line=2, number=1)])
+
+    payload = build_hockey_team_roster(
+        TEAM_ID, "Jackets", roster, last_match, _empty_stats())
+
+    by_id = {
+        player["player_id"]: player
+        for group in payload["groups"]
+        for player in group["players"]}
+    assert by_id[1]["line"] == 1
+    assert by_id[2]["line"] == 2
+    assert by_id[3]["line"] is None
+    assert _ids(payload, "G") == [1, 2]
+    assert _ids(payload, "outside") == [3]
+
+
+def test_power_play_unit_stays_on_the_player() -> None:
+    roster = _roster_frame([
+        _roster(
+            player_id=1,
+            common_name="Center A.",
+            player_position="C",
+            roster_pp=1),
+        _roster(
+            player_id=2,
+            common_name="Defence D.",
+            player_position="D",
+            roster_pp=2),
+        _roster(
+            player_id=3,
+            common_name="Scratch S.",
+            player_position="LW",
+            roster_pp=0),
+        _roster(
+            player_id=4,
+            common_name="Hurt H.",
+            player_position="RW",
+            is_injured=1,
+            roster_pp=1)])
+
+    payload = build_hockey_team_roster(
+        TEAM_ID, "Jackets", roster, _match_frame([]), _empty_stats())
+
+    by_id = {
+        player["player_id"]: player
+        for group in payload["groups"]
+        for player in group["players"]}
+    assert by_id[1]["pp_unit"] == 1
+    assert by_id[2]["pp_unit"] == 2
+    assert by_id[3]["pp_unit"] is None
+    assert by_id[4]["pp_unit"] == 1
+    assert by_id[4]["is_injured"] is True
+    HockeyTeamRosterResponse.model_validate(payload)
+
+
 def test_injured_forward_does_not_fill_an_open_seat() -> None:
     roster = _roster_frame([
         _roster(player_id=1, common_name="Center A.", player_position="C"),
@@ -338,7 +411,8 @@ def _roster(
         roster_line: int | None = None,
         is_injured: int = 0,
         injury_status: str | None = None,
-        injury_note: str | None = None) -> dict:
+        injury_note: str | None = None,
+        roster_pp: int | None = None) -> dict:
     return {
         "player_id": player_id,
         "first_name": common_name.split(" ")[0],
@@ -351,7 +425,8 @@ def _roster(
         "roster_number": None,
         "is_injured": is_injured,
         "injury_status": injury_status,
-        "injury_note": injury_note
+        "injury_note": injury_note,
+        "roster_pp": roster_pp
     }
 
 

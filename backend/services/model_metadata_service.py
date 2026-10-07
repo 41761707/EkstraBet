@@ -35,6 +35,35 @@ def get_event_families(sport_id: int | None = None) -> list[dict[str, Any]]:
     return families
 
 
+def get_sport_market_families(sport_id: int) -> list[dict[str, Any]]:
+    """Return event families of a sport with their events, in catalog order."""
+    frame = model_metadata_repository.fetch_sport_family_events(sport_id)
+    families: list[dict[str, Any]] = []
+    current_id: int | None = None
+    current: dict[str, Any] | None = None
+    for _, row in frame.iterrows():
+        family_id = int(row["family_id"])
+        if family_id != current_id:
+            current = {
+                "id": family_id,
+                "name": str(row["family_name"]),
+                "description": _optional_str(row.get("description")),
+                "events": []
+            }
+            families.append(current)
+            current_id = family_id
+        event_id = row.get("event_id")
+        if current is None or event_id is None or pd.isna(event_id):
+            continue
+        event_name = row.get("event_name")
+        current["events"].append({
+            "event_id": int(event_id),
+            "name": "" if event_name is None or pd.isna(event_name) else str(
+                event_name)
+        })
+    return families
+
+
 def get_family_events(family_id: int) -> list[dict[str, Any]]:
     """Return events mapped to an event family."""
     frame = model_metadata_repository.fetch_family_events(family_id)

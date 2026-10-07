@@ -4,12 +4,15 @@ import {
   buildUstaloneMarketPredictions,
   isMissingOddsValue,
   nextOddsSortState,
+  oddsFamilyTablesForSport,
   ODDS_MARKET_EVENT_IDS,
   ODDS_SORT_BOOKMAKER_KEY,
   resolveOddsSortValue,
   sortOddsRows,
+  visibleOddsFamilyTables,
   type OddsColumn,
 } from "@/components/matchOddsTableModel";
+import { HOCKEY_SPORT_ID } from "@/types/api";
 import type {
   MatchPredictionItem,
   PredictionPreviewResponse,
@@ -435,5 +438,49 @@ describe("sortOddsRows", () => {
       [],
     );
     expect(input).toEqual(snapshot);
+  });
+});
+
+describe("hockey odds families", () => {
+  it("groups NHL markets into the nine catalog families", () => {
+    const tables = oddsFamilyTablesForSport(HOCKEY_SPORT_ID);
+    const eventIds = tables.flatMap((table) =>
+      table.columns.map((column) => column.eventId),
+    );
+
+    expect(tables.map((table) => table.key)).toEqual([
+      "HOCKEY_ML",
+      "HOCKEY_OU_55",
+      "HOCKEY_OU_65",
+      "HOCKEY_PL_HOME",
+      "HOCKEY_PL_AWAY",
+      "HOCKEY_HOME_TT_25",
+      "HOCKEY_HOME_TT_35",
+      "HOCKEY_AWAY_TT_25",
+      "HOCKEY_AWAY_TT_35",
+    ]);
+    expect(eventIds).toEqual([
+      234, 235, 236, 237, 238, 239, 240, 243, 242, 241, 244, 245, 246, 247,
+      248, 249, 250, 251,
+    ]);
+    expect(tables[0]?.title).toContain("Zwycięzca (OT/SO)");
+    expect(tables[0]?.columns.map((column) => column.label)).toEqual([
+      "Gospodarz",
+      "Gość",
+    ]);
+  });
+
+  it("hides hockey families that have neither odds nor a prediction", () => {
+    const tables = oddsFamilyTablesForSport(HOCKEY_SPORT_ID);
+    const visible = visibleOddsFamilyTables(
+      HOCKEY_SPORT_ID,
+      tables,
+      new Set([234, 236]),
+    );
+
+    expect(visible.map((table) => table.key)).toEqual([
+      "HOCKEY_ML",
+      "HOCKEY_OU_55",
+    ]);
   });
 });

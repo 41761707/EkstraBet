@@ -16,6 +16,7 @@ function player(
     position: "C",
     number: 19,
     line: 1,
+    pp_unit: null,
     is_injured: false,
     injury_status: null,
     injury_note: null,
@@ -94,6 +95,39 @@ function sliceBetween(html: string, start: string, end: string): string {
 
 function rowOf(html: string, name: string): string {
   return html.split("<tr").find((row) => row.includes(name)) ?? "";
+}
+
+function rosterWithGoalieDepth(): HockeyTeamRoster {
+  const base = roster();
+  return {
+    ...base,
+    groups: base.groups.map((group) => {
+      if (group.group_id !== "G") {
+        return group;
+      }
+      return {
+        group_id: "G",
+        players: [
+          player({
+            player_id: 31,
+            common_name: "Backup B.",
+            position: "G",
+            line: 2,
+            save_percentage: 90,
+            goals_against_average: 2.5,
+          }),
+          player({
+            player_id: 30,
+            common_name: "Starter S.",
+            position: "G",
+            line: 1,
+            save_percentage: 91,
+            goals_against_average: 2.1,
+          }),
+        ],
+      };
+    }),
+  };
 }
 
 function rosterWithSecondLine(): HockeyTeamRoster {
@@ -181,19 +215,23 @@ describe("HockeyTeamRosterSection", () => {
       <HockeyTeamRosterSection roster={roster()} />,
     );
 
-    expect(html).toContain("Skład");
+    expect(html).toContain("Aktualny skład drużyny");
     expect(html).toContain("1. piątka");
     expect(html).toContain("2. piątka");
     expect(html).toContain("3. piątka");
     expect(html).toContain("4. linia");
+    expect(html).toContain("Power Play 1");
+    expect(html).toContain("Power Play 2");
     expect(html).toContain("Center A.");
     expect(html).toContain("Bramkarze");
     expect(html).toContain("90.00%");
     expect(html).toContain("2.00");
-    const stats = sliceBetween(html, "Statystyki", "");
+    const stats = sliceBetween(html, "Statystyki", "Kontuzjowani");
     expect(stats).toContain("Center A.");
     expect(stats).not.toContain("SV%");
     expect(stats).not.toContain("GAA");
+    expect(html.indexOf("Statystyki")).toBeLessThan(html.indexOf("Kontuzjowani"));
+    expect(html.indexOf("Poza składem")).toBeLessThan(html.indexOf("Statystyki"));
     expect(html).toContain("Kontuzja");
     expect(html).toContain("Lower body");
     expect(html).toContain("Poza składem");
@@ -206,8 +244,8 @@ describe("HockeyTeamRosterSection", () => {
     const html = renderToStaticMarkup(
       <HockeyTeamRosterSection roster={rosterWithDisplacedGoalies()} />,
     );
-    const injured = sliceBetween(html, "Kontuzjowani", "Poza składem");
-    const outside = sliceBetween(html, "Poza składem", "");
+    const outside = sliceBetween(html, "Poza składem", "Kontuzjowani");
+    const injured = sliceBetween(html, "Kontuzjowani", "");
 
     expect(injured).toContain("SV%");
     expect(injured).toContain("GAA");
@@ -235,6 +273,17 @@ describe("HockeyTeamRosterSection", () => {
     expect(html).toContain("Center A.");
     expect(html).toContain("2. piątka");
     expect(html).not.toContain("Second S.");
+  });
+
+  it("labels the primary goalie from roster line ahead of the backup", () => {
+    const html = renderToStaticMarkup(
+      <HockeyTeamRosterSection roster={rosterWithGoalieDepth()} />,
+    );
+    const goalies = sliceBetween(html, "Bramkarze", "Statystyki");
+
+    expect(goalies.indexOf("Starter S.")).toBeLessThan(goalies.indexOf("Backup B."));
+    expect(goalies.indexOf("Podstawowy")).toBeLessThan(goalies.indexOf("Rezerwowy"));
+    expect(goalies).toContain("border-accent");
   });
 
   it("shows an error instead of an empty roster", () => {

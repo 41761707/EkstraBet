@@ -70,11 +70,28 @@ class PredictionBetBreakdown(BaseModel):
     charts: ChartData = Field(..., description="Chart-ready data")
 
 
+class ModelCategoryRow(BaseModel):
+    """Accuracy and unit profit of one model inside a family."""
+
+    model_id: int
+    model_name: str
+    prediction_total: int
+    prediction_correct: int
+    prediction_accuracy_pct: float | None = None
+    bet_total: int
+    bet_correct: int
+    bet_accuracy_pct: float | None = None
+    profit_total: float
+
+
 class CategoryStatistics(BaseModel):
-    """OU, BTTS or 1X2 prediction and bet statistics."""
+    """Prediction and bet statistics for one event family."""
 
     predictions: PredictionBetBreakdown
     bets: PredictionBetBreakdown
+    models: list[ModelCategoryRow] = Field(
+        default_factory=list,
+        description="Per-model split used to compare models in one family")
 
 
 class DistributionBucket(BaseModel):
@@ -243,7 +260,8 @@ class ModelAnalyticsResponse(BaseModel):
 
     categories: dict[str, CategoryStatistics] = Field(
         ...,
-        description="Statistics keyed by ou, btts or result")
+        description=(
+            "Statistics keyed by ou, btts, result or a catalog family name"))
     aggregations: AnalyticsAggregations = Field(
         default_factory=AnalyticsAggregations,
         description="Optional team or league aggregations")

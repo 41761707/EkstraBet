@@ -14,7 +14,14 @@ class HockeyPlayerRosterResponse(BaseModel):
     country: str = Field(..., description="Country name")
     position: str = Field(..., description="Position (G/D/LW/C/RW)")
     number: int | None = Field(None, description="Jersey number")
-    line: int | None = Field(None, description="Forward line or defence pair")
+    line: int | None = Field(
+        None,
+        description=(
+            "Forward line, defence pair, or goalie depth "
+            "(1 primary, 2 backup)"))
+    pp_unit: int | None = Field(
+        None,
+        description="Power-play unit (1 or 2), or null when unassigned")
     is_injured: bool = Field(..., description="Whether the player is injured")
     injury_status: str | None = Field(None, description="Short injury status")
     injury_note: str | None = Field(None, description="Injury note")

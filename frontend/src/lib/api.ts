@@ -468,6 +468,8 @@ export async function getBetRecommendations(options?: {
 
 export async function getModelAnalytics(options?: {
   statType?: AnalyticsStatType;
+  sportId?: number;
+  modelIds?: number[];
   modelResultIds?: number[];
   modelOuIds?: number[];
   modelBttsIds?: number[];
@@ -486,6 +488,11 @@ export async function getModelAnalytics(options?: {
 }): Promise<ModelAnalyticsResponse> {
   return fetchApi<ModelAnalyticsResponse>("/analytics/models", {
     stat_type: options?.statType,
+    sport_id: options?.sportId,
+    model_ids:
+      options?.modelIds && options.modelIds.length > 0
+        ? options.modelIds.join(",")
+        : undefined,
     model_result_ids:
       options?.modelResultIds && options.modelResultIds.length > 0
         ? options.modelResultIds.join(",")

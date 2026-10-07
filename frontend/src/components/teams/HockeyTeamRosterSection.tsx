@@ -13,7 +13,7 @@ export function HockeyTeamRosterSection({
   errorMessage = null,
 }: HockeyTeamRosterSectionProps) {
   return (
-    <ExpandableSection title="Skład" defaultOpen>
+    <ExpandableSection title="Aktualny skład drużyny" defaultOpen>
       <RosterBody roster={roster} errorMessage={errorMessage} />
     </ExpandableSection>
   );

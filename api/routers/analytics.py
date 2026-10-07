@@ -89,6 +89,13 @@ async def get_model_statistics(
     aggregation_metric: AggregationMetricFilter = Query(
         "accuracy",
         description="Metric used for league/team aggregations"),
+    sport_id: int | None = Query(
+        None,
+        ge=1,
+        description="Sport filter; hockey uses catalog event families"),
+    model_ids: str | None = Query(
+        None,
+        description="Comma-separated model IDs for a non-football sport"),
 ) -> ModelAnalyticsResponse:
     """Zwraca statystyki efektywności modeli dla wykresów i tabel."""
     if date_from is not None and date_to is not None and date_from > date_to:
@@ -131,7 +138,9 @@ async def get_model_statistics(
             positive_ev_only=positive_ev_only,
             apply_tax=apply_tax,
             group_by=group_by,
-            aggregation_metric=aggregation_metric)
+            aggregation_metric=aggregation_metric,
+            sport_id=sport_id,
+            model_ids=parse_id_list(model_ids))
         return ModelAnalyticsResponse(**payload)
     except HTTPException:
         raise

@@ -1,3 +1,8 @@
+import {
+  HOCKEY_FAMILY_ORDER,
+  hockeyFamilyLabel,
+} from "@/lib/hockeyMarketLabels";
+
 export interface EventFilterOption {
   id: number;
   label: string;
@@ -7,6 +12,11 @@ export interface EventFilterOption {
 export interface GroupedBetEventOptions {
   popular: EventFilterOption[];
   niche: EventFilterOption[];
+}
+
+export interface BetEventFilterSection {
+  title: string;
+  options: EventFilterOption[];
 }
 
 const POPULAR_FAMILIES = ["OU", "BTTS", "REZULTAT"] as const;
@@ -63,4 +73,43 @@ export function groupBetEventOptions(
     popular: sorted.filter((event) => isPopularEventFamily(event.familyName)),
     niche: sorted.filter((event) => !isPopularEventFamily(event.familyName)),
   };
+}
+
+function isHockeyFamily(familyName: string): boolean {
+  return familyName.startsWith("HOCKEY_");
+}
+
+/** Popular/niche football markets, then each hockey family under its label. */
+export function betEventFilterSections(
+  events: EventFilterOption[],
+): BetEventFilterSection[] {
+  const hockey = events.filter((event) => isHockeyFamily(event.familyName));
+  const football = events.filter((event) => !isHockeyFamily(event.familyName));
+  const grouped = groupBetEventOptions(football);
+  const sections: BetEventFilterSection[] = [];
+  if (grouped.popular.length > 0) {
+    sections.push({ title: "Najpopularniejsze", options: grouped.popular });
+  }
+  if (grouped.niche.length > 0) {
+    sections.push({ title: "Pozostałe", options: grouped.niche });
+  }
+  for (const familyName of HOCKEY_FAMILY_ORDER) {
+    const options = hockey
+      .filter((event) => event.familyName === familyName)
+      .sort((left, right) => left.label.localeCompare(right.label, "pl"));
+    if (options.length > 0) {
+      sections.push({ title: hockeyFamilyLabel(familyName), options });
+    }
+  }
+  const known = new Set(HOCKEY_FAMILY_ORDER);
+  const otherHockey = hockey.filter((event) => !known.has(event.familyName));
+  if (otherHockey.length > 0) {
+    sections.push({
+      title: "Pozostałe hokej",
+      options: [...otherHockey].sort((left, right) =>
+        left.label.localeCompare(right.label, "pl"),
+      ),
+    });
+  }
+  return sections;
 }

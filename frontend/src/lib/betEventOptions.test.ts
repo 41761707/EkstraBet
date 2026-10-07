@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  betEventFilterSections,
   compareBetEventOptions,
   groupBetEventOptions,
   mergeEventFilterOption,
@@ -84,5 +85,23 @@ describe("mergeEventFilterOption", () => {
       option(174, "0 bramek w meczu", "GOALS"),
     );
     expect(merged.familyName).toBe("GOALS");
+  });
+});
+
+describe("betEventFilterSections", () => {
+  it("labels hockey families separately from football markets", () => {
+    const sections = betEventFilterSections([
+      option(8, "Powyżej 2.5 gola", "OU"),
+      option(234, "Zwycięstwo gospodarza (OT/SO)", "HOCKEY_ML"),
+      option(235, "Zwycięstwo gościa (OT/SO)", "HOCKEY_ML"),
+      option(236, "Powyżej 5.5 gola (OT/SO)", "HOCKEY_OU_55"),
+    ]);
+
+    expect(sections.map((section) => section.title)).toEqual([
+      "Najpopularniejsze",
+      "Zwycięzca (OT/SO)",
+      "Powyżej/poniżej 5.5",
+    ]);
+    expect(sections[1]?.options.map((event) => event.id)).toEqual([234, 235]);
   });
 });

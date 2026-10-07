@@ -349,6 +349,84 @@ class TestAnalyticsService(unittest.TestCase):
         self.assertEqual(comparisons["predictions"]["btts"], [])
         self.assertEqual(comparisons["bet_profits"]["result"], [])
 
+    @patch(
+        "backend.services.analytics_service.get_sport_market_families")
+    @patch(
+        "backend.services.analytics_service.analytics_repository."
+        "fetch_bet_rows")
+    @patch(
+        "backend.services.analytics_service.analytics_repository."
+        "fetch_prediction_rows")
+    def test_hockey_family_accuracy_and_unit_profit(
+        self,
+        mock_pred_fetch: unittest.mock.MagicMock,
+        mock_bet_fetch: unittest.mock.MagicMock,
+        mock_families: unittest.mock.MagicMock) -> None:
+        mock_families.return_value = [{
+            "id": 7,
+            "name": "HOCKEY_ML",
+            "description": "Zwycięzca",
+            "events": [
+                {
+                    "event_id": 234,
+                    "name": "Zwycięstwo gospodarza (OT/SO)"
+                },
+                {
+                    "event_id": 235,
+                    "name": "Zwycięstwo gościa (OT/SO)"
+                }
+            ]
+        }]
+        mock_pred_fetch.return_value = pd.DataFrame([
+            {
+                "event_id": 234,
+                "pred_outcome": 1,
+                "model_id": 10,
+                "model_name": "Ratings"
+            },
+            {
+                "event_id": 235,
+                "pred_outcome": 0,
+                "model_id": 11,
+                "model_name": "GBM"
+            }
+        ])
+        mock_bet_fetch.return_value = pd.DataFrame([
+            {
+                "bet_event_id": 234,
+                "bet_outcome": 1,
+                "odds": 2.0,
+                "model_id": 10,
+                "model_name": "Ratings"
+            },
+            {
+                "bet_event_id": 235,
+                "bet_outcome": 0,
+                "odds": 1.5,
+                "model_id": 11,
+                "model_name": "GBM"
+            }
+        ])
+        payload = get_model_statistics(
+            sport_id=2,
+            model_ids=[10, 11],
+            league_ids=[45])
+        category = payload["categories"]["HOCKEY_ML"]
+        self.assertEqual(category["predictions"]["total"], 2)
+        self.assertEqual(category["predictions"]["correct"], 1)
+        self.assertEqual(category["predictions"]["accuracy_pct"], 50.0)
+        self.assertEqual(category["bets"]["profit_total"], 0.0)
+        self.assertEqual(
+            [row["model_name"] for row in category["models"]],
+            ["GBM", "Ratings"])
+        self.assertEqual(category["models"][1]["profit_total"], 1.0)
+        self.assertEqual(category["models"][0]["profit_total"], -1.0)
+        self.assertEqual(payload["filters_applied"]["sport_id"], 2)
+        pred_kwargs = mock_pred_fetch.call_args.kwargs
+        self.assertEqual(pred_kwargs["event_ids"], (234, 235))
+        self.assertEqual(pred_kwargs["sport_id"], 2)
+        self.assertEqual(mock_bet_fetch.call_args.kwargs["sport_id"], 2)
+
 
 def _prediction_rows(
     model_id: int,

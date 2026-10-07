@@ -88,7 +88,8 @@ def _build_match_filters(
     settled_only: bool,
     positive_ev_only: bool,
     apply_tax: bool,
-    tax_rate: float) -> tuple[list[str], list[object]]:
+    tax_rate: float,
+    sport_id: int | None = None) -> tuple[list[str], list[object]]:
     """Build shared match and bet filter conditions."""
     conditions: list[str] = []
     params: list[object] = []
@@ -129,6 +130,10 @@ def _build_match_filters(
         else:
             conditions.append("b.EV > 0")
 
+    if sport_id is not None:
+        conditions.append("m.sport_id = %s")
+        params.append(sport_id)
+
     return conditions, params
 
 
@@ -147,10 +152,13 @@ def _build_stat_query(
         settled_only: bool,
         positive_ev_only: bool,
         apply_tax: bool,
-        tax_rate: float) -> tuple[str, tuple[object, ...]]:
+        tax_rate: float,
+        event_ids: tuple[int, ...] | None = None,
+        sport_id: int | None = None) -> tuple[str, tuple[object, ...]]:
     """Build a parameterized analytics query for one stat family."""
-    event_ids = _STAT_EVENT_IDS[stat_type]
-    event_placeholders = ",".join(["%s"] * len(event_ids))
+    resolved_event_ids = (
+        event_ids if event_ids is not None else _STAT_EVENT_IDS[stat_type])
+    event_placeholders = ",".join(["%s"] * len(resolved_event_ids))
     model_placeholders = ",".join(["%s"] * len(model_ids))
 
     conditions, params = _build_match_filters(
@@ -164,10 +172,11 @@ def _build_stat_query(
         settled_only=settled_only,
         positive_ev_only=positive_ev_only,
         apply_tax=apply_tax,
-        tax_rate=tax_rate)
+        tax_rate=tax_rate,
+        sport_id=sport_id)
 
     conditions.append(f"{event_column} IN ({event_placeholders})")
-    params.extend(event_ids)
+    params.extend(resolved_event_ids)
 
     where_clause = " AND ".join(conditions)
     query = base_select.format(model_placeholders=model_placeholders)
@@ -189,7 +198,9 @@ def fetch_prediction_rows(
     settled_only: bool = True,
     positive_ev_only: bool = False,
     apply_tax: bool = False,
-    tax_rate: float = 0.12) -> pd.DataFrame:
+    tax_rate: float = 0.12,
+    event_ids: tuple[int, ...] | None = None,
+    sport_id: int | None = None) -> pd.DataFrame:
     """Return final prediction rows for one stat family."""
     if not model_ids:
         return pd.DataFrame()
@@ -209,7 +220,9 @@ def fetch_prediction_rows(
         settled_only,
         positive_ev_only=False,
         apply_tax=False,
-        tax_rate=tax_rate)
+        tax_rate=tax_rate,
+        event_ids=event_ids,
+        sport_id=sport_id)
 
     with get_db_connection() as conn:
         return pd.read_sql(query, conn, params=query_params)
@@ -228,7 +241,9 @@ def fetch_bet_rows(
     settled_only: bool = True,
     positive_ev_only: bool = False,
     apply_tax: bool = False,
-    tax_rate: float = 0.12) -> pd.DataFrame:
+    tax_rate: float = 0.12,
+    event_ids: tuple[int, ...] | None = None,
+    sport_id: int | None = None) -> pd.DataFrame:
     """Return bet rows for one stat family."""
     if not model_ids:
         return pd.DataFrame()
@@ -248,7 +263,9 @@ def fetch_bet_rows(
         settled_only,
         positive_ev_only,
         apply_tax,
-        tax_rate)
+        tax_rate,
+        event_ids=event_ids,
+        sport_id=sport_id)
 
     with get_db_connection() as conn:
         return pd.read_sql(query, conn, params=query_params)
