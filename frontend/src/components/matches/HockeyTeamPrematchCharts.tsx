@@ -198,7 +198,7 @@ export function HockeyTeamPrematchCharts({
   const [statLines, setStatLines] = useState(buildHockeyDefaultStatLines);
   const analyzedMatches = useMemo(() => history.slice(0, lookback), [history, lookback]);
   const splitStats = useMemo(
-    () => computeSplitStatsFromHistory(analyzedMatches),
+    () => computeSplitStatsFromHistory(analyzedMatches, "hockey"),
     [analyzedMatches],
   );
   const chartMatches = useMemo(
@@ -237,6 +237,7 @@ export function HockeyTeamPrematchCharts({
     <>
       <ExpandableSection title="Statystyki" defaultOpen>
         <TeamSplitStatsTable
+          variant="hockey"
           overall={splitStats.overall}
           home={splitStats.home}
           away={splitStats.away}

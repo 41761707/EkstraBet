@@ -61,27 +61,38 @@ def _opponent_stat(
     return _stat_int(row.get(home_key))
 
 
+def _extra_time_winner(row: pd.Series) -> int:
+    """Return 1 or 2 when OT or a shootout decided a tied game."""
+    # NaN z LEFT JOIN hockey_matches_add jest truthy, więc nie używamy `or 0`
+    so_winner = _stat_int(row.get("hma_so_winner"))
+    if so_winner in (1, 2):
+        return so_winner
+    ot_winner = _stat_int(row.get("hma_ot_winner"))
+    if ot_winner in (1, 2):
+        return ot_winner
+    return 0
+
+
 def resolve_hockey_form_result(
     team_id: int,
     row: pd.Series) -> HockeyFormResult:
-    """Return W/WPD/L/PPD from the perspective of the given team."""
+    """Return W/WPD/D/L/PPD from the perspective of the given team.
+
+    Unequal regulation goals stay W or L. A tie uses the OT or SO winner.
+    """
     is_home = int(row["home_id"]) == team_id
     home_goals = int(row["home_team_goals"])
     away_goals = int(row["away_team_goals"])
-    # NaN z LEFT JOIN hockey_matches_add jest truthy, więc nie używamy `or 0`
-    has_ot = _stat_int(row.get("hma_ot")) != 0
-    has_so = _stat_int(row.get("hma_so")) != 0
-    overtime = has_ot or has_so
-
-    if home_goals > away_goals:
-        if is_home:
-            return "WPD" if overtime else "W"
-        return "PPD" if overtime else "L"
-    if home_goals < away_goals:
-        if is_home:
-            return "PPD" if overtime else "L"
-        return "WPD" if overtime else "W"
-    return "D"
+    if home_goals != away_goals:
+        home_won = home_goals > away_goals
+        team_won = home_won if is_home else not home_won
+        return "W" if team_won else "L"
+    decider = _extra_time_winner(row)
+    if decider == 0:
+        return "D"
+    home_won = decider == 1
+    team_won = home_won if is_home else not home_won
+    return "WPD" if team_won else "PPD"
 
 
 def map_hockey_season_match_point(

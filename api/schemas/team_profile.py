@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 from api.schemas.match import (
@@ -32,7 +30,10 @@ class TeamSplitStats(BaseModel):
     played: int = Field(..., description="Matches played")
     wins: int = Field(..., description="Wins")
     draws: int = Field(..., description="Draws")
-    losses: int = Field(..., description="Losses")
+    losses: int = Field(..., description="Regulation losses")
+    overtime_losses: int = Field(
+        0,
+        description="Losses after overtime or a shootout")
     goals_for: int = Field(..., description="Goals scored")
     goals_conceded: int = Field(..., description="Goals conceded")
     goal_difference: int = Field(..., description="Goal difference")

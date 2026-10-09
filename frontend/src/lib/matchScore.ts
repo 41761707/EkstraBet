@@ -43,7 +43,7 @@ export function resolveMatchScore(match: MatchScoreInput): ResolvedMatchScore {
       && penaltiesAway !== null
       && penaltiesAway !== undefined
         ? `(po karnych ${penaltiesHome} : ${penaltiesAway})`
-        : "po rzutach karnych";
+        : "(po karnych)";
 
     return {
       main: scorePair(postOtHome, postOtAway),
@@ -55,7 +55,7 @@ export function resolveMatchScore(match: MatchScoreInput): ResolvedMatchScore {
   const postOtAway = resolution.post_ot_away_goals ?? away;
   return {
     main: scorePair(postOtHome, postOtAway),
-    note: "po dogrywce",
+    note: "(po dogrywce)",
   };
 }
 

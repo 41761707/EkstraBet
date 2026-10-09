@@ -239,6 +239,7 @@ export default async function TeamPage({
               overall={profile.overall_stats}
               home={profile.home_stats}
               away={profile.away_stats}
+              variant={sportId === HOCKEY_SPORT_ID ? "hockey" : "football"}
             />
           </ExpandableSection>
 

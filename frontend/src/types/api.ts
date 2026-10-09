@@ -406,6 +406,7 @@ export interface TeamSplitStats {
   wins: number;
   draws: number;
   losses: number;
+  overtime_losses?: number;
   goals_for: number;
   goals_conceded: number;
   goal_difference: number;

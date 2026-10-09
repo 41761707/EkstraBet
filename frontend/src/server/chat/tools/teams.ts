@@ -1,10 +1,12 @@
-import type {
-  ChatChartPoint,
-  ChatChartSpec,
-  ChatDataSource,
-  ChatTableSpec,
-  TeamProfile,
-  TeamSeasonMatchPoint,
+import {
+  HOCKEY_SPORT_ID,
+  type ChatChartPoint,
+  type ChatChartSpec,
+  type ChatDataSource,
+  type ChatTableSpec,
+  type TeamProfile,
+  type TeamSeasonMatchPoint,
+  type TeamSplitStats,
 } from "@/types/api";
 
 import { enumArg, numberArg, stringArg } from "./args";
@@ -252,40 +254,57 @@ export async function getTeamProfile(
   };
 }
 
-function buildTeamOverviewTable(profile: TeamProfile): ChatTableSpec {
+function goalsLabel(stats: TeamSplitStats): string {
+  return `${stats.goals_for}:${stats.goals_conceded}`;
+}
+
+function buildFootballTeamOverviewTable(profile: TeamProfile): ChatTableSpec {
+  const row = (label: string, stats: TeamSplitStats) => [
+    label,
+    stats.played,
+    stats.wins,
+    stats.draws,
+    stats.losses,
+    goalsLabel(stats),
+    stats.points,
+  ];
   return {
     title: `Profil: ${profile.team.name}`,
     columns: ["Zakres", "M", "W", "R", "P", "Bramki", "Pkt"],
     rows: [
-      [
-        "Ogółem",
-        profile.overall_stats.played,
-        profile.overall_stats.wins,
-        profile.overall_stats.draws,
-        profile.overall_stats.losses,
-        `${profile.overall_stats.goals_for}:${profile.overall_stats.goals_conceded}`,
-        profile.overall_stats.points,
-      ],
-      [
-        "Dom",
-        profile.home_stats.played,
-        profile.home_stats.wins,
-        profile.home_stats.draws,
-        profile.home_stats.losses,
-        `${profile.home_stats.goals_for}:${profile.home_stats.goals_conceded}`,
-        profile.home_stats.points,
-      ],
-      [
-        "Wyjazd",
-        profile.away_stats.played,
-        profile.away_stats.wins,
-        profile.away_stats.draws,
-        profile.away_stats.losses,
-        `${profile.away_stats.goals_for}:${profile.away_stats.goals_conceded}`,
-        profile.away_stats.points,
-      ],
+      row("Ogółem", profile.overall_stats),
+      row("Dom", profile.home_stats),
+      row("Wyjazd", profile.away_stats),
     ],
   };
+}
+
+function buildHockeyTeamOverviewTable(profile: TeamProfile): ChatTableSpec {
+  const row = (label: string, stats: TeamSplitStats) => [
+    label,
+    stats.played,
+    stats.wins,
+    stats.losses,
+    stats.overtime_losses ?? 0,
+    goalsLabel(stats),
+    stats.points,
+  ];
+  return {
+    title: `Profil: ${profile.team.name}`,
+    columns: ["Zakres", "M", "W", "L", "OT", "Bramki", "Pkt"],
+    rows: [
+      row("Ogółem", profile.overall_stats),
+      row("Dom", profile.home_stats),
+      row("Wyjazd", profile.away_stats),
+    ],
+  };
+}
+
+function buildTeamOverviewTable(profile: TeamProfile): ChatTableSpec {
+  if (profile.team.sport_id === HOCKEY_SPORT_ID) {
+    return buildHockeyTeamOverviewTable(profile);
+  }
+  return buildFootballTeamOverviewTable(profile);
 }
 
 function pickTeamOverviewChart(profile: TeamProfile): ChatChartSpec | null {
