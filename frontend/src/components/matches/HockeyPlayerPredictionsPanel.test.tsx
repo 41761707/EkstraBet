@@ -27,16 +27,12 @@ function predictions(): HockeyPlayerPredictions {
   };
 }
 
-function renderPanel(
-  value: HockeyPlayerPredictions | null,
-  stage: "initial" | "final" | null = "final",
-): string {
+function renderPanel(value: HockeyPlayerPredictions | null): string {
   return renderToStaticMarkup(
     <HockeyPlayerPredictionsPanel
       predictions={value}
       homeTeamName={HOME_TEAM_NAME}
       awayTeamName={AWAY_TEAM_NAME}
-      predictionStage={stage}
     />,
   );
 }
@@ -59,7 +55,7 @@ describe("HockeyPlayerPredictionsPanel", () => {
     expect(html).toContain("33.0%");
     expect(html).toContain("50.0%");
     expect(html).toContain("18.0%");
-    expect(html).toContain("Predykcja ostateczna");
+    expect(html).not.toContain("Predykcja ostateczna");
     expect(html).toContain("Beta:");
     expect(html).toContain("Oczekiwane strzały");
     expect(html).toContain("Oczekiwane gole");
@@ -74,7 +70,7 @@ describe("HockeyPlayerPredictionsPanel", () => {
   });
 
   it("shows an empty state when predictions are missing", () => {
-    const html = renderPanel(null, null);
+    const html = renderPanel(null);
 
     expect(html).toContain("Brak predykcji zawodników");
     expect(html).not.toContain("Predykcja pierwotna");

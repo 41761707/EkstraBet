@@ -15,7 +15,7 @@ from backend.services.hockey_team_roster_service import get_hockey_team_roster
 TEAM_ID = 870
 
 
-def test_empty_roster_lines_use_last_match_slots() -> None:
+def test_empty_roster_lines_stay_outside() -> None:
     roster = _roster_frame([
         _roster(player_id=1, common_name="Center A.", player_position="C"),
         _roster(player_id=2, common_name="Wing L.", player_position="LW"),
@@ -33,14 +33,17 @@ def test_empty_roster_lines_use_last_match_slots() -> None:
     payload = build_hockey_team_roster(
         TEAM_ID, "Columbus Blue Jackets", roster, last_match, _empty_stats())
 
-    assert _ids(payload, "F1") == [2, 1, 3]
-    assert _ids(payload, "D1") == [4]
-    assert _ids(payload, "G") == [5]
-    assert _ids(payload, "F2") == [6]
-    assert "outside" not in _group_ids(payload)
-    promoted = _players(payload, "F2")[0]
-    assert promoted["in_last_lineup"] is False
-    assert promoted["line"] == 2
+    assert set(_ids(payload, "outside")) == {1, 2, 3, 4, 5, 6}
+    dressed = next(
+        player for player in _players(payload, "outside")
+        if player["player_id"] == 1)
+    assert dressed["number"] == 19
+    assert dressed["in_last_lineup"] is True
+    assert dressed["line"] is None
+    scratch = next(
+        player for player in _players(payload, "outside")
+        if player["player_id"] == 6)
+    assert scratch["in_last_lineup"] is False
     HockeyTeamRosterResponse.model_validate(payload)
 
 
@@ -81,12 +84,12 @@ def test_roster_line_places_a_player_missing_from_the_last_match() -> None:
         _match_frame([]),
         _empty_stats())
 
-    assert _ids(payload, "F1") == [2, 1]
-    placed = _players(payload, "F1")[0]
+    assert _ids(payload, "F1") == [1]
+    assert _ids(payload, "outside") == [2]
+    placed = _players(payload, "outside")[0]
     assert placed["player_id"] == 2
-    assert placed["line"] == 1
+    assert placed["line"] is None
     assert placed["in_last_lineup"] is False
-    assert "outside" not in _group_ids(payload)
 
 
 def test_injured_player_leaves_the_line_and_keeps_the_badge() -> None:
@@ -95,6 +98,7 @@ def test_injured_player_leaves_the_line_and_keeps_the_badge() -> None:
             player_id=1,
             common_name="Center A.",
             player_position="C",
+            roster_line=1,
             is_injured=1,
             injury_status="IR",
             injury_note="Upper body")])
@@ -116,8 +120,16 @@ def test_injured_player_leaves_the_line_and_keeps_the_badge() -> None:
 
 def test_season_stats_cover_skaters_and_goalies() -> None:
     roster = _roster_frame([
-        _roster(player_id=1, common_name="Center A.", player_position="C"),
-        _roster(player_id=5, common_name="Goalie G.", player_position="G")])
+        _roster(
+            player_id=1,
+            common_name="Center A.",
+            player_position="C",
+            roster_line=1),
+        _roster(
+            player_id=5,
+            common_name="Goalie G.",
+            player_position="G",
+            roster_line=1)])
     last_match = _match_frame([
         _match(player_id=1, position="C", line=1, number=19),
         _match(player_id=5, position="G", line=1, number=90)])
@@ -155,14 +167,26 @@ def test_season_stats_cover_skaters_and_goalies() -> None:
     assert goalie["goals_against_average"] == 2.0
 
 
-def test_open_forward_seat_takes_the_fourth_line_before_a_scratch() -> None:
+def test_open_forward_seat_stays_empty() -> None:
     roster = _roster_frame([
-        _roster(player_id=11, common_name="Left L.", player_position="LW"),
-        _roster(player_id=12, common_name="Center C.", player_position="C"),
-        _roster(player_id=13, common_name="Right R.", player_position="RW"),
-        _roster(player_id=21, common_name="Left Two", player_position="LW"),
-        _roster(player_id=22, common_name="Center Two", player_position="C"),
-        _roster(player_id=41, common_name="Fourth F.", player_position="RW"),
+        _roster(
+            player_id=11, common_name="Left L.",
+            player_position="LW", roster_line=1),
+        _roster(
+            player_id=12, common_name="Center C.",
+            player_position="C", roster_line=1),
+        _roster(
+            player_id=13, common_name="Right R.",
+            player_position="RW", roster_line=1),
+        _roster(
+            player_id=21, common_name="Left Two",
+            player_position="LW", roster_line=2),
+        _roster(
+            player_id=22, common_name="Center Two",
+            player_position="C", roster_line=2),
+        _roster(
+            player_id=41, common_name="Fourth F.",
+            player_position="RW", roster_line=4),
         _roster(player_id=51, common_name="Scratch S.", player_position="C")])
     last_match = _match_frame([
         _match(player_id=11, position="LW", line=1, number=11),
@@ -171,20 +195,15 @@ def test_open_forward_seat_takes_the_fourth_line_before_a_scratch() -> None:
         _match(player_id=21, position="LW", line=2, number=21),
         _match(player_id=22, position="C", line=2, number=22),
         _match(player_id=41, position="RW", line=4, number=41)])
-    stats = pd.DataFrame([
-        _stat(41, toi="14:00"),
-        _stat(51, toi="20:00")])
 
     payload = build_hockey_team_roster(
-        TEAM_ID, "Jackets", roster, last_match, stats)
+        TEAM_ID, "Jackets", roster, last_match, _empty_stats())
 
     assert _ids(payload, "F1") == [11, 12, 13]
-    assert _ids(payload, "F2") == [21, 22, 41]
-    assert _players(payload, "F2")[2]["line"] == 2
-    assert _ids(payload, "F3") == [51]
-    assert _players(payload, "F3")[0]["line"] == 3
-    assert "F4" not in _group_ids(payload)
-    assert "outside" not in _group_ids(payload)
+    assert _ids(payload, "F2") == [21, 22]
+    assert _ids(payload, "F4") == [41]
+    assert _ids(payload, "outside") == [51]
+    assert "F3" not in _group_ids(payload)
 
 
 def test_full_top_lines_keep_the_fourth_line_and_scratches() -> None:
@@ -196,7 +215,8 @@ def test_full_top_lines_keep_the_fourth_line_and_scratches() -> None:
             rows.append(_roster(
                 player_id=player_id,
                 common_name=f"F{line}{position}",
-                player_position=position))
+                player_position=position,
+                roster_line=line))
             matches.append(_match(
                 player_id=player_id,
                 position=position,
@@ -205,7 +225,8 @@ def test_full_top_lines_keep_the_fourth_line_and_scratches() -> None:
     rows.append(_roster(
         player_id=40,
         common_name="Fourth F.",
-        player_position="C"))
+        player_position="C",
+        roster_line=4))
     matches.append(_match(
         player_id=40, position="C", line=4, number=40))
     rows.append(_roster(
@@ -227,9 +248,13 @@ def test_full_top_lines_keep_the_fourth_line_and_scratches() -> None:
     assert _ids(payload, "outside") == [50]
 
 
-def test_short_defense_pair_fills_from_a_healthy_scratch() -> None:
+def test_short_defense_pair_leaves_the_open_seat_empty() -> None:
     roster = _roster_frame([
-        _roster(player_id=4, common_name="Defence D.", player_position="D"),
+        _roster(
+            player_id=4,
+            common_name="Defence D.",
+            player_position="D",
+            roster_line=1),
         _roster(player_id=7, common_name="Extra D.", player_position="D")])
     last_match = _match_frame([
         _match(player_id=4, position="D", line=1, number=8)])
@@ -237,9 +262,9 @@ def test_short_defense_pair_fills_from_a_healthy_scratch() -> None:
     payload = build_hockey_team_roster(
         TEAM_ID, "Jackets", roster, last_match, _empty_stats())
 
-    assert _ids(payload, "D1") == [4, 7]
-    assert _players(payload, "D1")[1]["line"] == 1
-    assert "outside" not in _group_ids(payload)
+    assert _ids(payload, "D1") == [4]
+    assert _players(payload, "D1")[0]["line"] == 1
+    assert _ids(payload, "outside") == [7]
 
 
 def test_goalie_depth_comes_from_the_roster_line() -> None:
@@ -317,12 +342,21 @@ def test_power_play_unit_stays_on_the_player() -> None:
 
 def test_injured_forward_does_not_fill_an_open_seat() -> None:
     roster = _roster_frame([
-        _roster(player_id=1, common_name="Center A.", player_position="C"),
-        _roster(player_id=2, common_name="Wing L.", player_position="LW"),
+        _roster(
+            player_id=1,
+            common_name="Center A.",
+            player_position="C",
+            roster_line=1),
+        _roster(
+            player_id=2,
+            common_name="Wing L.",
+            player_position="LW",
+            roster_line=1),
         _roster(
             player_id=3,
             common_name="Hurt H.",
             player_position="RW",
+            roster_line=1,
             is_injured=1,
             injury_note="Upper body")])
     last_match = _match_frame([

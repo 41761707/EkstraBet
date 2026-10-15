@@ -133,11 +133,11 @@ describe("MatchDetailTabs", () => {
     expect(html).toContain("Zawodnicy (beta)");
   });
 
-  it("hides Zawodnicy (beta) for a played hockey match and for football", () => {
+  it("keeps Zawodnicy (beta) for a played hockey match and hides it for football", () => {
     const played = renderTabs(HOCKEY_SPORT_ID, { is_played: true });
     const football = renderTabs(FOOTBALL_SPORT_ID);
 
-    expect(played).not.toContain("Zawodnicy (beta)");
+    expect(played).toContain("Zawodnicy (beta)");
     expect(football).not.toContain("Zawodnicy (beta)");
   });
 

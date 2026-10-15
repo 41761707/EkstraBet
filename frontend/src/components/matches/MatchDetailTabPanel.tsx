@@ -161,7 +161,6 @@ function PlayersTab({ match }: { match: MatchDetails }) {
       predictions={match.hockey_player_predictions}
       homeTeamName={match.home_team.name}
       awayTeamName={match.away_team.name}
-      predictionStage={match.hockey_prediction_stage}
     />
   );
 }

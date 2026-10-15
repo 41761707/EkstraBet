@@ -1,6 +1,5 @@
 import { HorizontalExpectedValueBars } from "@/components/charts/HorizontalExpectedValueBars";
 import { HorizontalProbabilityBars } from "@/components/charts/HorizontalProbabilityBars";
-import { predictionStageLabel } from "@/components/matches/hockeyLineupModel";
 import {
   buildExpectedGoalBars,
   buildExpectedShotBars,
@@ -15,31 +14,22 @@ import { formatPercent } from "@/lib/format";
 import type {
   HockeyPlayerPrediction,
   HockeyPlayerPredictions,
-  HockeyPredictionStage,
 } from "@/types/api";
 
 interface HockeyPlayerPredictionsPanelProps {
   predictions: HockeyPlayerPredictions | null;
   homeTeamName: string;
   awayTeamName: string;
-  predictionStage?: HockeyPredictionStage | null;
 }
-
-const STAGE_BADGE_CLASS =
-  "rounded border border-info-border bg-info-bg px-1.5 py-0.5 text-xs font-medium text-info-text";
 
 export function HockeyPlayerPredictionsPanel({
   predictions,
   homeTeamName,
   awayTeamName,
-  predictionStage = null,
 }: HockeyPlayerPredictionsPanelProps) {
-  const stageLabel = predictionStageLabel(predictionStage);
-
   if (!hasHockeyPlayerPredictions(predictions)) {
     return (
       <div className="space-y-3">
-        {stageLabel ? <StageBadge label={stageLabel} /> : null}
         <StatusMessage
           variant="empty"
           title="Brak predykcji zawodników"
@@ -51,7 +41,6 @@ export function HockeyPlayerPredictionsPanel({
 
   return (
     <div className="space-y-4">
-      {stageLabel ? <StageBadge label={stageLabel} /> : null}
       <p className="text-sm text-muted">
         Beta: prawdopodobieństwa statystyk zawodnika, bez kursów i bez
         rozliczania.
@@ -68,10 +57,6 @@ export function HockeyPlayerPredictionsPanel({
       </div>
     </div>
   );
-}
-
-function StageBadge({ label }: { label: string }) {
-  return <p className={STAGE_BADGE_CLASS}>{label}</p>;
 }
 
 const TEAM_COLUMN_CLASS = [

@@ -27,8 +27,8 @@ from backend.sports.basketball.lineups import map_basketball_lineups
 from backend.sports.hockey.boxscore import map_hockey_boxscore
 from backend.sports.hockey.events import map_hockey_match_events
 from backend.sports.hockey.first_period_goals import fetch_first_period_goals
+from backend.sports.hockey.lineups import map_current_roster_lineups
 from backend.sports.hockey.lineups import map_hockey_lineups
-from backend.sports.hockey.lineups import map_probable_hockey_lineups
 from backend.sports.hockey.match_stats import map_hockey_match_stats
 from backend.sports.hockey.player_predictions import (
     HOCKEY_PLAYER_PROPS_MODEL_NAME)
@@ -517,10 +517,8 @@ _HOCKEY_SECTION_EMPTY = {
 }
 _PREMATCH_EMPTY = {
     "hockey_prediction_stage": None,
-    "hockey_schedule_context": None,
-    "hockey_player_predictions": None
+    "hockey_schedule_context": None
 }
-_PREDICTION_STAGES = frozenset({"initial", "final"})
 
 
 def _hockey_lineups_for_match(
@@ -531,7 +529,7 @@ def _hockey_lineups_for_match(
     away_team_id: int,
     away_team_name: str,
     is_played: bool) -> dict[str, Any] | None:
-    """Use the box score, or the stored projection before the game."""
+    """Use the box score, or the current roster before the game."""
     lineups = map_hockey_lineups(
         roster_frame,
         home_team_id,
@@ -540,14 +538,29 @@ def _hockey_lineups_for_match(
         away_team_name)
     if lineups is not None or is_played:
         return lineups
-    probable = match_repository.fetch_hockey_probable_lineups(match_id)
-    lineups = map_probable_hockey_lineups(
-        probable,
+    roster = match_repository.fetch_hockey_club_rosters(
+        home_team_id,
+        away_team_id)
+    return map_current_roster_lineups(
+        roster,
         home_team_id,
         home_team_name,
         away_team_id,
         away_team_name)
-    return lineups
+
+
+def _hockey_player_predictions(
+    match_id: int,
+    home_team_id: int,
+    away_team_id: int) -> dict[str, Any] | None:
+    """Stored player props, including after the match is played."""
+    frame = match_repository.fetch_hockey_player_predictions(
+        match_id,
+        HOCKEY_PLAYER_PROPS_MODEL_NAME)
+    return map_hockey_player_predictions(
+        frame,
+        home_team_id,
+        away_team_id)
 
 
 def _hockey_prematch_fields(
@@ -559,18 +572,12 @@ def _hockey_prematch_fields(
     away_team_id: int,
     home_history: pd.DataFrame,
     away_history: pd.DataFrame) -> dict[str, Any]:
-    """Stage, schedule and props for an unplayed NHL match."""
+    """Schedule context for an unplayed NHL match."""
     if sport_id != HOCKEY_SPORT_ID or is_played:
         return dict(_PREMATCH_EMPTY)
-    stage = match_repository.fetch_hockey_prediction_stage(match_id)
-    if stage not in _PREDICTION_STAGES:
-        stage = None
-    predictions = match_repository.fetch_hockey_player_predictions(
-        match_id,
-        HOCKEY_PLAYER_PROPS_MODEL_NAME)
     arenas = match_repository.fetch_hockey_team_arenas()
     return {
-        "hockey_prediction_stage": stage,
+        "hockey_prediction_stage": None,
         "hockey_schedule_context": build_hockey_schedule_context(
             home_history,
             away_history,
@@ -578,11 +585,7 @@ def _hockey_prematch_fields(
             match_id=match_id,
             home_team_id=home_team_id,
             away_team_id=away_team_id,
-            game_date=game_date),
-        "hockey_player_predictions": map_hockey_player_predictions(
-            predictions,
-            home_team_id,
-            away_team_id)
+            game_date=game_date)
     }
 
 
@@ -621,6 +624,10 @@ def _hockey_detail_sections(
         away_team_id,
         home_history,
         away_history))
+    sections["hockey_player_predictions"] = _hockey_player_predictions(
+        match_id,
+        home_team_id,
+        away_team_id)
     return sections
 
 

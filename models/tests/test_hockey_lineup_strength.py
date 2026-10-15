@@ -92,24 +92,23 @@ def test_typical_lineup_has_unit_ratios() -> None:
     assert strength["missing_top4_d"] == pytest.approx(0.0)
 
 
-def test_predicted_confidence_shrinks_only_the_gap_from_typical() -> None:
+def test_roster_weight_does_not_shrink_the_ratio() -> None:
     toi = {"F1": 19.7}
     typical = _off_skater(1, "F1", 2.0, weight=1.0)
-    same_projected = _off_skater(1, "F1", 2.0, weight=0.8)
-    weaker = _off_skater(2, "F1", 1.0, weight=0.5)
-    certain_weaker = _off_skater(2, "F1", 1.0, weight=1.0)
-    raw = _strength([certain_weaker], [typical], toi)["lineup_off_ratio"]
-    shrunk = _strength([weaker], [typical], toi)
-    same = _strength([same_projected], [typical], toi)
+    same_player = _off_skater(1, "F1", 2.0, weight=0.8)
+    partial = _off_skater(2, "F1", 1.0, weight=0.5)
+    full = _off_skater(2, "F1", 1.0, weight=1.0)
+    raw = _strength([full], [typical], toi)["lineup_off_ratio"]
+    kept = _strength([partial], [typical], toi)
+    same = _strength([same_player], [typical], toi)
     assert same["lineup_off_ratio"] == pytest.approx(1.0)
     assert same["lineup_off"] == pytest.approx(
         _strength([typical], [typical], toi)["lineup_off"])
     assert raw == pytest.approx(0.5)
-    assert shrunk["lineup_off_ratio"] == pytest.approx(
-        1.0 + 0.5 * (raw - 1.0))
+    assert kept["lineup_off_ratio"] == pytest.approx(raw)
 
 
-def test_projection_without_confidence_stays_at_typical() -> None:
+def test_confidence_does_not_change_the_roster_ratio() -> None:
     ratings = HockeyPlayerRatingState()
     certain = _lineup(_skater(1, 1, source="CONFIRMED"))
     external = _lineup(_skater(1, 1, source="EXTERNAL", confidence=0.5))
@@ -117,10 +116,12 @@ def test_projection_without_confidence_stays_at_typical() -> None:
     full = _strength_of(certain, certain, ratings)
     half = _strength_of(external, certain, ratings)
     empty = _strength_of(missing, certain, ratings)
-    assert half["lineup_off_ratio"] == pytest.approx(1.0)
     assert half["lineup_off"] == pytest.approx(full["lineup_off"])
-    assert empty["lineup_off"] == pytest.approx(0.0)
-    assert empty["lineup_off_ratio"] == pytest.approx(1.0)
+    assert empty["lineup_off"] == pytest.approx(full["lineup_off"])
+    assert half["lineup_off_ratio"] == pytest.approx(
+        full["lineup_off_ratio"])
+    assert empty["lineup_off_ratio"] == pytest.approx(
+        full["lineup_off_ratio"])
 
 
 def test_zero_share_replacement_stays_in_the_level_sum() -> None:

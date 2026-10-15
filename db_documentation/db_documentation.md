@@ -930,7 +930,7 @@ Dane do tabeli dodawane są bezpośrednio przy pomocy modułu **nhl_all_scraper.
 
 **Sposób generowania danych do tabeli:**
 
-Dane wyliczane przez pipeline ML.
+Tabela zostaje w bazie. Moduł predykcji meczów NHL jej nie zapisuje i nie czyta.
 
 ---
 
@@ -968,7 +968,7 @@ Dane wyliczane przez pipeline ML.
 
 **Sposób generowania danych do tabeli:**
 
-Dane wyliczane przez pipeline ML oraz pobierane z internetu (skład na najbliższy mecz).
+Tabela zostaje w bazie. Moduł predykcji meczów NHL jej nie zapisuje i nie czyta. Skład na mecz bierze z `hockey_rosters`.
 
 ---
 
@@ -1001,7 +1001,7 @@ Dane wyliczane przez pipeline ML oraz pobierane z internetu (skład na najbliżs
 
 **Sposób generowania danych do tabeli**:
 
-Dane pobierane z internetu (bieżący skład drużyny hokejowej, w tym status kontuzji).
+Dane pobierane od NHL (bieżący skład drużyny, w tym status kontuzji). Predykcja meczu czyta tę tabelę: bramkarz linii 1 broni, bramkarz linii 2 jest rezerwowym, linia 0 i kontuzjowani zostają poza składem.
 
 ---
 

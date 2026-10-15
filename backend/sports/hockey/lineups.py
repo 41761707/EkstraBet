@@ -9,18 +9,11 @@ import pandas as pd
 
 
 HOCKEY_LINE_COUNT = 4
-CONFIRMED_LINEUP_SOURCE = "CONFIRMED"
-MODEL_LINEUP_SOURCE = "MODEL"
-_PROBABLE_SOURCES = frozenset({
-    CONFIRMED_LINEUP_SOURCE,
-    "EXTERNAL",
-    MODEL_LINEUP_SOURCE
-})
-_SOURCE_PRIORITY = (
-    CONFIRMED_LINEUP_SOURCE,
-    "EXTERNAL",
-    MODEL_LINEUP_SOURCE)
+_FORWARD_POSITIONS = frozenset({"LW", "C", "RW"})
+_DEFENSE_POSITION = "D"
 _GOALIE_POSITION = "G"
+_GOALIE_LINES = frozenset({1, 2})
+_DEFENSE_LINES = frozenset({1, 2, 3})
 
 
 def _optional_int(value: object) -> int | None:
@@ -101,119 +94,42 @@ def map_hockey_lineups(
     }
 
 
-def map_probable_hockey_lineups(
+def map_current_roster_lineups(
     frame: pd.DataFrame,
     home_team_id: int,
     home_team_name: str,
     away_team_id: int,
     away_team_name: str) -> dict[str, Any] | None:
-    """Map a stored probable lineup into the match-lineup shape.
+    """Map ``hockey_rosters`` into the match-lineup shape.
 
-    ``lineup_status`` and ``source`` sit on each club. A goalie's
-    ``start_probability`` is the value saved with the lineup. When that
-    cell is empty, a named starter on a confirmed or external sheet is
-    1 and the other goalie is 0. A model sheet is not scored here.
+    A goalie on line 1 is the starter and a goalie on line 2 is the
+    backup. Line 0 and injured players stay off the sheet.
     """
     if frame.empty:
         return None
-    home = _probable_team(frame, home_team_id, home_team_name)
-    away = _probable_team(frame, away_team_id, away_team_name)
-    return {"home": home, "away": away}
-
-
-def _probable_team(
-    frame: pd.DataFrame,
-    team_id: int,
-    team_name: str) -> dict[str, Any]:
-    """Build one club, including status taken from its stored source."""
-    team = _team_lines(
-        frame,
-        team_id,
-        team_name,
-        _map_probable_player)
-    source = _team_source(frame, team_id)
-    team["source"] = source
-    team["lineup_status"] = _lineup_status(source)
-    return team
-
-
-def _map_probable_player(row: pd.Series) -> dict[str, Any]:
-    """Map one probable-lineup row, including goalie start weight."""
-    player = _map_player_row(row)
-    player["start_probability"] = _stored_start_probability(row)
-    return player
-
-
-def _stored_start_probability(row: pd.Series) -> float | None:
-    """Read a saved goalie weight, else 1 or 0 for a named starter."""
-    if _position_code(row.get("position")).upper() != _GOALIE_POSITION:
+    kept = frame.loc[frame.apply(_is_dressed_roster_row, axis=1)]
+    if kept.empty:
         return None
-    stored = _optional_float(row.get("start_probability"))
-    if stored is not None and 0.0 <= stored <= 1.0:
-        return stored
-    # Brak kolumny albo NULL w MODEL nie uruchamia modelu startu.
-    source = _source_code(row.get("source"))
-    if source == MODEL_LINEUP_SOURCE or source is None:
-        return None
-    starter = _optional_int(row.get("is_starting_goalie"))
-    if starter == 1:
-        return 1.0
-    if starter == 0:
-        return 0.0
-    return None
+    return map_hockey_lineups(
+        kept,
+        home_team_id,
+        home_team_name,
+        away_team_id,
+        away_team_name)
 
 
-def _optional_float(value: object) -> float | None:
-    """Convert nullable numeric values to floats."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _team_source(frame: pd.DataFrame, team_id: int) -> str | None:
-    """Pick one source for the players who land on lines 1-4."""
-    sources: list[str] = []
-    for _, row in frame.iterrows():
-        if _optional_int(row.get("team_id")) != team_id:
-            continue
-        if _line_number(row.get("line")) is None:
-            continue
-        source = _source_code(row.get("source"))
-        if source is not None:
-            sources.append(source)
-    return _dominant_source(sources)
-
-
-def _source_code(value: object) -> str | None:
-    """Return a trimmed source, or None when the cell is empty."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return None
-    source = str(value).strip().upper()
-    if source == "":
-        return None
-    return source
-
-
-def _dominant_source(sources: list[str]) -> str | None:
-    """Prefer a confirmed sheet when one club mixes sources."""
-    if not sources:
-        return None
-    unique = set(sources)
-    if len(unique) == 1:
-        return sources[0]
-    for name in _SOURCE_PRIORITY:
-        if name in unique:
-            return name
-    return sources[0]
-
-
-def _lineup_status(source: str | None) -> str | None:
-    """Map a stored source onto confirmed or probable."""
-    if source == CONFIRMED_LINEUP_SOURCE:
-        return "confirmed"
-    if source in _PROBABLE_SOURCES:
-        return "probable"
-    return None
+def _is_dressed_roster_row(row: pd.Series) -> bool:
+    """Keep the players who dress for the next game."""
+    if _optional_int(row.get("is_injured")) == 1:
+        return False
+    position = _position_code(row.get("position")).upper()
+    line = _optional_int(row.get("line"))
+    if line is None:
+        return False
+    if position == _GOALIE_POSITION:
+        return line in _GOALIE_LINES
+    if position == _DEFENSE_POSITION:
+        return line in _DEFENSE_LINES
+    if position in _FORWARD_POSITIONS:
+        return 1 <= line <= HOCKEY_LINE_COUNT
+    return False

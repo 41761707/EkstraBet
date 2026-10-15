@@ -210,17 +210,18 @@ class PlayerPropMemory:
             self,
             players: list[object],
             game_date: datetime) -> float:
-        """Return start-weighted save% of the goalies in one lineup."""
-        goalies = [player for player in players if _player_is_goalie(player)]
-        if not goalies:
-            return math.nan
+        """Return the line-1 starter's shrunk save%, or NaN."""
         rated: list[tuple[float, float]] = []
-        for player in goalies:
+        for player in players:
+            if not _player_is_goalie(player):
+                continue
+            if _start_weight(player) <= 0.0:
+                continue
             rating = self.goalies.snapshot(
                 int(_player_attr(player, "player_id")), game_date)
-            rated.append((
-                float(rating.save_pct),
-                _start_weight(player)))
+            rated.append((float(rating.save_pct), 1.0))
+        if not rated:
+            return math.nan
         return _weighted_mean(rated)
 
     def skater_features(
@@ -743,10 +744,7 @@ def _player_is_goalie(player: object) -> bool:
 
 
 def _start_weight(player: object) -> float:
-    probability = _optional_float(
-        _player_attr(player, "start_probability"))
-    if probability is not None:
-        return max(0.0, probability)
+    # P(start) nie jest już liczone. Liczy się tylko flaga startera.
     starter = _player_attr(player, "is_starting_goalie")
     if starter == 1:
         return 1.0

@@ -120,7 +120,7 @@ def test_confirmed_goalie_keeps_his_shrunk_save_rate() -> None:
     assert with_backup == pytest.approx(starter)
     assert marked == pytest.approx(starter)
     assert share_only == pytest.approx(starter)
-    assert blended != pytest.approx(starter)
+    assert blended == pytest.approx(starter)
 
 
 def test_projected_lineup_replaces_the_historical_ratio() -> None:

@@ -39,7 +39,7 @@ function visibleMatchTabs(match: MatchDetails): MatchTabButton[] {
     {
       id: "players",
       label: "Zawodnicy (beta)",
-      visible: match.sport_id === HOCKEY_SPORT_ID && !match.is_played,
+      visible: match.sport_id === HOCKEY_SPORT_ID,
     },
     {
       id: "events",

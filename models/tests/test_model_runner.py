@@ -571,10 +571,11 @@ def _run_predict_hockey(
         rosters=None,
         stats=None,
         *,
-        snapshot_writer=None,
         finals_replacer=None,
         id_lookup=None):
     from contextlib import ExitStack
+
+    import pandas as pd
 
     goalie_history = (
         _hockey_goalie_history() if history is None else history)
@@ -599,9 +600,6 @@ def _run_predict_hockey(
             "models.pipeline.core.cli.write_predictions",
             side_effect=write))
         stack.enter_context(patch(
-            "models.pipeline.core.cli.write_prediction_run",
-            MagicMock() if snapshot_writer is None else snapshot_writer))
-        stack.enter_context(patch(
             "models.pipeline.core.cli.replace_changed_finals",
             MagicMock(return_value=0)
             if finals_replacer is None else finals_replacer))
@@ -612,14 +610,13 @@ def _run_predict_hockey(
         stack.enter_context(patch(
             "models.pipeline.core.cli.get_db_connection",
             return_value=_db_connection()))
+        stack.enter_context(patch(
+            "models.pipeline.core.cli.fetch_current_rosters",
+            return_value=pd.DataFrame()))
         if resolver is not None:
             stack.enter_context(patch(
                 "models.pipeline.core.cli._resolve_club_lineup",
                 side_effect=resolver))
-        else:
-            stack.enter_context(patch(
-                "models.pipeline.core.cli._lineup_stage_resolver",
-                return_value=None))
         if rosters is not None:
             stack.enter_context(patch(
                 "models.pipeline.core.cli.fetch_hockey_match_rosters",
@@ -767,8 +764,7 @@ def test_cli_predict_hockey_applies_two_resolved_lineups(
     plain = derive_hockey_markets(model.score_distribution(30, 40))
     assert corrected["ml_home"] != pytest.approx(plain["ml_home"])
 
-    def _resolver(match_id, team_id, stage):
-        assert stage == "initial"
+    def _resolver(match_id, team_id, _roster):
         if match_id == 501 and team_id == 30:
             return home
         if match_id == 501 and team_id == 40:
@@ -803,8 +799,7 @@ def test_cli_predict_hockey_applies_one_resolved_side(
         home, None, rosters, stats, moment, 12, 10)
     assert one_side is not None
 
-    def _resolver(match_id, team_id, stage):
-        assert stage == "initial"
+    def _resolver(match_id, team_id, _roster):
         if match_id == 503 and team_id == 30:
             return home
         return None
@@ -1078,6 +1073,8 @@ def _run_predict_hockey_gbm(
         resolver_available: bool = True):
     from contextlib import ExitStack
 
+    import pandas as pd
+
     from models.pipeline.prediction.hockey_markets import (
         build_score_distribution)
 
@@ -1108,7 +1105,8 @@ def _run_predict_hockey_gbm(
             "models.pipeline.core.cli.write_predictions",
             side_effect=write))
         stack.enter_context(patch(
-            "models.pipeline.core.cli.write_prediction_run"))
+            "models.pipeline.core.cli.fetch_current_rosters",
+            return_value=pd.DataFrame()))
         stack.enter_context(patch(
             "models.pipeline.core.cli.replace_changed_finals",
             return_value=0))
@@ -1118,14 +1116,10 @@ def _run_predict_hockey_gbm(
         stack.enter_context(patch(
             "models.pipeline.core.cli.get_db_connection",
             return_value=_db_connection()))
-        if resolver_available:
-            stack.enter_context(patch(
-                "models.pipeline.core.cli._lineup_stage_resolver",
-                return_value=lambda *_args, **_kwargs: lineup))
-        else:
-            stack.enter_context(patch(
-                "models.pipeline.core.cli._lineup_stage_resolver",
-                return_value=None))
+        resolved = lineup if resolver_available else None
+        stack.enter_context(patch(
+            "models.pipeline.core.cli._resolve_club_lineup",
+            return_value=resolved))
         code = main(argv)
     return code, writer
 
@@ -1203,7 +1197,7 @@ def test_cli_predict_hockey_gbm_uses_a_resolved_lineup(
     assert match["lineup_fallback"] is False
 
 
-def test_cli_predict_hockey_gbm_scores_without_a_lineup_module(
+def test_cli_predict_hockey_gbm_scores_without_a_roster(
         capsys: pytest.CaptureFixture[str]) -> None:
     def _write(rows, conn=None, *, values_are_percent=False):
         return len(list(rows))
@@ -1219,7 +1213,7 @@ def test_cli_predict_hockey_gbm_scores_without_a_lineup_module(
     assert match["lineup_fallback"] is True
 
 
-def test_missing_lineup_module_keeps_the_gbm() -> None:
+def test_both_active_hockey_models_stay_loaded() -> None:
     from models.pipeline.core import cli
 
     def _both(name: str) -> int:
@@ -1233,9 +1227,7 @@ def test_missing_lineup_module_keeps_the_gbm() -> None:
             "models.pipeline.core.cli.resolve_model_id",
             side_effect=_both), patch(
             "models.pipeline.core.cli._artifact_recommends_inactive",
-            return_value=False), patch(
-            "models.pipeline.core.cli._lineup_stage_resolver",
-            return_value=None):
+            return_value=False):
         loaded = cli._active_hockey_configs()
     names = [config.model_name for config, _model_id in loaded]
     assert "HOCKEY_GOALS_GBM_V1" in names

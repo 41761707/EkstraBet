@@ -8,8 +8,8 @@ import pandas as pd
 
 from api.schemas.match import HockeyMatchLineups
 from backend.sports.hockey.lineups import HOCKEY_LINE_COUNT
+from backend.sports.hockey.lineups import map_current_roster_lineups
 from backend.sports.hockey.lineups import map_hockey_lineups
-from backend.sports.hockey.lineups import map_probable_hockey_lineups
 
 
 HOME_TEAM_ID = 10
@@ -244,17 +244,19 @@ class TestHockeyLineups(unittest.TestCase):
         self.assertEqual(home_players[0]["position"], "")
 
 
-class TestProbableHockeyLineups(unittest.TestCase):
-    """Tests for projected lineups shown before the box score exists."""
+class TestCurrentRosterLineups(unittest.TestCase):
+    """Tests for the current roster shown before the box score exists."""
 
-    def test_confirmed_goalie_is_certain_and_backup_is_not(self) -> None:
+    def test_starter_and_backup_stay_on_their_lines(self) -> None:
         frame = pd.DataFrame([
-            _probable_row(101, "Fantilli", HOME_TEAM_ID, "C", 1, None),
-            _probable_row(301, "Starter", HOME_TEAM_ID, "G", 1, 1),
-            _probable_row(302, "Backup", HOME_TEAM_ID, "G", 2, 0)
+            _roster_row(101, "Fantilli", HOME_TEAM_ID, "C", 1),
+            _roster_row(301, "Starter", HOME_TEAM_ID, "G", 1),
+            _roster_row(302, "Backup", HOME_TEAM_ID, "G", 2),
+            _roster_row(303, "Extra", HOME_TEAM_ID, "G", 0),
+            _roster_row(104, "Hurt", HOME_TEAM_ID, "LW", 1, is_injured=1)
         ])
 
-        payload = map_probable_hockey_lineups(
+        payload = map_current_roster_lineups(
             frame,
             HOME_TEAM_ID,
             HOME_TEAM_NAME,
@@ -263,70 +265,32 @@ class TestProbableHockeyLineups(unittest.TestCase):
         assert payload is not None
         HockeyMatchLineups.model_validate(payload)
         home = payload["home"]
-        self.assertEqual(home["lineup_status"], "confirmed")
-        self.assertEqual(home["source"], "CONFIRMED")
-        skater = home["lines"][0]["players"][0]
-        starter = home["lines"][0]["players"][1]
-        backup = home["lines"][1]["players"][0]
-        self.assertIsNone(skater["start_probability"])
-        self.assertEqual(starter["start_probability"], 1.0)
-        self.assertEqual(backup["start_probability"], 0.0)
-        self.assertIsNone(payload["away"]["lineup_status"])
+        self.assertNotIn("lineup_status", home)
+        names = [
+            player["player_name"]
+            for line in home["lines"]
+            for player in line["players"]]
+        self.assertEqual(names, ["Fantilli", "Starter", "Backup"])
+        self.assertNotIn("start_probability", home["lines"][0]["players"][0])
 
-    def test_model_goalie_uses_only_the_saved_start_probability(
-        self) -> None:
-        saved = pd.DataFrame([
-            _probable_row(
-                401,
-                "Ersson",
-                AWAY_TEAM_ID,
-                "G",
-                1,
-                1,
-                source="MODEL",
-                start_probability=0.4)
-        ])
-        missing = pd.DataFrame([
-            _probable_row(
-                401,
-                "Ersson",
-                AWAY_TEAM_ID,
-                "G",
-                1,
-                1,
-                source="MODEL")
-        ])
-        saved_payload = map_probable_hockey_lineups(
-            saved,
+    def test_empty_roster_returns_none(self) -> None:
+        payload = map_current_roster_lineups(
+            pd.DataFrame(),
             HOME_TEAM_ID,
             HOME_TEAM_NAME,
             AWAY_TEAM_ID,
             AWAY_TEAM_NAME)
-        missing_payload = map_probable_hockey_lineups(
-            missing,
-            HOME_TEAM_ID,
-            HOME_TEAM_NAME,
-            AWAY_TEAM_ID,
-            AWAY_TEAM_NAME)
-        assert saved_payload is not None
-        assert missing_payload is not None
-        saved_goalie = saved_payload["away"]["lines"][0]["players"][0]
-        missing_goalie = missing_payload["away"]["lines"][0]["players"][0]
-        self.assertEqual(saved_payload["away"]["lineup_status"], "probable")
-        self.assertEqual(saved_goalie["start_probability"], 0.4)
-        self.assertIsNone(missing_goalie["start_probability"])
+        self.assertIsNone(payload)
 
 
-def _probable_row(
+def _roster_row(
     player_id: int,
     player_name: str,
     team_id: int,
     position: str,
     line: int,
-    is_starting_goalie: int | None,
-    source: str = "CONFIRMED",
-    start_probability: float | None = None) -> dict[str, object]:
-    """Build one probable-lineup row."""
+    is_injured: int = 0) -> dict[str, object]:
+    """Build one current-roster row."""
     return {
         "player_id": player_id,
         "player_name": player_name,
@@ -335,9 +299,7 @@ def _probable_row(
         "position": position,
         "number": 1,
         "line": line,
-        "is_starting_goalie": is_starting_goalie,
-        "source": source,
-        "start_probability": start_probability
+        "is_injured": is_injured
     }
 
 

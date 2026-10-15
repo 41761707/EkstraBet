@@ -531,31 +531,31 @@ def fetch_basketball_match_lineups(match_id: int) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=(match_id,))
 
 
-def fetch_hockey_probable_lineups(match_id: int) -> pd.DataFrame:
-    """Return the stored probable lineup for this match only."""
+def fetch_hockey_club_rosters(
+        home_team_id: int,
+        away_team_id: int) -> pd.DataFrame:
+    """Return the current roster rows for both clubs in one match."""
     query = """
         SELECT
-            hpl.player_id,
+            hr.player_id,
             p.common_name AS player_name,
-            hpl.team_id,
+            hr.team_id,
             t.name AS team_name,
-            hpl.position,
+            hr.position,
             hr.number,
-            hpl.line,
-            hpl.is_starting_goalie,
-            hpl.source,
-            hpl.start_probability
-        FROM hockey_probable_lineups hpl
-        JOIN players p ON p.id = hpl.player_id
-        JOIN teams t ON t.id = hpl.team_id
-        LEFT JOIN hockey_rosters hr
-            ON hr.team_id = hpl.team_id
-            AND hr.player_id = hpl.player_id
-        WHERE hpl.match_id = %s
-        ORDER BY hpl.team_id, hpl.line, hr.number, p.common_name
+            hr.line,
+            hr.is_injured
+        FROM hockey_rosters hr
+        JOIN players p ON p.id = hr.player_id
+        JOIN teams t ON t.id = hr.team_id
+        WHERE hr.team_id IN (%s, %s)
+        ORDER BY hr.team_id, hr.line, hr.number, p.common_name
     """
     with get_db_connection() as conn:
-        return pd.read_sql(query, conn, params=(match_id,))
+        return pd.read_sql(
+            query,
+            conn,
+            params=(home_team_id, away_team_id))
 
 
 def fetch_hockey_team_arenas() -> pd.DataFrame:
@@ -570,25 +570,6 @@ def fetch_hockey_team_arenas() -> pd.DataFrame:
     """
     with get_db_connection() as conn:
         return pd.read_sql(query, conn)
-
-
-def fetch_hockey_prediction_stage(match_id: int) -> str | None:
-    """Return the stage of the newest hockey prediction run."""
-    query = """
-        SELECT stage
-        FROM hockey_prediction_runs
-        WHERE match_id = %s
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-    """
-    with get_db_connection() as conn:
-        frame = pd.read_sql(query, conn, params=(match_id,))
-    if frame.empty:
-        return None
-    stage = frame.iloc[0]["stage"]
-    if stage is None or (isinstance(stage, float) and pd.isna(stage)):
-        return None
-    return str(stage)
 
 
 def fetch_hockey_player_predictions(

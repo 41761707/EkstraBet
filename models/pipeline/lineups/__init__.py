@@ -1,1 +1,1 @@
-"""Predicted NHL lineups and the goalie start model."""
+"""Current NHL roster used by match prediction."""

@@ -2,11 +2,9 @@
 
 Strength is expected points, shots and defence of the dressed
 skaters, weighted by each slot's expected minutes. Ratios compare
-that sum with the club's usual occupants of those slots. A
-projected skater is dressed in full, and ``confidence`` shrinks only
-the gap from the typical lineup: ``1 + confidence * (raw_ratio - 1)``.
-A share of zero still dresses that skater. Only a missing
-``confidence`` leaves him out, so the ratio stays 1.
+that sum with the club's usual occupants of those slots. Every
+dressed skater counts in full. ``confidence`` and ``source`` do not
+change the weight.
 """
 
 from __future__ import annotations
@@ -35,7 +33,6 @@ from models.pipeline.features.hockey.player_ratings import (
 
 
 BASELINE_GAMES = 10
-CONFIRMED_LINEUP_SOURCE = "CONFIRMED"
 # def_rating jest ściągany do 0 i bywa ujemny. Przesunięcie o 1
 # trzyma sumę dodatnią, a różnica około 0,5 nadal rusza stosunek.
 # Duże przesunięcie spłaszczało ratio koło 1.
@@ -75,11 +72,11 @@ _STAT_FIELDS = ["points", "sog", "plus_minus", "toi_seconds"]
 
 @dataclass(frozen=True)
 class ProbableLineupPlayer:
-    """One skater or goalie in a probable or confirmed lineup.
+    """One skater or goalie on a match sheet.
 
-    ``confidence`` is the share of the last five lineups. A goalie's
-    ``start_probability`` is P(start) from GoalieStartModel and is
-    separate from that share.
+    ``is_starting_goalie`` is 1 only for the goalie on line 1.
+    ``confidence`` and ``source`` are kept so older callers still
+    construct a player, and strength ignores both.
     """
 
     player_id: int
@@ -282,34 +279,15 @@ def _skaters_from_lineup(
 
 
 def _left_out(player: ProbableLineupPlayer) -> bool:
-    # Brak udziału pomija zawodnika. Udział 0 nadal obsadza slot.
-    if player.source == CONFIRMED_LINEUP_SOURCE:
-        return False
-    return _confidence_value(player) is None
+    # Skład z hockey_rosters jest już obcięty. Waga nie odsiewa nikogo.
+    del player
+    return False
 
 
 def _player_weight(player: ProbableLineupPlayer) -> float:
-    """Return the share that shrinks a ratio, not the dressing weight."""
-    if player.source == CONFIRMED_LINEUP_SOURCE:
-        return 1.0
-    confidence = _confidence_value(player)
-    if confidence is None:
-        return 0.0
-    return confidence
-
-
-def _confidence_value(player: ProbableLineupPlayer) -> float | None:
-    if player.confidence is None:
-        return None
-    try:
-        confidence = float(player.confidence)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(confidence) or confidence < 0.0:
-        return None
-    if confidence > 1.0:
-        return 1.0
-    return confidence
+    """Return a full share. Confidence no longer shrinks the ratio."""
+    del player
+    return 1.0
 
 
 def _strength(
@@ -351,10 +329,7 @@ def _dressed(skaters: list[_Skater]) -> list[_Skater]:
 def _shrink_toward_typical(raw_ratio: float, skaters: list[_Skater]) -> float:
     if not skaters:
         return 1.0
-    confidence = sum(skater.weight for skater in skaters) / len(skaters)
-    if confidence > 1.0:
-        confidence = 1.0
-    return 1.0 + confidence * (raw_ratio - 1.0)
+    return raw_ratio
 
 
 def _sum_rating(

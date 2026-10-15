@@ -28,8 +28,6 @@ from models.pipeline.data.hockey_history_repository import fetch_team_arenas
 from models.pipeline.features.hockey.goalies import GOALIE_APPEARANCE_COLUMNS
 from models.pipeline.features.hockey.goalies import GoalieRatingState
 from models.pipeline.features.hockey.goalies import build_goalie_ratings
-from models.pipeline.features.hockey.lineup_strength import (
-    CONFIRMED_LINEUP_SOURCE)
 from models.pipeline.features.hockey.lineup_strength import LINEUP_RATIO_COLUMNS
 from models.pipeline.features.hockey.lineup_strength import ProbableLineup
 from models.pipeline.features.hockey.lineup_strength import (
@@ -665,10 +663,10 @@ def projected_starter_save(
         state: GoalieRatingState,
         as_of: datetime,
         match_id: int) -> float | None:
-    """Return the dressed net's shrunk save%, or None.
+    """Return the line-1 starter's shrunk save%, or None.
 
-    A confirmed starter has weight 1. An unconfirmed net is the
-    expectation over ``start_probability``.
+    The backup on line 2 is ignored. A sheet without that starter
+    leaves the caller on the team-average save rate.
     """
     expected = _expected_goalie(state, lineup, as_of, match_id)
     if expected is None:
@@ -712,36 +710,13 @@ def _expected_goalie(
 def _goalie_start_weights(
         lineup: ProbableLineup
 ) -> list[tuple[ProbableLineupPlayer, float]]:
-    # Potwierdzony starter ma wagę 1. P(start) jest w
-    # start_probability. confidence to udział w pięciu składach.
-    goalies = [
-        player for player in lineup.players if _is_goalie(player)]
-    confirmed = [
-        player for player in goalies if _is_confirmed_starter(player)]
-    if confirmed:
-        return [(player, 1.0) for player in confirmed]
-    probable = _probable_start_weights(goalies)
-    if probable:
-        return probable
-    marked = [
-        player for player in goalies if _is_marked_starter(player)]
-    if not marked:
+    # Tylko bramkarz oznaczony jako starter. Rezerwowy nie wchodzi do λ.
+    starters = [
+        player for player in lineup.players
+        if _is_goalie(player) and _is_marked_starter(player)]
+    if not starters:
         return []
-    return [(marked[0], 1.0)]
-
-
-def _probable_start_weights(
-        goalies: list[ProbableLineupPlayer]
-) -> list[tuple[ProbableLineupPlayer, float]]:
-    weighted: list[tuple[ProbableLineupPlayer, float]] = []
-    for player in goalies:
-        if _lineup_source(player) == CONFIRMED_LINEUP_SOURCE:
-            continue
-        probability = _start_probability(player)
-        if probability is None:
-            continue
-        weighted.append((player, probability))
-    return weighted
+    return [(starters[0], 1.0)]
 
 
 def _is_goalie(player: ProbableLineupPlayer) -> bool:
@@ -749,12 +724,6 @@ def _is_goalie(player: ProbableLineupPlayer) -> bool:
     if position is None or _missing(position):
         return False
     return str(position).strip().upper() == "G"
-
-
-def _is_confirmed_starter(player: ProbableLineupPlayer) -> bool:
-    return (
-        _lineup_source(player) == CONFIRMED_LINEUP_SOURCE
-        and _is_marked_starter(player))
 
 
 def _is_marked_starter(player: ProbableLineupPlayer) -> bool:
@@ -765,26 +734,6 @@ def _is_marked_starter(player: ProbableLineupPlayer) -> bool:
         return int(starter) == 1
     except (TypeError, ValueError):
         return False
-
-
-def _lineup_source(player: ProbableLineupPlayer) -> str:
-    source = player.source
-    if source is None or _missing(source):
-        return ""
-    return str(source).strip().upper()
-
-
-def _start_probability(player: ProbableLineupPlayer) -> float | None:
-    probability = player.start_probability
-    if probability is None or _missing(probability):
-        return None
-    try:
-        weight = float(probability)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(weight) or weight <= 0.0:
-        return None
-    return min(weight, 1.0)
 
 
 def _shared_context(matches: pd.DataFrame) -> pd.DataFrame:

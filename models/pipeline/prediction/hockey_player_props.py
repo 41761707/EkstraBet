@@ -1,9 +1,4 @@
-"""Score beta skater props for one manual NHL prediction stage.
-
-``initial`` prefers a confirmed lineup, then external, then model.
-``final`` keeps only a confirmed lineup and skips the match when
-either club is missing.
-"""
+"""Score beta skater props from the current ``hockey_rosters`` sheet."""
 
 from __future__ import annotations
 
@@ -18,6 +13,8 @@ from models.pipeline.core.artifacts import load_model_artifact
 from models.pipeline.core.config import load_model_config
 from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_model_id
+from models.pipeline.data.hockey_history_repository import (
+    fetch_current_rosters)
 from models.pipeline.data.hockey_history_repository import fetch_hockey_matches
 from models.pipeline.data.hockey_history_repository import (
     fetch_hockey_match_rosters)
@@ -31,12 +28,8 @@ from models.pipeline.features.hockey.player_features import PlayerPropMemory
 from models.pipeline.features.hockey.player_features import (
     prepare_player_prop_memory)
 from models.pipeline.labels.hockey_player_props import LINES_PER_SKATER
-from models.pipeline.lineups.hockey_probable_lineup import (
-    resolve_lineup_for_stage)
-from models.pipeline.persistence.hockey_prediction_run_writer import (
-    FINAL_STAGE)
-from models.pipeline.persistence.hockey_prediction_run_writer import (
-    INITIAL_STAGE)
+from models.pipeline.lineups.hockey_roster_lineup import (
+    load_roster_lineup)
 from models.pipeline.persistence.player_prediction_writer import (
     PlayerPredictionRow)
 from models.pipeline.persistence.player_prediction_writer import (
@@ -59,14 +52,10 @@ PROPS_PREDICTION_CONFIG = (
 def predict_hockey_props(
         league_id: int,
         match_ids: list[int],
-        write_db: bool,
-        stage: str = INITIAL_STAGE) -> dict[str, object]:
-    """Score dressed skaters for one stage. Omit ``write_db`` for a dry-run."""
-    if stage not in (INITIAL_STAGE, FINAL_STAGE):
-        raise ValueError("stage must be 'initial' or 'final'")
+        write_db: bool) -> dict[str, object]:
+    """Score dressed skaters. Omit ``write_db`` for a dry-run."""
     report: dict[str, object] = {
         "league_id": int(league_id),
-        "stage": stage,
         "match_ids": list(match_ids),
         "dry_run": not write_db,
         "lines_per_skater": LINES_PER_SKATER,
@@ -92,8 +81,7 @@ def predict_hockey_props(
         fixtures,
         model_id,
         event_ids,
-        write_db,
-        stage)
+        write_db)
     report["model_name"] = config.model_name
     report["model_id"] = model_id
     report["matches"] = scored
@@ -137,8 +125,8 @@ def _score_matches(
         fixtures: pd.DataFrame,
         model_id: int,
         event_ids: dict[str, int],
-        write_db: bool,
-        stage: str) -> list[dict[str, object]]:
+        write_db: bool) -> list[dict[str, object]]:
+    roster = fetch_current_rosters()
     scored: list[dict[str, object]] = []
     for fixture in fixtures.itertuples(index=False):
         moment = _naive_datetime(fixture.game_date)
@@ -149,16 +137,10 @@ def _score_matches(
                 int(fixture.match_id))
             continue
         match_id = int(fixture.match_id)
-        home = resolve_lineup_for_stage(
-            match_id, int(fixture.home_team), stage)
-        away = resolve_lineup_for_stage(
-            match_id, int(fixture.away_team), stage)
-        if stage == FINAL_STAGE and (home is None or away is None):
-            logger.warning(
-                "Skipping final hockey props for match %s: "
-                "confirmed lineup is missing for one or both clubs",
-                match_id)
-            continue
+        home = load_roster_lineup(
+            roster, int(fixture.home_team), match_id)
+        away = load_roster_lineup(
+            roster, int(fixture.away_team), match_id)
         _warn_missing_lineup(match_id, home, away)
         try:
             rows = rows_for_match(
@@ -314,7 +296,7 @@ def _warn_missing_lineup(
     if home is not None and away is not None:
         return
     logger.warning(
-        "No probable lineup for match %s side %s; skipping those skaters",
+        "No hockey roster for match %s side %s; skipping those skaters",
         match_id,
         "both" if home is None and away is None else (
             "home" if home is None else "away"))

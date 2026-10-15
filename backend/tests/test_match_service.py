@@ -229,11 +229,7 @@ class TestMatchService(unittest.TestCase):
         return_value=pd.DataFrame())
     @patch(
         "backend.services.match_service.match_repository"
-        ".fetch_hockey_prediction_stage",
-        return_value=None)
-    @patch(
-        "backend.services.match_service.match_repository"
-        ".fetch_hockey_probable_lineups")
+        ".fetch_hockey_club_rosters")
     @patch(
         "backend.services.match_service.league_repository"
         ".fetch_special_round_names",
@@ -294,8 +290,7 @@ class TestMatchService(unittest.TestCase):
         _mock_fetch_h2h: unittest.mock.MagicMock,
         _mock_fetch_history: unittest.mock.MagicMock,
         _mock_special_rounds: unittest.mock.MagicMock,
-        mock_fetch_probable: unittest.mock.MagicMock,
-        _mock_fetch_stage: unittest.mock.MagicMock,
+        mock_fetch_roster: unittest.mock.MagicMock,
         _mock_fetch_props: unittest.mock.MagicMock,
         _mock_fetch_arenas: unittest.mock.MagicMock) -> None:
         frame = self._sample_match_frame()
@@ -331,7 +326,7 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(hockey_lineups["away"]["lines"][0]["players"], [])
         self.assertIsNone(details["basketball_lineups"])
         mock_fetch_basketball_lineups.assert_not_called()
-        mock_fetch_probable.assert_not_called()
+        mock_fetch_roster.assert_not_called()
         self.assertIsNone(details["hockey_events"])
         self.assertIsNone(details["hockey_prediction_stage"])
         self.assertIsNone(details["hockey_player_predictions"])
@@ -346,6 +341,9 @@ class TestMatchService(unittest.TestCase):
         self.assertNotIn("lineup_status", hockey_lineups["home"])
         self.assertNotIn("start_probability", home_line_1[0])
 
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_player_predictions")
     @patch(
         "backend.services.match_service.league_repository"
         ".fetch_special_round_names",
@@ -406,10 +404,12 @@ class TestMatchService(unittest.TestCase):
         _mock_has_player_stats: unittest.mock.MagicMock,
         _mock_fetch_h2h: unittest.mock.MagicMock,
         _mock_fetch_history: unittest.mock.MagicMock,
-        _mock_special_rounds: unittest.mock.MagicMock) -> None:
+        _mock_special_rounds: unittest.mock.MagicMock,
+        mock_fetch_props: unittest.mock.MagicMock) -> None:
         frame = self._sample_match_frame()
         frame["sport_id"] = 2
         mock_fetch_match.return_value = frame
+        mock_fetch_props.return_value = self._player_prop_frame()
         mock_fetch_events.return_value = pd.DataFrame([{
             "id": 11,
             "team_id": 10,
@@ -450,7 +450,10 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(events[1]["player_name"], "Scheifele M.")
         self.assertIsNone(details["hockey_prediction_stage"])
         self.assertIsNone(details["hockey_schedule_context"])
-        self.assertIsNone(details["hockey_player_predictions"])
+        props = details["hockey_player_predictions"]
+        self.assertEqual(len(props["home"]), 1)
+        self.assertEqual(props["home"][0]["lines"][0]["event_id"], 190)
+        mock_fetch_props.assert_called_once()
 
     @patch(
         "backend.services.match_service.league_repository"
@@ -622,6 +625,10 @@ class TestMatchService(unittest.TestCase):
 
     @patch(
         "backend.services.match_service.match_repository"
+        ".fetch_hockey_player_predictions",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
         ".fetch_basketball_match_lineups")
     @patch(
         "backend.services.match_service.league_repository"
@@ -681,7 +688,8 @@ class TestMatchService(unittest.TestCase):
         _mock_fetch_h2h: unittest.mock.MagicMock,
         _mock_fetch_history: unittest.mock.MagicMock,
         _mock_special_rounds: unittest.mock.MagicMock,
-        mock_fetch_lineups: unittest.mock.MagicMock) -> None:
+        mock_fetch_lineups: unittest.mock.MagicMock,
+        _mock_fetch_props: unittest.mock.MagicMock) -> None:
         frame = self._sample_match_frame()
         frame["sport_id"] = 2
         mock_fetch_match.return_value = frame
@@ -788,8 +796,8 @@ class TestMatchService(unittest.TestCase):
         frame.loc[0, "away_team_goals"] = None
         return frame
 
-    def _probable_lineup_frame(self) -> pd.DataFrame:
-        """Return a confirmed home sheet and a model away goalie."""
+    def _current_roster_frame(self) -> pd.DataFrame:
+        """Return a starter, a backup and one dressed skater."""
         return pd.DataFrame([{
             "player_id": 101,
             "player_name": "Fantilli",
@@ -798,8 +806,7 @@ class TestMatchService(unittest.TestCase):
             "position": "C",
             "number": 19,
             "line": 1,
-            "is_starting_goalie": None,
-            "source": "CONFIRMED"
+            "is_injured": 0
         }, {
             "player_id": 301,
             "player_name": "Merzlikins",
@@ -808,8 +815,16 @@ class TestMatchService(unittest.TestCase):
             "position": "G",
             "number": 90,
             "line": 1,
-            "is_starting_goalie": 1,
-            "source": "CONFIRMED"
+            "is_injured": 0
+        }, {
+            "player_id": 302,
+            "player_name": "Backup",
+            "team_id": 10,
+            "team_name": "Legia",
+            "position": "G",
+            "number": 40,
+            "line": 2,
+            "is_injured": 0
         }, {
             "player_id": 401,
             "player_name": "Ersson",
@@ -818,9 +833,7 @@ class TestMatchService(unittest.TestCase):
             "position": "G",
             "number": 33,
             "line": 1,
-            "is_starting_goalie": 1,
-            "source": "MODEL",
-            "start_probability": 0.62
+            "is_injured": 0
         }])
 
     def _player_prop_frame(self) -> pd.DataFrame:
@@ -852,11 +865,7 @@ class TestMatchService(unittest.TestCase):
         ".fetch_hockey_player_predictions")
     @patch(
         "backend.services.match_service.match_repository"
-        ".fetch_hockey_prediction_stage",
-        return_value="final")
-    @patch(
-        "backend.services.match_service.match_repository"
-        ".fetch_hockey_probable_lineups")
+        ".fetch_hockey_club_rosters")
     @patch(
         "backend.services.match_service.match_repository"
         ".fetch_hockey_match_lineups",
@@ -908,8 +917,7 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_history: unittest.mock.MagicMock,
         _mock_special_rounds: unittest.mock.MagicMock,
         _mock_fetch_lineups: unittest.mock.MagicMock,
-        mock_fetch_probable: unittest.mock.MagicMock,
-        _mock_fetch_stage: unittest.mock.MagicMock,
+        mock_fetch_roster: unittest.mock.MagicMock,
         mock_fetch_props: unittest.mock.MagicMock,
         _mock_fetch_arenas: unittest.mock.MagicMock) -> None:
         from api.schemas.match import MatchDetails
@@ -920,27 +928,29 @@ class TestMatchService(unittest.TestCase):
         home_history.loc[0, "away_id"] = 30
         home_history.loc[0, "game_date"] = datetime(2025, 3, 14, 19, 0)
         mock_fetch_history.side_effect = [home_history, pd.DataFrame()]
-        mock_fetch_probable.return_value = self._probable_lineup_frame()
+        mock_fetch_roster.return_value = self._current_roster_frame()
         mock_fetch_props.return_value = self._player_prop_frame()
 
         details = get_match_details(100)
         assert details is not None
         MatchDetails.model_validate(details)
-        mock_fetch_probable.assert_called_once_with(100)
-        self.assertEqual(details["hockey_prediction_stage"], "final")
+        mock_fetch_roster.assert_called_once_with(10, 20)
+        self.assertIsNone(details["hockey_prediction_stage"])
         home = details["hockey_lineups"]["home"]
         away = details["hockey_lineups"]["away"]
-        self.assertEqual(home["lineup_status"], "confirmed")
-        self.assertEqual(home["source"], "CONFIRMED")
-        self.assertEqual(away["lineup_status"], "probable")
-        self.assertEqual(away["source"], "MODEL")
-        home_skater = home["lines"][0]["players"][0]
-        home_goalie = home["lines"][0]["players"][1]
-        self.assertIsNone(home_skater["start_probability"])
-        self.assertEqual(home_goalie["start_probability"], 1.0)
+        self.assertNotIn("lineup_status", home)
+        self.assertNotIn("source", away)
+        home_names = [
+            player["player_name"]
+            for line in home["lines"]
+            for player in line["players"]]
+        self.assertEqual(home_names, ["Fantilli", "Merzlikins", "Backup"])
         self.assertEqual(
-            away["lines"][0]["players"][0]["start_probability"],
-            0.62)
+            away["lines"][0]["players"][0]["player_name"],
+            "Ersson")
+        self.assertNotIn(
+            "start_probability",
+            home["lines"][0]["players"][0])
         self.assertTrue(
             details["hockey_schedule_context"]["home"]["is_b2b"])
         self.assertEqual(

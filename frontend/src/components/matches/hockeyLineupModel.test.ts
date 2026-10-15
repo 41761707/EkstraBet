@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatGoalieStartPercent,
-  goalieStartLabels,
+  goalieRoleLabels,
   HOCKEY_LINE_TABS,
   linePlayers,
-  lineupSourceLabel,
-  lineupStatusLabel,
   playersOnLineSheet,
-  predictionStageLabel,
   rinkMarkersForLine,
   sortPlayersForLineTable,
 } from "@/components/matches/hockeyLineupModel";
@@ -183,30 +179,6 @@ describe("rinkMarkersForLine", () => {
   });
 });
 
-describe("lineup labels", () => {
-  it("names a projected sheet and its source", () => {
-    expect(lineupStatusLabel("probable")).toBe("Przewidywany skład");
-    expect(lineupStatusLabel("confirmed")).toBe("Skład potwierdzony");
-    expect(lineupStatusLabel(null)).toBeNull();
-    expect(lineupSourceLabel("MODEL")).toBe("model");
-    expect(lineupSourceLabel(" external ")).toBe("zewnętrzny");
-    expect(lineupSourceLabel("CONFIRMED")).toBe("potwierdzony");
-  });
-
-  it("names the prediction stage", () => {
-    expect(predictionStageLabel("initial")).toBe("Predykcja pierwotna");
-    expect(predictionStageLabel("final")).toBe("Predykcja ostateczna");
-    expect(predictionStageLabel(null)).toBeNull();
-  });
-
-  it("formats a goalie start weight as a whole percent", () => {
-    expect(formatGoalieStartPercent(0.62)).toBe("62%");
-    expect(formatGoalieStartPercent(1)).toBe("100%");
-    expect(formatGoalieStartPercent(null)).toBeNull();
-    expect(formatGoalieStartPercent(1.2)).toBeNull();
-  });
-});
-
 describe("goalie placement", () => {
   const starter = samplePlayer({
     player_id: 11,
@@ -236,10 +208,10 @@ describe("goalie placement", () => {
     ]);
   }
 
-  it("lists every goalie start weight, line 1 before line 2", () => {
-    expect(goalieStartLabels(teamWithSplitGoalies())).toEqual([
-      { playerId: 11, playerName: "Merzlikins E.", percent: "62%" },
-      { playerId: 12, playerName: "Greaves J.", percent: "38%" },
+  it("names the starter and the backup from their roster lines", () => {
+    expect(goalieRoleLabels(teamWithSplitGoalies())).toEqual([
+      { playerId: 11, playerName: "Merzlikins E.", role: "starter" },
+      { playerId: 12, playerName: "Greaves J.", role: "rezerwowy" },
     ]);
   });
 

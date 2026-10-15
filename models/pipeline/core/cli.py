@@ -46,6 +46,8 @@ from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_model_id
 from models.pipeline.core.registry import validate_events
 from models.pipeline.data.hockey_history_repository import (
+    fetch_current_rosters)
+from models.pipeline.data.hockey_history_repository import (
     fetch_hockey_match_rosters)
 from models.pipeline.data.hockey_history_repository import (
     fetch_hockey_player_stats)
@@ -61,19 +63,8 @@ from models.pipeline.features.hockey.lineup_strength import (
     prepare_lineup_memory)
 from models.pipeline.features.hockey.lineup_strength import (
     ratios_for_lineups)
-from models.pipeline.lineups.hockey_goalie_start import (
-    evaluate_goalie_start)
-from models.pipeline.lineups.hockey_goalie_start import (
-    is_goalie_start_config)
-from models.pipeline.lineups.hockey_goalie_start import train_goalie_start
-from models.pipeline.lineups.hockey_probable_lineup import (
-    build_predictable_lineups)
-from models.pipeline.persistence.hockey_lineup_writer import (
-    write_probable_lineups)
-from models.pipeline.persistence.hockey_prediction_run_writer import (
-    FINAL_STAGE)
-from models.pipeline.persistence.hockey_prediction_run_writer import (
-    write_prediction_run)
+from models.pipeline.lineups.hockey_roster_lineup import (
+    load_roster_lineup)
 from models.pipeline.prediction.hockey_player_props import (
     predict_hockey_props)
 from models.pipeline.persistence.match_assessment_writer import (
@@ -411,7 +402,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated match ids; each id must also be the next "
             "predictable game for both clubs"))
-    _add_hockey_stage_argument(hockey_parser)
     hockey_parser.add_argument(
         "--write-db",
         action="store_true",
@@ -421,23 +411,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Persist each family's highest probability as final")
     hockey_parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable debug logging")
-
-    lineup_parser = subparsers.add_parser(
-        "build-hockey-lineups",
-        help="Project the next NHL lineup for both clubs")
-    lineup_parser.add_argument(
-        "--league-id",
-        required=True,
-        type=int,
-        help="Hockey league id (NHL is 45)")
-    lineup_parser.add_argument(
-        "--write-db",
-        action="store_true",
-        help="Replace MODEL lineups; omit for a dry-run")
-    lineup_parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging")
@@ -457,7 +430,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated match ids; each id must also be the next "
             "predictable game for both clubs"))
-    _add_hockey_stage_argument(props_parser)
     props_parser.add_argument(
         "--write-db",
         action="store_true",
@@ -469,32 +441,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _add_hockey_stage_argument(parser: argparse.ArgumentParser) -> None:
-    """Add the manual initial/final switch. Default stays initial."""
-    parser.add_argument(
-        "--stage",
-        choices=["initial", "final"],
-        default="initial",
-        help=(
-            "initial projects the next games; final requires "
-            "--match-ids and a confirmed lineup for both clubs"))
-
-
 def _parse_match_ids(raw: str | None) -> list[int]:
     if not raw:
         return []
     return [int(part.strip()) for part in raw.split(",") if part.strip()]
-
-
-def _validated_hockey_stage(args: argparse.Namespace) -> str:
-    """Return initial or final. Final without match ids is an error."""
-    stage = str(getattr(args, "stage", None) or "initial")
-    if stage not in ("initial", "final"):
-        raise ValueError("stage must be 'initial' or 'final'")
-    if stage == "final" and not _parse_match_ids(
-            getattr(args, "match_ids", None)):
-        raise ValueError("--stage final requires --match-ids")
-    return stage
 
 
 def _result_to_dict(result: Any) -> dict[str, Any]:
@@ -526,8 +476,6 @@ def _uses_registered_trainer(config: ModelRunConfig) -> bool:
 
 
 def run_train(config_path: Path) -> dict[str, Any]:
-    if is_goalie_start_config(config_path):
-        return _result_to_dict(train_goalie_start(config_path))
     config = load_model_config(config_path)
     validate_events(config)
     if _uses_registered_trainer(config):
@@ -538,8 +486,6 @@ def run_train(config_path: Path) -> dict[str, Any]:
 
 
 def run_evaluate(config_path: Path) -> dict[str, Any]:
-    if is_goalie_start_config(config_path):
-        return _result_to_dict(evaluate_goalie_start(config_path))
     config = load_model_config(config_path)
     validate_events(config)
     if _uses_registered_trainer(config):
@@ -975,7 +921,6 @@ _HOCKEY_GBM_TRAINER = "HockeyGbmTrainer"
 _HOCKEY_PREDICTION_CONFIGS = REPO_ROOT / "models" / "configs" / "prediction"
 # load_model_config wymaga output_columns. Te taski ich nie mają.
 _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS = frozenset({
-    "goalie_start",
     "player_props"})
 _REGISTERED_TRAINERS = frozenset({
     "HockeyPlayerPropsTrainer"})
@@ -997,49 +942,28 @@ _ClubLineup = ProbableLineup | None
 _PreparedLineup = tuple[int, _HockeyFixture, _ClubLineup, _ClubLineup]
 
 
-def run_build_hockey_lineups(args: argparse.Namespace) -> dict[str, Any]:
-    """Project next-game lineups. Omit ``--write-db`` for a dry-run."""
-    lineups = build_predictable_lineups(int(args.league_id), datetime.now())
-    written = 0
-    if args.write_db and lineups:
-        written = write_probable_lineups(lineups)
-    return {
-        "league_id": int(args.league_id),
-        "match_ids": sorted({item.match_id for item in lineups}),
-        "teams": len(lineups),
-        "players": sum(len(item.players) for item in lineups),
-        "dry_run": not bool(args.write_db),
-        "written_rows": written}
-
-
 def run_predict_hockey_props(args: argparse.Namespace) -> dict[str, Any]:
-    """Predict beta skater props for one manual stage.
+    """Predict beta skater props from the current roster.
 
-    ``final`` requires ``--match-ids`` and skips a match that lacks a
-    confirmed lineup for both clubs. Omitting ``--write-db`` is a
-    dry-run.
+    Omitting ``--write-db`` is a dry-run.
     """
-    stage = _validated_hockey_stage(args)
     requested = _unique_match_ids(_parse_match_ids(args.match_ids))
     match_ids = _hockey_match_ids(int(args.league_id), requested)
     report = predict_hockey_props(
         int(args.league_id),
         match_ids,
-        write_db=bool(args.write_db),
-        stage=stage)
+        write_db=bool(args.write_db))
     report["ignored_match_ids"] = _ignored_match_ids(requested, match_ids)
     return report
 
 
 def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
-    """Predict NHL team markets for one manual stage.
+    """Predict NHL team markets from the current ``hockey_rosters`` sheet.
 
-    ``initial`` uses the next predictable matches. ``final`` requires
-    ``--match-ids`` and a confirmed lineup for both clubs. Omitting
-    ``--write-db`` is a dry-run. A missing club on the initial stage
-    stays at ratio 1.
+    Without ``--match-ids`` the command scores the next predictable
+    game of each club. Omitting ``--write-db`` is a dry-run. A club
+    missing from the roster stays at ratio 1.
     """
-    stage = _validated_hockey_stage(args)
     configs = _active_hockey_configs()
     if not configs:
         raise ValueError("No active hockey team-model configs were found")
@@ -1047,7 +971,6 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
     match_ids = _hockey_match_ids(args.league_id, requested)
     report = {
         "league_id": args.league_id,
-        "stage": stage,
         "match_ids": match_ids,
         "ignored_match_ids": _ignored_match_ids(requested, match_ids),
         "dry_run": not bool(args.write_db),
@@ -1063,8 +986,7 @@ def run_predict_hockey(args: argparse.Namespace) -> dict[str, Any]:
         upcoming,
         args.league_id,
         write_db=bool(args.write_db),
-        select_finals=bool(args.select_finals),
-        stage=stage)
+        select_finals=bool(args.select_finals))
     return report
 
 
@@ -1074,8 +996,7 @@ def _score_hockey_configs(
         upcoming: dict[int, _HockeyFixture],
         league_id: int,
         write_db: bool,
-        select_finals: bool,
-        stage: str) -> list[dict[str, Any]]:
+        select_finals: bool) -> list[dict[str, Any]]:
     """Score each artifact. One failure does not stop the others."""
     scored: list[dict[str, Any]] = []
     for config, model_id in configs:
@@ -1087,8 +1008,7 @@ def _score_hockey_configs(
                 upcoming,
                 league_id,
                 write_db=write_db,
-                select_finals=select_finals,
-                stage=stage))
+                select_finals=select_finals))
         except Exception as exc:
             logger.error(
                 "Skipping hockey config %s: %s",
@@ -1239,8 +1159,7 @@ def _predict_hockey_config(
         upcoming: dict[int, _HockeyFixture],
         league_id: int,
         write_db: bool,
-        select_finals: bool,
-        stage: str) -> dict[str, Any]:
+        select_finals: bool) -> dict[str, Any]:
     """Score one active artifact and optionally persist its rows."""
     if config.trainer == _HOCKEY_GBM_TRAINER:
         return _predict_hockey_gbm(
@@ -1250,8 +1169,7 @@ def _predict_hockey_config(
             upcoming,
             league_id,
             write_db,
-            select_finals,
-            stage)
+            select_finals)
     if config.trainer != _HOCKEY_RATINGS_TRAINER:
         raise ValueError(
             f"Hockey prediction does not support trainer {config.trainer}")
@@ -1260,7 +1178,7 @@ def _predict_hockey_config(
     event_ids = resolve_event_map(config.events)
     params = hockey_params_from_config(config)
     prepared = _in_game_date_order(
-        _prepared_lineups(match_ids, upcoming, stage))
+        _prepared_lineups(match_ids, upcoming))
     history, goalies = _lineup_history_if_needed(
         prepared, league_id, params.lineup_baseline_games)
     matches: list[dict[str, Any]] = []
@@ -1287,8 +1205,6 @@ def _predict_hockey_config(
                 match_id,
                 model_id,
                 rows,
-                match_report["markets"],
-                stage,
                 select_finals)
             written += int(match_report["written"])
         matches.append(match_report)
@@ -1316,13 +1232,12 @@ def _predict_hockey_gbm(
         upcoming: dict[int, _HockeyFixture],
         league_id: int,
         write_db: bool,
-        select_finals: bool,
-        stage: str) -> dict[str, Any]:
+        select_finals: bool) -> dict[str, Any]:
     """Score the GBM artifact from pre-match team features."""
     model = _load_hockey_gbm_model(config)
     params = hockey_params_from_config(config)
     prepared = _in_game_date_order(
-        _prepared_lineups(match_ids, upcoming, stage))
+        _prepared_lineups(match_ids, upcoming))
     projected = {
         match_id: (home, away)
         for match_id, _fixture, home, away in prepared}
@@ -1368,8 +1283,6 @@ def _predict_hockey_gbm(
                 match_id,
                 model_id,
                 rows,
-                markets,
-                stage,
                 select_finals)
             written += int(match_report["written"])
         matches.append(match_report)
@@ -1386,27 +1299,21 @@ def _store_hockey_team_prediction(
         match_id: int,
         model_id: int,
         rows: list[Any],
-        markets: dict[str, float],
-        stage: str,
         select_finals: bool) -> int:
-    """Persist markets, a changed final and the stage snapshot together.
+    """Persist markets and replace a changed final in one transaction.
 
     The previous pick is read first. Its final and the unsettled bet
-    are removed in the same transaction that inserts the new final.
-    The commit runs only after that insert and the stage snapshot
-    succeed. The other stage's snapshot stays, because the run key
-    includes the stage.
+    are removed before the new final is inserted. The commit runs
+    only after that insert succeeds.
     """
     with get_db_connection() as connection:
         try:
-            if stage == FINAL_STAGE and select_finals:
+            if select_finals:
                 # Stare identyfikatory odczytujemy przed zapisem.
                 _replace_existing_finals(
                     match_id, model_id, rows, connection)
             written = write_predictions(
                 rows, connection, values_are_percent=True)
-            write_prediction_run(
-                match_id, model_id, stage, markets, connection)
             connection.commit()
         except Exception:
             connection.rollback()
@@ -1457,7 +1364,7 @@ def _warn_missing_gbm_lineup(
         away: _ClubLineup) -> None:
     if home is None and away is None:
         logger.warning(
-            "No probable lineup for match %s teams %s and %s; "
+            "No hockey roster for match %s teams %s and %s; "
             "using team-average strength and team-average goalie "
             "save percentage",
             match_id,
@@ -1467,7 +1374,7 @@ def _warn_missing_gbm_lineup(
     if home is None or away is None:
         missing = fixture.home_team if home is None else fixture.away_team
         logger.warning(
-            "No probable lineup for match %s team %s; "
+            "No hockey roster for match %s team %s; "
             "using team-average strength for that club",
             match_id,
             missing)
@@ -1515,8 +1422,8 @@ def _prepared_date_key(
 
 def _prepared_lineups(
         match_ids: list[int],
-        upcoming: dict[int, _HockeyFixture],
-        stage: str) -> list[_PreparedLineup]:
+        upcoming: dict[int, _HockeyFixture]) -> list[_PreparedLineup]:
+    roster = fetch_current_rosters()
     prepared = []
     for match_id in match_ids:
         fixture = upcoming.get(match_id)
@@ -1525,15 +1432,8 @@ def _prepared_lineups(
                 "Predictable hockey match %s is missing from upcoming rows",
                 match_id)
             continue
-        home = _resolve_club_lineup(match_id, fixture.home_team, stage)
-        away = _resolve_club_lineup(match_id, fixture.away_team, stage)
-        if stage == FINAL_STAGE and (home is None or away is None):
-            # Etap ostateczny liczy tylko mecz z oficjalnym składem obu drużyn.
-            logger.warning(
-                "Skipping final hockey prediction for match %s: "
-                "confirmed lineup is missing for one or both clubs",
-                match_id)
-            continue
+        home = _resolve_club_lineup(match_id, fixture.home_team, roster)
+        away = _resolve_club_lineup(match_id, fixture.away_team, roster)
         prepared.append((match_id, fixture, home, away))
     return prepared
 
@@ -1564,7 +1464,7 @@ def _lineup_starter_saves(
         away: _ClubLineup,
         team_saves: dict[int, float],
         goalies: Any | None) -> tuple[float | None, float | None]:
-    """Starter save from the stage lineup. Team average stays separate."""
+    """Starter save from the roster. Team average stays separate."""
     return (
         _club_starter_save(
             match_id, fixture.home_team, home, fixture.game_date,
@@ -1617,7 +1517,7 @@ def _ratios_or_none(
     if home is None or away is None:
         missing = fixture.home_team if home is None else fixture.away_team
         logger.warning(
-            "No probable lineup for match %s team %s; "
+            "No hockey roster for match %s team %s; "
             "using team-average strength for that club",
             match_id,
             missing)
@@ -1641,28 +1541,9 @@ def _ratios_or_none(
 def _resolve_club_lineup(
         match_id: int,
         team_id: int,
-        stage: str) -> _ClubLineup:
-    """Read one club lineup. A missing row keeps typical strength."""
-    resolver = _lineup_stage_resolver()
-    if resolver is None:
-        return None
-    return resolver(match_id, team_id, stage)
-
-
-def _lineup_stage_resolver() -> Callable[..., _ClubLineup] | None:
-    try:
-        from models.pipeline.lineups.hockey_probable_lineup import (
-            resolve_lineup_for_stage)
-    except ImportError as exc:
-        # Brak modułu zostawia typową siłę. Nie wyłącza modelu.
-        if not getattr(_lineup_stage_resolver, "missing_logged", False):
-            logger.warning(
-                "resolve_lineup_for_stage is unavailable (%s); "
-                "using team-average strength",
-                exc)
-            _lineup_stage_resolver.missing_logged = True
-        return None
-    return resolve_lineup_for_stage
+        roster: pd.DataFrame) -> _ClubLineup:
+    """Read one club from ``hockey_rosters``. Empty sheet stays typical."""
+    return load_roster_lineup(roster, int(team_id), int(match_id))
 
 
 def _predict_one_hockey_match(
@@ -1682,7 +1563,7 @@ def _predict_one_hockey_match(
     if fallback:
         # Brak składu obu drużyn: średnia siła i średni bramkarz.
         logger.warning(
-            "No probable lineup for match %s teams %s and %s; "
+            "No hockey roster for match %s teams %s and %s; "
             "using team-average strength and team-average goalie "
             "save percentage",
             match_id,
@@ -1755,8 +1636,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_predict_hockey(args)
         elif args.command == "predict-hockey-props":
             payload = run_predict_hockey_props(args)
-        elif args.command == "build-hockey-lineups":
-            payload = run_build_hockey_lineups(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

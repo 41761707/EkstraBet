@@ -1,9 +1,4 @@
-import type {
-  HockeyLineupPlayer,
-  HockeyLineupStatus,
-  HockeyPredictionStage,
-  HockeyTeamLineup,
-} from "@/types/api";
+import type { HockeyLineupPlayer, HockeyTeamLineup } from "@/types/api";
 
 export const HOCKEY_LINE_TABS: readonly {
   line: 1 | 2 | 3 | 4;
@@ -111,82 +106,35 @@ export function rinkMarkersForLine(
   ];
 }
 
-const LINEUP_STATUS_LABELS: Record<HockeyLineupStatus, string> = {
-  probable: "Przewidywany skład",
-  confirmed: "Skład potwierdzony",
+const GOALIE_ROLE_LABELS: Record<number, string> = {
+  1: "starter",
+  2: "rezerwowy",
 };
 
-const LINEUP_SOURCE_LABELS: Record<string, string> = {
-  MODEL: "model",
-  EXTERNAL: "zewnętrzny",
-  CONFIRMED: "potwierdzony",
-};
-
-const PREDICTION_STAGE_LABELS: Record<HockeyPredictionStage, string> = {
-  initial: "Predykcja pierwotna",
-  final: "Predykcja ostateczna",
-};
-
-/** Badge for a projected or official sheet. Played box scores have none. */
-export function lineupStatusLabel(
-  status: HockeyLineupStatus | null | undefined,
-): string | null {
-  if (status == null) {
-    return null;
-  }
-  return LINEUP_STATUS_LABELS[status] ?? null;
-}
-
-/** Polish source name. An unknown stored value is shown as-is. */
-export function lineupSourceLabel(
-  source: string | null | undefined,
-): string | null {
-  if (source == null) {
-    return null;
-  }
-  const trimmed = source.trim();
-  if (!trimmed) {
-    return null;
-  }
-  return LINEUP_SOURCE_LABELS[trimmed.toUpperCase()] ?? trimmed;
-}
-
-/** Stage label from the latest team-model snapshot, or null when absent. */
-export function predictionStageLabel(
-  stage: HockeyPredictionStage | null | undefined,
-): string | null {
-  if (stage == null) {
-    return null;
-  }
-  return PREDICTION_STAGE_LABELS[stage] ?? null;
-}
-
-/** Goalie start weight as a whole percent. Skaters and missing weights are null. */
-export function formatGoalieStartPercent(
-  value: number | null | undefined,
-): string | null {
-  if (value == null || !Number.isFinite(value) || value < 0 || value > 1) {
-    return null;
-  }
-  return `${Math.round(value * 100)}%`;
-}
-
-export interface GoalieStartLabel {
+export interface GoalieRoleLabel {
   playerId: number;
   playerName: string;
-  percent: string;
+  role: string;
 }
 
-/** Every goalie with a stored start weight, starter's line first. */
-export function goalieStartLabels(team: HockeyTeamLineup): GoalieStartLabel[] {
-  const labels: GoalieStartLabel[] = [];
+/** Starter on line 1 and backup on line 2. Other goalies stay off the list. */
+export function goalieRoleLabels(team: HockeyTeamLineup): GoalieRoleLabel[] {
+  const labels: GoalieRoleLabel[] = [];
   const lines = [...team.lines].sort((left, right) => left.line - right.line);
   for (const lineupLine of lines) {
+    const role = GOALIE_ROLE_LABELS[lineupLine.line];
+    if (role == null) {
+      continue;
+    }
     for (const player of lineupLine.players) {
-      const label = goalieStartLabel(player);
-      if (label !== null) {
-        labels.push(label);
+      if (player.position !== GOALIE_POSITION) {
+        continue;
       }
+      labels.push({
+        playerId: player.player_id,
+        playerName: player.player_name,
+        role,
+      });
     }
   }
   return labels;
@@ -204,19 +152,4 @@ export function playersOnLineSheet(
     return players;
   }
   return players.filter((player) => player.position !== GOALIE_POSITION);
-}
-
-function goalieStartLabel(player: HockeyLineupPlayer): GoalieStartLabel | null {
-  if (player.position !== GOALIE_POSITION) {
-    return null;
-  }
-  const percent = formatGoalieStartPercent(player.start_probability);
-  if (percent === null) {
-    return null;
-  }
-  return {
-    playerId: player.player_id,
-    playerName: player.player_name,
-    percent,
-  };
 }

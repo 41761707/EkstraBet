@@ -6,7 +6,6 @@ import type {
   HockeyLineupLine,
   HockeyLineupPlayer,
   HockeyMatchLineups,
-  HockeyPredictionStage,
   HockeyTeamLineup,
 } from "@/types/api";
 
@@ -92,16 +91,12 @@ function lineupsWithHomeFirstLine(): HockeyMatchLineups {
   };
 }
 
-function renderPanel(
-  lineups: HockeyMatchLineups,
-  predictionStage: HockeyPredictionStage | null = null,
-): string {
+function renderPanel(lineups: HockeyMatchLineups): string {
   return renderToStaticMarkup(
     <HockeyMatchLineupsPanel
       lineups={lineups}
       homeTeamName={HOME_TEAM_NAME}
       awayTeamName={AWAY_TEAM_NAME}
-      predictionStage={predictionStage}
     />,
   );
 }
@@ -145,7 +140,7 @@ describe("HockeyMatchLineupsPanel", () => {
     expect(html).not.toContain("Przewidywany skład");
   });
 
-  it("shows both goalie start weights beside the badge while line 1 is open", () => {
+  it("names the starter and the backup while line 1 is open", () => {
     const homeLines = emptyLines();
     homeLines[0] = {
       line: 1,
@@ -188,37 +183,26 @@ describe("HockeyMatchLineupsPanel", () => {
       ],
     };
 
-    const html = renderPanel(
-      {
-        home: teamLineup(HOME_TEAM_ID, HOME_TEAM_NAME, homeLines, {
-          lineup_status: "probable",
-          source: "MODEL",
-        }),
-        away: teamLineup(AWAY_TEAM_ID, AWAY_TEAM_NAME, emptyLines(), {
-          lineup_status: "confirmed",
-          source: "CONFIRMED",
-        }),
-      },
-      "initial",
-    );
+    const html = renderPanel({
+      home: teamLineup(HOME_TEAM_ID, HOME_TEAM_NAME, homeLines),
+      away: teamLineup(AWAY_TEAM_ID, AWAY_TEAM_NAME, emptyLines()),
+    });
     const tableStart = html.indexOf("<table");
     const tableEnd = html.indexOf("</table>");
     const beforeTable = html.slice(0, tableStart);
     const table = html.slice(tableStart, tableEnd);
 
-    expect(beforeTable).toContain("Przewidywany skład");
-    expect(beforeTable).toContain("Źródło: model");
+    expect(beforeTable).not.toContain("Przewidywany skład");
     expect(beforeTable).toContain("Merzlikins E.");
-    expect(beforeTable).toContain("62%");
+    expect(beforeTable).toContain("starter");
     expect(beforeTable).toContain("Greaves J.");
-    expect(beforeTable).toContain("38%");
+    expect(beforeTable).toContain("rezerwowy");
     expect(table).toContain("Merzlikins E.");
     expect(table).toContain("Fantilli A.");
     expect(table).not.toContain("Greaves J.");
     expect(html).not.toContain("Marchenko K.");
     expect(html).not.toContain(">Start<");
     expect(html.split("Greaves J.").length - 1).toBe(1);
-    expect(html).toContain("Skład potwierdzony");
-    expect(html).toContain("Predykcja pierwotna");
+    expect(html).not.toContain("Predykcja pierwotna");
   });
 });
