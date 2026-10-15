@@ -328,6 +328,15 @@ export interface SportPointsDistributionSummary {
   average_away: number;
 }
 
+export interface HockeyGoalsDistribution {
+  total_matches: number;
+  under_5: number;
+  exactly_5: number;
+  exactly_6: number;
+  exactly_7: number;
+  over_7: number;
+}
+
 export interface SportLeagueStatsResponse {
   league_id: number;
   season_id: number;
@@ -335,6 +344,7 @@ export interface SportLeagueStatsResponse {
   category: string;
   rows: SportLeagueStatRow[];
   distribution: SportPointsDistributionSummary | null;
+  goals_distribution?: HockeyGoalsDistribution | null;
 }
 
 export interface ApiErrorBody {

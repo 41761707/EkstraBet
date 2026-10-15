@@ -38,6 +38,10 @@ from models.pipeline.core.config import ModelRunConfig
 from models.pipeline.core.config import load_model_config
 from models.pipeline.core.registry import RegistryError
 from models.pipeline.core.registry import get_trainer
+from models.pipeline.data.match_history_repository import (
+    ensure_predictions_allowed)
+from models.pipeline.data.match_history_repository import (
+    fetch_match_league_ids)
 from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_model_id
 from models.pipeline.core.registry import validate_events
@@ -678,6 +682,7 @@ def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
         season_id=args.season_id,
         as_of_date=args.as_of,
         match_id=args.match_id)
+    _guard_prediction_leagues([matchup])
     predictor = _future_predictor(args)
     context = _build_predict_history_context(predictor, [matchup])
     prediction = predictor.predict_pair(matchup, context=context)
@@ -698,6 +703,7 @@ def run_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
 
     raw_matchups = _load_batch_matchups(args)
     matchups = [MatchupInput.model_validate(item) for item in raw_matchups]
+    _guard_prediction_leagues(matchups)
     predictor = _future_predictor(args)
     context = _build_predict_history_context(predictor, matchups)
     feature_cache: FeatureCache = {}
@@ -744,7 +750,23 @@ def run_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _guard_prediction_leagues(
+        matchups: Sequence[MatchupInput]) -> None:
+    """Block model predictions when a matchup belongs to league 42."""
+    unresolved = [
+        matchup.match_id
+        for matchup in matchups
+        if matchup.league_id is None and matchup.match_id is not None]
+    known = fetch_match_league_ids(unresolved)
+    for matchup in matchups:
+        league_id = matchup.league_id
+        if league_id is None and matchup.match_id is not None:
+            league_id = known.get(matchup.match_id)
+        ensure_predictions_allowed(league_id)
+
+
 def _load_batch_matchups(args: argparse.Namespace) -> list[dict[str, Any]]:
+    ensure_predictions_allowed(getattr(args, "league_id", None))
     if args.pairs_file is not None:
         with args.pairs_file.open(encoding="utf-8") as handle:
             payload = json.load(handle)

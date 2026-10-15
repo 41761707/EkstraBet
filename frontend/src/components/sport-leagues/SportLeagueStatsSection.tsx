@@ -1,20 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { HockeyLeagueStatsPanels } from "@/components/sport-leagues/HockeyLeagueStatsPanels";
 import { StatusMessage } from "@/components/StatusMessage";
-import { HOCKEY_SPORT_ID, type SportLeagueStatsResponse } from "@/types/api";
+import {
+  HOCKEY_SPORT_ID,
+  type SportLeagueStatsResponse,
+  type SportPointsDistributionSummary,
+} from "@/types/api";
 
 interface SportLeagueStatsSectionProps {
   sportId: number;
   stats: Record<string, SportLeagueStatsResponse | null>;
 }
 
+type StatRow = SportLeagueStatsResponse["rows"][number];
+type StatColumn = { key: keyof StatRow; label: string };
+
 function StatsTable({
   rows,
   columns,
 }: {
   rows: SportLeagueStatsResponse["rows"];
-  columns: { key: keyof SportLeagueStatsResponse["rows"][number]; label: string }[];
+  columns: StatColumn[];
 }) {
   if (rows.length === 0) {
     return (
@@ -53,6 +61,97 @@ function StatsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PointsSummary({
+  distribution,
+}: {
+  distribution: SportPointsDistributionSummary;
+}) {
+  const cards = [
+    { label: "Średnia punktów na mecz", value: distribution.average_total },
+    { label: "Mediana", value: distribution.median_total },
+    {
+      label: "Min / max",
+      value: `${distribution.min_total} / ${distribution.max_total}`,
+    },
+    { label: "Średnia punktów gospodarzy", value: distribution.average_home },
+    { label: "Średnia punktów gości", value: distribution.average_away },
+  ];
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="rounded-xl border border-border bg-surface p-4"
+        >
+          <p className="text-xs text-muted">{card.label}</p>
+          <p className="text-2xl font-semibold text-text">{card.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function categoryColumns(
+  sportId: number,
+  activeTab: string,
+): StatColumn[] {
+  if (activeTab === "shots" || activeTab === "goals") {
+    return [
+      { key: "team_name", label: "Drużyna" },
+      { key: "team_shortcut", label: "Skrót" },
+      { key: "avg_for", label: "Śr. za" },
+      { key: "avg_against", label: "Śr. przeciw" },
+      { key: "matches_played", label: "Mecze" },
+    ];
+  }
+  if (activeTab === "shooting") {
+    return [
+      { key: "team_name", label: "Drużyna" },
+      { key: "team_shortcut", label: "Skrót" },
+      { key: "field_goal_pct", label: "FG%" },
+      { key: "three_point_pct", label: "3P%" },
+      { key: "matches_played", label: "Mecze" },
+    ];
+  }
+  if (sportId === HOCKEY_SPORT_ID) {
+    return [
+      { key: "team_name", label: "Drużyna" },
+      { key: "team_shortcut", label: "Skrót" },
+      { key: "over_4_5_pct", label: "Over 4.5" },
+      { key: "over_5_5_pct", label: "Over 5.5" },
+      { key: "over_6_5_pct", label: "Over 6.5" },
+      { key: "over_7_5_pct", label: "Over 7.5" },
+    ];
+  }
+  return [
+    { key: "team_name", label: "Drużyna" },
+    { key: "team_shortcut", label: "Skrót" },
+    { key: "over_210_5_pct", label: "Over 210.5" },
+    { key: "over_220_5_pct", label: "Over 220.5" },
+    { key: "over_230_5_pct", label: "Over 230.5" },
+  ];
+}
+
+function CategoryBody({
+  sportId,
+  activeTab,
+  payload,
+}: {
+  sportId: number;
+  activeTab: string;
+  payload: SportLeagueStatsResponse;
+}) {
+  if (activeTab === "points" && payload.distribution) {
+    return <PointsSummary distribution={payload.distribution} />;
+  }
+  return (
+    <StatsTable
+      rows={payload.rows}
+      columns={categoryColumns(sportId, activeTab)}
+    />
   );
 }
 
@@ -99,83 +198,21 @@ export function SportLeagueStatsSection({
           title="Brak statystyk"
           message="Nie udało się załadować statystyk ligowych."
         />
-      ) : activeTab === "points" && payload.distribution ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-muted">Średnia punktów na mecz</p>
-            <p className="text-2xl font-semibold text-text">
-              {payload.distribution.average_total}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-muted">Mediana</p>
-            <p className="text-2xl font-semibold text-text">
-              {payload.distribution.median_total}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-muted">Min / max</p>
-            <p className="text-2xl font-semibold text-text">
-              {payload.distribution.min_total} / {payload.distribution.max_total}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-muted">Średnia punktów gospodarzy</p>
-            <p className="text-2xl font-semibold text-text">
-              {payload.distribution.average_home}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-muted">Średnia punktów gości</p>
-            <p className="text-2xl font-semibold text-text">
-              {payload.distribution.average_away}
-            </p>
-          </div>
-        </div>
-      ) : activeTab === "shots" || activeTab === "goals" ? (
-        <StatsTable
-          rows={payload.rows}
-          columns={[
-            { key: "team_name", label: "Drużyna" },
-            { key: "team_shortcut", label: "Skrót" },
-            { key: "avg_for", label: "Śr. za" },
-            { key: "avg_against", label: "Śr. przeciw" },
-            { key: "matches_played", label: "Mecze" },
-          ]}
-        />
-      ) : activeTab === "shooting" ? (
-        <StatsTable
-          rows={payload.rows}
-          columns={[
-            { key: "team_name", label: "Drużyna" },
-            { key: "team_shortcut", label: "Skrót" },
-            { key: "field_goal_pct", label: "FG%" },
-            { key: "three_point_pct", label: "3P%" },
-            { key: "matches_played", label: "Mecze" },
-          ]}
-        />
       ) : (
-        <StatsTable
-          rows={payload.rows}
-          columns={
-            sportId === HOCKEY_SPORT_ID
-              ? [
-                  { key: "team_name", label: "Drużyna" },
-                  { key: "team_shortcut", label: "Skrót" },
-                  { key: "over_4_5_pct", label: "Over 4.5" },
-                  { key: "over_5_5_pct", label: "Over 5.5" },
-                  { key: "over_6_5_pct", label: "Over 6.5" },
-                  { key: "over_7_5_pct", label: "Over 7.5" },
-                ]
-              : [
-                  { key: "team_name", label: "Drużyna" },
-                  { key: "team_shortcut", label: "Skrót" },
-                  { key: "over_210_5_pct", label: "Over 210.5" },
-                  { key: "over_220_5_pct", label: "Over 220.5" },
-                  { key: "over_230_5_pct", label: "Over 230.5" },
-                ]
-          }
-        />
+        <div className="space-y-4">
+          {sportId === HOCKEY_SPORT_ID ? (
+            <HockeyLeagueStatsPanels
+              category={activeTab}
+              rows={payload.rows}
+              goalsDistribution={payload.goals_distribution}
+            />
+          ) : null}
+          <CategoryBody
+            sportId={sportId}
+            activeTab={activeTab}
+            payload={payload}
+          />
+        </div>
       )}
     </div>
   );

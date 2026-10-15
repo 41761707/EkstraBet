@@ -1,3 +1,5 @@
+import { FavoriteBadge } from "@/components/charts/FavoriteBadge";
+
 import { buildPieSlicesFromSegments } from "@/lib/pieSlices";
 import { CHART_COLOR_NEUTRAL } from "@/lib/chartColors";
 import { formatProbability } from "@/lib/format";
@@ -22,7 +24,7 @@ export function ProbabilityDonutChart({
   return (
     <article className="rounded-xl border border-border bg-surface p-4">
       <h3 className="mb-3 font-semibold text-accent-text">{title}</h3>
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-5">
+      <div className="flex flex-col items-center gap-4">
         <svg
           viewBox="0 0 100 100"
           className="h-36 w-36 shrink-0 drop-shadow-sm"
@@ -54,7 +56,7 @@ export function ProbabilityDonutChart({
                   : ""
               }`}
             >
-              <span className="flex min-w-0 items-center gap-2 text-muted">
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-muted">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: segment.color }}
@@ -62,12 +64,8 @@ export function ProbabilityDonutChart({
                 />
                 <span className="truncate" title={segment.label}>
                   {segment.label}
-                  {segment.isFavorite ? (
-                    <span className="ml-1 text-[10px] uppercase tracking-wide text-accent-text">
-                      faworyt
-                    </span>
-                  ) : null}
                 </span>
+                {segment.isFavorite ? <FavoriteBadge /> : null}
               </span>
               <span className="shrink-0 tabular-nums font-medium text-text">
                 {formatProbability(segment.probability)}

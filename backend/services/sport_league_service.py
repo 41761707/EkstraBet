@@ -229,6 +229,7 @@ def get_sport_league_stats(
         return None
 
     if sport_id == HOCKEY_SPORT_ID:
+        goals_distribution = None
         if category == "shots":
             rows = hockey_league_stats.fetch_hockey_shots_stats(
                 league_id, season_id, phase)
@@ -238,9 +239,17 @@ def get_sport_league_stats(
         elif category == "over_under":
             rows = hockey_league_stats.fetch_hockey_over_under_stats(
                 league_id, season_id, phase)
+            goals_distribution = (
+                hockey_league_stats.fetch_hockey_goals_distribution(
+                    league_id, season_id, phase))
         else:
             return None
-        return {"category": category, "rows": rows, "distribution": None}
+        return {
+            "category": category,
+            "rows": rows,
+            "distribution": None,
+            "goals_distribution": goals_distribution
+        }
 
     if category == "shooting":
         rows = basketball_league_stats.fetch_basketball_shooting_stats(

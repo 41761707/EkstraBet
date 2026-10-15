@@ -61,6 +61,15 @@ describe("HockeyPlayerPredictionsPanel", () => {
     expect(html).toContain("18.0%");
     expect(html).toContain("Predykcja ostateczna");
     expect(html).toContain("Beta:");
+    expect(html).toContain("Oczekiwane strzały");
+    expect(html).toContain("Oczekiwane gole");
+    expect(html).toContain("0.30");
+    expect(html).toContain("Prawdopodobieństwo gola");
+    expect(html).toContain("Prawdopodobieństwo asysty");
+    expect(html).toContain("Prawdopodobieństwo punktu");
+    expect(html).toContain("faworyt");
+    expect(html).toContain("border-accent/70");
+    expect(html).toContain("text-accent-text");
     expect(html).toContain("Brak predykcji");
   });
 

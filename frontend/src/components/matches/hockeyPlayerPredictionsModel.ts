@@ -1,3 +1,12 @@
+import {
+  toRelativeBars,
+  type ProbabilityBarPoint,
+} from "@/components/predictions/predictionChartModel";
+import {
+  CHART_COLOR_DRAW,
+  CHART_COLOR_POSITIVE,
+  CHART_COLOR_SHOTS,
+} from "@/lib/chartColors";
 import type {
   HockeyPlayerPrediction,
   HockeyPlayerPredictionLine,
@@ -62,6 +71,124 @@ export function toPropColumns(
       TWO_POINTS_LINE,
     ),
   };
+}
+
+export type PlayerChartMetric = "goal" | "assist" | "point";
+
+export interface ExpectedValueBarPoint {
+  id: string;
+  label: string;
+  value: number;
+  /** Relative bar length 0–100 against the highest player. */
+  barPercent: number;
+  color: string;
+  isFavorite: boolean;
+}
+
+/** Horizontal bars for one counting stat, highest probability first. */
+export function buildPlayerProbabilityBars(
+  players: HockeyPlayerPrediction[],
+  metric: PlayerChartMetric,
+): ProbabilityBarPoint[] {
+  const items = players.flatMap((player) => {
+    const percent = metricPercent(toPropColumns(player), metric);
+    if (percent == null || !Number.isFinite(percent)) {
+      return [];
+    }
+    return [
+      {
+        id: String(player.player_id),
+        label: player.player_name,
+        probability: percent / 100,
+        color: CHART_COLOR_POSITIVE,
+      },
+    ];
+  });
+  items.sort((left, right) => {
+    if (right.probability !== left.probability) {
+      return right.probability - left.probability;
+    }
+    return left.label.localeCompare(right.label, "pl");
+  });
+  return toRelativeBars(items);
+}
+
+/** Expected shots on goal from any SOG line, highest first. */
+export function buildExpectedShotBars(
+  players: HockeyPlayerPrediction[],
+): ExpectedValueBarPoint[] {
+  return buildExpectedValueBars(
+    players,
+    (player) => toPropColumns(player).expectedShots,
+    CHART_COLOR_SHOTS,
+  );
+}
+
+/** Expected goals from the goals-line Poisson mean, highest first. */
+export function buildExpectedGoalBars(
+  players: HockeyPlayerPrediction[],
+): ExpectedValueBarPoint[] {
+  return buildExpectedValueBars(players, expectedGoals, CHART_COLOR_DRAW);
+}
+
+function buildExpectedValueBars(
+  players: HockeyPlayerPrediction[],
+  readValue: (player: HockeyPlayerPrediction) => number | null,
+  color: string,
+): ExpectedValueBarPoint[] {
+  const items = players.flatMap((player) => {
+    const value = readValue(player);
+    if (value == null || !Number.isFinite(value)) {
+      return [];
+    }
+    return [
+      {
+        id: String(player.player_id),
+        label: player.player_name,
+        value,
+      },
+    ];
+  });
+  items.sort((left, right) => {
+    if (right.value !== left.value) {
+      return right.value - left.value;
+    }
+    return left.label.localeCompare(right.label, "pl");
+  });
+  const maxValue = Math.max(...items.map((item) => item.value), 0);
+  return items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    value: item.value,
+    barPercent: maxValue > 0 ? (item.value / maxValue) * 100 : 0,
+    color,
+    isFavorite: item.value === maxValue && maxValue > 0,
+  }));
+}
+
+function expectedGoals(player: HockeyPlayerPrediction): number | null {
+  const value = matchingLine(
+    player.lines,
+    GOALS_EVENT_ID,
+    SINGLE_COUNT_LINE,
+  )?.expected_value;
+  if (value == null || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function metricPercent(
+  columns: HockeyPlayerPropColumns,
+  metric: PlayerChartMetric,
+): number | null {
+  if (metric === "goal") {
+    return columns.goalProbability;
+  }
+  if (metric === "assist") {
+    return columns.assistProbability;
+  }
+  return columns.pointProbability;
 }
 
 export function formatExpectedShots(value: number | null): string {

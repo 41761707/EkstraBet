@@ -1,6 +1,7 @@
 "use client";
 
 import { HockeyMatchBoxscorePanel } from "@/components/matches/HockeyMatchBoxscorePanel";
+import { HockeyPredictionCharts } from "@/components/matches/HockeyPredictionCharts";
 import { HockeyMatchEventsPanel } from "@/components/matches/HockeyMatchEventsPanel";
 import { HockeyMatchStatsPanel } from "@/components/matches/HockeyMatchStatsPanel";
 import { HockeyPlayerPredictionsPanel } from "@/components/matches/HockeyPlayerPredictionsPanel";
@@ -91,6 +92,13 @@ function PredictionsTab({ match }: { match: MatchDetails }) {
 
   return (
     <div className="space-y-4">
+      {match.sport_id === HOCKEY_SPORT_ID ? (
+        <HockeyPredictionCharts
+          predictions={match.final_predictions}
+          homeTeamLabel={homeTeamLabel}
+          awayTeamLabel={awayTeamLabel}
+        />
+      ) : null}
       {match.prediction_analysis ? (
         <PredictionSimulationResult
           result={match.prediction_analysis}

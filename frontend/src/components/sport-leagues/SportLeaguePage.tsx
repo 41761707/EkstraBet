@@ -187,6 +187,8 @@ export async function SportLeaguePage({
         <ExpandableSection title="Tabele ligowe">
           <SportStandingsSection
             sportId={sportId}
+            seasonId={filters.seasonId}
+            leagueId={league.id}
             overallHockey={overallStandings.hockey_standings ?? undefined}
             homeHockey={homeStandings.hockey_standings ?? undefined}
             awayHockey={awayStandings.hockey_standings ?? undefined}

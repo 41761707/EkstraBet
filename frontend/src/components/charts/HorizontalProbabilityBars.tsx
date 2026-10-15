@@ -1,3 +1,5 @@
+import { FavoriteBadge } from "@/components/charts/FavoriteBadge";
+
 import { formatProbability } from "@/lib/format";
 import type { ProbabilityBarPoint } from "@/components/predictions/predictionChartModel";
 
@@ -31,17 +33,17 @@ export function HorizontalProbabilityBars({
             <div key={point.id} className="space-y-1">
               <div className="flex items-center justify-between gap-3 text-xs text-muted">
                 <span
-                  className={`truncate ${
-                    point.isFavorite ? "font-semibold text-accent-text" : ""
-                  }`}
+                  className="flex min-w-0 items-center gap-1.5"
                   title={point.label}
                 >
-                  {point.label}
-                  {point.isFavorite ? (
-                    <span className="ml-1 text-[10px] uppercase tracking-wide">
-                      faworyt
-                    </span>
-                  ) : null}
+                  <span
+                    className={`truncate ${
+                      point.isFavorite ? "font-semibold text-accent-text" : ""
+                    }`}
+                  >
+                    {point.label}
+                  </span>
+                  {point.isFavorite ? <FavoriteBadge /> : null}
                 </span>
                 <span className="shrink-0 tabular-nums font-semibold text-text">
                   {formatProbability(point.probability)}
