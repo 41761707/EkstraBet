@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExpandableSection } from "@/components/ExpandableSection";
+import { HockeyLeagueEventRankings } from "@/components/hockey/HockeyLeagueEventRankings";
 import { LeagueHeader } from "@/components/leagues/LeagueHeader";
 import { MatchList } from "@/components/MatchList";
 import { SportLeagueDateFilter } from "@/components/sport-leagues/SportLeagueDateFilter";
@@ -203,6 +204,8 @@ export async function SportLeaguePage({
         <ExpandableSection title="Statystyki ligowe">
           <SportLeagueStatsSection sportId={sportId} stats={statsMap} />
         </ExpandableSection>
+
+        {sportId === HOCKEY_SPORT_ID ? <HockeyLeagueEventRankings /> : null}
       </div>
     </div>
   );

@@ -733,6 +733,36 @@ export interface HockeyPlayerPredictions {
   away: HockeyPlayerPrediction[];
 }
 
+export type HockeyPlayerEventMetric = "point" | "goal" | "assist" | "shot";
+
+export interface HockeyPlayerEventRankingRow {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_name: string;
+  team_shortcut: string | null;
+  match_id: number;
+  game_date: string;
+  opponent_name: string;
+  opponent_shortcut: string | null;
+  is_home: boolean;
+  probability: number;
+  expected_shots: number | null;
+}
+
+export interface HockeyPlayerEventRanking {
+  metric: HockeyPlayerEventMetric;
+  label: string;
+  hint: string;
+  rows: HockeyPlayerEventRankingRow[];
+}
+
+export interface HockeyPlayerEventRankingsResponse {
+  match_count: number;
+  rankings: HockeyPlayerEventRanking[];
+}
+
 export interface HockeyMatchLineups {
   home: HockeyTeamLineup;
   away: HockeyTeamLineup;

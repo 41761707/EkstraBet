@@ -71,6 +71,7 @@ import type {
   StandingScope,
   TeamProfile,
   HockeyTeamRoster,
+  HockeyPlayerEventRankingsResponse,
   FilterOption,
   PlayerSportsListResponse,
   PlayerCountriesResponse,
@@ -412,6 +413,16 @@ export async function getDailyMatches(
   return fetchApi<DailyMatchesResponse>("/matches/daily", {
     match_date: matchDate,
   });
+}
+
+/** Upcoming NHL skater rankings. Omit limit for the full boards. */
+export async function getHockeyPlayerEventRankings(
+  limit?: number,
+): Promise<HockeyPlayerEventRankingsResponse> {
+  return fetchApi<HockeyPlayerEventRankingsResponse>(
+    "/predictions/hockey/player-events",
+    { limit },
+  );
 }
 
 export async function getBetRecommendations(options?: {
