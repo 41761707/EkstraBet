@@ -58,5 +58,7 @@ def test_season_stats_reject_a_playoff_round(monkeypatch) -> None:
     query, params = queries[0]
     assert "m.round = %s" in query
     assert "m.result <> %s" in query
+    assert "m.id AS match_id" in query
+    assert "m.game_date" in query
     assert REGULAR_SEASON_ROUND == 100
     assert params == (TEAM_ID, 12, "0", REGULAR_SEASON_ROUND)

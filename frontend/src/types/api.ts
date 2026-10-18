@@ -491,6 +491,26 @@ export interface TeamProfile {
   head_to_head: HeadToHeadSummary | null;
 }
 
+/** Counting stats for one player in one sample of games. */
+export interface HockeyPlayerCountingStats {
+  games_played: number;
+  goals: number;
+  assists: number;
+  points: number;
+  shots_on_goal: number;
+  shots_per_game: number | null;
+  average_toi: string | null;
+  save_percentage: number | null;
+  goals_against_average: number | null;
+}
+
+/** Season totals and the player's own recent regular-season games. */
+export interface HockeyPlayerStatWindows {
+  season: HockeyPlayerCountingStats;
+  last_5: HockeyPlayerCountingStats;
+  last_10: HockeyPlayerCountingStats;
+}
+
 /** One player on the current NHL roster, with season counting stats. */
 export interface HockeyRosterPlayer {
   player_id: number;
@@ -512,9 +532,11 @@ export interface HockeyRosterPlayer {
   assists: number;
   points: number;
   shots_on_goal: number;
+  shots_per_game: number | null;
   average_toi: string | null;
   save_percentage: number | null;
   goals_against_average: number | null;
+  stat_windows: HockeyPlayerStatWindows;
   in_last_lineup: boolean;
 }
 

@@ -8,6 +8,18 @@ import {
   playersOnPowerPlay,
   type PowerPlayUnit,
 } from "@/components/teams/hockeyPowerPlaySlots";
+import {
+  countingFor,
+  formatRosterStat,
+  nextRosterSortState,
+  rosterPlayerLabel,
+  ROSTER_STAT_WINDOWS,
+  sortRosterPlayers,
+  type RosterSortKey,
+  type RosterSortState,
+  type RosterStatKey,
+  type RosterStatWindow,
+} from "@/components/teams/hockeyRosterStats";
 import type { HockeyRosterPlayer, HockeyTeamRoster } from "@/types/api";
 
 const LINE_UNITS = [
@@ -37,16 +49,17 @@ const GOALIE_ROLES = {
   2: "Rezerwowy",
 } as const;
 
-const SKATER_COLUMNS: { key: StatKey; label: string; title: string }[] = [
+const SKATER_COLUMNS: { key: RosterStatKey; label: string; title: string }[] = [
   { key: "games_played", label: "M", title: "Mecze" },
   { key: "goals", label: "G", title: "Gole" },
   { key: "assists", label: "A", title: "Asysty" },
   { key: "points", label: "Pkt", title: "Punkty" },
   { key: "shots_on_goal", label: "SOG", title: "Strzały na bramkę" },
+  { key: "shots_per_game", label: "SOG/M", title: "Średnia strzałów na mecz" },
   { key: "average_toi", label: "TOI", title: "Średni czas na lodzie" },
 ];
 
-const GOALIE_COLUMNS: { key: StatKey; label: string; title: string }[] = [
+const GOALIE_COLUMNS: { key: RosterStatKey; label: string; title: string }[] = [
   { key: "save_percentage", label: "SV%", title: "Skuteczność obron" },
   {
     key: "goals_against_average",
@@ -55,21 +68,12 @@ const GOALIE_COLUMNS: { key: StatKey; label: string; title: string }[] = [
   },
 ];
 
-type StatKey =
-  | "games_played"
-  | "goals"
-  | "assists"
-  | "points"
-  | "shots_on_goal"
-  | "average_toi"
-  | "save_percentage"
-  | "goals_against_average";
-
-type StatColumn = { key: StatKey; label: string; title: string };
+type StatColumn = { key: RosterStatKey; label: string; title: string };
 
 export function HockeyRosterBoard({ roster }: { roster: HockeyTeamRoster }) {
   const [unitId, setUnitId] = useState<UnitId>("1");
   const [statsScope, setStatsScope] = useState<StatsScope>("unit");
+  const [statsWindow, setStatsWindow] = useState<RosterStatWindow>("season");
   const sheet = sheetFor(roster, unitId);
   const statsPlayers = statsScope === "unit" ? sheet.unitPlayers : allPlayers(roster);
 
@@ -82,15 +86,17 @@ export function HockeyRosterBoard({ roster }: { roster: HockeyTeamRoster }) {
         showBack={sheet.showBack}
         overflow={sheet.overflow}
       />
-      <GoalieRow players={playersIn(roster, "G")} />
+      <GoalieRow players={playersIn(roster, "G")} windowId={statsWindow} />
       <RosterGroup
         title="Poza składem"
         players={playersIn(roster, "outside")}
       />
       <StatsPanel
         scope={statsScope}
+        windowId={statsWindow}
         players={statsPlayers}
         onScope={setStatsScope}
+        onWindow={setStatsWindow}
       />
       <RosterGroup
         title="Kontuzjowani"
@@ -201,7 +207,7 @@ function SkaterCard({
   return (
     <div className="rounded-xl border border-border bg-surface px-3 py-3 text-center">
       <div className="text-xs text-muted">{player.position || position}</div>
-      <div className="font-medium text-text">{playerLabel(player)}</div>
+      <div className="font-medium text-text">{rosterPlayerLabel(player)}</div>
       <div className="text-xs text-muted">
         {player.number === null ? "—" : `#${player.number}`}
       </div>
@@ -209,7 +215,13 @@ function SkaterCard({
   );
 }
 
-function GoalieRow({ players }: { players: HockeyRosterPlayer[] }) {
+function GoalieRow({
+  players,
+  windowId,
+}: {
+  players: HockeyRosterPlayer[];
+  windowId: RosterStatWindow;
+}) {
   if (players.length === 0) {
     return null;
   }
@@ -219,30 +231,37 @@ function GoalieRow({ players }: { players: HockeyRosterPlayer[] }) {
       <h3 className="text-sm font-semibold text-text">Bramkarze</h3>
       <div className="flex flex-wrap justify-center gap-3">
         {orderedGoalies(players).map((player) => (
-          <GoalieCard key={player.player_id} player={player} />
+          <GoalieCard key={player.player_id} player={player} windowId={windowId} />
         ))}
       </div>
     </section>
   );
 }
 
-function GoalieCard({ player }: { player: HockeyRosterPlayer }) {
+function GoalieCard({
+  player,
+  windowId,
+}: {
+  player: HockeyRosterPlayer;
+  windowId: RosterStatWindow;
+}) {
   const role = goalieRole(player.line);
   const border = role === "Podstawowy" ? "border-accent" : "border-border";
+  const counting = countingFor(player, windowId);
   return (
     <div className={`min-w-40 rounded-xl border bg-surface px-4 py-3 text-center ${border}`}>
       <div className="text-xs text-muted">G</div>
       {role ? <GoalieRoleBadge role={role} /> : null}
-      <div className="font-medium text-text">{playerLabel(player)}</div>
+      <div className="font-medium text-text">{rosterPlayerLabel(player)}</div>
       <div className="text-xs text-muted">
         {player.number === null ? "—" : `#${player.number}`}
       </div>
       <div className="mt-1 text-sm text-text">
-        {statText(player, "save_percentage")}
+        {formatRosterStat(player, counting, "save_percentage")}
         <span className="text-muted"> SV%</span>
       </div>
       <div className="text-sm text-text">
-        {statText(player, "goals_against_average")}
+        {formatRosterStat(player, counting, "goals_against_average")}
         <span className="text-muted"> GAA</span>
       </div>
     </div>
@@ -295,24 +314,41 @@ function RosterGroup({
   return (
     <section className="space-y-2">
       <h3 className="text-sm font-semibold text-text">{title}</h3>
-      <RosterTable players={players} />
+      <RosterTable players={players} windowId="season" />
     </section>
   );
 }
 
 function StatsPanel({
   scope,
+  windowId,
   players,
   onScope,
+  onWindow,
 }: {
   scope: StatsScope;
+  windowId: RosterStatWindow;
   players: HockeyRosterPlayer[];
   onScope: (scope: StatsScope) => void;
+  onWindow: (windowId: RosterStatWindow) => void;
 }) {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">Statystyki</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-text">Statystyki</h3>
+          <div className="flex gap-2" role="group" aria-label="Okno statystyk">
+            {ROSTER_STAT_WINDOWS.map((item) => (
+              <ScopeButton
+                key={item.id}
+                label={item.label}
+                title={item.title}
+                active={windowId === item.id}
+                onClick={() => onWindow(item.id)}
+              />
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2">
           <ScopeButton
             label="Wybrana linia"
@@ -333,7 +369,7 @@ function StatsPanel({
           message="Ta linia nie ma jeszcze wpisanych zawodników."
         />
       ) : (
-        <RosterTable players={players} />
+        <RosterTable players={players} windowId={windowId} />
       )}
     </section>
   );
@@ -342,15 +378,19 @@ function StatsPanel({
 function ScopeButton({
   label,
   active,
+  title,
   onClick,
 }: {
   label: string;
   active: boolean;
+  title?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      title={title}
+      aria-pressed={active}
       onClick={onClick}
       className={`rounded-full px-3 py-1.5 text-sm transition ${
         active
@@ -363,30 +403,65 @@ function ScopeButton({
   );
 }
 
-function RosterTable({ players }: { players: HockeyRosterPlayer[] }) {
+const IDENTITY_COLUMNS: {
+  key: RosterSortKey;
+  label: string;
+  title: string;
+  align: "left" | "center";
+}[] = [
+  { key: "name", label: "Zawodnik", title: "Zawodnik", align: "left" },
+  { key: "position", label: "Poz", title: "Pozycja", align: "left" },
+  { key: "number", label: "#", title: "Numer", align: "center" },
+];
+
+function RosterTable({
+  players,
+  windowId,
+}: {
+  players: HockeyRosterPlayer[];
+  windowId: RosterStatWindow;
+}) {
+  const [sort, setSort] = useState<RosterSortState | null>(null);
   const columns = columnsFor(players);
+  const rows = sort === null ? players : sortRosterPlayers(players, windowId, sort);
+
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-sm">
         <thead className="bg-surface text-left text-muted">
           <tr>
-            <th className="px-3 py-2 font-medium">Zawodnik</th>
-            <th className="px-3 py-2 font-medium">Poz</th>
-            <th className="px-3 py-2 text-center font-medium">#</th>
-            {columns.map((column) => (
-              <th
+            {IDENTITY_COLUMNS.map((column) => (
+              <SortableHeader
                 key={column.key}
+                label={column.label}
                 title={column.title}
-                className="px-3 py-2 text-center font-medium"
-              >
-                {column.label}
-              </th>
+                sortKey={column.key}
+                sort={sort}
+                align={column.align}
+                onSort={(key) => setSort((current) => nextRosterSortState(current, key))}
+              />
+            ))}
+            {columns.map((column) => (
+              <SortableHeader
+                key={column.key}
+                label={column.label}
+                title={column.title}
+                sortKey={column.key}
+                sort={sort}
+                align="center"
+                onSort={(key) => setSort((current) => nextRosterSortState(current, key))}
+              />
             ))}
           </tr>
         </thead>
         <tbody>
-          {players.map((player) => (
-            <RosterRow key={player.player_id} columns={columns} player={player} />
+          {rows.map((player) => (
+            <RosterRow
+              key={player.player_id}
+              columns={columns}
+              player={player}
+              windowId={windowId}
+            />
           ))}
         </tbody>
       </table>
@@ -394,17 +469,73 @@ function RosterTable({ players }: { players: HockeyRosterPlayer[] }) {
   );
 }
 
+function SortableHeader({
+  label,
+  title,
+  sortKey,
+  sort,
+  align,
+  onSort,
+}: {
+  label: string;
+  title: string;
+  sortKey: RosterSortKey;
+  sort: RosterSortState | null;
+  align: "left" | "center";
+  onSort: (key: RosterSortKey) => void;
+}) {
+  const isActive = sort !== null && sort.key === sortKey;
+  const indicator = !isActive || sort === null ? "" : sort.direction === "asc" ? "↑" : "↓";
+  const justify = align === "center" ? "justify-center" : "";
+
+  return (
+    <th
+      aria-sort={ariaSort(sort, sortKey)}
+      className={`px-3 py-2 font-medium ${align === "center" ? "text-center" : "text-left"}`}
+    >
+      <button
+        type="button"
+        title={title}
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-text ${
+          isActive ? "text-text" : "text-muted"
+        } ${justify}`}
+      >
+        <span>{label}</span>
+        {indicator ? (
+          <span aria-hidden="true" className="text-accent-text">
+            {indicator}
+          </span>
+        ) : null}
+      </button>
+    </th>
+  );
+}
+
+function ariaSort(
+  sort: RosterSortState | null,
+  key: RosterSortKey,
+): "ascending" | "descending" | "none" {
+  if (sort === null || sort.key !== key) {
+    return "none";
+  }
+  return sort.direction === "asc" ? "ascending" : "descending";
+}
+
 function RosterRow({
   columns,
   player,
+  windowId,
 }: {
   columns: StatColumn[];
   player: HockeyRosterPlayer;
+  windowId: RosterStatWindow;
 }) {
+  const counting = countingFor(player, windowId);
   return (
     <tr className="border-t border-border">
       <td className="px-3 py-2 font-medium text-text">
-        <span>{playerLabel(player)}</span>
+        <span>{rosterPlayerLabel(player)}</span>
         <InjuryBadge player={player} />
         {player.injury_note ? (
           <span className="mt-0.5 block text-xs font-normal text-muted">
@@ -418,7 +549,7 @@ function RosterRow({
       </td>
       {columns.map((column) => (
         <td key={column.key} className="px-3 py-2 text-center text-text">
-          {statText(player, column.key)}
+          {formatRosterStat(player, counting, column.key)}
         </td>
       ))}
     </tr>
@@ -539,33 +670,3 @@ function isGoalie(player: HockeyRosterPlayer): boolean {
   return player.position.trim().toUpperCase() === GOALIE_POSITION;
 }
 
-function isGoalieStat(key: StatKey): boolean {
-  return key === "save_percentage" || key === "goals_against_average";
-}
-
-function playerLabel(player: HockeyRosterPlayer): string {
-  if (player.common_name) {
-    return player.common_name;
-  }
-  return `${player.first_name} ${player.last_name}`.trim();
-}
-
-function statText(player: HockeyRosterPlayer, key: StatKey): string {
-  if (isGoalieStat(key) && !isGoalie(player)) {
-    return "—";
-  }
-  if (key === "average_toi") {
-    return player.average_toi ?? "—";
-  }
-  if (key === "save_percentage") {
-    return player.save_percentage === null
-      ? "—"
-      : `${player.save_percentage.toFixed(2)}%`;
-  }
-  if (key === "goals_against_average") {
-    return player.goals_against_average === null
-      ? "—"
-      : player.goals_against_average.toFixed(2);
-  }
-  return String(player[key]);
-}

@@ -38,7 +38,9 @@ _STAT_COLUMNS = [
     "sog",
     "toi",
     "shots_against",
-    "shots_saved"]
+    "shots_saved",
+    "match_id",
+    "game_date"]
 
 
 def fetch_current_roster(team_id: int) -> pd.DataFrame:
@@ -113,7 +115,9 @@ def fetch_season_player_stats(
             s.sog,
             s.toi,
             s.shots_against,
-            s.shots_saved
+            s.shots_saved,
+            m.id AS match_id,
+            m.game_date
         FROM hockey_match_player_stats s
         INNER JOIN matches m ON m.id = s.match_id
         WHERE s.team_id = %s

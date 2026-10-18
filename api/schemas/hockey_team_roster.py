@@ -4,6 +4,42 @@ from pydantic import BaseModel
 from pydantic import Field
 
 
+class HockeyPlayerCountingStats(BaseModel):
+    """Counting stats for one player in one sample of games."""
+
+    games_played: int = Field(..., description="Games in this sample")
+    goals: int = Field(..., description="Goals in this sample")
+    assists: int = Field(..., description="Assists in this sample")
+    points: int = Field(..., description="Points in this sample")
+    shots_on_goal: int = Field(..., description="Shots on goal in this sample")
+    shots_per_game: float | None = Field(
+        None,
+        description="Shots on goal per game, or null when games played is 0")
+    average_toi: str | None = Field(
+        None,
+        description="Average time on ice as M:SS")
+    save_percentage: float | None = Field(
+        None,
+        description="Goalie save percentage, 0-100")
+    goals_against_average: float | None = Field(
+        None,
+        description="Goalie goals against per 60 minutes")
+
+
+class HockeyPlayerStatWindows(BaseModel):
+    """Season totals and the player's own recent games."""
+
+    season: HockeyPlayerCountingStats = Field(
+        ...,
+        description="Full regular season for this team")
+    last_5: HockeyPlayerCountingStats = Field(
+        ...,
+        description="The player's newest 5 regular-season games")
+    last_10: HockeyPlayerCountingStats = Field(
+        ...,
+        description="The player's newest 10 regular-season games")
+
+
 class HockeyPlayerRosterResponse(BaseModel):
     """One player on the current hockey roster."""
 
@@ -30,6 +66,9 @@ class HockeyPlayerRosterResponse(BaseModel):
     assists: int = Field(..., description="Season assists")
     points: int = Field(..., description="Season points")
     shots_on_goal: int = Field(..., description="Season shots on goal")
+    shots_per_game: float | None = Field(
+        None,
+        description="Season shots on goal per game")
     average_toi: str | None = Field(
         None,
         description="Average time on ice as M:SS")
@@ -39,6 +78,9 @@ class HockeyPlayerRosterResponse(BaseModel):
     goals_against_average: float | None = Field(
         None,
         description="Goalie goals against per 60 minutes")
+    stat_windows: HockeyPlayerStatWindows = Field(
+        ...,
+        description="Season, last 5 and last 10 counting stats")
     in_last_lineup: bool = Field(
         ...,
         description="Whether the player dressed in the last played match")

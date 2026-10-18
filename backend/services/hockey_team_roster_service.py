@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 import pandas as pd
@@ -37,6 +38,10 @@ _GOALIE_DEPTH = frozenset({1, 2})
 _POWER_PLAY_UNITS = frozenset({1, 2})
 _POSITION_ORDER = {"LW": 0, "C": 1, "RW": 2, "D": 3, "G": 4}
 _SECONDS_PER_HOUR = 3600
+_SEASON_WINDOW = "season"
+_RECENT_WINDOW_SIZES = (
+    ("last_5", 5),
+    ("last_10", 10))
 
 
 class HockeyRosterUnavailableError(Exception):
@@ -217,14 +222,50 @@ def _match_rows(last_match: pd.DataFrame) -> dict[int, dict[str, Any]]:
 def _aggregate_stats(frame: pd.DataFrame) -> dict[int, dict[str, Any]]:
     if frame.empty:
         return {}
-    totals: dict[int, dict[str, Any]] = {}
-    for row in frame.itertuples(index=False):
-        player_id = int(row.player_id)
-        bucket = totals.setdefault(player_id, _stat_bucket())
-        _add_counting(bucket, row)
     return {
-        player_id: _finish_stats(bucket)
-        for player_id, bucket in totals.items()}
+        player_id: _player_stat_block(rows)
+        for player_id, rows in _rows_by_player(frame).items()}
+
+
+def _rows_by_player(frame: pd.DataFrame) -> dict[int, list[Any]]:
+    grouped: dict[int, list[Any]] = {}
+    for row in frame.itertuples(index=False):
+        grouped.setdefault(int(row.player_id), []).append(row)
+    return grouped
+
+
+def _player_stat_block(rows: list[Any]) -> dict[str, Any]:
+    # Ostatnie N to występy tego zawodnika, nie mecze całego klubu.
+    ordered = sorted(rows, key=_recency_key, reverse=True)
+    season = _finish_stats(_sum_rows(ordered))
+    windows = {_SEASON_WINDOW: season}
+    for name, limit in _RECENT_WINDOW_SIZES:
+        windows[name] = _finish_stats(_sum_rows(ordered[:limit]))
+    return {
+        **season,
+        "stat_windows": windows
+    }
+
+
+def _recency_key(row: Any) -> tuple[datetime.date, int]:
+    return (_played_on(row.game_date), _as_int(row.match_id))
+
+
+def _played_on(value: object) -> datetime.date:
+    if value is None or pd.isna(value):
+        return datetime.date.min
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    return datetime.date.fromisoformat(str(value)[:10])
+
+
+def _sum_rows(rows: list[Any]) -> dict[str, Any]:
+    bucket = _stat_bucket()
+    for row in rows:
+        _add_counting(bucket, row)
+    return bucket
 
 
 def _add_counting(bucket: dict[str, Any], row: Any) -> None:
@@ -250,6 +291,9 @@ def _finish_stats(bucket: dict[str, Any]) -> dict[str, Any]:
         "assists": bucket["assists"],
         "points": bucket["points"],
         "shots_on_goal": bucket["sog"],
+        "shots_per_game": _shots_per_game(
+            bucket["sog"],
+            bucket["games"]),
         "average_toi": _format_average_toi(
             bucket["toi_seconds"],
             bucket["toi_games"]),
@@ -270,6 +314,12 @@ def _goalie_rates(
     goals_against = shots - saved
     average = goals_against * _SECONDS_PER_HOUR / bucket["toi_seconds"]
     return save_percentage, round(average, 2)
+
+
+def _shots_per_game(shots: int, games: int) -> float | None:
+    if games <= 0:
+        return None
+    return round(shots / games, 2)
 
 
 def _format_average_toi(total_seconds: int, games: int) -> str | None:
@@ -295,16 +345,7 @@ def _stat_bucket() -> dict[str, Any]:
 
 
 def _zero_stats() -> dict[str, Any]:
-    return {
-        "games_played": 0,
-        "goals": 0,
-        "assists": 0,
-        "points": 0,
-        "shots_on_goal": 0,
-        "average_toi": None,
-        "save_percentage": None,
-        "goals_against_average": None
-    }
+    return _player_stat_block([])
 
 
 def _empty_stats() -> pd.DataFrame:
@@ -316,7 +357,9 @@ def _empty_stats() -> pd.DataFrame:
         "sog",
         "toi",
         "shots_against",
-        "shots_saved"])
+        "shots_saved",
+        "match_id",
+        "game_date"])
 
 
 def _player_sort_key(player: dict[str, Any]) -> tuple[object, ...]:

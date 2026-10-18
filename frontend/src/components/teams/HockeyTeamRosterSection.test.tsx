@@ -2,34 +2,72 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { HockeyTeamRosterSection } from "@/components/teams/HockeyTeamRosterSection";
-import type { HockeyRosterPlayer, HockeyTeamRoster } from "@/types/api";
+import type {
+  HockeyPlayerCountingStats,
+  HockeyRosterPlayer,
+  HockeyTeamRoster,
+} from "@/types/api";
+
+function counting(
+  overrides: Partial<HockeyPlayerCountingStats> = {},
+): HockeyPlayerCountingStats {
+  const gamesPlayed = overrides.games_played ?? 10;
+  const shotsOnGoal = overrides.shots_on_goal ?? 28;
+  return {
+    games_played: gamesPlayed,
+    goals: overrides.goals ?? 4,
+    assists: overrides.assists ?? 6,
+    points: overrides.points ?? 10,
+    shots_on_goal: shotsOnGoal,
+    shots_per_game:
+      overrides.shots_per_game === undefined
+        ? shotsPerGame(shotsOnGoal, gamesPlayed)
+        : overrides.shots_per_game,
+    average_toi: overrides.average_toi ?? "18:12",
+    save_percentage: overrides.save_percentage ?? null,
+    goals_against_average: overrides.goals_against_average ?? null,
+  };
+}
+
+function shotsPerGame(shots: number, games: number): number | null {
+  if (games <= 0) {
+    return null;
+  }
+  return Number((shots / games).toFixed(2));
+}
 
 function player(
   overrides: Partial<HockeyRosterPlayer> = {},
 ): HockeyRosterPlayer {
+  const season = counting(overrides);
+  const lastFive = counting({
+    ...season,
+    games_played: 5,
+    shots_on_goal: 50,
+    shots_per_game: 9.99,
+    save_percentage: season.save_percentage === null ? null : 11.11,
+    goals_against_average: season.goals_against_average === null ? null : 8.88,
+  });
   return {
-    player_id: 1,
-    first_name: "Adam",
-    last_name: "Center",
-    common_name: "Center A.",
-    country: "Canada",
-    position: "C",
-    number: 19,
-    line: 1,
-    pp_unit: null,
-    is_injured: false,
-    injury_status: null,
-    injury_note: null,
-    games_played: 10,
-    goals: 4,
-    assists: 6,
-    points: 10,
-    shots_on_goal: 28,
-    average_toi: "18:12",
-    save_percentage: null,
-    goals_against_average: null,
-    in_last_lineup: true,
-    ...overrides,
+    player_id: overrides.player_id ?? 1,
+    first_name: overrides.first_name ?? "Adam",
+    last_name: overrides.last_name ?? "Center",
+    common_name: overrides.common_name ?? "Center A.",
+    country: overrides.country ?? "Canada",
+    position: overrides.position ?? "C",
+    number: overrides.number === undefined ? 19 : overrides.number,
+    line: overrides.line === undefined ? 1 : overrides.line,
+    pp_unit: overrides.pp_unit ?? null,
+    is_injured: overrides.is_injured ?? false,
+    injury_status: overrides.injury_status ?? null,
+    injury_note: overrides.injury_note ?? null,
+    ...season,
+    in_last_lineup: overrides.in_last_lineup ?? true,
+    stat_windows: overrides.stat_windows ?? {
+      season,
+      last_5: lastFive,
+      last_10: season,
+    },
   };
 }
 
@@ -226,7 +264,7 @@ describe("HockeyTeamRosterSection", () => {
     expect(html).toContain("Bramkarze");
     expect(html).toContain("90.00%");
     expect(html).toContain("2.00");
-    const stats = sliceBetween(html, "Statystyki", "Kontuzjowani");
+    const stats = sliceBetween(html, "Okno statystyk", "Kontuzjowani");
     expect(stats).toContain("Center A.");
     expect(stats).not.toContain("SV%");
     expect(stats).not.toContain("GAA");
@@ -237,6 +275,12 @@ describe("HockeyTeamRosterSection", () => {
     expect(html).toContain("Poza składem");
     expect(html).toContain("Scratch S.");
     expect(html).toContain("Cały skład");
+    expect(html).toContain("Sezon");
+    expect(html).toContain("Ostatnie 5");
+    expect(html).toContain("Ostatnie 10");
+    expect(html).toContain("SOG/M");
+    expect(html).toContain("2.80");
+    expect(html).not.toContain("9.99");
     expect(html).not.toContain("Para 2");
   });
 

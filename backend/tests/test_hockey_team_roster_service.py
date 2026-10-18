@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+
 import pandas as pd
 import pytest
 
@@ -156,15 +158,84 @@ def test_season_stats_cover_skaters_and_goalies() -> None:
     assert skater["assists"] == 3
     assert skater["points"] == 4
     assert skater["shots_on_goal"] == 7
+    assert skater["shots_per_game"] == 3.5
     assert skater["average_toi"] == "15:00"
     assert skater["save_percentage"] is None
     assert skater["goals_against_average"] is None
+    assert skater["stat_windows"]["season"]["shots_on_goal"] == 7
+    assert skater["stat_windows"]["last_5"]["shots_per_game"] == 3.5
+    assert skater["stat_windows"]["last_10"]["games_played"] == 2
 
     goalie = _players(payload, "G")[0]
     assert goalie["games_played"] == 2
     assert goalie["average_toi"] == "45:00"
     assert goalie["save_percentage"] == 90.0
     assert goalie["goals_against_average"] == 2.0
+    assert goalie["shots_per_game"] == 0.0
+
+
+def test_recent_windows_drop_the_older_game_on_a_tied_date() -> None:
+    roster = _roster_frame([
+        _roster(
+            player_id=1,
+            common_name="Center A.",
+            player_position="C",
+            roster_line=1)])
+    stats = pd.DataFrame([
+        _stat(1, sog=9, match_id=1, game_date=_day(1)),
+        _stat(1, sog=1, match_id=2, game_date=_day(1)),
+        _stat(1, sog=1, match_id=3, game_date=_day(2)),
+        _stat(1, sog=1, match_id=4, game_date=_day(3)),
+        _stat(1, sog=1, match_id=5, game_date=_day(4)),
+        _stat(1, sog=1, match_id=6, game_date=_day(5))])
+
+    payload = build_hockey_team_roster(
+        TEAM_ID, "Jackets", roster, _match_frame([]), stats)
+
+    skater = _players(payload, "F1")[0]
+    season = skater["stat_windows"]["season"]
+    last_five = skater["stat_windows"]["last_5"]
+    assert skater["games_played"] == 6
+    assert skater["shots_on_goal"] == season["shots_on_goal"] == 14
+    assert skater["shots_per_game"] == season["shots_per_game"] == 2.33
+    assert last_five["games_played"] == 5
+    assert last_five["shots_on_goal"] == 5
+    assert last_five["shots_per_game"] == 1.0
+    assert skater["stat_windows"]["last_10"]["shots_on_goal"] == 14
+    HockeyTeamRosterResponse.model_validate(payload)
+
+
+def test_goalie_last_five_drops_the_oldest_start() -> None:
+    roster = _roster_frame([
+        _roster(
+            player_id=5,
+            common_name="Goalie G.",
+            player_position="G",
+            roster_line=1)])
+    rows = [
+        _stat(
+            5,
+            match_id=index,
+            game_date=_day(index),
+            toi="60:00",
+            shots_against=10,
+            shots_saved=10 if index == 1 else 8)
+        for index in range(1, 7)]
+
+    payload = build_hockey_team_roster(
+        TEAM_ID,
+        "Jackets",
+        roster,
+        _match_frame([]),
+        pd.DataFrame(rows))
+
+    goalie = _players(payload, "G")[0]
+    assert goalie["save_percentage"] == 83.33
+    assert goalie["goals_against_average"] == 1.67
+    last_five = goalie["stat_windows"]["last_5"]
+    assert last_five["save_percentage"] == 80.0
+    assert last_five["goals_against_average"] == 2.0
+    assert goalie["stat_windows"]["last_10"]["games_played"] == 6
 
 
 def test_open_forward_seat_stays_empty() -> None:
@@ -425,6 +496,10 @@ def _match_frame(rows: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _day(day: int) -> datetime.date:
+    return datetime.date(2026, 1, day)
+
+
 def _empty_stats() -> pd.DataFrame:
     return pd.DataFrame(columns=[
         "player_id",
@@ -434,7 +509,9 @@ def _empty_stats() -> pd.DataFrame:
         "sog",
         "toi",
         "shots_against",
-        "shots_saved"])
+        "shots_saved",
+        "match_id",
+        "game_date"])
 
 
 def _roster(
@@ -488,7 +565,9 @@ def _stat(
         sog: int = 0,
         toi: str = "0:00",
         shots_against: int = 0,
-        shots_saved: int = 0) -> dict:
+        shots_saved: int = 0,
+        match_id: int = 1,
+        game_date: datetime.date | None = None) -> dict:
     return {
         "player_id": player_id,
         "goals": goals,
@@ -497,5 +576,7 @@ def _stat(
         "sog": sog,
         "toi": toi,
         "shots_against": shots_against,
-        "shots_saved": shots_saved
+        "shots_saved": shots_saved,
+        "match_id": match_id,
+        "game_date": game_date or _day(1)
     }
