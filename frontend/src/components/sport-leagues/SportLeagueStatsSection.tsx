@@ -147,6 +147,9 @@ function CategoryBody({
   if (activeTab === "points" && payload.distribution) {
     return <PointsSummary distribution={payload.distribution} />;
   }
+  if (activeTab === "special_teams") {
+    return null;
+  }
   return (
     <StatsTable
       rows={payload.rows}
@@ -163,6 +166,7 @@ export function SportLeagueStatsSection({
     { id: "shots", label: "Strzały" },
     { id: "goals", label: "Bramki" },
     { id: "over_under", label: "Over/Under" },
+    { id: "special_teams", label: "Special teams" },
   ];
   const basketballTabs = [
     { id: "shooting", label: "Rzuty" },

@@ -317,6 +317,13 @@ export interface SportLeagueStatRow {
   over_210_5_pct?: number | null;
   over_220_5_pct?: number | null;
   over_230_5_pct?: number | null;
+  pp_goals?: number | null;
+  pp_opportunities?: number | null;
+  pp_pct?: number | null;
+  pk_kills?: number | null;
+  pk_opportunities?: number | null;
+  pk_pct?: number | null;
+  hitchcock?: number | null;
 }
 
 export interface SportPointsDistributionSummary {

@@ -6,6 +6,7 @@ import {
   integerShares,
   over55Count,
   over65Count,
+  specialTeamsHighlights,
 } from "@/lib/hockeyLeagueStatsModel";
 import type {
   HockeyGoalsDistribution,
@@ -61,5 +62,43 @@ describe("hockey league stats model", () => {
     expect(buckets.map((bucket) => bucket.count)).toEqual([2, 1, 3, 2, 2]);
     const thirds = integerShares([1, 1, 1]);
     expect(thirds.reduce((total, share) => total + share, 0)).toBe(100);
+  });
+
+  it("picks the best power play, penalty kill and Hitchcock sum", () => {
+    const rows: SportLeagueStatRow[] = [
+      {
+        team_name: "Boston Bruins",
+        team_shortcut: "BOS",
+        pp_goals: 8,
+        pp_opportunities: 40,
+        pp_pct: 20,
+        pk_kills: 36,
+        pk_opportunities: 40,
+        pk_pct: 90,
+        hitchcock: 110,
+      },
+      {
+        team_name: "New York Rangers",
+        team_shortcut: "NYR",
+        pp_goals: 4,
+        pp_opportunities: 40,
+        pp_pct: 10,
+        pk_kills: 28,
+        pk_opportunities: 40,
+        pk_pct: 70,
+        hitchcock: 80,
+      },
+    ];
+    const highlights = specialTeamsHighlights(rows);
+    expect(highlights.map((item) => item.label)).toEqual([
+      "Najwyższe PP%",
+      "Najwyższe PK%",
+      "Najwyższa suma",
+    ]);
+    expect(highlights[0]?.detail).toBe("Boston Bruins · 8/40");
+    expect(highlights[0]?.value).toBe("20.0%");
+    expect(highlights[1]?.detail).toBe("Boston Bruins · 36/40");
+    expect(highlights[2]?.value).toBe("110.0%");
+    expect(highlights[2]?.detail).toBe("Boston Bruins");
   });
 });

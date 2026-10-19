@@ -70,7 +70,12 @@ export async function SportLeaguePage({
     dateTo: filters.dateFilter ? filters.dateTo : undefined,
   };
 
-  const hockeyCategories = ["shots", "goals", "over_under"] as const;
+  const hockeyCategories = [
+    "shots",
+    "goals",
+    "over_under",
+    "special_teams",
+  ] as const;
   const basketballCategories = ["shooting", "points", "over_under"] as const;
   const statCategories =
     sportId === HOCKEY_SPORT_ID ? hockeyCategories : basketballCategories;

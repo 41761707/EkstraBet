@@ -47,4 +47,44 @@ describe("HockeyLeagueStatsPanels", () => {
     expect(html).toContain("Procent meczów Over 5.5");
     expect(html).toContain("NYR");
   });
+
+  it("shows power play, penalty kill and the Hitchcock sum", () => {
+    const html = renderToStaticMarkup(
+      <HockeyLeagueStatsPanels
+        category="special_teams"
+        rows={[
+          {
+            team_name: "Boston Bruins",
+            team_shortcut: "BOS",
+            matches_played: 10,
+            pp_goals: 8,
+            pp_opportunities: 40,
+            pp_pct: 20,
+            pk_kills: 36,
+            pk_opportunities: 40,
+            pk_pct: 90,
+            hitchcock: 110,
+          },
+          {
+            team_name: "New York Rangers",
+            team_shortcut: "NYR",
+            matches_played: 10,
+            pp_goals: 4,
+            pp_opportunities: 40,
+            pp_pct: 10,
+            pk_kills: 28,
+            pk_opportunities: 40,
+            pk_pct: 70,
+            hitchcock: 80,
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain("Power play (PP)");
+    expect(html).toContain("Penalty kill (PK)");
+    expect(html).toContain("Ken Hitchcock 100 Rule");
+    expect(html).toContain("Reguła: 100");
+    expect(html).toContain("8/40");
+    expect(html).toContain("36/40");
+  });
 });

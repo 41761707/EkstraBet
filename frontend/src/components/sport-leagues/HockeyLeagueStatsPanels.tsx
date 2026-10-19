@@ -11,10 +11,12 @@ import {
   leagueAverage,
   overUnderHighlights,
   sortBestFirst,
+  specialTeamsHighlights,
   teamBarPoints,
   type StatHighlight,
   type TeamBarPoint,
 } from "@/lib/hockeyLeagueStatsModel";
+import { StatusMessage } from "@/components/StatusMessage";
 import type {
   HockeyGoalsDistribution,
   SportLeagueStatRow,
@@ -73,12 +75,16 @@ function AverageBars({
   average,
   higherIsBetter,
   formatValue,
+  caption,
+  referenceLabel,
 }: {
   title: string;
   points: TeamBarPoint[];
   average: number;
   higherIsBetter: boolean;
   formatValue: (value: number) => string;
+  caption?: string;
+  referenceLabel?: string;
 }) {
   if (points.length === 0) {
     return null;
@@ -90,19 +96,21 @@ function AverageBars({
     0.01,
   );
   const averagePosition = (average / maxValue) * 100;
-  const caption = higherIsBetter
-    ? "Zielony słupek jest powyżej średniej."
-    : "Zielony słupek jest poniżej średniej.";
+  const resolvedCaption =
+    caption ??
+    (higherIsBetter
+      ? "Zielony słupek jest powyżej średniej."
+      : "Zielony słupek jest poniżej średniej.");
+  const resolvedReference =
+    referenceLabel ?? `Średnia: ${formatValue(average)}`;
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-sm font-semibold text-text">{title}</h4>
-        <span className="text-xs text-muted">
-          Średnia: {formatValue(average)}
-        </span>
+        <span className="text-xs text-muted">{resolvedReference}</span>
       </div>
-      <p className="text-xs text-muted">{caption}</p>
+      <p className="text-xs text-muted">{resolvedCaption}</p>
       <div className="relative max-h-96 overflow-y-auto pr-1">
         <div
           className="pointer-events-none absolute bottom-0 right-0 top-0"
@@ -299,6 +307,120 @@ function OverUnderPanels({
   );
 }
 
+const HITCHCOCK_REFERENCE = 100;
+
+function recordCell(
+  numerator: number | null | undefined,
+  denominator: number | null | undefined,
+): string {
+  if (numerator == null || denominator == null) {
+    return "—";
+  }
+  return `${numerator}/${denominator}`;
+}
+
+function SpecialTeamsTable({ rows }: { rows: SportLeagueStatRow[] }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border">
+      <table className="min-w-full text-sm">
+        <thead className="bg-surface text-muted">
+          <tr>
+            <th className="px-3 py-2 text-left">Drużyna</th>
+            <th className="px-3 py-2 text-left">Skrót</th>
+            <th className="px-3 py-2 text-left">PP</th>
+            <th className="px-3 py-2 text-left">PP%</th>
+            <th className="px-3 py-2 text-left">PK</th>
+            <th className="px-3 py-2 text-left">PK%</th>
+            <th className="px-3 py-2 text-left">Hitchcock</th>
+            <th className="px-3 py-2 text-left">Mecze</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={`${row.team_name}-${row.team_shortcut}`}
+              className="border-t border-border text-text"
+            >
+              <td className="px-3 py-2">{row.team_name}</td>
+              <td className="px-3 py-2">{row.team_shortcut || "—"}</td>
+              <td className="px-3 py-2">
+                {recordCell(row.pp_goals, row.pp_opportunities)}
+              </td>
+              <td className="px-3 py-2">{formatPercent(row.pp_pct)}</td>
+              <td className="px-3 py-2">
+                {recordCell(row.pk_kills, row.pk_opportunities)}
+              </td>
+              <td className="px-3 py-2">{formatPercent(row.pk_pct)}</td>
+              <td className="px-3 py-2">{formatPercent(row.hitchcock)}</td>
+              <td className="px-3 py-2">{row.matches_played ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SpecialTeamsRateBars({ rows }: { rows: SportLeagueStatRow[] }) {
+  const ppAverage = leagueAverage(rows, "pp_pct");
+  const pkAverage = leagueAverage(rows, "pk_pct");
+  return (
+    <>
+      {ppAverage !== null ? (
+        <AverageBars
+          title="Power play (PP)"
+          points={teamBarPoints(rows, "pp_pct")}
+          average={ppAverage}
+          higherIsBetter
+          formatValue={formatPercent}
+        />
+      ) : null}
+      {pkAverage !== null ? (
+        <AverageBars
+          title="Penalty kill (PK)"
+          points={teamBarPoints(rows, "pk_pct")}
+          average={pkAverage}
+          higherIsBetter
+          formatValue={formatPercent}
+        />
+      ) : null}
+      <AverageBars
+        title="Ken Hitchcock 100 Rule"
+        points={teamBarPoints(rows, "hitchcock")}
+        average={HITCHCOCK_REFERENCE}
+        higherIsBetter
+        formatValue={formatPercent}
+        caption="Zielony słupek jest powyżej 100. Suma PP% i PK%."
+        referenceLabel="Reguła: 100"
+      />
+    </>
+  );
+}
+
+function SpecialTeamsPanels({ rows }: { rows: SportLeagueStatRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <StatusMessage
+        variant="empty"
+        title="Brak danych"
+        message="Brak statystyk dla wybranego sezonu."
+      />
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">
+        PP to bramki w przewadze podzielone przez liczbę przewag. PK to
+        zabite przewagi podzielone przez liczbę osłabień. Suma tych
+        procentów to reguła Kena Hitchcocka, a punkt odniesienia to 100.
+      </p>
+      <HighlightGrid items={specialTeamsHighlights(rows)} />
+      <SpecialTeamsRateBars rows={rows} />
+      <SpecialTeamsTable rows={rows} />
+    </div>
+  );
+}
+
 export function HockeyLeagueStatsPanels({
   category,
   rows,
@@ -314,6 +436,9 @@ export function HockeyLeagueStatsPanels({
         distribution={goalsDistribution ?? null}
       />
     );
+  }
+  if (category === "special_teams") {
+    return <SpecialTeamsPanels rows={rows} />;
   }
   return null;
 }

@@ -22,7 +22,13 @@ export interface TeamBarPoint {
   title: string;
 }
 
-type NumericStatKey = "avg_for" | "avg_against" | "over_5_5_pct";
+type NumericStatKey =
+  | "avg_for"
+  | "avg_against"
+  | "over_5_5_pct"
+  | "pp_pct"
+  | "pk_pct"
+  | "hitchcock";
 
 const GOAL_BUCKET_DEFS: {
   id: string;
@@ -270,6 +276,57 @@ export function overUnderHighlights(
       label: "Średni % Over 5.5 w lidze",
       value: formatRate(average),
       detail: null,
+    });
+  }
+  return items;
+}
+
+function fractionDetail(
+  teamName: string,
+  numerator: number | null | undefined,
+  denominator: number | null | undefined,
+): string {
+  if (numerator == null || denominator == null) {
+    return teamName;
+  }
+  return `${teamName} · ${numerator}/${denominator}`;
+}
+
+/** Best power play, penalty kill and Hitchcock sum in the league. */
+export function specialTeamsHighlights(
+  rows: SportLeagueStatRow[],
+): StatHighlight[] {
+  const bestPowerPlay = extremeRow(rows, "pp_pct", "max");
+  const bestPenaltyKill = extremeRow(rows, "pk_pct", "max");
+  const bestSum = extremeRow(rows, "hitchcock", "max");
+  const items: StatHighlight[] = [];
+  if (bestPowerPlay) {
+    items.push({
+      label: "Najwyższe PP%",
+      value: formatRate(bestPowerPlay.value),
+      detail: fractionDetail(
+        bestPowerPlay.row.team_name,
+        bestPowerPlay.row.pp_goals,
+        bestPowerPlay.row.pp_opportunities,
+      ),
+    });
+  }
+  if (bestPenaltyKill) {
+    items.push({
+      label: "Najwyższe PK%",
+      value: formatRate(bestPenaltyKill.value),
+      detail: fractionDetail(
+        bestPenaltyKill.row.team_name,
+        bestPenaltyKill.row.pk_kills,
+        bestPenaltyKill.row.pk_opportunities,
+      ),
+    });
+  }
+  if (bestSum) {
+    items.push({
+      label: "Najwyższa suma",
+      value: formatRate(bestSum.value),
+      detail: bestSum.row.team_name,
     });
   }
   return items;

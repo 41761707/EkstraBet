@@ -136,6 +136,13 @@ class SportLeagueStatRow(BaseModel):
     over_210_5_pct: float | None = None
     over_220_5_pct: float | None = None
     over_230_5_pct: float | None = None
+    pp_goals: int | None = None
+    pp_opportunities: int | None = None
+    pp_pct: float | None = None
+    pk_kills: int | None = None
+    pk_opportunities: int | None = None
+    pk_pct: float | None = None
+    hitchcock: float | None = None
 
 
 class SportPointsDistributionSummary(BaseModel):
