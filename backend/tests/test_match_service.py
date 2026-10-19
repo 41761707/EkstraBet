@@ -18,6 +18,13 @@ from backend.services.match_service import (
 class TestMatchService(unittest.TestCase):
     """Tests for match service mapping and edge cases."""
 
+    def setUp(self) -> None:
+        patcher = patch(
+            "backend.services.prediction_service.get_hockey_score_charts",
+            return_value=[])
+        self.addCleanup(patcher.stop)
+        self.hockey_score_charts = patcher.start()
+
     def _sample_match_frame(self) -> pd.DataFrame:
         return pd.DataFrame([{
             "id": 100,
@@ -206,6 +213,8 @@ class TestMatchService(unittest.TestCase):
         assert details is not None
         self.assertEqual(details["id"], 100)
         self.assertEqual(len(details["final_predictions"]), 1)
+        self.assertEqual(details["hockey_score_charts"], [])
+        self.hockey_score_charts.assert_not_called()
         self.assertIsNone(details["prediction_analysis"])
         self.assertEqual(len(details["odds"]), 1)
         self.assertIsNotNone(details["stats"])
@@ -330,6 +339,8 @@ class TestMatchService(unittest.TestCase):
         self.assertIsNone(details["hockey_events"])
         self.assertIsNone(details["hockey_prediction_stage"])
         self.assertIsNone(details["hockey_player_predictions"])
+        self.assertEqual(details["hockey_score_charts"], [])
+        self.hockey_score_charts.assert_called_once_with(100)
         self.assertEqual(
             details["hockey_schedule_context"]["home"]["rest_days"],
             0)

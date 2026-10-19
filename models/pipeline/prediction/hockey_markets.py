@@ -47,6 +47,16 @@ HOCKEY_MARKET_FAMILIES: dict[str, list[str]] = {
     "HOCKEY_AWAY_TT_25": ["away_over_25", "away_under_25"],
     "HOCKEY_AWAY_TT_35": ["away_over_35", "away_under_35"]}
 
+HOCKEY_HOME_BUCKET_KEYS = ("0", "1", "2", "3", "4", "5+")
+HOCKEY_TOTAL_BUCKET_KEYS = ("3-", "4", "5", "6", "7", "8+")
+EXACT_SCORE_MAX_GOALS = 7
+EXACT_SCORE_LIMIT = 5
+EXACT_SCORE_BASE_ID = 270
+EXACT_SCORE_LAST_ID = (
+    EXACT_SCORE_BASE_ID
+    + EXACT_SCORE_MAX_GOALS * (EXACT_SCORE_MAX_GOALS + 1)
+    + EXACT_SCORE_MAX_GOALS)
+
 
 @dataclass(frozen=True)
 class HockeyScoreDistribution:
@@ -122,6 +132,52 @@ def derive_hockey_markets(
         "away_under_25": _percent(matrix, away < 2.5),
         "away_over_35": _percent(matrix, away > 3.5),
         "away_under_35": _percent(matrix, away < 3.5)}
+
+
+@dataclass(frozen=True)
+class HockeyScoreChart:
+    """Goal buckets and the five likeliest final scores.
+
+    Club keys follow ``HOCKEY_HOME_BUCKET_KEYS``. Match keys follow
+    ``HOCKEY_TOTAL_BUCKET_KEYS``. Every value is a percent from 0
+    to 100, on the same scale as the market lines.
+    """
+
+    home_buckets: dict[str, float]
+    away_buckets: dict[str, float]
+    total_buckets: dict[str, float]
+    exact_scores: tuple[tuple[str, float], ...]
+
+
+def exact_score_event_id(home_goals: int, away_goals: int) -> int:
+    """Return the catalog id for one final score.
+
+    Ids run from 270 as ``270 + home * 8 + away`` while both sides
+    stay between 0 and 7 goals.
+    """
+    if not _is_catalog_score(home_goals, away_goals):
+        raise ValueError(
+            "Exact score must use 0 through "
+            f"{EXACT_SCORE_MAX_GOALS} goals on each side")
+    return (
+        EXACT_SCORE_BASE_ID
+        + home_goals * (EXACT_SCORE_MAX_GOALS + 1)
+        + away_goals)
+
+
+def derive_hockey_score_chart(
+        distribution: HockeyScoreDistribution) -> HockeyScoreChart:
+    """Return goal buckets and the five likeliest final scores.
+
+    The regulation grid is ignored. Overtime has already moved each
+    tie onto the winner, so a draw cannot appear in the five.
+    """
+    matrix = _validated_probability_matrix(distribution.final_matrix)
+    return HockeyScoreChart(
+        home_buckets=_team_goal_buckets(matrix.sum(axis=1)),
+        away_buckets=_team_goal_buckets(matrix.sum(axis=0)),
+        total_buckets=_total_goal_buckets(matrix),
+        exact_scores=_top_exact_scores(matrix))
 
 
 def select_hockey_finals(
@@ -226,3 +282,73 @@ def _validated_probability_matrix(matrix: np.ndarray) -> np.ndarray:
 
 def _percent(matrix: np.ndarray, mask: np.ndarray) -> float:
     return 100.0 * float(matrix[mask].sum())
+
+
+def _is_catalog_score(home_goals: int, away_goals: int) -> bool:
+    return (
+        _in_exact_catalog(home_goals)
+        and _in_exact_catalog(away_goals))
+
+
+def _in_exact_catalog(goals: int) -> bool:
+    if isinstance(goals, bool) or not isinstance(goals, int):
+        return False
+    return 0 <= goals <= EXACT_SCORE_MAX_GOALS
+
+
+def _team_goal_buckets(margin: np.ndarray) -> dict[str, float]:
+    """Collapse one club's margin into 0-4 and a 5+ tail."""
+    buckets = {
+        key: _margin_percent(margin, int(key))
+        for key in HOCKEY_HOME_BUCKET_KEYS
+        if key != "5+"}
+    # 5+ to cała reszta siatki, aż do max_goals (domyślnie 12).
+    buckets["5+"] = 100.0 * float(margin[5:].sum())
+    return buckets
+
+
+def _margin_percent(margin: np.ndarray, index: int) -> float:
+    if index >= int(margin.shape[0]):
+        return 0.0
+    return 100.0 * float(margin[index])
+
+
+def _total_goal_buckets(matrix: np.ndarray) -> dict[str, float]:
+    """Collapse the match total into <=3, 4-7 and an 8+ tail."""
+    size = int(matrix.shape[0])
+    home = np.arange(size)[:, None]
+    away = np.arange(size)[None, :]
+    total = home + away
+    return {
+        "3-": _percent(matrix, total <= 3),
+        "4": _percent(matrix, total == 4),
+        "5": _percent(matrix, total == 5),
+        "6": _percent(matrix, total == 6),
+        "7": _percent(matrix, total == 7),
+        "8+": _percent(matrix, total >= 8)}
+
+
+def _top_exact_scores(
+        matrix: np.ndarray) -> tuple[tuple[str, float], ...]:
+    """Five likeliest non-tie scores inside the 0-7 catalog."""
+    limit = min(EXACT_SCORE_MAX_GOALS + 1, int(matrix.shape[0]))
+    ranked = _catalog_cells(matrix, limit)
+    ranked.sort()
+    chosen = ranked[:EXACT_SCORE_LIMIT]
+    return tuple(
+        (f"{home}:{away}", 100.0 * (-negative_mass))
+        for negative_mass, home, away in chosen)
+
+
+def _catalog_cells(
+        matrix: np.ndarray,
+        limit: int) -> list[tuple[float, int, int]]:
+    """Sort key is negative mass, then lower home, then lower away."""
+    cells: list[tuple[float, int, int]] = []
+    for home in range(limit):
+        for away in range(limit):
+            # Remis nie jest wynikiem końcowym: dogrywka już dodała gola.
+            if home == away:
+                continue
+            cells.append((-float(matrix[home, away]), home, away))
+    return cells

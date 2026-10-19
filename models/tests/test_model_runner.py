@@ -629,7 +629,7 @@ def _run_predict_hockey(
     return code, selected, writer
 
 
-def test_cli_predict_hockey_writes_18_predictions_and_9_finals(
+def test_cli_predict_hockey_writes_markets_charts_and_9_finals(
         capsys: pytest.CaptureFixture[str]) -> None:
     from models.pipeline.core.config import load_model_config
     from models.pipeline.prediction.hockey_markets import (
@@ -655,9 +655,17 @@ def test_cli_predict_hockey_writes_18_predictions_and_9_finals(
         _capture)
     assert code == 0
     writer.assert_called_once()
-    assert len(captured) == 18
+    assert len(captured) == 41
     assert sum(row.is_final for row in captured) == 9
-    assert {row.event_id for row in captured} == set(range(234, 252))
+    assert {row.event_id for row in captured if row.event_id < 252} == set(
+        range(234, 252))
+    assert {
+        row.event_id
+        for row in captured
+        if 252 <= row.event_id <= 269} == set(range(252, 270))
+    assert sum(row.event_id >= 270 for row in captured) == 5
+    assert all(
+        not row.is_final for row in captured if row.event_id >= 252)
     assert all(0.0 <= row.value <= 100.0 for row in captured)
     config = load_model_config(HOCKEY_PREDICTION_CONFIG)
     by_event = {row.event_id: row for row in captured}
@@ -669,9 +677,9 @@ def test_cli_predict_hockey_writes_18_predictions_and_9_finals(
     payload = json.loads(capsys.readouterr().out)
     match = payload["result"]["models"][0]["matches"][0]
     assert payload["result"]["dry_run"] is False
-    assert match["predictions"] == 18
+    assert match["predictions"] == 41
     assert match["finals"] == 9
-    assert match["written"] == 18
+    assert match["written"] == 41
 
 
 def test_cli_predict_hockey_fallback_keeps_uncorrected_rates(
@@ -1024,7 +1032,7 @@ def test_cli_predict_hockey_dry_run_does_not_write(
     payload = json.loads(capsys.readouterr().out)
     match = payload["result"]["models"][0]["matches"][0]
     assert payload["result"]["dry_run"] is True
-    assert match["predictions"] == 18
+    assert match["predictions"] == 41
     assert match["finals"] == 9
     assert match["written"] == 0
 
@@ -1054,7 +1062,7 @@ def test_cli_predict_hockey_filters_match_ids_through_predictable(
     payload = json.loads(capsys.readouterr().out)
     assert payload["result"]["match_ids"] == [502]
     assert payload["result"]["ignored_match_ids"] == [999]
-    assert len(captured) == 18
+    assert len(captured) == 41
     assert {row.match_id for row in captured} == {502}
 
 
@@ -1162,8 +1170,11 @@ def test_cli_predict_hockey_gbm_writes_markets_and_falls_back(
             _capture)
     assert code == 0
     writer.assert_called_once()
-    assert len(captured) == 18
+    assert len(captured) == 41
     assert sum(row.is_final for row in captured) == 9
+    chart_rows = [row for row in captured if row.event_id >= 252]
+    assert len(chart_rows) == 23
+    assert all(not row.is_final for row in chart_rows)
     assert all(0.0 <= row.value <= 100.0 for row in captured)
     config = load_model_config(
         REPO_ROOT / "models" / "configs" / "prediction"
@@ -1176,9 +1187,9 @@ def test_cli_predict_hockey_gbm_writes_markets_and_falls_back(
         assert left.is_final != right.is_final
     payload = json.loads(capsys.readouterr().out)
     match = payload["result"]["models"][0]["matches"][0]
-    assert match["predictions"] == 18
+    assert match["predictions"] == 41
     assert match["finals"] == 9
-    assert match["written"] == 18
+    assert match["written"] == 41
     assert match["lineup_fallback"] is True
     assert "team-average" in caplog.text
 
@@ -1193,7 +1204,7 @@ def test_cli_predict_hockey_gbm_uses_a_resolved_lineup(
     writer.assert_not_called()
     payload = json.loads(capsys.readouterr().out)
     match = payload["result"]["models"][0]["matches"][0]
-    assert match["predictions"] == 18
+    assert match["predictions"] == 41
     assert match["lineup_fallback"] is False
 
 

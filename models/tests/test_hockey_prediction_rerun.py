@@ -107,6 +107,58 @@ def _final_row() -> PredictionWriteRow:
         is_final=True)
 
 
+def test_store_drops_exact_scores_missing_from_the_new_five() -> None:
+    connection, manager = _shared_connection()
+    kept = [
+        PredictionWriteRow(
+            match_id=501,
+            model_id=21,
+            event_id=296,
+            value=18.0,
+            is_final=False),
+        PredictionWriteRow(
+            match_id=501,
+            model_id=21,
+            event_id=289,
+            value=12.0,
+            is_final=False)]
+
+    with patch(
+            "models.pipeline.core.cli.write_predictions",
+            return_value=2), patch(
+            "models.pipeline.core.cli.get_db_connection",
+            return_value=manager):
+        written = _store_hockey_team_prediction(501, 21, kept, False)
+
+    assert written == 2
+    cursor = connection.cursor.return_value
+    sql, params = cursor.execute.call_args.args
+    assert "event_id BETWEEN %s AND %s" in sql
+    assert "NOT IN" in sql
+    assert params[0] == 501
+    assert params[1] == 21
+    assert params[2] == 270
+    assert params[3] == 333
+    assert set(params[4:]) == {296, 289}
+    connection.commit.assert_called_once()
+
+
+def test_store_clears_every_exact_score_when_the_five_is_empty() -> None:
+    connection, manager = _shared_connection()
+
+    with patch(
+            "models.pipeline.core.cli.write_predictions",
+            return_value=1), patch(
+            "models.pipeline.core.cli.get_db_connection",
+            return_value=manager):
+        _store_hockey_team_prediction(501, 21, [_final_row()], False)
+
+    cursor = connection.cursor.return_value
+    sql, params = cursor.execute.call_args.args
+    assert "NOT IN" not in sql
+    assert params == (501, 21, 270, 333)
+
+
 def test_store_replaces_the_old_final_before_the_insert() -> None:
     connection, manager = _shared_connection()
     order: list[str] = []

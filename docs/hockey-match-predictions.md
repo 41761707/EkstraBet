@@ -69,5 +69,8 @@ starter, bramkarz linii 2 jako rezerwowy. Strona drużyny układa linie
 tylko według `hockey_rosters.line`. Ostatni mecz podaje numer na
 koszulce i informację, czy zawodnik wtedy wyszedł.
 
+Pod pączkami są trzy rozkłady goli i pięć wyników, zapisane jako
+kubełki, nie jako pełna siatka.
+
 Tabele `hockey_probable_lineups` i `hockey_prediction_runs` zostają
 w bazie, ale ten moduł ich nie zapisuje i nie czyta.

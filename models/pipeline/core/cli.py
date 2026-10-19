@@ -72,6 +72,8 @@ from models.pipeline.persistence.match_assessment_writer import (
 from models.pipeline.persistence.prediction_writer import (
     lookup_prediction_ids)
 from models.pipeline.persistence.prediction_writer import (
+    map_hockey_chart_to_rows)
+from models.pipeline.persistence.prediction_writer import (
     map_hockey_markets_to_rows)
 from models.pipeline.persistence.prediction_writer import (
     map_predictions_to_rows)
@@ -87,8 +89,12 @@ from models.pipeline.prediction.future_events_predictor import (
     FeatureCache)
 from models.pipeline.prediction.future_events_predictor import (
     FutureEventsPredictor)
+from models.pipeline.prediction.hockey_markets import EXACT_SCORE_BASE_ID
+from models.pipeline.prediction.hockey_markets import EXACT_SCORE_LAST_ID
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
+from models.pipeline.prediction.hockey_markets import HockeyScoreDistribution
 from models.pipeline.prediction.hockey_markets import derive_hockey_markets
+from models.pipeline.prediction.hockey_markets import derive_hockey_score_chart
 from models.pipeline.prediction.predictor import (
     predict_batch,
     predict_match,
@@ -1261,13 +1267,12 @@ def _predict_hockey_gbm(
         row = indexed.loc[match_id]
         if isinstance(row, pd.DataFrame):
             row = row.iloc[0]
-        markets = derive_hockey_markets(model.score_distribution(row))
-        rows = map_hockey_markets_to_rows(
-            match_id, model_id, markets, event_ids, select_finals)
-        final_keys = [
-            key
-            for key, prediction in zip(HOCKEY_MARKET_KEYS, rows)
-            if prediction.is_final]
+        rows, markets, final_keys = _hockey_prediction_rows(
+            match_id,
+            model_id,
+            model.score_distribution(row),
+            event_ids,
+            select_finals)
         match_report = {
             "match_id": match_id,
             "home_team": fixture.home_team,
@@ -1308,6 +1313,9 @@ def _store_hockey_team_prediction(
     """
     with get_db_connection() as connection:
         try:
+            # Stara piątka znika przed upsertem, w tej samej transakcji.
+            _delete_replaced_exact_scores(
+                connection, match_id, model_id, rows)
             if select_finals:
                 # Stare identyfikatory odczytujemy przed zapisem.
                 _replace_existing_finals(
@@ -1319,6 +1327,74 @@ def _store_hockey_team_prediction(
             connection.rollback()
             raise
     return written
+
+
+def _delete_replaced_exact_scores(
+        connection: Any,
+        match_id: int,
+        model_id: int,
+        rows: list[Any]) -> None:
+    """Drop exact scores that fell out of this model's new five.
+
+    Buckets and team markets stay. An empty five clears every
+    catalog score for the match and model.
+    """
+    kept = [
+        int(row.event_id)
+        for row in rows
+        if _is_exact_score_event(int(row.event_id))]
+    cursor = connection.cursor()
+    try:
+        if kept:
+            placeholders = ", ".join(["%s"] * len(kept))
+            sql = (
+                "DELETE FROM predictions "
+                "WHERE match_id = %s AND model_id = %s "
+                "AND event_id BETWEEN %s AND %s "
+                f"AND event_id NOT IN ({placeholders})")
+            params: tuple[Any, ...] = (
+                match_id,
+                model_id,
+                EXACT_SCORE_BASE_ID,
+                EXACT_SCORE_LAST_ID,
+                *kept)
+        else:
+            sql = (
+                "DELETE FROM predictions "
+                "WHERE match_id = %s AND model_id = %s "
+                "AND event_id BETWEEN %s AND %s")
+            params = (
+                match_id,
+                model_id,
+                EXACT_SCORE_BASE_ID,
+                EXACT_SCORE_LAST_ID)
+        cursor.execute(sql, params)
+    finally:
+        cursor.close()
+
+
+def _is_exact_score_event(event_id: int) -> bool:
+    return EXACT_SCORE_BASE_ID <= event_id <= EXACT_SCORE_LAST_ID
+
+
+def _hockey_prediction_rows(
+        match_id: int,
+        model_id: int,
+        distribution: HockeyScoreDistribution,
+        event_ids: dict[str, int],
+        select_finals: bool):
+    """Build market rows and chart rows from one final-score grid."""
+    markets = derive_hockey_markets(distribution)
+    rows = map_hockey_markets_to_rows(
+        match_id, model_id, markets, event_ids, select_finals)
+    final_keys = [
+        key
+        for key, row in zip(HOCKEY_MARKET_KEYS, rows)
+        if row.is_final]
+    chart = derive_hockey_score_chart(distribution)
+    rows.extend(map_hockey_chart_to_rows(
+        match_id, model_id, chart, event_ids))
+    return rows, markets, final_keys
 
 
 def _replace_existing_finals(
@@ -1581,13 +1657,12 @@ def _predict_one_hockey_match(
         away_off_ratio=used["away_off_ratio"],
         home_def_ratio=used["home_def_ratio"],
         away_def_ratio=used["away_def_ratio"])
-    markets = derive_hockey_markets(distribution)
-    rows = map_hockey_markets_to_rows(
-        match_id, model_id, markets, event_ids, select_finals)
-    final_keys = [
-        key
-        for key, row in zip(HOCKEY_MARKET_KEYS, rows)
-        if row.is_final]
+    rows, markets, final_keys = _hockey_prediction_rows(
+        match_id,
+        model_id,
+        distribution,
+        event_ids,
+        select_finals)
     report = {
         "match_id": match_id,
         "home_team": home_team,

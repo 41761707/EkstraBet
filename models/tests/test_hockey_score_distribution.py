@@ -7,10 +7,15 @@ import math
 import numpy as np
 import pytest
 
+from models.pipeline.persistence.prediction_writer import (
+    map_hockey_chart_to_rows)
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_FAMILIES
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
+from models.pipeline.prediction.hockey_markets import HockeyScoreDistribution
 from models.pipeline.prediction.hockey_markets import build_score_distribution
 from models.pipeline.prediction.hockey_markets import derive_hockey_markets
+from models.pipeline.prediction.hockey_markets import derive_hockey_score_chart
+from models.pipeline.prediction.hockey_markets import exact_score_event_id
 from models.pipeline.prediction.hockey_markets import select_hockey_finals
 
 
@@ -112,6 +117,132 @@ def test_select_hockey_finals_picks_the_higher_side() -> None:
     assert selected[0] == "ml_home"
     assert "over_55" in selected
     assert "ml_away" not in selected
+
+
+def _chart_from_matrix(matrix: np.ndarray):
+    distribution = HockeyScoreDistribution(
+        regulation_matrix=matrix,
+        final_matrix=matrix,
+        p_ot_home=0.5)
+    return derive_hockey_score_chart(distribution)
+
+
+def test_score_chart_buckets_match_the_final_grid() -> None:
+    distribution = build_score_distribution(3.1, 2.8, 1.25, 0.54)
+    chart = derive_hockey_score_chart(distribution)
+    markets = derive_hockey_markets(distribution)
+    matrix = distribution.final_matrix
+    home_margin = matrix.sum(axis=1)
+    size = matrix.shape[0]
+    total = np.arange(size)[:, None] + np.arange(size)[None, :]
+
+    for buckets in (
+            chart.home_buckets,
+            chart.away_buckets,
+            chart.total_buckets):
+        assert sum(buckets.values()) == pytest.approx(100.0)
+    assert chart.home_buckets["5+"] == pytest.approx(
+        100.0 * float(home_margin[5:13].sum()))
+    assert chart.total_buckets["8+"] == pytest.approx(
+        100.0 * float(matrix[total >= 8].sum()))
+    assert markets["over_55"] == pytest.approx(
+        chart.total_buckets["6"]
+        + chart.total_buckets["7"]
+        + chart.total_buckets["8+"])
+    assert markets["home_over_25"] == pytest.approx(
+        chart.home_buckets["3"]
+        + chart.home_buckets["4"]
+        + chart.home_buckets["5+"])
+
+
+def test_exact_scores_are_five_descending_catalog_results() -> None:
+    distribution = build_score_distribution(3.0, 2.7, 1.2, 0.53)
+    chart = derive_hockey_score_chart(distribution)
+    labels = [label for label, _percent in chart.exact_scores]
+    percents = [percent for _label, percent in chart.exact_scores]
+
+    assert len(labels) == 5
+    assert percents == sorted(percents, reverse=True)
+    for label in labels:
+        home_text, away_text = label.split(":")
+        home = int(home_text)
+        away = int(away_text)
+        assert 0 <= home <= 7
+        assert 0 <= away <= 7
+        assert home != away
+
+
+def test_tied_exact_scores_prefer_the_lower_home_total() -> None:
+    matrix = np.zeros((13, 13))
+    for home in range(8):
+        for away in range(8):
+            if home != away:
+                matrix[home, away] = 1.0
+    matrix /= matrix.sum()
+    chart = _chart_from_matrix(matrix)
+    labels = [label for label, _percent in chart.exact_scores]
+
+    assert labels == ["0:1", "0:2", "0:3", "0:4", "0:5"]
+
+
+def test_exact_scores_ignore_mass_outside_the_catalog() -> None:
+    matrix = np.zeros((13, 13))
+    matrix[9, 1] = 0.9
+    matrix[3, 2] = 0.02
+    matrix[2, 3] = 0.02
+    matrix[4, 1] = 0.02
+    matrix[1, 4] = 0.02
+    matrix[5, 2] = 0.02
+    chart = _chart_from_matrix(matrix)
+    labels = [label for label, _percent in chart.exact_scores]
+
+    assert "9:1" not in labels
+    assert "3:2" in labels
+    assert exact_score_event_id(3, 2) == 296
+    assert exact_score_event_id(0, 0) == 270
+    assert exact_score_event_id(7, 7) == 333
+
+
+def test_map_hockey_chart_rows_stay_off_the_final_table() -> None:
+    matrix = np.zeros((13, 13))
+    matrix[3, 2] = 0.40
+    matrix[2, 3] = 0.20
+    matrix[4, 3] = 0.15
+    matrix[3, 4] = 0.10
+    matrix[1, 2] = 0.15
+    chart = _chart_from_matrix(matrix)
+    event_ids = {
+        "home_goals_0": 252,
+        "home_goals_1": 253,
+        "home_goals_2": 254,
+        "home_goals_3": 255,
+        "home_goals_4": 256,
+        "home_goals_5_plus": 257,
+        "away_goals_0": 258,
+        "away_goals_1": 259,
+        "away_goals_2": 260,
+        "away_goals_3": 261,
+        "away_goals_4": 262,
+        "away_goals_5_plus": 263,
+        "total_goals_le3": 264,
+        "total_goals_4": 265,
+        "total_goals_5": 266,
+        "total_goals_6": 267,
+        "total_goals_7": 268,
+        "total_goals_8_plus": 269}
+    rows = map_hockey_chart_to_rows(7, 21, chart, event_ids)
+    markets = derive_hockey_markets(
+        build_score_distribution(3.0, 2.7, 1.2, 0.53))
+    selected = select_hockey_finals(markets, HOCKEY_MARKET_FAMILIES)
+
+    assert len(rows) == 23
+    assert all(row.is_final is False for row in rows)
+    assert all(0.0 <= row.value <= 100.0 for row in rows)
+    scored = [row for row in rows if row.event_id == 296]
+    assert len(scored) == 1
+    assert scored[0].value == pytest.approx(40.0)
+    assert len(selected) == 9
+    assert set(selected) <= set(HOCKEY_MARKET_KEYS)
 
 
 def test_distribution_rejects_bad_inputs() -> None:

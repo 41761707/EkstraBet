@@ -12,8 +12,10 @@ from models.pipeline.core.config import BttsPrediction
 from models.pipeline.core.config import GoalsPoissonPrediction
 from models.pipeline.core.config import PredictionWriteRow
 from models.pipeline.core.config import ResultPrediction
+from models.pipeline.prediction.hockey_markets import HockeyScoreChart
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_FAMILIES
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
+from models.pipeline.prediction.hockey_markets import exact_score_event_id
 from models.pipeline.prediction.hockey_markets import select_hockey_finals
 from models.pipeline.prediction.score_matrix import exact_score_probabilities
 
@@ -290,6 +292,90 @@ def map_hockey_markets_to_rows(
             _hockey_percent(market_probs[key]),
             key if key in final_keys else None)
         for key in HOCKEY_MARKET_KEYS]
+
+
+# Klucz w configu, strona wykresu i etykieta kubełka.
+_CHART_BUCKET_EVENTS = (
+    ("home_goals_0", "home", "0"),
+    ("home_goals_1", "home", "1"),
+    ("home_goals_2", "home", "2"),
+    ("home_goals_3", "home", "3"),
+    ("home_goals_4", "home", "4"),
+    ("home_goals_5_plus", "home", "5+"),
+    ("away_goals_0", "away", "0"),
+    ("away_goals_1", "away", "1"),
+    ("away_goals_2", "away", "2"),
+    ("away_goals_3", "away", "3"),
+    ("away_goals_4", "away", "4"),
+    ("away_goals_5_plus", "away", "5+"),
+    ("total_goals_le3", "total", "3-"),
+    ("total_goals_4", "total", "4"),
+    ("total_goals_5", "total", "5"),
+    ("total_goals_6", "total", "6"),
+    ("total_goals_7", "total", "7"),
+    ("total_goals_8_plus", "total", "8+"))
+
+
+def map_hockey_chart_to_rows(
+        match_id: int,
+        model_id: int,
+        chart: HockeyScoreChart,
+        event_ids: dict[str, int]) -> list[PredictionWriteRow]:
+    """Map buckets and the top five scores onto prediction rows.
+
+    None of these rows is a final. Exact-score ids come from the
+    catalog formula, not from the JSON event map. A missing bucket
+    key raises ``KeyError``, the same way a missing market does.
+    """
+    rows = [
+        _chart_bucket_row(
+            match_id, model_id, event_ids, chart, item)
+        for item in _CHART_BUCKET_EVENTS]
+    rows.extend(
+        _exact_chart_row(match_id, model_id, label, percent)
+        for label, percent in chart.exact_scores)
+    return rows
+
+
+def _chart_bucket_row(
+        match_id: int,
+        model_id: int,
+        event_ids: dict[str, int],
+        chart: HockeyScoreChart,
+        item: tuple[str, str, str]) -> PredictionWriteRow:
+    event_key, side, bucket = item
+    return _event_row(
+        match_id,
+        model_id,
+        event_ids,
+        event_key,
+        _hockey_percent(_chart_side(chart, side)[bucket]),
+        None)
+
+
+def _chart_side(
+        chart: HockeyScoreChart,
+        side: str) -> dict[str, float]:
+    if side == "home":
+        return chart.home_buckets
+    if side == "away":
+        return chart.away_buckets
+    return chart.total_buckets
+
+
+def _exact_chart_row(
+        match_id: int,
+        model_id: int,
+        label: str,
+        percent: float) -> PredictionWriteRow:
+    home_text, away_text = label.split(":", maxsplit=1)
+    return PredictionWriteRow(
+        match_id=match_id,
+        model_id=model_id,
+        event_id=exact_score_event_id(
+            int(home_text), int(away_text)),
+        value=_hockey_percent(percent),
+        is_final=False)
 
 
 def _hockey_percent(value: float) -> float:

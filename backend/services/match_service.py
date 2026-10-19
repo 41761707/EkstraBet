@@ -549,6 +549,15 @@ def _hockey_lineups_for_match(
         away_team_name)
 
 
+def _hockey_score_charts(
+        sport_id: int | None,
+        match_id: int) -> list[dict[str, Any]]:
+    """Goal charts for NHL. Other sports stay on an empty list."""
+    if sport_id != HOCKEY_SPORT_ID:
+        return []
+    return prediction_service.get_hockey_score_charts(match_id)
+
+
 def _hockey_player_predictions(
     match_id: int,
     home_team_id: int,
@@ -696,6 +705,7 @@ def get_match_details(
         boxscore = _map_match_boxscore(match_id)
 
     sport_id = _optional_int(row.get("sport_id"))
+    hockey_score_charts = _hockey_score_charts(sport_id, match_id)
     football_stats = None
     basketball_lineups = None
     if sport_id != HOCKEY_SPORT_ID:
@@ -728,6 +738,7 @@ def get_match_details(
         **summary,
         "sport_id": sport_id,
         "final_predictions": final_predictions,
+        "hockey_score_charts": hockey_score_charts,
         "prediction_analysis": prediction_analysis,
         "odds": odds,
         "stats": football_stats,

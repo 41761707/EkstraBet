@@ -54,6 +54,24 @@
     "away_over_25": 248,
     "away_under_25": 249,
     "away_over_35": 250,
-    "away_under_35": 251
+    "away_under_35": 251,
+    "home_goals_0": 252,
+    "home_goals_1": 253,
+    "home_goals_2": 254,
+    "home_goals_3": 255,
+    "home_goals_4": 256,
+    "home_goals_5_plus": 257,
+    "away_goals_0": 258,
+    "away_goals_1": 259,
+    "away_goals_2": 260,
+    "away_goals_3": 261,
+    "away_goals_4": 262,
+    "away_goals_5_plus": 263,
+    "total_goals_le3": 264,
+    "total_goals_4": 265,
+    "total_goals_5": 266,
+    "total_goals_6": 267,
+    "total_goals_7": 268,
+    "total_goals_8_plus": 269
   }
 }

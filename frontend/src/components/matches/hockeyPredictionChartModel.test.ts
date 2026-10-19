@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildHockeyPredictionCharts } from "@/components/matches/hockeyPredictionChartModel";
+import {
+  buildHockeyPredictionCharts,
+  buildHockeyScoreBars,
+} from "@/components/matches/hockeyPredictionChartModel";
 import {
   CHART_COLOR_NEGATIVE,
   CHART_COLOR_POSITIVE,
 } from "@/lib/chartColors";
-import type { MatchPredictionItem } from "@/types/api";
+import type { HockeyScoreChart, MatchPredictionItem } from "@/types/api";
 
 function row(
   overrides: Partial<MatchPredictionItem> &
@@ -148,3 +151,69 @@ describe("buildHockeyPredictionCharts", () => {
     ).toEqual([]);
   });
 });
+
+describe("buildHockeyScoreBars", () => {
+  it("keeps bucket order and marks the tallest bar", () => {
+    const bars = buildHockeyScoreBars(scoreChart());
+
+    expect(bars.home.map((point) => point.label)).toEqual([
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5+",
+    ]);
+    expect(bars.total.map((point) => point.label)).toEqual([
+      "≤3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8+",
+    ]);
+    expect(bars.home.find((point) => point.isFavorite)?.label).toBe("3");
+    expect(bars.total.find((point) => point.isFavorite)?.label).toBe("6");
+    expect(bars.home[0]?.color).toBe(CHART_COLOR_POSITIVE);
+    expect(bars.exactScores.map((point) => point.label)).toEqual([
+      "4:1",
+      "2:3",
+    ]);
+    expect(bars.exactScores[0]?.isFavorite).toBe(true);
+  });
+});
+
+function scoreChart(): HockeyScoreChart {
+  return {
+    model_id: 8,
+    model_name: "HOCKEY_GOALS_GBM_V1",
+    home_goals: [
+      { label: "0", probability: 0.05 },
+      { label: "1", probability: 0.12 },
+      { label: "2", probability: 0.2 },
+      { label: "3", probability: 0.33 },
+      { label: "4", probability: 0.18 },
+      { label: "5+", probability: 0.12 },
+    ],
+    away_goals: [
+      { label: "0", probability: 0.08 },
+      { label: "1", probability: 0.16 },
+      { label: "2", probability: 0.28 },
+      { label: "3", probability: 0.24 },
+      { label: "4", probability: 0.14 },
+      { label: "5+", probability: 0.1 },
+    ],
+    total_goals: [
+      { label: "≤3", probability: 0.08 },
+      { label: "4", probability: 0.12 },
+      { label: "5", probability: 0.18 },
+      { label: "6", probability: 0.24 },
+      { label: "7", probability: 0.2 },
+      { label: "8+", probability: 0.18 },
+    ],
+    exact_scores: [
+      { score: "4:1", probability: 0.14 },
+      { score: "2:3", probability: 0.11 },
+    ],
+  };
+}

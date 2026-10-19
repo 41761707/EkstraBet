@@ -105,6 +105,7 @@ describe("runPlannedTools allowlist and limits", () => {
       hockey_schedule_context: null,
       hockey_player_predictions: null,
       hockey_events: null,
+      hockey_score_charts: [],
       basketball_lineups: null,
       model_assessments: [],
     });
@@ -217,6 +218,7 @@ describe("runPlannedTools allowlist and limits", () => {
       hockey_schedule_context: null,
       hockey_player_predictions: null,
       hockey_events: null,
+      hockey_score_charts: [],
       basketball_lineups: null,
       model_assessments: [],
     });
@@ -324,6 +326,7 @@ describe("runPlannedTools allowlist and limits", () => {
       hockey_schedule_context: null,
       hockey_player_predictions: null,
       hockey_events: null,
+      hockey_score_charts: [],
       basketball_lineups: null,
       model_assessments: [],
     });

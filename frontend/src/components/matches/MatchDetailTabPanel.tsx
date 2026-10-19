@@ -97,6 +97,7 @@ function PredictionsTab({ match }: { match: MatchDetails }) {
           predictions={match.final_predictions}
           homeTeamLabel={homeTeamLabel}
           awayTeamLabel={awayTeamLabel}
+          scoreCharts={match.hockey_score_charts}
         />
       ) : null}
       {match.prediction_analysis ? (

@@ -847,6 +847,25 @@ export interface MatchModelAssessment {
   updated_at: string | null;
 }
 
+export interface HockeyGoalBucket {
+  label: string;
+  probability: number;
+}
+
+export interface HockeyExactScoreChance {
+  score: string;
+  probability: number;
+}
+
+export interface HockeyScoreChart {
+  model_id: number;
+  model_name: string;
+  home_goals: HockeyGoalBucket[];
+  away_goals: HockeyGoalBucket[];
+  total_goals: HockeyGoalBucket[];
+  exact_scores: HockeyExactScoreChance[];
+}
+
 export interface MatchDetails {
   id: number;
   league_id: number;
@@ -863,6 +882,7 @@ export interface MatchDetails {
   is_played: boolean;
   score_resolution: MatchScoreResolution | null;
   final_predictions: MatchPredictionItem[];
+  hockey_score_charts: HockeyScoreChart[];
   prediction_analysis: PredictionPreviewResponse | null;
   odds: OddsItem[];
   stats: MatchBasicStats | null;

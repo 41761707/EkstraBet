@@ -286,6 +286,7 @@ function makeMatchDetails(
     hockey_schedule_context: null,
     hockey_player_predictions: null,
     hockey_events: null,
+    hockey_score_charts: [],
     basketball_lineups: null,
     model_assessments: [],
     ...overrides,

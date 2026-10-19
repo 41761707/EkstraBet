@@ -640,6 +640,43 @@ class HockeyPlayerPredictions(BaseModel):
         description="Away skaters")
 
 
+class HockeyGoalBucket(BaseModel):
+    """One bar on a home, away or match goal chart."""
+
+    label: str = Field(..., description="Bucket label, such as 5+ or ≤3")
+    probability: float = Field(
+        ...,
+        description="Bucket probability from 0 to 1")
+
+
+class HockeyExactScoreChance(BaseModel):
+    """One of the five likeliest final scores."""
+
+    score: str = Field(..., description="Final score, such as 3:2")
+    probability: float = Field(
+        ...,
+        description="Score probability from 0 to 1")
+
+
+class HockeyScoreChartResponse(BaseModel):
+    """Goal buckets and top scores for one NHL team model."""
+
+    model_id: int = Field(..., description="Model ID")
+    model_name: str = Field(..., description="Model name")
+    home_goals: list[HockeyGoalBucket] = Field(
+        ...,
+        description="Home goal buckets from 0 through 5+")
+    away_goals: list[HockeyGoalBucket] = Field(
+        ...,
+        description="Away goal buckets from 0 through 5+")
+    total_goals: list[HockeyGoalBucket] = Field(
+        ...,
+        description="Match total buckets from ≤3 through 8+")
+    exact_scores: list[HockeyExactScoreChance] = Field(
+        ...,
+        description="Up to five likeliest final scores")
+
+
 class MatchDetails(BaseModel):
     """Full match payload for the match detail page."""
 
@@ -666,6 +703,10 @@ class MatchDetails(BaseModel):
     final_predictions: list[MatchPredictionItem] = Field(
         ...,
         description="Final model predictions")
+    hockey_score_charts: list[HockeyScoreChartResponse] = Field(
+        default_factory=list,
+        description=(
+            "NHL goal buckets and top scores. Empty for other sports"))
     prediction_analysis: PredictionPreviewResponse | None = Field(
         None,
         description=(

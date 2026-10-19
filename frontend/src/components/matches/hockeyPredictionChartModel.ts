@@ -1,5 +1,7 @@
 import {
   toDonutSegments,
+  toRelativeBars,
+  type ProbabilityBarPoint,
   type ProbabilitySegmentView,
 } from "@/components/predictions/predictionChartModel";
 import {
@@ -7,7 +9,12 @@ import {
   CHART_COLOR_POSITIVE,
   getSemanticBarColor,
 } from "@/lib/chartColors";
-import type { MatchPredictionItem } from "@/types/api";
+import type {
+  HockeyExactScoreChance,
+  HockeyGoalBucket,
+  HockeyScoreChart,
+  MatchPredictionItem,
+} from "@/types/api";
 
 /** Event ids from backend.sports.hockey.markets.HOCKEY_MARKET_RULES. */
 const MONEYLINE_HOME_EVENT_ID = 234;
@@ -175,5 +182,44 @@ function hasAnyDonut(chart: HockeyModelDonuts): boolean {
     chart.winner.length > 0 ||
     chart.total55.length > 0 ||
     chart.total65.length > 0
+  );
+}
+
+export interface HockeyScoreBars {
+  home: ProbabilityBarPoint[];
+  total: ProbabilityBarPoint[];
+  away: ProbabilityBarPoint[];
+  exactScores: ProbabilityBarPoint[];
+}
+
+/** Bars keep the API order. The five is already sorted by probability. */
+export function buildHockeyScoreBars(chart: HockeyScoreChart): HockeyScoreBars {
+  return {
+    home: toGoalBars(chart.home_goals),
+    total: toGoalBars(chart.total_goals),
+    away: toGoalBars(chart.away_goals),
+    exactScores: toExactBars(chart.exact_scores),
+  };
+}
+
+function toGoalBars(buckets: HockeyGoalBucket[]): ProbabilityBarPoint[] {
+  return toRelativeBars(
+    buckets.map((bucket) => ({
+      id: bucket.label,
+      label: bucket.label,
+      probability: bucket.probability,
+      color: CHART_COLOR_POSITIVE,
+    })),
+  );
+}
+
+function toExactBars(scores: HockeyExactScoreChance[]): ProbabilityBarPoint[] {
+  return toRelativeBars(
+    scores.map((score) => ({
+      id: score.score,
+      label: score.score,
+      probability: score.probability,
+      color: CHART_COLOR_POSITIVE,
+    })),
   );
 }
