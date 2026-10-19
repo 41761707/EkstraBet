@@ -96,6 +96,8 @@ _TABLE_SPECS: tuple[TableSpec, ...] = (
     # male tabele "stan biezacy" — append + --full-dict
     TableSpec("basketball_current_roster", SyncKind.DICTIONARY),
     TableSpec("hockey_rosters", SyncKind.DICTIONARY),
+    # PK to team_id; zmiana wspolrzednych wymaga --full-dict
+    TableSpec("hockey_team_arenas", SyncKind.DICTIONARY),
     TableSpec("player_name_mappings", SyncKind.DICTIONARY),
     # --- mecze (okno daty) ---
     TableSpec("matches", SyncKind.WINDOW),
@@ -128,6 +130,8 @@ _TABLE_SPECS: tuple[TableSpec, ...] = (
     TableSpec(
         "player_props_lines", SyncKind.WINDOW_CHILD, match_fk="match_id"),
     TableSpec("predictions", SyncKind.WINDOW_CHILD, match_fk="match_id"),
+    TableSpec(
+        "player_predictions", SyncKind.WINDOW_CHILD, match_fk="match_id"),
     TableSpec(
         "final_predictions", SyncKind.WINDOW_CHILD, via_predictions=True),
     TableSpec("bets", SyncKind.WINDOW_CHILD, match_fk="match_id"),
@@ -495,6 +499,17 @@ def build_upsert_sql(
         f"AS new ON DUPLICATE KEY UPDATE " + ", ".join(updates))
 
 
+def _prod_table_exists(prod: ProdMysql, table: str) -> bool:
+    """Return True when the table exists in the production schema."""
+    if not table.replace("_", "").isalnum():
+        raise ValueError(f"Unsafe table name: {table}")
+    sql = (
+        "SELECT COUNT(*) FROM information_schema.tables "
+        "WHERE table_schema = DATABASE() "
+        f"AND table_name = '{table}'")
+    return int(prod.scalar(sql) or 0) > 0
+
+
 def _table_exists(conn: MySQLConnection, table: str) -> bool:
     """Return True when the table exists in the connected database."""
     cursor = conn.cursor()
@@ -707,6 +722,9 @@ def sync_table(
     """Sync one table; return (name, prod_max_id, row_count)."""
     if not _table_exists(local, spec.name):
         print(f"SKIP {spec.name}: missing on local", flush=True)
+        return spec.name, 0, 0
+    if not _prod_table_exists(prod, spec.name):
+        print(f"SKIP {spec.name}: missing on production", flush=True)
         return spec.name, 0, 0
 
     pk_column = _primary_key_column(local, spec.name)
