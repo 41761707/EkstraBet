@@ -6,6 +6,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
+from api.schemas.hockey_player_events import (
+    HockeyPlayerEventRankingsResponse)
 from api.schemas.prediction import (
     MatchPredictionListResponse,
     PredictionPreviewRequest,
@@ -14,6 +16,7 @@ from api.schemas.prediction import (
     TeamPredictionListResponse)
 from api.routers.utils import parse_id_list
 from backend.config import get_settings
+from backend.services import hockey_player_event_service
 from backend.services import prediction_service
 from backend.services import prediction_preview_service
 
@@ -31,11 +34,36 @@ async def predictions_info() -> dict[str, object]:
         "description": "Read-only endpoints for model predictions",
         "endpoints": [
             "GET /predictions/search - Search predictions with filters",
+            "GET /predictions/hockey/player-events - NHL skater event rankings",
             "GET /predictions/team/{team_id}/{season_id} - Team predictions",
             "GET /predictions/match/{match_id} - Final match predictions",
             "POST /predictions/preview - Preview future-event predictions",
         ],
     }
+
+
+@router.get(
+    "/hockey/player-events",
+    response_model=HockeyPlayerEventRankingsResponse)
+async def get_hockey_player_events(
+    limit: int | None = Query(
+        None,
+        ge=1,
+        le=50,
+        description="Maximum rows per ranking")
+) -> HockeyPlayerEventRankingsResponse:
+    """Return point, goal, assist and shot rankings for unplayed matches."""
+    try:
+        payload = hockey_player_event_service.get_hockey_player_event_rankings(
+            limit)
+        return HockeyPlayerEventRankingsResponse(**payload)
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch hockey player event rankings: %s",
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch hockey player event rankings") from exc
 
 
 @router.post(

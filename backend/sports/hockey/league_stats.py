@@ -156,3 +156,60 @@ def fetch_hockey_over_under_stats(
             "over_7_5_pct": round(int(row["over_7_5"]) * 100 / played, 1)
         })
     return rows
+
+
+def bucket_goal_totals(totals: list[int]) -> dict[str, int]:
+    """Count matches in the league goal pie buckets.
+
+    Buckets match the old Streamlit chart: under 5, exactly 5, 6, 7
+    and 8 or more. Totals are regulation goals.
+    """
+    under_5 = 0
+    exactly_5 = 0
+    exactly_6 = 0
+    exactly_7 = 0
+    over_7 = 0
+    for total in totals:
+        if total < 5:
+            under_5 += 1
+        elif total == 5:
+            exactly_5 += 1
+        elif total == 6:
+            exactly_6 += 1
+        elif total == 7:
+            exactly_7 += 1
+        else:
+            over_7 += 1
+    return {
+        "total_matches": len(totals),
+        "under_5": under_5,
+        "exactly_5": exactly_5,
+        "exactly_6": exactly_6,
+        "exactly_7": exactly_7,
+        "over_7": over_7
+    }
+
+
+def fetch_hockey_goals_distribution(
+    league_id: int,
+    season_id: int,
+    phase: int | None = None) -> dict[str, int]:
+    """Return league-wide regulation goal totals split into pie buckets."""
+    round_sql, round_params = _round_filter(phase)
+    query = f"""
+        SELECT m.home_team_goals + m.away_team_goals AS total_goals
+        FROM matches m
+        WHERE m.league = %s
+            AND m.season = %s
+            AND m.result != '0'
+            AND m.home_team_goals IS NOT NULL
+            AND m.away_team_goals IS NOT NULL
+            {round_sql}
+    """
+    params: list[object] = [league_id, season_id, *round_params]
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn, params=tuple(params))
+    if frame.empty:
+        return bucket_goal_totals([])
+    totals = [int(value) for value in frame["total_goals"].tolist()]
+    return bucket_goal_totals(totals)

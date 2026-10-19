@@ -16,6 +16,8 @@ from backend.sports.hockey import league_stats as hockey_league_stats
 from backend.sports.hockey.first_period_goals import fetch_first_period_goals
 from backend.sports.hockey.standings import build_hockey_standings
 from backend.sports.hockey.team_history import build_hockey_team_history
+from backend.services.hockey_special_teams_service import (
+    get_hockey_special_teams)
 from backend.services.match_score import map_score_resolution
 from backend.services.round_label import resolve_round_label
 
@@ -229,6 +231,7 @@ def get_sport_league_stats(
         return None
 
     if sport_id == HOCKEY_SPORT_ID:
+        goals_distribution = None
         if category == "shots":
             rows = hockey_league_stats.fetch_hockey_shots_stats(
                 league_id, season_id, phase)
@@ -238,9 +241,20 @@ def get_sport_league_stats(
         elif category == "over_under":
             rows = hockey_league_stats.fetch_hockey_over_under_stats(
                 league_id, season_id, phase)
+            goals_distribution = (
+                hockey_league_stats.fetch_hockey_goals_distribution(
+                    league_id, season_id, phase))
+        elif category == "special_teams":
+            rows = get_hockey_special_teams(
+                league_id, season_id, phase)
         else:
             return None
-        return {"category": category, "rows": rows, "distribution": None}
+        return {
+            "category": category,
+            "rows": rows,
+            "distribution": None,
+            "goals_distribution": goals_distribution
+        }
 
     if category == "shooting":
         rows = basketball_league_stats.fetch_basketball_shooting_stats(

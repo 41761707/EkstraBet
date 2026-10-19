@@ -4,10 +4,13 @@ import { useState } from "react";
 
 import { HockeyRink } from "@/components/matches/HockeyRink";
 import {
+  goalieRoleLabels,
   HOCKEY_LINE_TABS,
   linePlayers,
+  playersOnLineSheet,
   rinkMarkersForLine,
   sortPlayersForLineTable,
+  type GoalieRoleLabel,
 } from "@/components/matches/hockeyLineupModel";
 import { StatusMessage } from "@/components/StatusMessage";
 import type {
@@ -63,6 +66,22 @@ function HockeyLineupTable({ players }: { players: HockeyLineupPlayer[] }) {
   );
 }
 
+function GoalieRoleList({ goalies }: { goalies: GoalieRoleLabel[] }) {
+  if (goalies.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
+      {goalies.map((goalie) => (
+        <li key={goalie.playerId}>
+          <span className="font-medium text-text">{goalie.playerName}</span>
+          {` · ${goalie.role}`}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function HockeyLineTabButtons({
   activeLine,
   onChange,
@@ -100,14 +119,15 @@ function HockeyTeamLineupColumn({
   teamName: string;
 }) {
   const [activeLine, setActiveLine] = useState<HockeyLineNumber>(1);
-  const players = linePlayers(team, activeLine);
-  const tablePlayers = sortPlayersForLineTable(players, activeLine);
+  const sheetPlayers = playersOnLineSheet(linePlayers(team, activeLine), activeLine);
+  const tablePlayers = sortPlayersForLineTable(sheetPlayers, activeLine);
 
   return (
     <section className="min-w-0 space-y-3">
       <h3 className="text-lg font-semibold text-text">{teamName}</h3>
+      <GoalieRoleList goalies={goalieRoleLabels(team)} />
       <HockeyLineTabButtons activeLine={activeLine} onChange={setActiveLine} />
-      {players.length === 0 ? (
+      {sheetPlayers.length === 0 ? (
         <StatusMessage
           variant="empty"
           title="Brak zawodników"
@@ -116,7 +136,7 @@ function HockeyTeamLineupColumn({
       ) : (
         <>
           <HockeyLineupTable players={tablePlayers} />
-          <HockeyRink markers={rinkMarkersForLine(players)} />
+          <HockeyRink markers={rinkMarkersForLine(sheetPlayers)} />
         </>
       )}
     </section>
@@ -129,9 +149,11 @@ export function HockeyMatchLineupsPanel({
   awayTeamName,
 }: HockeyMatchLineupsPanelProps) {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <HockeyTeamLineupColumn team={lineups.home} teamName={homeTeamName} />
-      <HockeyTeamLineupColumn team={lineups.away} teamName={awayTeamName} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <HockeyTeamLineupColumn team={lineups.home} teamName={homeTeamName} />
+        <HockeyTeamLineupColumn team={lineups.away} teamName={awayTeamName} />
+      </div>
     </div>
   );
 }

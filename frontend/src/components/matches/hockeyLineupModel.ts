@@ -29,6 +29,7 @@ const GOALIE_SLOT_X = 20;
 const GOALIE_SLOT_Y = 12;
 const LINE_1_TABLE_ORDER = ["G", "D", "LW", "C", "RW"] as const;
 const SKATER_LINE_TABLE_ORDER = ["D", "LW", "C", "RW"] as const;
+const GOALIE_POSITION = "G";
 
 function toMarker(
   player: HockeyLineupPlayer,
@@ -103,4 +104,52 @@ export function rinkMarkersForLine(
     ...markersForSlots(defensemen, DEFENSE_SLOT_X, DEFENSE_SLOT_Y),
     ...markersForSlots(goalies, [GOALIE_SLOT_X], GOALIE_SLOT_Y),
   ];
+}
+
+const GOALIE_ROLE_LABELS: Record<number, string> = {
+  1: "starter",
+  2: "rezerwowy",
+};
+
+export interface GoalieRoleLabel {
+  playerId: number;
+  playerName: string;
+  role: string;
+}
+
+/** Starter on line 1 and backup on line 2. Other goalies stay off the list. */
+export function goalieRoleLabels(team: HockeyTeamLineup): GoalieRoleLabel[] {
+  const labels: GoalieRoleLabel[] = [];
+  const lines = [...team.lines].sort((left, right) => left.line - right.line);
+  for (const lineupLine of lines) {
+    const role = GOALIE_ROLE_LABELS[lineupLine.line];
+    if (role == null) {
+      continue;
+    }
+    for (const player of lineupLine.players) {
+      if (player.position !== GOALIE_POSITION) {
+        continue;
+      }
+      labels.push({
+        playerId: player.player_id,
+        playerName: player.player_name,
+        role,
+      });
+    }
+  }
+  return labels;
+}
+
+/**
+ * Players drawn for one line. Line 1 keeps the starter. Lines 2-4 drop
+ * goalies, because a backup is stored on line 2 only so the sheet has a row.
+ */
+export function playersOnLineSheet(
+  players: HockeyLineupPlayer[],
+  line: number,
+): HockeyLineupPlayer[] {
+  if (line <= 1) {
+    return players;
+  }
+  return players.filter((player) => player.position !== GOALIE_POSITION);
 }

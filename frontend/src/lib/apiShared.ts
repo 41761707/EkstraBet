@@ -83,6 +83,7 @@ export function normalizeMatchDetails(payload: MatchDetails): MatchDetails {
   return {
     ...payload,
     final_predictions: payload.final_predictions ?? [],
+    hockey_score_charts: payload.hockey_score_charts ?? [],
     prediction_analysis: payload.prediction_analysis ?? null,
     odds: payload.odds ?? [],
     has_player_stats: payload.has_player_stats ?? false,
@@ -92,6 +93,9 @@ export function normalizeMatchDetails(payload: MatchDetails): MatchDetails {
     away_team_history: payload.away_team_history ?? [],
     boxscore: payload.boxscore ?? null,
     hockey_lineups: payload.hockey_lineups ?? null,
+    hockey_prediction_stage: payload.hockey_prediction_stage ?? null,
+    hockey_schedule_context: payload.hockey_schedule_context ?? null,
+    hockey_player_predictions: payload.hockey_player_predictions ?? null,
     hockey_events: payload.hockey_events ?? null,
     basketball_lineups: payload.basketball_lineups ?? null,
     model_assessments: payload.model_assessments ?? [],

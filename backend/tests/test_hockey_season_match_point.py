@@ -61,6 +61,17 @@ def test_map_hockey_season_match_point_validates_against_team_season_schema() ->
     assert validated.opponent_penalties == 6
 
 
+def test_resolve_hockey_form_result_overtime_tie() -> None:
+    row = _hockey_match_row(
+        home_team_goals=2,
+        away_team_goals=2,
+        hma_ot=1,
+        hma_ot_winner=1,
+        hma_so_winner=0)
+    assert resolve_hockey_form_result(100, row) == "WPD"
+    assert resolve_hockey_form_result(200, row) == "PPD"
+
+
 def test_resolve_hockey_form_result_treats_missing_ot_so_as_regulation() -> None:
     row = _hockey_match_row(hma_ot=math.nan, hma_so=math.nan)
     assert resolve_hockey_form_result(100, row) == "W"

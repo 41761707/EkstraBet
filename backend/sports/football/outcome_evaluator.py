@@ -67,7 +67,8 @@ class SettlementCandidate:
     """One pending final prediction or bet awaiting football settlement.
 
     ``family`` must use ``event_families.name`` values from the database
-    (for example ``REZULTAT``, not an English alias).
+    (for example ``REZULTAT``, not an English alias). ``sport_id`` is 1
+    when maintenance loaded the row; tipster legs leave it empty.
     """
 
     record_id: int
@@ -80,6 +81,7 @@ class SettlementCandidate:
     away_goals: int | None
     match_id: int | None = None
     boxscore: MatchBoxscore | None = None
+    sport_id: int | None = None
 
 
 def evaluate_football_outcome(candidate: SettlementCandidate) -> int:

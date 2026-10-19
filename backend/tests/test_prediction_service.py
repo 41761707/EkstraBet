@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from backend.services.prediction_service import (
+    get_hockey_score_charts,
     get_match_predictions,
     map_market_predictions_to_analysis,
     search_predictions)
@@ -200,6 +201,82 @@ class TestPredictionService(unittest.TestCase):
             "value": 50.0
         }])
         self.assertIsNone(map_market_predictions_to_analysis(frame))
+
+    @patch(
+        "backend.services.prediction_service.prediction_repository"
+        ".fetch_match_market_predictions")
+    def test_get_hockey_score_charts_groups_one_model(
+            self,
+            mock_fetch: unittest.mock.MagicMock) -> None:
+        rows = _hockey_bucket_rows(8, "HOCKEY_GOALS_GBM_V1", range(252, 258))
+        rows.extend(_hockey_bucket_rows(
+            8, "HOCKEY_GOALS_GBM_V1", range(264, 270)))
+        rows.extend(_hockey_exact_rows(8))
+        rows.extend(_hockey_bucket_rows(
+            21, "HOCKEY_RATINGS_POISSON_V1", range(252, 258)))
+        rows.extend(_hockey_bucket_rows(
+            21, "HOCKEY_RATINGS_POISSON_V1", range(264, 269)))
+        rows.extend(_hockey_exact_rows(21))
+        rows.extend(_hockey_bucket_rows(30, "PARTIAL", range(252, 257)))
+        mock_fetch.return_value = pd.DataFrame(rows)
+
+        charts = get_hockey_score_charts(10)
+
+        self.assertEqual([chart["model_id"] for chart in charts], [8, 21])
+        first = charts[0]
+        self.assertEqual(
+            [bucket["label"] for bucket in first["home_goals"]],
+            ["0", "1", "2", "3", "4", "5+"])
+        self.assertEqual(
+            [bucket["label"] for bucket in first["total_goals"]],
+            ["≤3", "4", "5", "6", "7", "8+"])
+        self.assertEqual(first["away_goals"], [])
+        self.assertAlmostEqual(first["home_goals"][0]["probability"], 0.1)
+        self.assertEqual(
+            [item["score"] for item in first["exact_scores"]],
+            ["3:2", "2:3", "4:3", "3:4", "1:2"])
+        self.assertAlmostEqual(
+            first["exact_scores"][0]["probability"], 0.3)
+        self.assertEqual(charts[1]["total_goals"], [])
+        self.assertEqual(len(charts[1]["home_goals"]), 6)
+        mock_fetch.assert_called_once_with(10)
+
+
+def _hockey_bucket_rows(
+        model_id: int,
+        model_name: str,
+        event_ids: range) -> list[dict[str, object]]:
+    return [
+        {
+            "prediction_id": event_id + model_id * 1000,
+            "event_id": event_id,
+            "event_name": "kubełek",
+            "model_id": model_id,
+            "model_name": model_name,
+            "value": 10.0
+        }
+        for event_id in event_ids
+    ]
+
+
+def _hockey_exact_rows(model_id: int) -> list[dict[str, object]]:
+    scores = (
+        (280, "1:2 (OT/SO)", 8.0),
+        (289, "2:3 (OT/SO)", 20.0),
+        (296, "3:2 (OT/SO)", 30.0),
+        (298, "3:4 (OT/SO)", 10.0),
+        (305, "4:3 (OT/SO)", 15.0))
+    return [
+        {
+            "prediction_id": event_id + model_id * 1000,
+            "event_id": event_id,
+            "event_name": name,
+            "model_id": model_id,
+            "model_name": "model",
+            "value": value
+        }
+        for event_id, name, value in scores
+    ]
 
 
 if __name__ == "__main__":

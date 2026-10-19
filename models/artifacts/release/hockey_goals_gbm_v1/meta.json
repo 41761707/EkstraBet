@@ -1,0 +1,19 @@
+{
+  "model_name": "HOCKEY_GOALS_GBM_V1",
+  "model_version": "1.0.0",
+  "task_type": "goals_poisson",
+  "trainer": "HockeyGbmTrainer",
+  "feature_builder": "HockeyTeamFeatureBuilder",
+  "labeler": "HockeyGoalsLabeler",
+  "tie_inflation": 1.4400000000000004,
+  "fallback_p_ot_home": 0.5114107883817427,
+  "max_goals": 12,
+  "loss": "poisson_hist_gradient_boosting",
+  "overtime": "logistic_regression",
+  "holdout": "single_fit_before_test_season",
+  "comparison_protocol": "single_preseason_fit",
+  "baseline_refit_count": 34,
+  "recommended_active": 1,
+  "training_started_at": "2026-10-01T16:39:53.716838+00:00",
+  "training_finished_at": "2026-10-01T16:48:26.601644+00:00"
+}

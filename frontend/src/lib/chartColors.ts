@@ -3,6 +3,8 @@
 export const CHART_COLOR_NEGATIVE = "#d95757";
 export const CHART_COLOR_POSITIVE = "#52b788";
 export const CHART_COLOR_DRAW = "#d9b44a";
+/** Oczekiwane strzały na bramkę, obok złotych oczekiwanych goli. */
+export const CHART_COLOR_SHOTS = "#6ea8fe";
 export const CHART_COLOR_NEUTRAL = "#64748b";
 export const CHART_COLOR_OVERTIME_WIN = "#22c55e";
 export const CHART_COLOR_OVERTIME_LOSS = "#f97316";

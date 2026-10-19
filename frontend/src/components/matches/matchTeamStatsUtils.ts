@@ -1,11 +1,14 @@
 import type { TeamSeasonMatchPoint, TeamSplitStats } from "@/types/api";
 
+export type SplitStatsSport = "football" | "hockey";
+
 function emptySplitStats(): TeamSplitStats {
   return {
     played: 0,
     wins: 0,
     draws: 0,
     losses: 0,
+    overtime_losses: 0,
     goals_for: 0,
     goals_conceded: 0,
     goal_difference: 0,
@@ -13,9 +16,46 @@ function emptySplitStats(): TeamSplitStats {
   };
 }
 
+function applyFootballResult(stats: TeamSplitStats, result: TeamSeasonMatchPoint["result"]): void {
+  if (result === "W") {
+    stats.wins += 1;
+    stats.points += 3;
+    return;
+  }
+  if (result === "D") {
+    stats.draws += 1;
+    stats.points += 1;
+    return;
+  }
+  stats.losses += 1;
+}
+
+function applyHockeyResult(stats: TeamSplitStats, result: TeamSeasonMatchPoint["result"]): void {
+  if (result === "W" || result === "WPD") {
+    stats.wins += 1;
+    stats.points += 2;
+    if (result === "WPD") {
+      stats.goals_for += 1;
+    }
+    return;
+  }
+  if (result === "PPD") {
+    stats.overtime_losses = (stats.overtime_losses ?? 0) + 1;
+    stats.points += 1;
+    stats.goals_conceded += 1;
+    return;
+  }
+  if (result === "D") {
+    stats.draws += 1;
+    return;
+  }
+  stats.losses += 1;
+}
+
 function applyMatchToSplitStats(
   stats: TeamSplitStats,
   match: TeamSeasonMatchPoint,
+  sport: SplitStatsSport,
 ): void {
   const goalsFor = match.is_home ? match.home_goals : match.away_goals;
   const goalsConceded = match.is_home ? match.away_goals : match.home_goals;
@@ -24,20 +64,19 @@ function applyMatchToSplitStats(
   stats.goals_for += goalsFor;
   stats.goals_conceded += goalsConceded;
 
-  if (match.result === "W") {
-    stats.wins += 1;
-    stats.points += 3;
-  } else if (match.result === "D") {
-    stats.draws += 1;
-    stats.points += 1;
+  if (sport === "hockey") {
+    applyHockeyResult(stats, match.result);
   } else {
-    stats.losses += 1;
+    applyFootballResult(stats, match.result);
   }
 
   stats.goal_difference = stats.goals_for - stats.goals_conceded;
 }
 
-export function computeSplitStatsFromHistory(history: TeamSeasonMatchPoint[]): {
+export function computeSplitStatsFromHistory(
+  history: TeamSeasonMatchPoint[],
+  sport: SplitStatsSport = "football",
+): {
   overall: TeamSplitStats;
   home: TeamSplitStats;
   away: TeamSplitStats;
@@ -47,8 +86,8 @@ export function computeSplitStatsFromHistory(history: TeamSeasonMatchPoint[]): {
   const away = emptySplitStats();
 
   for (const match of history) {
-    applyMatchToSplitStats(overall, match);
-    applyMatchToSplitStats(match.is_home ? home : away, match);
+    applyMatchToSplitStats(overall, match, sport);
+    applyMatchToSplitStats(match.is_home ? home : away, match, sport);
   }
 
   return { overall, home, away };

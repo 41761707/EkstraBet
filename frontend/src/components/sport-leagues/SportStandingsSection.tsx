@@ -1,21 +1,40 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { StatusMessage } from "@/components/StatusMessage";
-import type {
-  BasketballStandingRow,
-  HockeyStandingRow,
-  SportLeagueStatsResponse,
+import {
+  HOCKEY_SPORT_ID,
+  type BasketballStandingRow,
+  type HockeyStandingRow,
 } from "@/types/api";
 
 interface SportStandingsSectionProps {
   sportId: number;
+  seasonId?: number;
+  leagueId?: number;
   overallHockey?: HockeyStandingRow[];
   homeHockey?: HockeyStandingRow[];
   awayHockey?: HockeyStandingRow[];
   overallBasketball?: BasketballStandingRow[];
   homeBasketball?: BasketballStandingRow[];
   awayBasketball?: BasketballStandingRow[];
+}
+
+function teamHref(
+  teamId: number,
+  seasonId?: number,
+  leagueId?: number,
+): string {
+  const params = new URLSearchParams();
+  if (seasonId) {
+    params.set("season_id", String(seasonId));
+  }
+  if (leagueId) {
+    params.set("league_id", String(leagueId));
+  }
+  const query = params.toString();
+  return query ? `/teams/${teamId}?${query}` : `/teams/${teamId}`;
 }
 
 type TabId =
@@ -39,7 +58,15 @@ const basketballTabs: { id: TabId; label: string }[] = [
   { id: "away", label: "Tabela wyjazdowa" },
 ];
 
-function HockeyTable({ rows }: { rows: HockeyStandingRow[] }) {
+function HockeyTable({
+  rows,
+  seasonId,
+  leagueId,
+}: {
+  rows: HockeyStandingRow[];
+  seasonId?: number;
+  leagueId?: number;
+}) {
   if (rows.length === 0) {
     return (
       <StatusMessage
@@ -73,7 +100,14 @@ function HockeyTable({ rows }: { rows: HockeyStandingRow[] }) {
               className="border-t border-border text-text"
             >
               <td className="px-3 py-2">{row.position}</td>
-              <td className="px-3 py-2 font-medium">{row.team_name}</td>
+              <td className="px-3 py-2 font-medium">
+                <Link
+                  href={teamHref(row.team_id, seasonId, leagueId)}
+                  className="text-text transition hover:text-accent-text"
+                >
+                  {row.team_name}
+                </Link>
+              </td>
               <td className="px-3 py-2 text-center">{row.played}</td>
               <td className="px-3 py-2 text-center">{row.wins}</td>
               <td className="px-3 py-2 text-center">{row.losses}</td>
@@ -147,6 +181,8 @@ function BasketballTable({ rows }: { rows: BasketballStandingRow[] }) {
 
 export function SportStandingsSection({
   sportId,
+  seasonId,
+  leagueId,
   overallHockey,
   homeHockey,
   awayHockey,
@@ -154,9 +190,9 @@ export function SportStandingsSection({
   homeBasketball,
   awayBasketball,
 }: SportStandingsSectionProps) {
-  const tabs = sportId === 2 ? hockeyTabs : basketballTabs;
+  const isHockey = sportId === HOCKEY_SPORT_ID;
+  const tabs = isHockey ? hockeyTabs : basketballTabs;
   const [activeTab, setActiveTab] = useState<TabId>("overall");
-  const isHockey = sportId === 2;
 
   return (
     <div className="space-y-4">
@@ -181,7 +217,11 @@ export function SportStandingsSection({
         <div className="space-y-3">
           <h3 className="text-base font-semibold text-text">Tabela ogólna</h3>
           {isHockey ? (
-            <HockeyTable rows={overallHockey ?? []} />
+            <HockeyTable
+              rows={overallHockey ?? []}
+              seasonId={seasonId}
+              leagueId={leagueId}
+            />
           ) : (
             <BasketballTable rows={overallBasketball ?? []} />
           )}
@@ -197,7 +237,11 @@ export function SportStandingsSection({
 
       {activeTab === "home" ? (
         isHockey ? (
-          <HockeyTable rows={homeHockey ?? []} />
+          <HockeyTable
+            rows={homeHockey ?? []}
+            seasonId={seasonId}
+            leagueId={leagueId}
+          />
         ) : (
           <BasketballTable rows={homeBasketball ?? []} />
         )
@@ -205,7 +249,11 @@ export function SportStandingsSection({
 
       {activeTab === "away" ? (
         isHockey ? (
-          <HockeyTable rows={awayHockey ?? []} />
+          <HockeyTable
+            rows={awayHockey ?? []}
+            seasonId={seasonId}
+            leagueId={leagueId}
+          />
         ) : (
           <BasketballTable rows={awayBasketball ?? []} />
         )

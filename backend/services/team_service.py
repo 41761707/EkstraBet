@@ -176,6 +176,7 @@ def _empty_split_stats() -> dict[str, Any]:
         "wins": 0,
         "draws": 0,
         "losses": 0,
+        "overtime_losses": 0,
         "goals_for": 0,
         "goals_conceded": 0,
         "goal_difference": 0,
@@ -207,12 +208,14 @@ def _apply_split_match(
         if form_result in ("W", "WPD"):
             stats["wins"] += 1
             stats["points"] += 2
+            if form_result == "WPD":
+                stats["goals_for"] += 1
+        elif form_result == "PPD":
+            stats["overtime_losses"] += 1
+            stats["points"] += 1
+            stats["goals_conceded"] += 1
         elif form_result == "D":
             stats["draws"] += 1
-            stats["points"] += 1
-        elif form_result == "PPD":
-            stats["losses"] += 1
-            stats["points"] += 1
         else:
             stats["losses"] += 1
     elif form_result == "W":

@@ -1,12 +1,21 @@
 import type { TeamSplitStats } from "@/types/api";
 
+export type SplitStatsVariant = "football" | "hockey";
+
 interface TeamSplitStatsTableProps {
   overall: TeamSplitStats;
   home: TeamSplitStats;
   away: TeamSplitStats;
+  variant?: SplitStatsVariant;
 }
 
-const columns = [
+interface SplitColumn {
+  key: keyof TeamSplitStats;
+  label: string;
+  title?: string;
+}
+
+const FOOTBALL_COLUMNS: SplitColumn[] = [
   { key: "played", label: "MP" },
   { key: "wins", label: "W" },
   { key: "draws", label: "D" },
@@ -15,13 +24,30 @@ const columns = [
   { key: "goals_conceded", label: "GA" },
   { key: "goal_difference", label: "GD" },
   { key: "points", label: "Pts" },
-] as const;
+];
+
+const HOCKEY_COLUMNS: SplitColumn[] = [
+  { key: "played", label: "MP" },
+  { key: "wins", label: "W" },
+  { key: "losses", label: "L" },
+  {
+    key: "overtime_losses",
+    label: "OT",
+    title: "Przegrane po dogrywce lub karnych",
+  },
+  { key: "goals_for", label: "GF" },
+  { key: "goals_conceded", label: "GA" },
+  { key: "goal_difference", label: "GD" },
+  { key: "points", label: "Pts" },
+];
 
 export function TeamSplitStatsTable({
   overall,
   home,
   away,
+  variant = "football",
 }: TeamSplitStatsTableProps) {
+  const columns = variant === "hockey" ? HOCKEY_COLUMNS : FOOTBALL_COLUMNS;
   const rows = [
     { label: "Ogółem", stats: overall },
     { label: "U siebie", stats: home },
@@ -37,6 +63,7 @@ export function TeamSplitStatsTable({
             {columns.map((column) => (
               <th
                 key={column.key}
+                title={column.title}
                 className="px-3 py-3 text-center font-medium"
               >
                 {column.label}
@@ -58,7 +85,7 @@ export function TeamSplitStatsTable({
                     column.key === "points" ? "font-semibold text-accent-text" : ""
                   }`}
                 >
-                  {row.stats[column.key]}
+                  {row.stats[column.key] ?? 0}
                 </td>
               ))}
             </tr>

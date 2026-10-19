@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  goalieRoleLabels,
   HOCKEY_LINE_TABS,
   linePlayers,
+  playersOnLineSheet,
   rinkMarkersForLine,
   sortPlayersForLineTable,
 } from "@/components/matches/hockeyLineupModel";
@@ -174,5 +176,57 @@ describe("rinkMarkersForLine", () => {
     ]);
 
     expect(markers).toHaveLength(0);
+  });
+});
+
+describe("goalie placement", () => {
+  const starter = samplePlayer({
+    player_id: 11,
+    player_name: "Merzlikins E.",
+    position: "G",
+    line: 1,
+    start_probability: 0.62,
+  });
+  const backup = samplePlayer({
+    player_id: 12,
+    player_name: "Greaves J.",
+    position: "G",
+    line: 2,
+    start_probability: 0.38,
+  });
+  const secondLineForward = samplePlayer({
+    player_id: 13,
+    player_name: "Marchenko K.",
+    position: "RW",
+    line: 2,
+  });
+
+  function teamWithSplitGoalies(): HockeyTeamLineup {
+    return sampleTeam([
+      { line: 1, players: [starter] },
+      { line: 2, players: [backup, secondLineForward] },
+    ]);
+  }
+
+  it("names the starter and the backup from their roster lines", () => {
+    expect(goalieRoleLabels(teamWithSplitGoalies())).toEqual([
+      { playerId: 11, playerName: "Merzlikins E.", role: "starter" },
+      { playerId: 12, playerName: "Greaves J.", role: "rezerwowy" },
+    ]);
+  });
+
+  it("keeps the starter on line 1 and drops the backup from line 2", () => {
+    const team = teamWithSplitGoalies();
+    const lineOne = playersOnLineSheet(linePlayers(team, 1), 1);
+    const lineTwo = playersOnLineSheet(linePlayers(team, 2), 2);
+
+    expect(lineOne.map((player) => player.player_id)).toEqual([11]);
+    expect(lineTwo.map((player) => player.player_id)).toEqual([13]);
+    expect(rinkMarkersForLine(lineTwo).map((marker) => marker.position)).toEqual([
+      "RW",
+    ]);
+    expect(rinkMarkersForLine(lineOne).map((marker) => marker.position)).toEqual([
+      "G",
+    ]);
   });
 });

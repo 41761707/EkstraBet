@@ -30,7 +30,7 @@ describe("resolveMatchScore", () => {
       }),
     });
 
-    expect(result).toEqual({ main: "2 : 1", note: "po dogrywce" });
+    expect(result).toEqual({ main: "2 : 1", note: "(po dogrywce)" });
   });
 
   it("falls back to match goals when post-OT goals are null", () => {
@@ -45,7 +45,7 @@ describe("resolveMatchScore", () => {
       }),
     });
 
-    expect(result).toEqual({ main: "1 : 1", note: "po dogrywce" });
+    expect(result).toEqual({ main: "1 : 1", note: "(po dogrywce)" });
   });
 
   it("keeps penalty path: main from post-OT score, note from penalties", () => {
@@ -102,6 +102,36 @@ describe("resolveMatchScore", () => {
       }),
     });
 
-    expect(formatted).toBe("2 : 1 po dogrywce");
+    expect(formatted).toBe("2 : 1 (po dogrywce)");
+  });
+
+  it("formats an overtime win as 3 : 2 (po dogrywce)", () => {
+    const formatted = formatMatchScore({
+      home_goals: 2,
+      away_goals: 2,
+      is_played: true,
+      score_resolution: resolution({
+        has_extra_time: true,
+        post_ot_home_goals: 3,
+        post_ot_away_goals: 2,
+      }),
+    });
+
+    expect(formatted).toBe("3 : 2 (po dogrywce)");
+  });
+
+  it("formats a shootout without attempt counts as 2 : 3 (po karnych)", () => {
+    const formatted = formatMatchScore({
+      home_goals: 2,
+      away_goals: 2,
+      is_played: true,
+      score_resolution: resolution({
+        has_penalties: true,
+        post_ot_home_goals: 2,
+        post_ot_away_goals: 3,
+      }),
+    });
+
+    expect(formatted).toBe("2 : 3 (po karnych)");
   });
 });

@@ -12,6 +12,9 @@ from backend.database import get_db_connection
 
 logger = logging.getLogger(__name__)
 
+# Liga Mistrzów: predykcje modelowe są na razie kategorycznie zabronione.
+CHAMPIONS_LEAGUE_ID = 42
+
 MATCH_COLUMNS = [
     "id",
     "league",
@@ -115,12 +118,42 @@ def _anchor_from_season_years(years: str) -> date:
     return date(start_year, 7, 1)
 
 
+def ensure_predictions_allowed(league_id: int | None) -> None:
+    """Reject model predictions for the Champions League."""
+    if league_id == CHAMPIONS_LEAGUE_ID:
+        raise ValueError(
+            "Predictions for Champions League (league_id=42) are forbidden")
+
+
+def fetch_match_league_ids(
+        match_ids: list[int]) -> dict[int, int | None]:
+    """Return the league id stored for each match."""
+    if not match_ids:
+        return {}
+    placeholders = ", ".join(["%s"] * len(match_ids))
+    query = f"""
+        SELECT id, league
+        FROM matches
+        WHERE id IN ({placeholders})
+    """
+    with get_db_connection() as connection:
+        frame = pd.read_sql(
+            query, connection, params=tuple(match_ids))
+    leagues: dict[int, int | None] = {}
+    for _, row in frame.iterrows():
+        league = row["league"]
+        leagues[int(row["id"])] = (
+            None if pd.isna(league) else int(league))
+    return leagues
+
+
 def fetch_upcoming_matches(
         sport_id: int,
         date_from: date | datetime,
         date_to: date | datetime | None = None,
         league_id: int | None = None) -> pd.DataFrame:
     """Fetch scheduled matches from a date, optionally by league and end date."""
+    ensure_predictions_allowed(league_id)
     filters = [
         "m.sport_id = %s",
         "m.game_date >= %s",
@@ -133,6 +166,9 @@ def fetch_upcoming_matches(
     if league_id is not None:
         filters.append("m.league = %s")
         params = (*params, league_id)
+    # id ligi musi być różne od 42 — Liga Mistrzów jest wykluczona zawsze
+    filters.append("m.league <> %s")
+    params = (*params, CHAMPIONS_LEAGUE_ID)
     query = f"""
         SELECT
             {_match_select_clause()}

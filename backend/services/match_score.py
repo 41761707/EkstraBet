@@ -21,6 +21,34 @@ def _flag_int(value: object) -> int:
     return int(value)
 
 
+def _winner_side(
+    has_shootout: bool,
+    ot_winner: int,
+    so_winner: int) -> int:
+    """Return 1 or 2 for the team that won overtime or the shootout."""
+    if has_shootout:
+        if so_winner in (1, 2):
+            return so_winner
+        return 0
+    if ot_winner in (1, 2):
+        return ot_winner
+    return 0
+
+
+def _score_with_deciding_goal(
+    home_goals: int | None,
+    away_goals: int | None,
+    winner_side: int) -> tuple[int | None, int | None]:
+    """Add one goal for the winner when regulation ended in a tie."""
+    if home_goals is None or away_goals is None:
+        return home_goals, away_goals
+    if home_goals != away_goals or winner_side not in (1, 2):
+        return home_goals, away_goals
+    if winner_side == 1:
+        return home_goals + 1, away_goals
+    return home_goals, away_goals + 1
+
+
 def map_hockey_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     """Map hockey OT/SO metadata from hockey_matches_add."""
     has_ot = _flag_int(row.get("hma_ot")) == 1
@@ -36,11 +64,19 @@ def map_hockey_score_resolution(row: pd.Series) -> dict[str, Any] | None:
     if not has_shootout and not has_overtime_only:
         return None
 
+    home_goals = _optional_int(row.get("home_team_goals"))
+    away_goals = _optional_int(row.get("away_team_goals"))
+    winner_side = _winner_side(has_shootout, ot_winner, so_winner)
+    post_home, post_away = _score_with_deciding_goal(
+        home_goals,
+        away_goals,
+        winner_side)
+
     return {
         "has_extra_time": has_overtime_only,
         "has_penalties": has_shootout,
-        "post_ot_home_goals": _optional_int(row.get("home_team_goals")),
-        "post_ot_away_goals": _optional_int(row.get("away_team_goals")),
+        "post_ot_home_goals": post_home,
+        "post_ot_away_goals": post_away,
         "penalties_home_goals": None,
         "penalties_away_goals": None,
         "overtime_winner": ot_winner or None,

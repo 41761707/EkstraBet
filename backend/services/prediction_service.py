@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -29,6 +30,31 @@ _GOAL_BUCKET_EVENT_IDS = {
 }
 _TOP_EXACT_SCORES = 5
 _EXACT_SCORE_NAME_RE = re.compile(r"^(?:\d+|5\+):(?:\d+|5\+)$")
+_HOCKEY_EXACT_MIN_ID = 270
+_HOCKEY_EXACT_MAX_ID = 333
+_HOCKEY_EXACT_LIMIT = 5
+_HOCKEY_OT_SUFFIX = " (OT/SO)"
+_HOME_GOAL_BUCKETS = (
+    (252, "0"),
+    (253, "1"),
+    (254, "2"),
+    (255, "3"),
+    (256, "4"),
+    (257, "5+"))
+_AWAY_GOAL_BUCKETS = (
+    (258, "0"),
+    (259, "1"),
+    (260, "2"),
+    (261, "3"),
+    (262, "4"),
+    (263, "5+"))
+_TOTAL_GOAL_BUCKETS = (
+    (264, "≤3"),
+    (265, "4"),
+    (266, "5"),
+    (267, "6"),
+    (268, "7"),
+    (269, "8+"))
 
 
 def _optional_int(value: object) -> int | None:
@@ -293,3 +319,130 @@ def get_match_prediction_analysis(
         match_id,
         model_ids=model_ids)
     return map_market_predictions_to_analysis(frame)
+
+
+def get_hockey_score_charts(match_id: int) -> list[dict[str, Any]]:
+    """Return goal buckets and top scores stored for one match.
+
+    Probabilities are on the 0-1 scale. A series missing any of its
+    six ids is returned empty. A model with no full series and fewer
+    than five exact scores is omitted.
+    """
+    frame = prediction_repository.fetch_match_market_predictions(match_id)
+    return _map_hockey_score_charts(frame)
+
+
+def _map_hockey_score_charts(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    if frame.empty:
+        return []
+    grouped = _rows_by_model(frame)
+    charts: list[dict[str, Any]] = []
+    for model_id in sorted(grouped):
+        chart = _chart_for_model(model_id, grouped[model_id])
+        if chart is not None:
+            charts.append(chart)
+    return charts
+
+
+def _rows_by_model(
+        frame: pd.DataFrame) -> dict[int, list[dict[str, Any]]]:
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for record in frame.to_dict(orient="records"):
+        model_id = int(record["model_id"])
+        grouped.setdefault(model_id, []).append(record)
+    return grouped
+
+
+def _chart_for_model(
+        model_id: int,
+        rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    by_event = _first_row_by_event(rows)
+    home_goals = _bucket_series(by_event, _HOME_GOAL_BUCKETS)
+    away_goals = _bucket_series(by_event, _AWAY_GOAL_BUCKETS)
+    total_goals = _bucket_series(by_event, _TOTAL_GOAL_BUCKETS)
+    exact_scores = _exact_score_chances(by_event)
+    has_series = bool(home_goals or away_goals or total_goals)
+    if not has_series and len(exact_scores) < _HOCKEY_EXACT_LIMIT:
+        return None
+    return {
+        "model_id": model_id,
+        "model_name": _model_name(rows, model_id),
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "total_goals": total_goals,
+        "exact_scores": exact_scores}
+
+
+def _first_row_by_event(
+        rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    by_event: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        event_id = int(row["event_id"])
+        if event_id not in by_event:
+            by_event[event_id] = row
+    return by_event
+
+
+def _bucket_series(
+        by_event: dict[int, dict[str, Any]],
+        spec: tuple[tuple[int, str], ...]) -> list[dict[str, Any]]:
+    series: list[dict[str, Any]] = []
+    for event_id, label in spec:
+        row = by_event.get(event_id)
+        if row is None or not _finite_number(row.get("value")):
+            return []
+        series.append({
+            "label": label,
+            "probability": to_unit_probability(float(row["value"]))})
+    return series
+
+
+def _exact_score_chances(
+        by_event: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+    chances: list[dict[str, Any]] = []
+    for event_id, row in by_event.items():
+        if event_id < _HOCKEY_EXACT_MIN_ID or event_id > _HOCKEY_EXACT_MAX_ID:
+            continue
+        if not _finite_number(row.get("value")):
+            continue
+        chances.append({
+            "score": _exact_score_label(row.get("event_name")),
+            "probability": to_unit_probability(float(row["value"]))})
+    chances.sort(key=lambda item: float(item["probability"]), reverse=True)
+    return chances[:_HOCKEY_EXACT_LIMIT]
+
+
+def _exact_score_label(name: object) -> str:
+    text = "" if name is None or _is_missing(name) else str(name).strip()
+    if text.endswith(_HOCKEY_OT_SUFFIX):
+        return text[: -len(_HOCKEY_OT_SUFFIX)]
+    return text
+
+
+def _model_name(rows: list[dict[str, Any]], model_id: int) -> str:
+    for row in rows:
+        name = row.get("model_name")
+        if _is_missing(name):
+            continue
+        text = str(name).strip()
+        if text:
+            return text
+    return f"Model {model_id}"
+
+
+def _finite_number(value: object) -> bool:
+    if _is_missing(value) or isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return math.isfinite(value)
+    try:
+        number = float(str(value))
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number)
+
+
+def _is_missing(value: object) -> bool:
+    if value is None:
+        return True
+    return isinstance(value, float) and pd.isna(value)

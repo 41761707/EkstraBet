@@ -55,6 +55,6 @@ def test_overtime_match_counts_as_one_game() -> None:
     assert home["overtime_wins"] == 1
     assert away["overtime_losses"] == 1
     assert home["points"] == 2
-    assert away["points"] == 2
+    assert away["points"] == 1
     assert home["goals_for"] == 3
     assert away["goals_against"] == 3

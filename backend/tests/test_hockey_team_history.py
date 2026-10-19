@@ -71,3 +71,15 @@ def test_hockey_team_history_includes_opponent_name_home_and_away() -> None:
 
     HockeyTeamHistoryPoint.model_validate(home_game)
     HockeyTeamHistoryPoint.model_validate(away_game)
+    assert home_game["result"] == "W"
+    assert away_game["result"] == "W"
+
+
+def test_hockey_team_history_marks_overtime_winner() -> None:
+    matches = _hockey_matches()
+    matches.loc[matches["id"] == 1, "home_team_goals"] = 2
+    matches.loc[matches["id"] == 1, "away_team_goals"] = 2
+    matches.loc[matches["id"] == 1, "hma_ot_winner"] = 1
+    history = build_hockey_team_history(TEAM_ID, matches, lookback=10)
+    home_game = next(point for point in history if point["match_id"] == 1)
+    assert home_game["result"] == "WPD"

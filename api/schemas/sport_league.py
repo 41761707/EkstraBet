@@ -136,6 +136,13 @@ class SportLeagueStatRow(BaseModel):
     over_210_5_pct: float | None = None
     over_220_5_pct: float | None = None
     over_230_5_pct: float | None = None
+    pp_goals: int | None = None
+    pp_opportunities: int | None = None
+    pp_pct: float | None = None
+    pk_kills: int | None = None
+    pk_opportunities: int | None = None
+    pk_pct: float | None = None
+    hitchcock: float | None = None
 
 
 class SportPointsDistributionSummary(BaseModel):
@@ -148,6 +155,16 @@ class SportPointsDistributionSummary(BaseModel):
     average_away: float
 
 
+class HockeyGoalsDistribution(BaseModel):
+    """League-wide regulation goal buckets for the NHL pie chart."""
+    total_matches: int
+    under_5: int
+    exactly_5: int
+    exactly_6: int
+    exactly_7: int
+    over_7: int
+
+
 class SportLeagueStatsResponse(BaseModel):
     """League stats for one sport category tab."""
     league_id: int
@@ -156,3 +173,4 @@ class SportLeagueStatsResponse(BaseModel):
     category: str
     rows: list[SportLeagueStatRow] = Field(default_factory=list)
     distribution: SportPointsDistributionSummary | None = None
+    goals_distribution: HockeyGoalsDistribution | None = None

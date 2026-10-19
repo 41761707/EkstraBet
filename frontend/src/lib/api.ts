@@ -70,6 +70,8 @@ import type {
   SportTeamsListResponse,
   StandingScope,
   TeamProfile,
+  HockeyTeamRoster,
+  HockeyPlayerEventRankingsResponse,
   FilterOption,
   PlayerSportsListResponse,
   PlayerCountriesResponse,
@@ -337,6 +339,16 @@ export async function getTeamProfile(
   });
 }
 
+/** Current NHL roster from GET /teams/{id}/roster. */
+export async function getHockeyTeamRoster(
+  teamId: number,
+  seasonId: number,
+): Promise<HockeyTeamRoster> {
+  return fetchApi<HockeyTeamRoster>(`/teams/${teamId}/roster`, {
+    season_id: seasonId,
+  });
+}
+
 export async function getFootballTeams(): Promise<TeamsListResponse> {
   const pageSize = 500;
   const firstPage = await fetchApi<TeamsListResponse>("/teams/search", {
@@ -403,6 +415,16 @@ export async function getDailyMatches(
   });
 }
 
+/** Upcoming NHL skater rankings. Omit limit for the full boards. */
+export async function getHockeyPlayerEventRankings(
+  limit?: number,
+): Promise<HockeyPlayerEventRankingsResponse> {
+  return fetchApi<HockeyPlayerEventRankingsResponse>(
+    "/predictions/hockey/player-events",
+    { limit },
+  );
+}
+
 export async function getBetRecommendations(options?: {
   leagueIds?: number[];
   seasonId?: number;
@@ -457,6 +479,8 @@ export async function getBetRecommendations(options?: {
 
 export async function getModelAnalytics(options?: {
   statType?: AnalyticsStatType;
+  sportId?: number;
+  modelIds?: number[];
   modelResultIds?: number[];
   modelOuIds?: number[];
   modelBttsIds?: number[];
@@ -475,6 +499,11 @@ export async function getModelAnalytics(options?: {
 }): Promise<ModelAnalyticsResponse> {
   return fetchApi<ModelAnalyticsResponse>("/analytics/models", {
     stat_type: options?.statType,
+    sport_id: options?.sportId,
+    model_ids:
+      options?.modelIds && options.modelIds.length > 0
+        ? options.modelIds.join(",")
+        : undefined,
     model_result_ids:
       options?.modelResultIds && options.modelResultIds.length > 0
         ? options.modelResultIds.join(",")

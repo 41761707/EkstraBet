@@ -8,7 +8,8 @@ Scope = Literal["overall", "home", "away"]
 WINNER_GAIN = 2
 DRAW_GAIN = 1
 OT_WINNER_GAIN = 1
-OT_LOSER_GAIN = 1
+# Przegrany ma już punkt z remisu. Drugi punkt dawałby 2 zamiast 1.
+OT_LOSER_GAIN = 0
 
 
 def _empty_row(team_id: int, team_name: str) -> dict[str, Any]:

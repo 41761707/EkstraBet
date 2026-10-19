@@ -33,6 +33,26 @@ def fetch_event_families(sport_id: int | None = None) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=params)
 
 
+def fetch_sport_family_events(sport_id: int) -> pd.DataFrame:
+    """Return each family of a sport together with its mapped events."""
+    query = """
+        SELECT
+            ef.id AS family_id,
+            ef.name AS family_name,
+            ef.description,
+            e.id AS event_id,
+            e.name AS event_name
+        FROM event_families ef
+        LEFT JOIN event_family_mappings efm
+            ON efm.event_family_id = ef.id
+        LEFT JOIN events e ON e.id = efm.event_id
+        WHERE ef.sport_id = %s
+        ORDER BY ef.id, e.id
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=(sport_id,))
+
+
 def fetch_family_events(family_id: int) -> pd.DataFrame:
     """Return events mapped to the given event family."""
     query = """

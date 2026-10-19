@@ -1,0 +1,18 @@
+{
+  "model_name": "HOCKEY_PLAYER_PROPS_V1",
+  "model_version": "1.0.0",
+  "task_type": "player_props",
+  "trainer": "HockeyPlayerPropsTrainer",
+  "feature_builder": "HockeyPlayerFeatureBuilder",
+  "labeler": "HockeyPlayerPropsLabeler",
+  "targets": [
+    "sog",
+    "goals",
+    "assists",
+    "points"
+  ],
+  "lines_per_skater": 7,
+  "loss": "poisson_hist_gradient_boosting",
+  "training_started_at": "2026-10-02T00:05:05.630751+00:00",
+  "training_finished_at": "2026-10-02T00:06:45.170744+00:00"
+}

@@ -1,3 +1,4 @@
+import { hockeyFamilyLabel } from "@/lib/hockeyMarketLabels";
 import { formatProbability } from "@/lib/format";
 import type { MatchPredictionItem } from "@/types/api";
 
@@ -35,7 +36,7 @@ export function MatchPredictionsTable({
                 <div>{prediction.event_name}</div>
                 {prediction.event_family ? (
                   <div className="text-xs text-subtle">
-                    {prediction.event_family.name}
+                    {hockeyFamilyLabel(prediction.event_family.name)}
                   </div>
                 ) : null}
               </td>

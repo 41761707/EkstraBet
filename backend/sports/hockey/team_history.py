@@ -20,24 +20,44 @@ def _to_date_label(value: object) -> str:
     return parsed.strftime("%d.%m")
 
 
+def _flag_int(value: object) -> int:
+    """Convert nullable flags to integers, treating missing values as zero."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return 0
+    if pd.isna(value):
+        return 0
+    return int(value)
+
+
+def _extra_time_winner(ot_winner: int, so_winner: int) -> int:
+    """Return 1 or 2 when OT or a shootout decided a tied game."""
+    if so_winner in (1, 2):
+        return so_winner
+    if ot_winner in (1, 2):
+        return ot_winner
+    return 0
+
+
 def _resolve_hockey_result(
     is_home: bool,
     home_goals: int,
     away_goals: int,
     ot_winner: int,
-    so_winner: int,
-    has_ot: bool,
-    has_so: bool) -> HockeyResult:
-    """Map one team perspective to W/WPD/L/PPD result codes."""
-    if home_goals > away_goals:
-        if is_home:
-            return "WPD" if (has_ot or has_so) else "W"
-        return "PPD" if (has_ot or has_so) else "L"
-    if home_goals < away_goals:
-        if is_home:
-            return "PPD" if (has_ot or has_so) else "L"
-        return "WPD" if (has_ot or has_so) else "W"
-    return "D"
+    so_winner: int) -> HockeyResult:
+    """Map one team perspective to W/WPD/D/L/PPD result codes.
+
+    Unequal regulation goals stay W or L. A tie uses the OT or SO winner.
+    """
+    if home_goals != away_goals:
+        home_won = home_goals > away_goals
+        team_won = home_won if is_home else not home_won
+        return "W" if team_won else "L"
+    decider = _extra_time_winner(ot_winner, so_winner)
+    if decider == 0:
+        return "D"
+    home_won = decider == 1
+    team_won = home_won if is_home else not home_won
+    return "WPD" if team_won else "PPD"
 
 
 def build_hockey_team_history(
@@ -62,12 +82,9 @@ def build_hockey_team_history(
     history: list[dict[str, Any]] = []
     for _, row in team_matches.iterrows():
         is_home = int(row["home_id"]) == team_id
-        team_key = "home" if is_home else "away"
         opponent_key = "away" if is_home else "home"
         home_goals = int(row["home_team_goals"])
         away_goals = int(row["away_team_goals"])
-        has_ot = int(row.get("hma_ot") or 0) != 0
-        has_so = int(row.get("hma_so") or 0) != 0
         team_goals = home_goals if is_home else away_goals
         opponent_goals = away_goals if is_home else home_goals
         team_sog = row.get("home_team_sog") if is_home else row.get("away_team_sog")
@@ -90,10 +107,8 @@ def build_hockey_team_history(
                 is_home,
                 home_goals,
                 away_goals,
-                int(row.get("hma_ot_winner") or 0),
-                int(row.get("hma_so_winner") or 0),
-                has_ot,
-                has_so),
+                _flag_int(row.get("hma_ot_winner")),
+                _flag_int(row.get("hma_so_winner"))),
             "home_team_name": str(row["home_name"]),
             "away_team_name": str(row["away_name"]),
             "home_goals": home_goals,

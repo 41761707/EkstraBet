@@ -7,6 +7,8 @@ from datetime import date, datetime, time, timedelta
 import pandas as pd
 
 from backend.database import get_db_connection
+from backend.sports.hockey.player_predictions import (
+    HOCKEY_PLAYER_PROPS_MODEL_NAME)
 
 _MATCH_BASE_COLUMNS = """
     m.id,
@@ -529,5 +531,122 @@ def fetch_basketball_match_lineups(match_id: int) -> pd.DataFrame:
     """
     with get_db_connection() as conn:
         return pd.read_sql(query, conn, params=(match_id,))
+
+
+def fetch_hockey_club_rosters(
+        home_team_id: int,
+        away_team_id: int) -> pd.DataFrame:
+    """Return the current roster rows for both clubs in one match."""
+    query = """
+        SELECT
+            hr.player_id,
+            p.common_name AS player_name,
+            hr.team_id,
+            t.name AS team_name,
+            hr.position,
+            hr.number,
+            hr.line,
+            hr.is_injured
+        FROM hockey_rosters hr
+        JOIN players p ON p.id = hr.player_id
+        JOIN teams t ON t.id = hr.team_id
+        WHERE hr.team_id IN (%s, %s)
+        ORDER BY hr.team_id, hr.line, hr.number, p.common_name
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(
+            query,
+            conn,
+            params=(home_team_id, away_team_id))
+
+
+def fetch_hockey_team_arenas() -> pd.DataFrame:
+    """Return home-arena coordinates and time zones."""
+    query = """
+        SELECT
+            team_id,
+            latitude,
+            longitude,
+            timezone
+        FROM hockey_team_arenas
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn)
+
+
+def fetch_hockey_player_predictions(
+    match_id: int,
+    model_name: str) -> pd.DataFrame:
+    """Return beta skater lines for one props model and match."""
+    query = """
+        SELECT
+            pp.player_id,
+            p.common_name AS player_name,
+            pp.team_id,
+            pp.event_id,
+            pp.line,
+            pp.expected_value,
+            pp.probability
+        FROM player_predictions pp
+        JOIN players p ON p.id = pp.player_id
+        JOIN models m ON m.id = pp.model_id
+        WHERE pp.match_id = %s
+            AND m.name = %s
+        ORDER BY pp.team_id, p.common_name, pp.event_id, pp.line
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(
+            query,
+            conn,
+            params=(match_id, model_name))
+
+
+def fetch_upcoming_hockey_player_props() -> pd.DataFrame:
+    """Return prop lines for unplayed matches of the hockey props model.
+
+    Played matches stay out via ``result = '0'``, the same rule as
+    ``_is_played``. An empty table comes back as an empty frame.
+    """
+    query = """
+        SELECT
+            pp.player_id,
+            p.common_name AS player_name,
+            pp.team_id,
+            club.name AS team_name,
+            club.shortcut AS team_shortcut,
+            m.id AS match_id,
+            m.game_date,
+            m.home_team AS home_team_id,
+            m.away_team AS away_team_id,
+            home.name AS home_name,
+            home.shortcut AS home_shortcut,
+            away.name AS away_name,
+            away.shortcut AS away_shortcut,
+            pp.event_id,
+            pp.line,
+            pp.expected_value,
+            pp.probability
+        FROM player_predictions pp
+        JOIN models mo ON mo.id = pp.model_id
+        JOIN matches m ON m.id = pp.match_id
+        JOIN players p ON p.id = pp.player_id
+        JOIN teams club ON club.id = pp.team_id
+        JOIN teams home ON home.id = m.home_team
+        JOIN teams away ON away.id = m.away_team
+        WHERE mo.name = %s
+            AND m.result = '0'
+            AND (
+                (pp.event_id = 190 AND pp.line = 2.5)
+                OR (
+                    pp.event_id IN (192, 194, 196)
+                    AND pp.line = 0.5
+                )
+            )
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(
+            query,
+            conn,
+            params=(HOCKEY_PLAYER_PROPS_MODEL_NAME,))
 
 

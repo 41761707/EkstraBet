@@ -317,6 +317,13 @@ export interface SportLeagueStatRow {
   over_210_5_pct?: number | null;
   over_220_5_pct?: number | null;
   over_230_5_pct?: number | null;
+  pp_goals?: number | null;
+  pp_opportunities?: number | null;
+  pp_pct?: number | null;
+  pk_kills?: number | null;
+  pk_opportunities?: number | null;
+  pk_pct?: number | null;
+  hitchcock?: number | null;
 }
 
 export interface SportPointsDistributionSummary {
@@ -328,6 +335,15 @@ export interface SportPointsDistributionSummary {
   average_away: number;
 }
 
+export interface HockeyGoalsDistribution {
+  total_matches: number;
+  under_5: number;
+  exactly_5: number;
+  exactly_6: number;
+  exactly_7: number;
+  over_7: number;
+}
+
 export interface SportLeagueStatsResponse {
   league_id: number;
   season_id: number;
@@ -335,6 +351,7 @@ export interface SportLeagueStatsResponse {
   category: string;
   rows: SportLeagueStatRow[];
   distribution: SportPointsDistributionSummary | null;
+  goals_distribution?: HockeyGoalsDistribution | null;
 }
 
 export interface ApiErrorBody {
@@ -406,6 +423,7 @@ export interface TeamSplitStats {
   wins: number;
   draws: number;
   losses: number;
+  overtime_losses?: number;
   goals_for: number;
   goals_conceded: number;
   goal_difference: number;
@@ -478,6 +496,72 @@ export interface TeamProfile {
   away_stats: TeamSplitStats;
   season_matches: TeamSeasonMatchPoint[];
   head_to_head: HeadToHeadSummary | null;
+}
+
+/** Counting stats for one player in one sample of games. */
+export interface HockeyPlayerCountingStats {
+  games_played: number;
+  goals: number;
+  assists: number;
+  points: number;
+  shots_on_goal: number;
+  shots_per_game: number | null;
+  average_toi: string | null;
+  save_percentage: number | null;
+  goals_against_average: number | null;
+}
+
+/** Season totals and the player's own recent regular-season games. */
+export interface HockeyPlayerStatWindows {
+  season: HockeyPlayerCountingStats;
+  last_5: HockeyPlayerCountingStats;
+  last_10: HockeyPlayerCountingStats;
+}
+
+/** One player on the current NHL roster, with season counting stats. */
+export interface HockeyRosterPlayer {
+  player_id: number;
+  first_name: string;
+  last_name: string;
+  common_name: string;
+  country: string;
+  position: string;
+  number: number | null;
+  /** Skater line, or goalie depth: 1 primary, 2 backup. */
+  line: number | null;
+  /** Power-play unit 1 or 2. Null when the player is not on a unit. */
+  pp_unit: number | null;
+  is_injured: boolean;
+  injury_status: string | null;
+  injury_note: string | null;
+  games_played: number;
+  goals: number;
+  assists: number;
+  points: number;
+  shots_on_goal: number;
+  shots_per_game: number | null;
+  average_toi: string | null;
+  save_percentage: number | null;
+  goals_against_average: number | null;
+  stat_windows: HockeyPlayerStatWindows;
+  in_last_lineup: boolean;
+}
+
+/** Players sharing one section of the team roster. */
+export interface HockeyRosterGroup {
+  group_id: string;
+  players: HockeyRosterPlayer[];
+}
+
+/** Current hockey roster from GET /teams/{id}/roster. */
+export interface HockeyTeamRoster {
+  team_id: number;
+  team_name: string;
+  goalkeepers: HockeyRosterPlayer[];
+  defensemen: HockeyRosterPlayer[];
+  forwards: HockeyRosterPlayer[];
+  injured_players: number;
+  groups: HockeyRosterGroup[];
 }
 
 export interface EventFamilyRef {
@@ -621,6 +705,10 @@ export interface HockeyMatchBoxscore {
   skaters: HockeySkaterBoxscoreRow[];
 }
 
+export type HockeyLineupStatus = "confirmed" | "probable";
+
+export type HockeyPredictionStage = "initial" | "final";
+
 export interface HockeyLineupPlayer {
   player_id: number;
   player_name: string;
@@ -628,6 +716,7 @@ export interface HockeyLineupPlayer {
   position: string;
   number: number | null;
   line: number;
+  start_probability?: number | null;
 }
 
 export interface HockeyLineupLine {
@@ -639,6 +728,68 @@ export interface HockeyTeamLineup {
   team_id: number;
   team_name: string;
   lines: HockeyLineupLine[];
+  lineup_status?: HockeyLineupStatus | null;
+  source?: string | null;
+}
+
+export interface HockeyScheduleSide {
+  rest_days: number;
+  is_b2b: boolean;
+  games_last_7_days: number;
+}
+
+export interface HockeyScheduleContext {
+  home: HockeyScheduleSide;
+  away: HockeyScheduleSide;
+}
+
+export interface HockeyPlayerPredictionLine {
+  event_id: number;
+  line: number;
+  expected_value: number;
+  probability: number;
+}
+
+export interface HockeyPlayerPrediction {
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  lines: HockeyPlayerPredictionLine[];
+}
+
+export interface HockeyPlayerPredictions {
+  home: HockeyPlayerPrediction[];
+  away: HockeyPlayerPrediction[];
+}
+
+export type HockeyPlayerEventMetric = "point" | "goal" | "assist" | "shot";
+
+export interface HockeyPlayerEventRankingRow {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_name: string;
+  team_shortcut: string | null;
+  match_id: number;
+  game_date: string;
+  opponent_name: string;
+  opponent_shortcut: string | null;
+  is_home: boolean;
+  probability: number;
+  expected_shots: number | null;
+}
+
+export interface HockeyPlayerEventRanking {
+  metric: HockeyPlayerEventMetric;
+  label: string;
+  hint: string;
+  rows: HockeyPlayerEventRankingRow[];
+}
+
+export interface HockeyPlayerEventRankingsResponse {
+  match_count: number;
+  rankings: HockeyPlayerEventRanking[];
 }
 
 export interface HockeyMatchLineups {
@@ -703,6 +854,25 @@ export interface MatchModelAssessment {
   updated_at: string | null;
 }
 
+export interface HockeyGoalBucket {
+  label: string;
+  probability: number;
+}
+
+export interface HockeyExactScoreChance {
+  score: string;
+  probability: number;
+}
+
+export interface HockeyScoreChart {
+  model_id: number;
+  model_name: string;
+  home_goals: HockeyGoalBucket[];
+  away_goals: HockeyGoalBucket[];
+  total_goals: HockeyGoalBucket[];
+  exact_scores: HockeyExactScoreChance[];
+}
+
 export interface MatchDetails {
   id: number;
   league_id: number;
@@ -719,6 +889,7 @@ export interface MatchDetails {
   is_played: boolean;
   score_resolution: MatchScoreResolution | null;
   final_predictions: MatchPredictionItem[];
+  hockey_score_charts: HockeyScoreChart[];
   prediction_analysis: PredictionPreviewResponse | null;
   odds: OddsItem[];
   stats: MatchBasicStats | null;
@@ -730,6 +901,9 @@ export interface MatchDetails {
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
   hockey_lineups: HockeyMatchLineups | null;
+  hockey_prediction_stage: HockeyPredictionStage | null;
+  hockey_schedule_context: HockeyScheduleContext | null;
+  hockey_player_predictions: HockeyPlayerPredictions | null;
   hockey_events: HockeyMatchEvent[] | null;
   basketball_lineups: BasketballMatchLineups | null;
   model_assessments: MatchModelAssessment[];
@@ -844,9 +1018,22 @@ export interface PredictionBetBreakdown {
   charts: ChartData;
 }
 
+export interface ModelCategoryRow {
+  model_id: number;
+  model_name: string;
+  prediction_total: number;
+  prediction_correct: number;
+  prediction_accuracy_pct: number | null;
+  bet_total: number;
+  bet_correct: number;
+  bet_accuracy_pct: number | null;
+  profit_total: number;
+}
+
 export interface CategoryStatistics {
   predictions: PredictionBetBreakdown;
   bets: PredictionBetBreakdown;
+  models?: ModelCategoryRow[];
 }
 
 export interface DistributionBucket {

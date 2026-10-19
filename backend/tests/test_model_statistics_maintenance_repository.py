@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from backend.repositories.model_statistics_maintenance_repository import (
+    HOCKEY_SPORT_ID,
     BetGenerationScope,
     GeneratedBet,
     _UPSERT_GENERATED_BET_SQL,
@@ -18,6 +19,9 @@ from backend.repositories.model_statistics_maintenance_repository import (
     write_final_prediction_outcomes,
     write_generated_bets)
 from backend.sports.football.outcome_evaluator import BET_MARKET_EVENT_IDS
+from backend.sports.football.outcome_evaluator import SettlementCandidate
+from backend.sports.hockey.markets import HOCKEY_BET_MARKET_EVENT_IDS
+from backend.sports.hockey.outcome_evaluator import HockeySettlementCandidate
 
 
 class TestBetGenerationScope(unittest.TestCase):
@@ -313,6 +317,123 @@ class TestWriteOutcomes(unittest.TestCase):
         self.assertEqual(write_final_prediction_outcomes([], conn), 0)
         self.assertEqual(write_bet_outcomes([], conn), 0)
         conn.cursor.assert_not_called()
+
+
+class TestHockeySettlementDispatch(unittest.TestCase):
+    """Hockey families, priced events, and overtime columns."""
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_final_predictions_join_overtime_and_map_hockey(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [{
+            "record_id": 40,
+            "match_id": 900,
+            "event_id": 234,
+            "event_name": "home win",
+            "family": "HOCKEY_ML",
+            "result": "X",
+            "home_goals": 3,
+            "away_goals": 3,
+            "sport_id": HOCKEY_SPORT_ID,
+            "ot_winner": 3,
+            "so_winner": 1}]
+        candidates = fetch_pending_final_predictions(after_id=0, limit=10)
+        self.assertEqual(len(candidates), 1)
+        candidate = candidates[0]
+        self.assertIsInstance(candidate, HockeySettlementCandidate)
+        self.assertEqual(candidate.sport_id, HOCKEY_SPORT_ID)
+        self.assertEqual(candidate.ot_winner, 3)
+        self.assertEqual(candidate.so_winner, 1)
+        self.assertEqual(candidate.family, "HOCKEY_ML")
+        query, params = mock_fetch.call_args.args
+        self.assertIn("LEFT JOIN hockey_matches_add hma", query)
+        self.assertIn("m.sport_id AS sport_id", query)
+        self.assertIn("hma.OTwinner AS ot_winner", query)
+        self.assertIn("hma.SOwinner AS so_winner", query)
+        self.assertIn("HOCKEY_ML", params)
+        self.assertIn("HOCKEY_AWAY_TT_35", params)
+        self.assertIn("REZULTAT", params)
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_pending_bets_include_hockey_event_ids(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = []
+        fetch_pending_bets(after_id=0, limit=5)
+        query, params = mock_fetch.call_args.args
+        self.assertIn("LEFT JOIN hockey_matches_add hma", query)
+        for event_id in sorted(BET_MARKET_EVENT_IDS):
+            self.assertIn(event_id, params)
+        for event_id in sorted(HOCKEY_BET_MARKET_EVENT_IDS):
+            self.assertIn(event_id, params)
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_bet_generation_includes_hockey_event_ids(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [{
+            "match_id": 900,
+            "event_id": 234,
+            "model_id": 8,
+            "bookmaker_id": 2,
+            "odds": 1.9,
+            "probability": 55.0}]
+        rows = fetch_bet_generation_candidates(BetGenerationScope())
+        self.assertEqual(rows[0].event_id, 234)
+        _query, params = mock_fetch.call_args.args
+        self.assertIn(234, params)
+        self.assertIn(1, params)
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_football_row_stays_football_candidate(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [{
+            "record_id": 7,
+            "match_id": 11,
+            "event_id": 1,
+            "event_name": "home",
+            "family": "REZULTAT",
+            "result": "1",
+            "home_goals": 1,
+            "away_goals": 0,
+            "sport_id": 1,
+            "ot_winner": None,
+            "so_winner": None}]
+        candidates = fetch_pending_final_predictions(after_id=0, limit=5)
+        self.assertIsInstance(candidates[0], SettlementCandidate)
+        self.assertNotIsInstance(candidates[0], HockeySettlementCandidate)
+        self.assertEqual(candidates[0].sport_id, 1)
+
+    @patch(
+        "backend.repositories.model_statistics_maintenance_repository"
+        "._fetch_dicts")
+    def test_hockey_sport_rejects_football_family(
+            self,
+            mock_fetch: MagicMock) -> None:
+        mock_fetch.return_value = [{
+            "record_id": 8,
+            "match_id": 12,
+            "event_id": 1,
+            "event_name": "home",
+            "family": "REZULTAT",
+            "result": "1",
+            "home_goals": 1,
+            "away_goals": 0,
+            "sport_id": HOCKEY_SPORT_ID,
+            "ot_winner": None,
+            "so_winner": None}]
+        with self.assertRaises(ValueError):
+            fetch_pending_final_predictions(after_id=0, limit=5)
 
 
 if __name__ == "__main__":

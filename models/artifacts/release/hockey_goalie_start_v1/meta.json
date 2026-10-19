@@ -1,0 +1,23 @@
+{
+  "model_name": "HOCKEY_GOALIE_START_V1",
+  "model_version": "1.0.0",
+  "task_type": "goalie_start",
+  "features": [
+    "start_share_last_10",
+    "started_yesterday",
+    "days_since_last_start",
+    "starts_last_4_days",
+    "is_b2b_second_game",
+    "opponent_elo"
+  ],
+  "pool_games": 20,
+  "start_share_games": 10,
+  "recent_start_days": 4,
+  "days_since_start_cap": 60,
+  "test_season": 12,
+  "low_weight_seasons": {
+    "4": 0.5
+  },
+  "holdout": "games before the first test-season match",
+  "production_fit": "all candidate rows"
+}

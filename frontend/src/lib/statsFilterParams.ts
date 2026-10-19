@@ -3,10 +3,13 @@ import type {
   AnalyticsGroupBy,
   AnalyticsStatType,
 } from "@/types/api";
+import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
 
 export interface StatsFilterValues {
+  sportId: number;
   leagueIds: number[];
   seasonId: number | null;
+  modelIds: number[];
   modelResultIds: number[];
   modelOuIds: number[];
   modelBttsIds: number[];
@@ -28,8 +31,10 @@ export function createDefaultStatsFilterValues(
   overrides: Partial<StatsFilterValues> = {},
 ): StatsFilterValues {
   return {
+    sportId: FOOTBALL_SPORT_ID,
     leagueIds: [],
     seasonId: null,
+    modelIds: [],
     modelResultIds: [],
     modelOuIds: [],
     modelBttsIds: [],
@@ -53,6 +58,7 @@ export function resetModelStatsFilters(
   current: StatsFilterValues,
 ): StatsFilterValues {
   return createDefaultStatsFilterValues({
+    sportId: current.sportId,
     compareLeagueIds: current.compareLeagueIds,
     compareSeasonId: current.compareSeasonId,
   });
@@ -128,6 +134,9 @@ export function buildStatsFilterQuery(
   availableLeagueIds: number[],
 ): string {
   const params = new URLSearchParams();
+  if (nextState.sportId !== FOOTBALL_SPORT_ID) {
+    params.set("sport_id", String(nextState.sportId));
+  }
   const leagueFilter = serializeLeagueFilter(
     nextState.leagueIds,
     availableLeagueIds,
@@ -138,13 +147,17 @@ export function buildStatsFilterQuery(
   if (nextState.seasonId) {
     params.set("season_id", String(nextState.seasonId));
   }
-  if (nextState.modelResultIds.length > 0) {
+  const isHockey = nextState.sportId === HOCKEY_SPORT_ID;
+  if (isHockey && nextState.modelIds.length > 0) {
+    params.set("model_ids", nextState.modelIds.join(","));
+  }
+  if (!isHockey && nextState.modelResultIds.length > 0) {
     params.set("model_result_ids", nextState.modelResultIds.join(","));
   }
-  if (nextState.modelOuIds.length > 0) {
+  if (!isHockey && nextState.modelOuIds.length > 0) {
     params.set("model_ou_ids", nextState.modelOuIds.join(","));
   }
-  if (nextState.modelBttsIds.length > 0) {
+  if (!isHockey && nextState.modelBttsIds.length > 0) {
     params.set("model_btts_ids", nextState.modelBttsIds.join(","));
   }
   if (nextState.dateFrom) {

@@ -4,14 +4,16 @@ import { useState } from "react";
 
 import {
   nextOddsSortState,
-  ODDS_MARKET_EVENT_IDS,
+  oddsFamilyTablesForSport,
   ODDS_SORT_BOOKMAKER_KEY,
   resolveOddsSortValue,
   sortOddsRows,
+  visibleOddsFamilyTables,
   type MarketEventProbability,
   type OddsColumn,
   type OddsSortState,
 } from "@/components/matchOddsTableModel";
+import { FOOTBALL_SPORT_ID } from "@/types/api";
 import { formatOdds } from "@/lib/format";
 import type { OddsItem } from "@/types/api";
 
@@ -19,6 +21,7 @@ interface MatchOddsGroupedTablesProps {
   odds: OddsItem[];
   /** Unit probabilities for all market events (USTALONE row). */
   predictions: MarketEventProbability[];
+  sportId?: number;
 }
 
 const BOOKMAKER_ORDER = [
@@ -194,8 +197,18 @@ function OddsTable({
 export function MatchOddsGroupedTables({
   odds,
   predictions,
+  sportId = FOOTBALL_SPORT_ID,
 }: MatchOddsGroupedTablesProps) {
-  if (odds.length === 0 && predictions.length === 0) {
+  const eventIds = new Set<number>([
+    ...odds.map((item) => item.event_id),
+    ...predictions.map((item) => item.event_id),
+  ]);
+  const tables = visibleOddsFamilyTables(
+    sportId,
+    oddsFamilyTablesForSport(sportId),
+    eventIds,
+  );
+  if (tables.length === 0) {
     return null;
   }
 
@@ -206,65 +219,16 @@ export function MatchOddsGroupedTables({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-      <OddsTable
-        title="Porównanie kursów z estymacją na rezultat:"
-        bookmakers={bookmakers}
-        columns={[
-          {
-            key: "home",
-            label: "Gospodarz",
-            eventId: ODDS_MARKET_EVENT_IDS.home,
-          },
-          {
-            key: "draw",
-            label: "Remis",
-            eventId: ODDS_MARKET_EVENT_IDS.draw,
-          },
-          {
-            key: "away",
-            label: "Gość",
-            eventId: ODDS_MARKET_EVENT_IDS.away,
-          },
-        ]}
-        lookup={lookup}
-        predictions={predictions}
-      />
-      <OddsTable
-        title="Porównanie kursów z estymacją na OU:"
-        bookmakers={bookmakers}
-        columns={[
-          {
-            key: "under",
-            label: "UNDER 2.5",
-            eventId: ODDS_MARKET_EVENT_IDS.under,
-          },
-          {
-            key: "over",
-            label: "OVER 2.5",
-            eventId: ODDS_MARKET_EVENT_IDS.over,
-          },
-        ]}
-        lookup={lookup}
-        predictions={predictions}
-      />
-      <OddsTable
-        title="Porównanie kursów z estymacją na BTTS:"
-        bookmakers={bookmakers}
-        columns={[
-          {
-            key: "bttsYes",
-            label: "BTTS TAK",
-            eventId: ODDS_MARKET_EVENT_IDS.bttsYes,
-          },
-          {
-            key: "bttsNo",
-            label: "BTTS NIE",
-            eventId: ODDS_MARKET_EVENT_IDS.bttsNo,
-          },
-        ]}
-        lookup={lookup}
-        predictions={predictions}
-      />
+      {tables.map((table) => (
+        <OddsTable
+          key={table.key}
+          title={table.title}
+          bookmakers={bookmakers}
+          columns={table.columns}
+          lookup={lookup}
+          predictions={predictions}
+        />
+      ))}
     </div>
   );
 }

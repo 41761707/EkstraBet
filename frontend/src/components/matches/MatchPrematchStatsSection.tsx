@@ -1,27 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MatchCard } from "@/components/MatchCard";
+
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { HockeyTeamPrematchPanel } from "@/components/matches/HockeyTeamPrematchPanel";
 import { MatchTeamPrematchPanel } from "@/components/matches/MatchTeamPrematchPanel";
 import {
   MATCH_H2H_DEFAULT,
-  MATCH_H2H_MAX,
-  MATCH_H2H_MIN,
   MATCH_OU_LINE_DEFAULT,
-  MATCH_OU_LINE_MAX,
-  MATCH_OU_LINE_MIN,
-  MATCH_OU_LINE_STEP,
   resolveMatchLookbackBounds,
 } from "@/components/matches/matchChartConfig";
-import { StatusMessage } from "@/components/StatusMessage";
-import type {
-  HeadToHeadSummary,
-  MatchSummary,
-  TeamSeasonMatchPoint,
+import { PrematchAnalysisControls } from "@/components/matches/PrematchAnalysisControls";
+import { PrematchHeadToHeadSection } from "@/components/matches/PrematchHeadToHeadSection";
+import {
+  HOCKEY_SPORT_ID,
+  type HeadToHeadSummary,
+  type HockeyScheduleContext,
+  type HockeyScheduleSide,
+  type TeamSeasonMatchPoint,
 } from "@/types/api";
-import { HOCKEY_SPORT_ID } from "@/types/api";
 import {
   defaultOuLine,
   ouLineBounds,
@@ -36,30 +33,11 @@ interface MatchPrematchStatsSectionProps {
   headToHead: HeadToHeadSummary;
   homeTeamHistory: TeamSeasonMatchPoint[];
   awayTeamHistory: TeamSeasonMatchPoint[];
+  hockeyScheduleContext?: HockeyScheduleContext | null;
 }
 
-function H2HStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div>
-      <p className="text-xs uppercase tracking-wide text-subtle">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-text">{value}</p>
-    </div>
-  );
-}
-
-export function MatchPrematchStatsSection({
-  sportId,
-  homeTeamName,
-  awayTeamName,
-  seasonId,
-  leagueId,
-  headToHead,
-  homeTeamHistory = [],
-  awayTeamHistory = [],
-}: MatchPrematchStatsSectionProps) {
-  const isHockey = sportId === HOCKEY_SPORT_ID;
-  const ouBounds = isHockey ? ouLineBounds(HOCKEY_SPORT_ID) : null;
-  const safeHeadToHead = headToHead ?? {
+function emptyHeadToHead(): HeadToHeadSummary {
+  return {
     team_id: 0,
     opponent_id: 0,
     played: 0,
@@ -73,183 +51,125 @@ export function MatchPrematchStatsSection({
     avg_goals_per_match: 0,
     meetings: [],
   };
+}
+
+function PrematchTeamColumn({
+  teamName,
+  history,
+  isHockey,
+  lookback,
+  ouLine,
+  schedule,
+}: {
+  teamName: string;
+  history: TeamSeasonMatchPoint[];
+  isHockey: boolean;
+  lookback: number;
+  ouLine: number;
+  schedule: HockeyScheduleSide | null;
+}) {
+  return (
+    <ExpandableSection title={teamName} defaultOpen>
+      {isHockey ? (
+        <HockeyTeamPrematchPanel
+          teamName={teamName}
+          history={history}
+          lookback={lookback}
+          ouLine={ouLine}
+          schedule={schedule}
+        />
+      ) : (
+        <MatchTeamPrematchPanel
+          teamName={teamName}
+          history={history}
+          lookback={lookback}
+          ouLine={ouLine}
+        />
+      )}
+    </ExpandableSection>
+  );
+}
+
+export function MatchPrematchStatsSection({
+  sportId,
+  homeTeamName,
+  awayTeamName,
+  seasonId,
+  leagueId,
+  headToHead,
+  homeTeamHistory = [],
+  awayTeamHistory = [],
+  hockeyScheduleContext = null,
+}: MatchPrematchStatsSectionProps) {
+  const isHockey = sportId === HOCKEY_SPORT_ID;
+  const safeHeadToHead = headToHead ?? emptyHeadToHead();
   const safeHomeHistory = homeTeamHistory ?? [];
   const safeAwayHistory = awayTeamHistory ?? [];
-
   const [h2hLimit, setH2hLimit] = useState(MATCH_H2H_DEFAULT);
   const [ouLine, setOuLine] = useState(() =>
     isHockey ? defaultOuLine(HOCKEY_SPORT_ID) : MATCH_OU_LINE_DEFAULT,
   );
-
   const lookbackBounds = useMemo(() => {
-    const maxAvailable = Math.max(
-      safeHomeHistory.length,
-      safeAwayHistory.length,
-    );
+    const maxAvailable = Math.max(safeHomeHistory.length, safeAwayHistory.length);
     return resolveMatchLookbackBounds(maxAvailable);
   }, [safeAwayHistory.length, safeHomeHistory.length]);
-
   const [lookback, setLookback] = useState(lookbackBounds.defaultValue);
-
   const effectiveLookback = Math.min(
     Math.max(lookback, lookbackBounds.min || 1),
     lookbackBounds.max,
   );
-
   const displayedMeetings = useMemo(
     () => (safeHeadToHead.meetings ?? []).slice(0, h2hLimit),
     [safeHeadToHead.meetings, h2hLimit],
   );
+  const meetingCount = Math.min(h2hLimit, safeHeadToHead.meetings.length);
 
   return (
     <div className="min-w-0 space-y-4">
       <ExpandableSection title="Konfiguracja analizy" defaultOpen>
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-text">
-                Liczba prezentowanych spotkań H2H
-              </span>
-              <span className="font-semibold text-text">{h2hLimit}</span>
-            </div>
-            <input
-              type="range"
-              min={MATCH_H2H_MIN}
-              max={MATCH_H2H_MAX}
-              step={1}
-              value={h2hLimit}
-              onChange={(event) => setH2hLimit(Number(event.target.value))}
-              className="w-full accent-accent"
-            />
-          </label>
-
-          <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-text">
-                Linia Over/Under
-              </span>
-              <span className="font-semibold text-text">
-                {ouLine.toFixed(1)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={isHockey ? ouBounds!.min : MATCH_OU_LINE_MIN}
-              max={isHockey ? ouBounds!.max : MATCH_OU_LINE_MAX}
-              step={isHockey ? ouBounds!.step : MATCH_OU_LINE_STEP}
-              value={ouLine}
-              onChange={(event) => setOuLine(Number(event.target.value))}
-              className="w-full accent-accent"
-            />
-          </label>
-
-          <label className="space-y-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-text">
-                Liczba analizowanych spotkań wstecz
-              </span>
-              <span className="font-semibold text-text">
-                {effectiveLookback}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={lookbackBounds.min}
-              max={lookbackBounds.max}
-              step={1}
-              value={lookback}
-              onChange={(event) => setLookback(Number(event.target.value))}
-              className="w-full accent-accent"
-              disabled={lookbackBounds.max <= 0}
-            />
-            <p className="text-xs text-subtle">
-              Statystyki i wykresy z N ostatnich meczów przed datą tego
-              spotkania.
-            </p>
-          </label>
-        </div>
+        <PrematchAnalysisControls
+          h2hLimit={h2hLimit}
+          ouLine={ouLine}
+          lookback={lookback}
+          effectiveLookback={effectiveLookback}
+          isHockey={isHockey}
+          ouBounds={isHockey ? ouLineBounds(HOCKEY_SPORT_ID) : null}
+          lookbackBounds={lookbackBounds}
+          onH2hLimitChange={setH2hLimit}
+          onOuLineChange={setOuLine}
+          onLookbackChange={setLookback}
+        />
       </ExpandableSection>
-
       {h2hLimit > 0 ? (
         <ExpandableSection
-          title={`Bezpośrednie spotkania (H2H) — ${Math.min(h2hLimit, safeHeadToHead.meetings.length)}`}
+          title={`Bezpośrednie spotkania (H2H) — ${meetingCount}`}
           defaultOpen
         >
-          {safeHeadToHead.played > 0 ? (
-            <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
-              <H2HStat label="Rozegrane" value={safeHeadToHead.played} />
-              <H2HStat
-                label="Bilans (gospodarz)"
-                value={`${safeHeadToHead.wins}W ${safeHeadToHead.draws}D ${safeHeadToHead.losses}L`}
-              />
-              <H2HStat
-                label="Bramki"
-                value={`${safeHeadToHead.goals_for}:${safeHeadToHead.goals_conceded}`}
-              />
-              {!isHockey ? (
-                <H2HStat
-                  label="BTTS"
-                  value={`${safeHeadToHead.btts_percentage.toFixed(1)}%`}
-                />
-              ) : null}
-            </div>
-          ) : null}
-          {displayedMeetings.length > 0 ? (
-            <div className="grid gap-3">
-              {displayedMeetings.map((match: MatchSummary) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  seasonId={seasonId}
-                  leagueId={leagueId}
-                />
-              ))}
-            </div>
-          ) : (
-            <StatusMessage
-              variant="empty"
-              title="Brak spotkań H2H"
-              message="Brak bezpośrednich spotkań między drużynami w bazie danych."
-            />
-          )}
+          <PrematchHeadToHeadSection
+            headToHead={safeHeadToHead}
+            meetings={displayedMeetings}
+            isHockey={isHockey}
+            seasonId={seasonId}
+            leagueId={leagueId}
+          />
         </ExpandableSection>
       ) : null}
-
-      <ExpandableSection title={homeTeamName} defaultOpen>
-        {isHockey ? (
-          <HockeyTeamPrematchPanel
-            teamName={homeTeamName}
-            history={safeHomeHistory}
-            lookback={effectiveLookback}
-            ouLine={ouLine}
-          />
-        ) : (
-          <MatchTeamPrematchPanel
-            teamName={homeTeamName}
-            history={safeHomeHistory}
-            lookback={effectiveLookback}
-            ouLine={ouLine}
-          />
-        )}
-      </ExpandableSection>
-
-      <ExpandableSection title={awayTeamName} defaultOpen>
-        {isHockey ? (
-          <HockeyTeamPrematchPanel
-            teamName={awayTeamName}
-            history={safeAwayHistory}
-            lookback={effectiveLookback}
-            ouLine={ouLine}
-          />
-        ) : (
-          <MatchTeamPrematchPanel
-            teamName={awayTeamName}
-            history={safeAwayHistory}
-            lookback={effectiveLookback}
-            ouLine={ouLine}
-          />
-        )}
-      </ExpandableSection>
+      <PrematchTeamColumn
+        teamName={homeTeamName}
+        history={safeHomeHistory}
+        isHockey={isHockey}
+        lookback={effectiveLookback}
+        ouLine={ouLine}
+        schedule={hockeyScheduleContext?.home ?? null}
+      />
+      <PrematchTeamColumn
+        teamName={awayTeamName}
+        history={safeAwayHistory}
+        isHockey={isHockey}
+        lookback={effectiveLookback}
+        ouLine={ouLine}
+        schedule={hockeyScheduleContext?.away ?? null}
+      />
     </div>
   );
 }

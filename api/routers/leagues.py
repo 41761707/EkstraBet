@@ -35,6 +35,7 @@ from api.schemas.season_projection import SeasonProjectionStandingRow
 from api.schemas.sport_league import (
     BasketballStandingRow,
     BasketballTeamHistoryPoint,
+    HockeyGoalsDistribution,
     HockeyStandingRow,
     HockeyTeamHistoryPoint,
     SportLeagueStatsResponse,
@@ -713,13 +714,18 @@ async def get_sport_league_stats(
         if payload.get("distribution") and payload["distribution"].get("summary"):
             distribution = SportPointsDistributionSummary(
                 **payload["distribution"]["summary"])
+        goals_distribution = None
+        raw_goals = payload.get("goals_distribution")
+        if raw_goals is not None:
+            goals_distribution = HockeyGoalsDistribution(**raw_goals)
         return SportLeagueStatsResponse(
             league_id=league_id,
             season_id=season_id,
             sport_id=sport_id,
             category=category,
             rows=rows,
-            distribution=distribution)
+            distribution=distribution,
+            goals_distribution=goals_distribution)
     except HTTPException:
         raise
     except Exception as exc:

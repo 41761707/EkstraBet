@@ -13,9 +13,11 @@ import {
   getLeagues,
   getLeagueComparisons,
   getModelAnalytics,
+  getModels,
   getModelsGroupedByFamily,
   getSeasonOptions,
 } from "@/lib/api";
+import { hockeyFamilyLabel } from "@/lib/hockeyMarketLabels";
 import {
   parseBoolean,
   parseIdList,
@@ -28,9 +30,11 @@ import {
 } from "@/lib/statsFilterParams";
 import {
   FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
   type AnalyticsAggregationMetric,
   type AnalyticsGroupBy,
   type AnalyticsStatType,
+  type FilterOption,
 } from "@/types/api";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +45,14 @@ const categoryTitles: Record<string, string> = {
   result: "1X2",
 };
 
+function categoryTitle(key: string): string {
+  return categoryTitles[key] ?? hockeyFamilyLabel(key);
+}
+
+function resolveStatsSportId(sportId: number): number {
+  return sportId === HOCKEY_SPORT_ID ? HOCKEY_SPORT_ID : FOOTBALL_SPORT_ID;
+}
+
 interface StatsPageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
@@ -49,6 +61,8 @@ function parseFilters(
   params: Record<string, string | undefined>,
 ): StatsFilterValues {
   return {
+    sportId: parsePositiveInt(params.sport_id) ?? FOOTBALL_SPORT_ID,
+    modelIds: parseIdList(params.model_ids),
     leagueIds: parseIdList(params.league_ids),
     seasonId: parsePositiveInt(params.season_id),
     modelResultIds: parseIdList(params.model_result_ids),
@@ -91,21 +105,28 @@ function pickDefaultModelIds(
 export default async function StatsPage({ searchParams }: StatsPageProps) {
   const params = await searchParams;
   const filters = parseFilters(params);
+  const sportId = resolveStatsSportId(filters.sportId);
+  const isHockey = sportId === HOCKEY_SPORT_ID;
 
-  let leagues: { id: number; label: string }[] = [];
-  let seasons: { id: number; label: string }[] = [];
+  let leagues: FilterOption[] = [];
+  let seasons: FilterOption[] = [];
+  let hockeyModels: FilterOption[] = [];
   let modelsByFamily = {
-    result: [] as { id: number; label: string }[],
-    ou: [] as { id: number; label: string }[],
-    btts: [] as { id: number; label: string }[],
+    result: [] as FilterOption[],
+    ou: [] as FilterOption[],
+    btts: [] as FilterOption[],
   };
 
   try {
-    const [leaguesResponse, seasonOptions, groupedModels] = await Promise.all([
-      getLeagues({ active: true, sportId: FOOTBALL_SPORT_ID }),
-      getSeasonOptions(FOOTBALL_SPORT_ID),
-      getModelsGroupedByFamily(FOOTBALL_SPORT_ID),
-    ]);
+    const [leaguesResponse, seasonOptions, groupedModels, modelsResponse] =
+      await Promise.all([
+        getLeagues({ active: true, sportId }),
+        getSeasonOptions(sportId),
+        isHockey
+          ? Promise.resolve(modelsByFamily)
+          : getModelsGroupedByFamily(sportId),
+        isHockey ? getModels() : Promise.resolve(null),
+      ]);
 
     leagues = leaguesResponse.leagues.map((league) => ({
       id: league.id,
@@ -113,6 +134,10 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     }));
     seasons = seasonOptions;
     modelsByFamily = groupedModels;
+    hockeyModels = (modelsResponse?.models ?? [])
+      .filter((model) => model.active === 1 && model.sport_id === HOCKEY_SPORT_ID)
+      .map((model) => ({ id: model.id, label: model.name }))
+      .sort((left, right) => left.label.localeCompare(right.label, "pl"));
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -146,8 +171,17 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
     allFootballLeagueIds,
   );
 
+  const selectedHockeyModelIds =
+    filters.modelIds.length > 0
+      ? filters.modelIds.filter((id) =>
+          hockeyModels.some((model) => model.id === id),
+        )
+      : hockeyModels.map((model) => model.id);
+
   const effectiveFilters: StatsFilterValues = {
     ...filters,
+    sportId,
+    modelIds: isHockey ? selectedHockeyModelIds : [],
     leagueIds: visibleLeagueFilterIds(
       selectedFootballLeagueIds,
       allFootballLeagueIds,
@@ -175,37 +209,59 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
 
   try {
     const [analyticsResult, comparisonResult] = await Promise.allSettled([
-      getModelAnalytics({
-        statType: effectiveFilters.statType,
-        modelResultIds: pickDefaultModelIds(
-          effectiveFilters.modelResultIds,
-          modelsByFamily.result,
-        ),
-        modelOuIds: pickDefaultModelIds(
-          effectiveFilters.modelOuIds,
-          modelsByFamily.ou,
-        ),
-        modelBttsIds: pickDefaultModelIds(
-          effectiveFilters.modelBttsIds,
-          modelsByFamily.btts,
-        ),
-        leagueIds: apiLeagueIds.length > 0 ? apiLeagueIds : undefined,
-        seasonId: effectiveFilters.seasonId ?? undefined,
-        dateFrom: effectiveFilters.dateFrom || undefined,
-        dateTo: effectiveFilters.dateTo || undefined,
-        roundFrom: parsePositiveInt(effectiveFilters.roundFrom) ?? undefined,
-        roundTo: parsePositiveInt(effectiveFilters.roundTo) ?? undefined,
-        settledOnly: effectiveFilters.settledOnly,
-        positiveEvOnly: effectiveFilters.positiveEvOnly,
-        applyTax: effectiveFilters.applyTax,
-        groupBy: effectiveFilters.groupBy,
-        aggregationMetric: effectiveFilters.aggregationMetric,
-      }),
-      getLeagueComparisons({
-        leagueIds:
-          compareApiLeagueIds.length > 0 ? compareApiLeagueIds : undefined,
-        seasonId: effectiveFilters.compareSeasonId ?? undefined,
-      }),
+      getModelAnalytics(
+        isHockey
+          ? {
+              sportId: HOCKEY_SPORT_ID,
+              modelIds: effectiveFilters.modelIds,
+              leagueIds: apiLeagueIds.length > 0 ? apiLeagueIds : undefined,
+              seasonId: effectiveFilters.seasonId ?? undefined,
+              dateFrom: effectiveFilters.dateFrom || undefined,
+              dateTo: effectiveFilters.dateTo || undefined,
+              roundFrom:
+                parsePositiveInt(effectiveFilters.roundFrom) ?? undefined,
+              roundTo: parsePositiveInt(effectiveFilters.roundTo) ?? undefined,
+              settledOnly: effectiveFilters.settledOnly,
+              positiveEvOnly: effectiveFilters.positiveEvOnly,
+              applyTax: effectiveFilters.applyTax,
+              statType: "all",
+              groupBy: "none",
+            }
+          : {
+              statType: effectiveFilters.statType,
+              modelResultIds: pickDefaultModelIds(
+                effectiveFilters.modelResultIds,
+                modelsByFamily.result,
+              ),
+              modelOuIds: pickDefaultModelIds(
+                effectiveFilters.modelOuIds,
+                modelsByFamily.ou,
+              ),
+              modelBttsIds: pickDefaultModelIds(
+                effectiveFilters.modelBttsIds,
+                modelsByFamily.btts,
+              ),
+              leagueIds: apiLeagueIds.length > 0 ? apiLeagueIds : undefined,
+              seasonId: effectiveFilters.seasonId ?? undefined,
+              dateFrom: effectiveFilters.dateFrom || undefined,
+              dateTo: effectiveFilters.dateTo || undefined,
+              roundFrom:
+                parsePositiveInt(effectiveFilters.roundFrom) ?? undefined,
+              roundTo: parsePositiveInt(effectiveFilters.roundTo) ?? undefined,
+              settledOnly: effectiveFilters.settledOnly,
+              positiveEvOnly: effectiveFilters.positiveEvOnly,
+              applyTax: effectiveFilters.applyTax,
+              groupBy: effectiveFilters.groupBy,
+              aggregationMetric: effectiveFilters.aggregationMetric,
+            },
+      ),
+      isHockey
+        ? Promise.resolve({ comparisons: null })
+        : getLeagueComparisons({
+            leagueIds:
+              compareApiLeagueIds.length > 0 ? compareApiLeagueIds : undefined,
+            seasonId: effectiveFilters.compareSeasonId ?? undefined,
+          }),
     ]);
 
     if (analyticsResult.status === "rejected") {
@@ -276,6 +332,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
               resultModels={modelsByFamily.result}
               ouModels={modelsByFamily.ou}
               bttsModels={modelsByFamily.btts}
+              hockeyModels={hockeyModels}
               values={effectiveFilters}
             />
           </div>
@@ -291,7 +348,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
               {categories.map(([key, category]) => (
                 <AnalyticsCategoryPanel
                   key={key}
-                  title={categoryTitles[key] ?? key.toUpperCase()}
+                  title={categoryTitle(key)}
                   category={category}
                 />
               ))}
@@ -310,13 +367,15 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
           ) : null}
         </section>
 
-        <LeagueCharacteristicsSection
-          leagues={leagues}
-          seasons={seasons}
-          values={effectiveFilters}
-          comparisons={leagueComparisons}
-          errorMessage={leagueComparisonsError}
-        />
+        {isHockey ? null : (
+          <LeagueCharacteristicsSection
+            leagues={leagues}
+            seasons={seasons}
+            values={effectiveFilters}
+            comparisons={leagueComparisons}
+            errorMessage={leagueComparisonsError}
+          />
+        )}
       </div>
     );
   } catch (error) {

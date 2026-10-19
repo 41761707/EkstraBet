@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from contextlib import nullcontext
 from typing import Any
 from typing import Iterable
@@ -11,6 +12,11 @@ from models.pipeline.core.config import BttsPrediction
 from models.pipeline.core.config import GoalsPoissonPrediction
 from models.pipeline.core.config import PredictionWriteRow
 from models.pipeline.core.config import ResultPrediction
+from models.pipeline.prediction.hockey_markets import HockeyScoreChart
+from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_FAMILIES
+from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
+from models.pipeline.prediction.hockey_markets import exact_score_event_id
+from models.pipeline.prediction.hockey_markets import select_hockey_finals
 from models.pipeline.prediction.score_matrix import exact_score_probabilities
 
 
@@ -46,10 +52,18 @@ WHERE p.match_id = %s
 """
 
 
-def _db_percentage(value: float) -> float:
+def _db_percentage(
+        value: float,
+        values_are_percent: bool = False) -> float:
     probability = float(value)
-    if probability < 0.0 or probability > 100.0:
+    if (
+            not math.isfinite(probability)
+            or probability < 0.0
+            or probability > 100.0):
         raise ValueError("Prediction value must be between 0 and 100")
+    # Wartości NHL są już w procentach; ułamek <= 1 nie może być mnożony.
+    if values_are_percent:
+        return probability
     if probability <= 1.0:
         return probability * 100.0
     return probability
@@ -94,13 +108,65 @@ def _clear_family_finals(
     cursor.execute(sql, (match_id, model_id, *event_ids))
 
 
+_PREDICTION_IDS_SQL = """
+SELECT id, event_id
+FROM predictions
+WHERE match_id = %s
+  AND model_id = %s
+  AND event_id IN ({placeholders})
+"""
+
+
+def lookup_prediction_ids(
+        match_id: int,
+        model_id: int,
+        event_ids: list[int],
+        conn: Any | None = None) -> dict[int, int]:
+    """Return existing ``predictions.id`` values keyed by event id."""
+    unique_ids = list(dict.fromkeys(int(event_id) for event_id in event_ids))
+    if not unique_ids:
+        return {}
+    placeholders = ", ".join(["%s"] * len(unique_ids))
+    sql = _PREDICTION_IDS_SQL.format(placeholders=placeholders)
+    connection_context = (
+        nullcontext(conn) if conn is not None else get_db_connection())
+    with connection_context as connection:
+        cursor = connection.cursor()
+        try:
+            cursor.execute(sql, (int(match_id), int(model_id), *unique_ids))
+            rows = cursor.fetchall() or []
+        finally:
+            cursor.close()
+    found: dict[int, int] = {}
+    for row in rows:
+        prediction_id, event_id = _prediction_id_and_event(row)
+        found[event_id] = prediction_id
+    return found
+
+
+def _prediction_id_and_event(row: Any) -> tuple[int, int]:
+    """Read ``(predictions.id, event_id)`` from a tuple or dictionary row."""
+    if isinstance(row, dict):
+        return int(row["id"]), int(row["event_id"])
+    return int(row[0]), int(row[1])
+
+
 def write_predictions(
         rows: Iterable[PredictionWriteRow],
-        conn: Any | None = None) -> int:
-    """Upsert prediction rows and selected final prediction references."""
+        conn: Any | None = None,
+        *,
+        values_are_percent: bool = False) -> int:
+    """Upsert prediction rows and selected final prediction references.
+
+    Football callers pass probabilities on a 0-1 scale. NHL markets
+    are already 0-100, so they set ``values_are_percent`` and a
+    sub-percent probability is stored unchanged. A supplied
+    connection is left uncommitted for the caller.
+    """
     prepared_rows = list(rows)
     if not prepared_rows:
         return 0
+    owns_connection = conn is None
     connection_context = (
         nullcontext(conn) if conn is not None else get_db_connection())
     with connection_context as connection:
@@ -112,7 +178,7 @@ def write_predictions(
                     row.match_id,
                     row.event_id,
                     row.model_id,
-                    _db_percentage(row.value)))
+                    _db_percentage(row.value, values_are_percent)))
                 prediction_ids.append(_prediction_id(cursor, row))
             cleared_families: set[tuple[int, int]] = set()
             paired = zip(prepared_rows, prediction_ids, strict=True)
@@ -128,9 +194,11 @@ def write_predictions(
                         cursor, row.match_id, row.model_id, event_ids)
                     cleared_families.add(family_key)
                 cursor.execute(_FINAL_UPSERT_SQL, (prediction_id,))
-            connection.commit()
+            if owns_connection:
+                connection.commit()
         except Exception:
-            connection.rollback()
+            if owns_connection:
+                connection.rollback()
             raise
         finally:
             cursor.close()
@@ -194,6 +262,134 @@ def map_predictions_to_rows(
     if not rows:
         raise ValueError("Prediction output contains no supported families")
     return rows
+
+
+def map_hockey_markets_to_rows(
+        match_id: int,
+        model_id: int,
+        market_probs: dict[str, float],
+        event_ids: dict[str, int],
+        select_finals: bool = False) -> list[PredictionWriteRow]:
+    """Map NHL market percents to rows, one final per binary family.
+
+    Probabilities stay on the 0-100 scale. ``select_finals`` marks the
+    higher side of each family; a tie keeps the first listed key.
+    """
+    missing = [
+        key for key in HOCKEY_MARKET_KEYS if key not in market_probs]
+    if missing:
+        raise KeyError(f"Missing hockey market probabilities: {missing}")
+    final_keys: set[str] = set()
+    if select_finals:
+        final_keys = set(select_hockey_finals(
+            market_probs, HOCKEY_MARKET_FAMILIES))
+    return [
+        _event_row(
+            match_id,
+            model_id,
+            event_ids,
+            key,
+            _hockey_percent(market_probs[key]),
+            key if key in final_keys else None)
+        for key in HOCKEY_MARKET_KEYS]
+
+
+# Klucz w configu, strona wykresu i etykieta kubełka.
+_CHART_BUCKET_EVENTS = (
+    ("home_goals_0", "home", "0"),
+    ("home_goals_1", "home", "1"),
+    ("home_goals_2", "home", "2"),
+    ("home_goals_3", "home", "3"),
+    ("home_goals_4", "home", "4"),
+    ("home_goals_5_plus", "home", "5+"),
+    ("away_goals_0", "away", "0"),
+    ("away_goals_1", "away", "1"),
+    ("away_goals_2", "away", "2"),
+    ("away_goals_3", "away", "3"),
+    ("away_goals_4", "away", "4"),
+    ("away_goals_5_plus", "away", "5+"),
+    ("total_goals_le3", "total", "3-"),
+    ("total_goals_4", "total", "4"),
+    ("total_goals_5", "total", "5"),
+    ("total_goals_6", "total", "6"),
+    ("total_goals_7", "total", "7"),
+    ("total_goals_8_plus", "total", "8+"))
+
+
+def map_hockey_chart_to_rows(
+        match_id: int,
+        model_id: int,
+        chart: HockeyScoreChart,
+        event_ids: dict[str, int]) -> list[PredictionWriteRow]:
+    """Map buckets and the top five scores onto prediction rows.
+
+    None of these rows is a final. Exact-score ids come from the
+    catalog formula, not from the JSON event map. A missing bucket
+    key raises ``KeyError``, the same way a missing market does.
+    """
+    rows = [
+        _chart_bucket_row(
+            match_id, model_id, event_ids, chart, item)
+        for item in _CHART_BUCKET_EVENTS]
+    rows.extend(
+        _exact_chart_row(match_id, model_id, label, percent)
+        for label, percent in chart.exact_scores)
+    return rows
+
+
+def _chart_bucket_row(
+        match_id: int,
+        model_id: int,
+        event_ids: dict[str, int],
+        chart: HockeyScoreChart,
+        item: tuple[str, str, str]) -> PredictionWriteRow:
+    event_key, side, bucket = item
+    return _event_row(
+        match_id,
+        model_id,
+        event_ids,
+        event_key,
+        _hockey_percent(_chart_side(chart, side)[bucket]),
+        None)
+
+
+def _chart_side(
+        chart: HockeyScoreChart,
+        side: str) -> dict[str, float]:
+    if side == "home":
+        return chart.home_buckets
+    if side == "away":
+        return chart.away_buckets
+    return chart.total_buckets
+
+
+def _exact_chart_row(
+        match_id: int,
+        model_id: int,
+        label: str,
+        percent: float) -> PredictionWriteRow:
+    home_text, away_text = label.split(":", maxsplit=1)
+    return PredictionWriteRow(
+        match_id=match_id,
+        model_id=model_id,
+        event_id=exact_score_event_id(
+            int(home_text), int(away_text)),
+        value=_hockey_percent(percent),
+        is_final=False)
+
+
+def _hockey_percent(value: float) -> float:
+    """Clip a market percent that drifted off 0-100 by rounding error."""
+    percent = float(value)
+    out_of_range = percent < -1e-6 or percent > 100.0 + 1e-6
+    if not math.isfinite(percent) or out_of_range:
+        raise ValueError(
+            "Hockey market probability must be between 0 and 100")
+    if percent < 0.0:
+        return 0.0
+    if percent > 100.0:
+        return 100.0
+    return percent
 
 
 def _map_result_rows(

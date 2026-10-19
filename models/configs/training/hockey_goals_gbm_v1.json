@@ -1,0 +1,59 @@
+{
+  "model_name": "HOCKEY_GOALS_GBM_V1",
+  "sport_id": 2,
+  "task_type": "goals_poisson",
+  "model_version": "1.0.0",
+  "artifact_dir": "models/artifacts/release/hockey_goals_gbm_v1",
+  "feature_builder": "HockeyTeamFeatureBuilder",
+  "labeler": "HockeyGoalsLabeler",
+  "trainer": "HockeyGbmTrainer",
+  "output_columns": ["lambda_home", "lambda_away"],
+  "max_goals": 12,
+  "feature_config": {
+    "sport_id": 2
+  },
+  "ratings": {
+    "half_life_days": 1000,
+    "league_id": 45,
+    "test_season": 12,
+    "low_weight_seasons": {
+      "4": 0.5
+    },
+    "early_season_games": 8,
+    "early_season_boost": 2.5,
+    "validation_days": 90,
+    "tie_inflation_min": 1.0,
+    "tie_inflation_max": 1.8,
+    "tie_inflation_step": 0.02,
+    "goalie_half_life_days": 180,
+    "lineup_baseline_games": 10,
+    "gbm": {
+      "learning_rate": 0.06,
+      "max_iter": 200,
+      "max_depth": 6,
+      "min_samples_leaf": 20,
+      "l2_regularization": 0.1,
+      "random_state": 42
+    }
+  },
+  "events": {
+    "ml_home": 234,
+    "ml_away": 235,
+    "over_55": 236,
+    "under_55": 237,
+    "over_65": 238,
+    "under_65": 239,
+    "pl_home_minus_15": 240,
+    "pl_home_plus_15": 241,
+    "pl_away_minus_15": 242,
+    "pl_away_plus_15": 243,
+    "home_over_25": 244,
+    "home_under_25": 245,
+    "home_over_35": 246,
+    "home_under_35": 247,
+    "away_over_25": 248,
+    "away_under_25": 249,
+    "away_over_35": 250,
+    "away_under_35": 251
+  }
+}

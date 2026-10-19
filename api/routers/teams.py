@@ -5,9 +5,14 @@ from pydantic import BaseModel, Field
 import logging
 from typing import Optional, List
 from api.utils import execute_query
+from api.schemas.hockey_team_roster import HockeyTeamRosterResponse
 from api.schemas.player import TeamPlayerStatLeadersResponse
 from api.schemas.team_profile import TeamProfileResponse
 from backend.services import player_service, team_service
+from backend.services.hockey_team_roster_service import (
+    HockeyRosterUnavailableError)
+from backend.services.hockey_team_roster_service import (
+    get_hockey_team_roster as load_hockey_team_roster)
 
 # Konfiguracja logowania
 logger = logging.getLogger(__name__)
@@ -80,26 +85,6 @@ class TeamHockeyStatsResponse(BaseModel):
     avg_powerplay_percentage: float = Field(..., description="Average power play percentage")
     avg_faceoff_percentage: float = Field(..., description="Average faceoff win percentage")
     avg_hits_per_game: float = Field(..., description="Average hits per match")
-
-class HockeyPlayerRosterResponse(BaseModel):
-    """Response model for a roster player."""
-    player_id: int = Field(..., description="Player ID")
-    first_name: str = Field(..., description="First name")
-    last_name: str = Field(..., description="Last name")
-    common_name: str = Field(..., description="Full name")
-    country: str = Field(..., description="Country of origin")
-    position: str = Field(..., description="Position (G/D/LW/C/RW)")
-    line: Optional[int] = Field(None, description="Line (1-4)")
-    is_injured: bool = Field(..., description="Whether the player is injured")
-
-class HockeyTeamRosterResponse(BaseModel):
-    """Response model for a hockey team roster."""
-    team_id: int = Field(..., description="Team ID")
-    team_name: str = Field(..., description="Team name")
-    goalkeepers: List[HockeyPlayerRosterResponse] = Field(..., description="Goalkeepers")
-    defensemen: List[HockeyPlayerRosterResponse] = Field(..., description="Defensemen")
-    forwards: List[HockeyPlayerRosterResponse] = Field(..., description="Forwards")
-    injured_players: int = Field(..., description="Number of injured players")
 
 class HeadToHeadResponse(BaseModel):
     """Response model for head-to-head statistics."""
@@ -1176,121 +1161,23 @@ async def get_team_hockey_stats(
         raise HTTPException(status_code=500, detail="Failed to fetch hockey team statistics")
 
 @router.get("/{team_id}/roster", response_model=HockeyTeamRosterResponse)
-async def get_hockey_team_roster(team_id: int) -> HockeyTeamRosterResponse:
-    """
-    Pobiera aktualny skład drużyny hokejowej
-    
-    Endpoint zwraca pełny skład drużyny hokejowej z podziałem na:
-    - Bramkarzy (G)
-    - Obrońców (D) 
-    - Napastników (LW, C, RW)
-    
-    Dla każdego zawodnika wyświetlane są:
-    - Dane osobowe (imię, nazwisko)
-    - Pozycja
-    - Linia (1-4)
-    - Linia przewagi (0/1/2)
-    - Status kontuzji
-    """
+async def get_hockey_team_roster(
+    team_id: int,
+    season_id: int | None = Query(
+        None,
+        ge=1,
+        description="Season id for player counting stats")
+) -> HockeyTeamRosterResponse:
+    """Return the current hockey roster with season counting stats."""
     try:
-        # Sprawdzenie czy drużyna istnieje
-        team_query = """
-        SELECT t.ID, t.NAME, t.SPORT_ID
-        FROM teams t
-        WHERE t.ID = %s
-        """
-        
-        team_df = execute_query(team_query, (team_id,))
-        
-        if team_df.empty:
-            raise HTTPException(status_code=404, detail="Team not found")
-        
-        team_name = team_df.iloc[0]['NAME']
-        sport_id = team_df.iloc[0]['SPORT_ID']
-        
-        # Sprawdzenie czy to drużyna hokejowa (sport_id = 2 dla hokeja)
-        sport_query = """
-        SELECT s.NAME FROM sports s WHERE s.ID = %s
-        """
-        sport_df = execute_query(sport_query, (int(sport_id),))
-        
-        if not sport_df.empty and 'hokej' not in sport_df.iloc[0]['NAME'].lower():
-            raise HTTPException(status_code=400, detail="Roster is available only for hockey teams")
-        
-        # Zapytanie o aktualny skład drużyny
-        roster_query = """
-        SELECT 
-            hr.PLAYER_ID,
-            p.FIRST_NAME,
-            p.LAST_NAME,
-            p.COMMON_NAME,
-            p.CURRENT_COUNTRY,
-            p.EXTERNAL_ID,
-            p.EXTERNAL_FLASH_ID,  
-            hr.POSITION,
-            hr.number,
-            hr.LINE,
-            hr.IS_INJURED
-        FROM hockey_rosters hr
-        JOIN players p ON hr.PLAYER_ID = p.ID
-        WHERE hr.TEAM_ID = %s
-        ORDER BY 
-            hr.LINE ASC,
-            CASE hr.POSITION 
-                WHEN 'G' THEN 1 
-                WHEN 'D' THEN 2 
-                WHEN 'LW' THEN 3
-                WHEN 'C' THEN 4
-                WHEN 'RW' THEN 5
-            END
-        """
-        
-        roster_df = execute_query(roster_query, (team_id,))
-        
-        # Przetwarzanie składu na kategorie
-        goalkeepers = []
-        defensemen = []
-        forwards = []
-        injured_count = 0
-        
-        for _, player in roster_df.iterrows():
-            is_injured = bool(player['IS_INJURED']) if pd.notna(player['IS_INJURED']) else False
-            if is_injured:
-                injured_count += 1
-            
-            player_data = HockeyPlayerRosterResponse(
-                player_id=int(player['PLAYER_ID']),
-                first_name=str(player['FIRST_NAME']) if pd.notna(player['FIRST_NAME']) else "",
-                last_name=str(player['LAST_NAME']) if pd.notna(player['LAST_NAME']) else "",
-                common_name=str(player['COMMON_NAME']) if pd.notna(player['COMMON_NAME']) else "",
-                country=str(player['CURRENT_COUNTRY']) if pd.notna(player['CURRENT_COUNTRY']) else "",
-                position=str(player['POSITION']) if pd.notna(player['POSITION']) else "",
-                line=int(player['LINE']) if pd.notna(player['LINE']) else None,
-                is_injured=is_injured
-            )
-            
-            # Kategorizacja według pozycji
-            if player['POSITION'] == 'G':
-                goalkeepers.append(player_data)
-            elif player['POSITION'] == 'D':
-                defensemen.append(player_data)
-            elif player['POSITION'] in ['LW', 'C', 'RW']:
-                forwards.append(player_data)
-            else:
-                # Jeśli pozycja nieznana, domyślnie do napastników
-                forwards.append(player_data)
-        
-        return HockeyTeamRosterResponse(
-            team_id=team_id,
-            team_name=team_name,
-            goalkeepers=goalkeepers,
-            defensemen=defensemen,
-            forwards=forwards,
-            injured_players=injured_count
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Błąd w get_team_roster: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch team roster")
+        payload = load_hockey_team_roster(team_id, season_id=season_id)
+    except HockeyRosterUnavailableError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Failed to fetch roster for team %s: %s", team_id, exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch team roster") from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return HockeyTeamRosterResponse(**payload)

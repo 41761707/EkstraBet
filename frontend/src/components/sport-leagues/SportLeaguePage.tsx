@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExpandableSection } from "@/components/ExpandableSection";
+import { HockeyLeagueEventRankings } from "@/components/hockey/HockeyLeagueEventRankings";
 import { LeagueHeader } from "@/components/leagues/LeagueHeader";
 import { MatchList } from "@/components/MatchList";
 import { SportLeagueDateFilter } from "@/components/sport-leagues/SportLeagueDateFilter";
@@ -69,7 +70,12 @@ export async function SportLeaguePage({
     dateTo: filters.dateFilter ? filters.dateTo : undefined,
   };
 
-  const hockeyCategories = ["shots", "goals", "over_under"] as const;
+  const hockeyCategories = [
+    "shots",
+    "goals",
+    "over_under",
+    "special_teams",
+  ] as const;
   const basketballCategories = ["shooting", "points", "over_under"] as const;
   const statCategories =
     sportId === HOCKEY_SPORT_ID ? hockeyCategories : basketballCategories;
@@ -187,6 +193,8 @@ export async function SportLeaguePage({
         <ExpandableSection title="Tabele ligowe">
           <SportStandingsSection
             sportId={sportId}
+            seasonId={filters.seasonId}
+            leagueId={league.id}
             overallHockey={overallStandings.hockey_standings ?? undefined}
             homeHockey={homeStandings.hockey_standings ?? undefined}
             awayHockey={awayStandings.hockey_standings ?? undefined}
@@ -201,6 +209,8 @@ export async function SportLeaguePage({
         <ExpandableSection title="Statystyki ligowe">
           <SportLeagueStatsSection sportId={sportId} stats={statsMap} />
         </ExpandableSection>
+
+        {sportId === HOCKEY_SPORT_ID ? <HockeyLeagueEventRankings /> : null}
       </div>
     </div>
   );

@@ -74,7 +74,7 @@ function markFavoriteBars(
   }));
 }
 
-function toDonutSegments(
+export function toDonutSegments(
   items: { id: string; label: string; probability: number; color: string }[],
 ): ProbabilitySegmentView[] {
   const percents = normalizeProbabilitiesToPercents(
@@ -91,7 +91,7 @@ function toDonutSegments(
   );
 }
 
-function toRelativeBars(
+export function toRelativeBars(
   items: { id: string; label: string; probability: number; color: string }[],
 ): ProbabilityBarPoint[] {
   const maxProbability = Math.max(...items.map((item) => item.probability), 0);
