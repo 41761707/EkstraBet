@@ -367,10 +367,18 @@ def _revealed_display_name(row: dict[str, Any]) -> str:
     return str(raw).strip()
 
 
+def _regulation_result(value: object) -> str | None:
+    """Keep only a settled 1/X/2; extra time and penalties stay unsettled."""
+    if value in REGULATION_RESULTS:
+        return str(value)
+    return None
+
+
 def _map_revealed_match(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "match_id": int(row["match_id"]),
         "game_date": row["game_date"],
+        "result": _regulation_result(row["result"]),
         "home_team": _map_team(
             row["home_team_id"],
             row["home_team_name"],

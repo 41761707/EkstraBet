@@ -1610,6 +1610,7 @@ export interface TyperRevealedPick {
 export interface TyperRevealedMatch {
   match_id: number;
   game_date: string;
+  result: TyperOutcome | null;
   home_team: TyperTeam;
   away_team: TyperTeam;
   picks: TyperRevealedPick[];

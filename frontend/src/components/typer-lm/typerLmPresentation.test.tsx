@@ -427,7 +427,8 @@ describe("TyperLmLeaderboard", () => {
     expect(html).toContain("Mecze");
     expect(html).toContain("Długoterminowe");
     expect(html).toContain("Suma");
-    expect(html).toContain("user-2");
+    expect(html).not.toContain("user-1");
+    expect(html).not.toContain("user-2");
     expect(html).not.toContain("aria-pressed");
     expect(html).not.toContain("outcome");
   });
@@ -2039,6 +2040,7 @@ function sampleRevealedMatch(
     game_date: "2026-09-16T21:00:00",
     home_team: { id: 1, name: "Bayern Monachium", shortcut: "BAY" },
     away_team: { id: 2, name: "Arsenal", shortcut: "ARS" },
+    result: null,
     picks: [
       { user_uuid: "user-1", outcome: "1" },
       { user_uuid: "user-2", outcome: "X" },
@@ -2183,7 +2185,8 @@ describe("TyperLmRevealedPredictionsTable", () => {
     expect(html).toContain("overflow-auto");
     expect(html).toContain("max-h-[min(70vh,36rem)]");
     expect(html).toContain("border-separate");
-    expect(html).toContain("border-spacing-0");
+    expect(html).toContain("border-spacing-px");
+    expect(html).toContain("bg-pick-grid");
     expect(html).toContain("sticky left-0");
     expect(html).toContain("sticky top-0");
     expect(html).toContain('scope="col"');
@@ -2201,6 +2204,42 @@ describe("TyperLmRevealedPredictionsTable", () => {
       html.indexOf("Barcelona"),
     );
     expect(html).toContain("bg-accent-soft");
+    expect(html).not.toMatch(/<td[^>]*bg-pick-hit-bg/);
+    expect(html).not.toMatch(/<td[^>]*bg-pick-miss-bg/);
+    expect(html.indexOf("</table>")).toBeLessThan(html.indexOf("Legenda"));
+    expect(html).toContain("Trafiony typ");
+    expect(html).toContain("Nietrafiony typ");
+  });
+
+  it("tints settled picks green when they hit and red when they miss", () => {
+    const html = renderToStaticMarkup(
+      <TyperLmRevealedPredictionsTable
+        matches={[sampleRevealedMatch({ result: "1" })]}
+        participants={[
+          { user_uuid: "user-1", display_name: "Ala" },
+          { user_uuid: "user-2", display_name: "Bartek" },
+        ]}
+        currentUserUuid="user-1"
+        teamNameDisplay="full"
+      />,
+    );
+    expect(html).toContain("bg-pick-hit-bg");
+    expect(html).toContain("bg-pick-miss-bg");
+    expect(html).toContain("Trafiony typ");
+    expect(html).toContain("Nietrafiony typ");
+
+    const empty = renderToStaticMarkup(
+      <TyperLmRevealedPredictionsTable
+        matches={[sampleRevealedMatch({ result: "X", picks: [] })]}
+        participants={[{ user_uuid: "user-1", display_name: "Ala" }]}
+        currentUserUuid="user-1"
+        teamNameDisplay="full"
+      />,
+    );
+    expect(empty).toContain('aria-label="Brak typu"');
+    expect(empty).not.toMatch(/<td[^>]*bg-pick-hit-bg/);
+    expect(empty).not.toMatch(/<td[^>]*bg-pick-miss-bg/);
+    expect(empty.indexOf("</table>")).toBeLessThan(empty.indexOf("Legenda"));
   });
 
   it("relabels cells from the name preference without changing payload order", () => {

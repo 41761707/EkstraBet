@@ -109,6 +109,10 @@ class TyperRevealedMatch(BaseModel):
 
     match_id: int = Field(..., description="Match ID")
     game_date: datetime | date = Field(..., description="Kick-off datetime")
+    result: TyperOutcome | None = Field(
+        None,
+        description=(
+            "Regulation 1X2 result; null until the match is settled"))
     home_team: TyperTeam = Field(..., description="Home team")
     away_team: TyperTeam = Field(..., description="Away team")
     picks: list[TyperRevealedPick] = Field(

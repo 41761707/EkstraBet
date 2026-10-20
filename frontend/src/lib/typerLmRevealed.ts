@@ -8,6 +8,8 @@ import type {
   TyperRevealedMatch,
 } from "@/types/api";
 
+export type RevealedPickVerdict = "hit" | "miss";
+
 export function revealedPredictionsLoadErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 401) {
     return "Sesja wygasła. Zaloguj się ponownie.";
@@ -22,6 +24,23 @@ export function revealedPredictionsLoadErrorMessage(error: unknown): string {
  * Format a revealed 1X2 cell using the existing team-name preference,
  * then append the explicit outcome marker.
  */
+/**
+ * Compare a revealed pick with the regulation result.
+ * Unsettled matches and empty cells stay uncolored.
+ */
+export function revealedPickVerdict(
+  result: TyperOutcome | null | undefined,
+  outcome: TyperOutcome | undefined,
+): RevealedPickVerdict | null {
+  if (result !== "1" && result !== "X" && result !== "2") {
+    return null;
+  }
+  if (outcome === undefined) {
+    return null;
+  }
+  return outcome === result ? "hit" : "miss";
+}
+
 export function formatRevealedPickLabel(
   match: TyperRevealedMatch,
   outcome: TyperOutcome,

@@ -4,6 +4,8 @@ import { formatTeamName } from "@/lib/teamNameDisplay";
 import {
   buildRevealedPickLookup,
   formatRevealedPickLabel,
+  revealedPickVerdict,
+  type RevealedPickVerdict,
 } from "@/lib/typerLmRevealed";
 import type {
   TyperOutcome,
@@ -35,33 +37,63 @@ export function TyperLmRevealedPredictionsTable({
     teamNameDisplay === "full" ? "min-w-52" : "min-w-36";
 
   return (
-    <div className="max-h-[min(70vh,36rem)] overflow-auto rounded-xl border border-border">
-      <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-        <caption className="sr-only">Typy uczestników</caption>
-        <thead className="bg-surface-muted text-muted">
-          <RevealedTableHead
-            participants={participants}
-            currentUserUuid={currentUserUuid}
-            matchColClass={matchColClass}
-            pickColClass={pickColClass}
-          />
-        </thead>
-        <tbody>
-          {matches.map((match, rowIndex) => (
-            <RevealedTableRow
-              key={match.match_id}
-              match={match}
+    <div className="space-y-2">
+      <div className="max-h-[min(70vh,36rem)] overflow-auto rounded-xl border border-border">
+        <table
+          className={
+            "min-w-full border-separate border-spacing-px bg-pick-grid " +
+            "text-left text-sm"
+          }
+        >
+          <caption className="sr-only">Typy uczestników</caption>
+          <thead className="text-muted">
+            <RevealedTableHead
               participants={participants}
               currentUserUuid={currentUserUuid}
-              teamNameDisplay={teamNameDisplay}
-              lookup={lookup}
-              rowIndex={rowIndex}
               matchColClass={matchColClass}
               pickColClass={pickColClass}
             />
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {matches.map((match, rowIndex) => (
+              <RevealedTableRow
+                key={match.match_id}
+                match={match}
+                participants={participants}
+                currentUserUuid={currentUserUuid}
+                teamNameDisplay={teamNameDisplay}
+                lookup={lookup}
+                rowIndex={rowIndex}
+                matchColClass={matchColClass}
+                pickColClass={pickColClass}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <RevealedPickLegend />
+    </div>
+  );
+}
+
+function RevealedPickLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
+      <span className="font-medium text-text">Legenda</span>
+      <span className="inline-flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="h-4 w-8 rounded-sm border border-border bg-pick-hit-bg"
+        />
+        Trafiony typ
+      </span>
+      <span className="inline-flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="h-4 w-8 rounded-sm border border-border bg-pick-miss-bg"
+        />
+        Nietrafiony typ
+      </span>
     </div>
   );
 }
@@ -82,8 +114,8 @@ function RevealedTableHead({
       <th
         scope="col"
         className={
-          `sticky left-0 top-0 z-30 border-r border-border bg-surface-muted ` +
-          `px-3 py-2 font-medium ${matchColClass}`
+          `sticky left-0 top-0 z-30 bg-surface-muted px-3 py-2 font-medium ` +
+          `${matchColClass}`
         }
       >
         Mecz
@@ -92,8 +124,8 @@ function RevealedTableHead({
         <th
           scope="col"
           className={
-            `sticky top-0 z-20 whitespace-nowrap bg-surface-muted ` +
-            `px-3 py-2 font-medium ${pickColClass}`
+            `sticky top-0 z-20 whitespace-nowrap bg-surface-muted px-3 py-2 ` +
+            `font-medium ${pickColClass}`
           }
         >
           {NO_PICKS_COLUMN_LABEL}
@@ -152,18 +184,18 @@ function RevealedTableRow({
   const picksByUser = lookup.get(match.match_id);
 
   return (
-    <tr className={`${rowClass} text-text`}>
+    <tr className="text-text">
       <th
         scope="row"
         className={
-          `sticky left-0 z-10 border-r border-border px-3 py-2 font-medium ` +
+          `sticky left-0 z-10 px-3 py-2 font-medium ` +
           `${matchColClass} ${rowClass}`
         }
       >
         <RevealedMatchLabel match={match} teamNameDisplay={teamNameDisplay} />
       </th>
       {participants.length === 0 ? (
-        <td className={`px-3 py-2 ${pickColClass}`}>
+        <td className={`px-3 py-2 ${pickColClass} ${rowClass}`}>
           <MissingPickMark />
         </td>
       ) : (
@@ -175,6 +207,7 @@ function RevealedTableRow({
             teamNameDisplay={teamNameDisplay}
             isCurrentUser={participant.user_uuid === currentUserUuid}
             pickColClass={pickColClass}
+            rowClass={rowClass}
           />
         ))
       )}
@@ -215,20 +248,26 @@ function RevealedPickCell({
   teamNameDisplay,
   isCurrentUser,
   pickColClass,
+  rowClass,
 }: {
   match: TyperRevealedMatch;
   outcome: TyperOutcome | undefined;
   teamNameDisplay: TeamNameDisplayPreference;
   isCurrentUser: boolean;
   pickColClass: string;
+  rowClass: string;
 }) {
-  const highlight = isCurrentUser ? "bg-accent-soft" : "";
+  const verdict = revealedPickVerdict(match.result, outcome);
   return (
     <td
-      className={
-        `whitespace-nowrap px-3 py-2 ${pickColClass} ${highlight}`.trim()
-      }
+      className={revealedPickCellClass(
+        isCurrentUser,
+        verdict,
+        pickColClass,
+        rowClass,
+      )}
     >
+      <RevealedPickVerdictLabel verdict={verdict} />
       {outcome === undefined ? (
         <MissingPickMark />
       ) : (
@@ -236,6 +275,35 @@ function RevealedPickCell({
       )}
     </td>
   );
+}
+
+function revealedPickCellClass(
+  isCurrentUser: boolean,
+  verdict: RevealedPickVerdict | null,
+  pickColClass: string,
+  rowClass: string,
+): string {
+  const tone =
+    verdict === "hit"
+      ? "bg-pick-hit-bg"
+      : verdict === "miss"
+        ? "bg-pick-miss-bg"
+        : isCurrentUser
+          ? "bg-accent-soft"
+          : rowClass;
+  return `whitespace-nowrap px-3 py-2 ${pickColClass} ${tone}`;
+}
+
+function RevealedPickVerdictLabel({
+  verdict,
+}: {
+  verdict: RevealedPickVerdict | null;
+}) {
+  if (verdict === null) {
+    return null;
+  }
+  const label = verdict === "hit" ? "Trafiony typ" : "Nietrafiony typ";
+  return <span className="sr-only">{label}. </span>;
 }
 
 function MissingPickMark() {

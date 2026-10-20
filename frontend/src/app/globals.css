@@ -36,6 +36,10 @@
   --success-text: #a7f3d0;
   --success-bg: #022c22;
   --success-border: #065f46;
+  /* Stonowana zieleń i czerwień; siatka oddziela komórki. */
+  --pick-hit-bg: #1a5c48;
+  --pick-miss-bg: #6a404c;
+  --pick-grid: #e8eef6;
   --warning: #fcd34d;
   --warning-text: #fde68a;
   --warning-bg: #451a03;
@@ -85,6 +89,10 @@
   --success-text: #065f46;
   --success-bg: #ecfdf5;
   --success-border: #6ee7b7;
+  /* Pastel; siatka jest ciemniejsza, bo biała linia zniknęłaby na karcie. */
+  --pick-hit-bg: #d8f0e3;
+  --pick-miss-bg: #f6e2e5;
+  --pick-grid: #c5d0dc;
   --warning: #b45309;
   --warning-text: #92400e;
   --warning-bg: #fffbeb;
@@ -130,6 +138,9 @@
   --color-success-text: var(--success-text);
   --color-success-bg: var(--success-bg);
   --color-success-border: var(--success-border);
+  --color-pick-hit-bg: var(--pick-hit-bg);
+  --color-pick-miss-bg: var(--pick-miss-bg);
+  --color-pick-grid: var(--pick-grid);
   --color-warning: var(--warning);
   --color-warning-text: var(--warning-text);
   --color-warning-bg: var(--warning-bg);

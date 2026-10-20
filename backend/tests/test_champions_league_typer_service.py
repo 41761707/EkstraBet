@@ -130,12 +130,14 @@ def _revealed_row(
         user_uuid: str | None = "u-1",
         display_name: str | None = "Ada",
         selected_event_id: int | None = 1,
-        game_date: datetime | None = None) -> dict[str, object]:
+        game_date: datetime | None = None,
+        result: str | None = None) -> dict[str, object]:
     return {
         "match_id": match_id,
         "season_id": 13,
         "round_number": round_number,
         "game_date": game_date or _GAME_DATE,
+        "result": result,
         "home_team_id": 1,
         "home_team_name": "Home",
         "home_team_shortcut": "HOM",
@@ -756,6 +758,22 @@ class TestGetRevealedPredictions(unittest.TestCase):
         self.assertEqual(len(document["matches"]), 1)
         self.assertEqual(document["matches"][0]["picks"], [])
         self.assertEqual(document["matches"][0]["home_team"]["name"], "Home")
+        self.assertIsNone(document["matches"][0]["result"])
+
+    @patch(_SPECIAL_ROUNDS, return_value={})
+    @patch(f"{_REPO}.fetch_revealed_predictions")
+    def test_exposes_only_regulation_result(
+            self,
+            mock_fetch: MagicMock,
+            _mock_special: MagicMock) -> None:
+        mock_fetch.return_value = _revealed_document([
+            _revealed_row(101, result="1"),
+            _revealed_row(102, result="AET"),
+            _revealed_row(103, result=None)
+        ])
+        document = service.get_revealed_predictions(13, 1)
+        results = [match["result"] for match in document["matches"]]
+        self.assertEqual(results, ["1", None, None])
 
     @patch(_SPECIAL_ROUNDS, return_value={900: "Baraże"})
     @patch(f"{_REPO}.fetch_revealed_predictions")

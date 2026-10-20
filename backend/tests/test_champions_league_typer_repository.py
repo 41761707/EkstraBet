@@ -135,6 +135,7 @@ def _revealed_row(
         "away_team_id": 2,
         "away_team_name": "Away",
         "away_team_shortcut": "AWY",
+        "result": None,
         "user_uuid": user_uuid,
         "display_name": display_name,
         "selected_event_id": selected_event_id
@@ -786,6 +787,7 @@ class TestFetchRevealedPredictions(unittest.TestCase):
         self.assertEqual(row["user_uuid"], "u-1")
         self.assertEqual(row["display_name"], "Ada")
         self.assertEqual(row["selected_event_id"], 2)
+        self.assertIsNone(row["result"])
         self.assertNotIn("user_id", row)
         self.assertNotIn("prediction_id", row)
         self.assertNotIn("typer_match_id", row)
@@ -795,6 +797,7 @@ class TestFetchRevealedPredictions(unittest.TestCase):
         self.assertNotIn("prediction_id", query)
         self.assertNotIn("champions_league_typer_prediction_changes", query)
         self.assertNotIn("p.id", query)
+        self.assertIn("m.result", query)
         self.assertIn("u.uuid AS user_uuid", query)
         self.assertIn("COALESCE(NULLIF(TRIM(u.display_name), '')", query)
 

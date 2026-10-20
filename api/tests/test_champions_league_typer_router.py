@@ -74,6 +74,7 @@ def _revealed_payload() -> dict[str, object]:
         "matches": [{
             "match_id": 101,
             "game_date": _GAME_DATE,
+            "result": "1",
             "home_team": _team(),
             "away_team": _away(),
             "picks": [{
@@ -318,6 +319,7 @@ class TestTyperParticipantRouter(TyperRouterTestCase):
         self.assertEqual(payload["round_number"], 8)
         self.assertEqual(payload["participants"][0]["user_uuid"], "u-1")
         self.assertEqual(match["picks"][0]["outcome"], "1")
+        self.assertEqual(match["result"], "1")
         self.assertNotIn("user_id", payload)
         self.assertNotIn("user_id", match)
         self.assertNotIn("prediction_id", match)

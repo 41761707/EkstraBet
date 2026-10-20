@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/apiShared";
 import {
   buildRevealedPickLookup,
   formatRevealedPickLabel,
+  revealedPickVerdict,
   revealedPredictionsLoadErrorMessage,
 } from "@/lib/typerLmRevealed";
 import type { TyperRevealedMatch } from "@/types/api";
@@ -16,6 +17,7 @@ function sampleRevealedMatch(
     game_date: "2026-09-16T21:00:00",
     home_team: { id: 1, name: "Bayern Monachium", shortcut: "BAY" },
     away_team: { id: 2, name: "Arsenal", shortcut: "ARS" },
+    result: null,
     picks: [],
     ...overrides,
   };
@@ -83,6 +85,21 @@ describe("buildRevealedPickLookup", () => {
     expect(lookup.get(101)?.get("user-2")).toBe("X");
     expect(lookup.get(202)?.get("user-1")).toBe("2");
     expect(lookup.get(202)?.get("user-2")).toBeUndefined();
+  });
+});
+
+describe("revealedPickVerdict", () => {
+  it("marks a matching pick as a hit and any other pick as a miss", () => {
+    expect(revealedPickVerdict("1", "1")).toBe("hit");
+    expect(revealedPickVerdict("X", "1")).toBe("miss");
+    expect(revealedPickVerdict("2", "X")).toBe("miss");
+  });
+
+  it("leaves unsettled matches and empty cells uncolored", () => {
+    expect(revealedPickVerdict(null, "1")).toBeNull();
+    expect(revealedPickVerdict(undefined, "1")).toBeNull();
+    expect(revealedPickVerdict("1", undefined)).toBeNull();
+    expect(revealedPickVerdict(null, undefined)).toBeNull();
   });
 });
 

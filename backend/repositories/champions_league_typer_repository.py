@@ -348,6 +348,7 @@ _REVEALED_PREDICTIONS_SQL = f"""
         tm.round_number,
         tm.match_id,
         m.game_date,
+        m.result,
         m.home_team AS home_team_id,
         home.name AS home_team_name,
         home.shortcut AS home_team_shortcut,
@@ -1105,6 +1106,7 @@ def _map_revealed_prediction_row(row: dict[str, Any]) -> dict[str, Any]:
         "away_team_id": int(row["away_team_id"]),
         "away_team_name": str(row["away_team_name"]),
         "away_team_shortcut": str(row["away_team_shortcut"]),
+        "result": None if row["result"] is None else str(row["result"]),
         "user_uuid": _as_optional_str(row["user_uuid"]),
         "display_name": _as_optional_str(row["display_name"]),
         "selected_event_id": _as_optional_int(row["selected_event_id"])}

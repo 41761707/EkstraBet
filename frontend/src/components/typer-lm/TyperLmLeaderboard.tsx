@@ -69,10 +69,7 @@ function LeaderboardRow({
       }
     >
       <td className="px-3 py-2">{row.place}</td>
-      <td className="px-3 py-2">
-        <span className="font-medium">{row.display_name}</span>
-        <span className="mt-0.5 block text-xs text-subtle">{row.user_uuid}</span>
-      </td>
+      <td className="px-3 py-2 font-medium">{row.display_name}</td>
       <td className="px-3 py-2">{formatOdds(row.match_points)}</td>
       <td className="px-3 py-2">{formatOdds(row.long_term_points)}</td>
       <td className="px-3 py-2">{formatOdds(row.total_points)}</td>
