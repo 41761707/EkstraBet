@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PlayerPanel } from "@/components/players/PlayerPanel";
+import {
+  PlayerPanel,
+  buildChartLabel,
+  playerPlayedAway,
+} from "@/components/players/PlayerPanel";
 import { PreferencesProvider } from "@/components/preferences/PreferencesProvider";
 import {
   DEFAULT_PREFERENCES,
@@ -74,5 +78,64 @@ describe("PlayerPanel", () => {
     );
 
     expect(html).toContain("Robert Lewandowski");
+  });
+});
+
+describe("buildChartLabel", () => {
+  it("glues @ to the opponent when that club hosted the match", () => {
+    expect(
+      buildChartLabel(
+        {
+          opponent_name: "Vegas Golden Knights",
+          opponent_shortcut: "VGK",
+          home_team: "Vegas Golden Knights",
+          match_date: "03.10",
+        },
+        "shortcut",
+      ),
+    ).toBe("@VGK 03.10");
+  });
+
+  it("leaves a home-game opponent unmarked", () => {
+    expect(
+      buildChartLabel(
+        {
+          opponent_name: "Florida Panthers",
+          opponent_shortcut: "FLA",
+          home_team: "Anaheim Ducks",
+          match_date: "05.10",
+        },
+        "shortcut",
+      ),
+    ).toBe("FLA 05.10");
+  });
+});
+
+describe("playerPlayedAway", () => {
+  it("marks the opponent when that club hosted the match", () => {
+    expect(
+      playerPlayedAway({
+        opponent_name: "Los Angeles Kings",
+        home_team: "Los Angeles Kings",
+      }),
+    ).toBe(true);
+  });
+
+  it("leaves the opponent unmarked when the player's club was home", () => {
+    expect(
+      playerPlayedAway({
+        opponent_name: "Toronto Maple Leafs",
+        home_team: "San Jose Sharks",
+      }),
+    ).toBe(false);
+  });
+
+  it("does not mark a match with an empty opponent name", () => {
+    expect(
+      playerPlayedAway({
+        opponent_name: "",
+        home_team: "",
+      }),
+    ).toBe(false);
   });
 });

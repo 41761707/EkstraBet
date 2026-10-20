@@ -34,10 +34,20 @@ interface PlayerPanelProps {
   thresholdLines: Partial<Record<PlayerStatKey, number>>;
 }
 
-function buildChartLabel(
+/** True when the opponent hosted the match, so the player's club was away. */
+export function playerPlayedAway(
   match: Pick<
     FootballPlayerMatchStat | HockeyPlayerMatchStat,
-    "opponent_name" | "opponent_shortcut" | "match_date"
+    "opponent_name" | "home_team"
+  >,
+): boolean {
+  return match.opponent_name !== "" && match.opponent_name === match.home_team;
+}
+
+export function buildChartLabel(
+  match: Pick<
+    FootballPlayerMatchStat | HockeyPlayerMatchStat,
+    "opponent_name" | "opponent_shortcut" | "match_date" | "home_team"
   >,
   preference: TeamNameDisplayPreference,
 ): string {
@@ -46,7 +56,8 @@ function buildChartLabel(
     match.opponent_shortcut,
     preference,
   );
-  return `${opponent} ${match.match_date}`;
+  const awayMark = playerPlayedAway(match) ? "@" : "";
+  return `${awayMark}${opponent} ${match.match_date}`;
 }
 
 export function PlayerPanel({
