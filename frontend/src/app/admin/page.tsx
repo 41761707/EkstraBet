@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Panel administratora | EkstraBet",
-  description: "Zarządzanie kontami użytkowników i ligami.",
+  description: "Zarządzanie kontami, ligami i rozliczeniem kuponów.",
 };
 
 export default async function AdminPage() {

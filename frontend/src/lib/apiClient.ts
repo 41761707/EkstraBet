@@ -49,6 +49,7 @@ import {
   type SettleLongTermResponse,
   type LongTermAutoResultResponse,
   type LongTermPickChange,
+  type SettlementResult,
   type TipsterCatalogQuery,
   type TipsterCouponsQuery,
   type TyperAdminCandidatesResponse,
@@ -598,6 +599,13 @@ export async function postMyTopUp(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
+  });
+}
+
+/** Settle every open tipster coupon via POST /tipsters/parlays/settle. */
+export async function settleOpenCoupons(): Promise<SettlementResult> {
+  return fetchViaBff<SettlementResult>("/tipsters/parlays/settle", undefined, {
+    method: "POST",
   });
 }
 

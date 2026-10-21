@@ -65,7 +65,8 @@ describe("AdminPageView", () => {
     );
 
     expect(html).toContain("Panel administratora");
-    expect(html).toContain("Zarządzaj kontami użytkowników i ligami.");
+    expect(html).toContain("Zarządzaj kontami, ligami i rozliczeniem kuponów.");
+    expect(html).toContain("Rozlicz zakłady");
     expect(html).toContain(ADMIN_USERS_TITLE);
     expect(html).toContain(ADMIN_LEAGUES_TITLE);
     expect(html).toContain("alice");

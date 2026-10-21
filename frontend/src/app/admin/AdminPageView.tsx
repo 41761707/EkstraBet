@@ -1,5 +1,6 @@
 import { AdminLeaguesPanel } from "@/components/admin/AdminLeaguesPanel";
 import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
+import { SettleCouponsPanel } from "@/components/admin/SettleCouponsPanel";
 import type {
   AdminCountry,
   AdminLeague,
@@ -37,8 +38,11 @@ export function AdminPageView({
     <div className="space-y-8">
       <section className="space-y-2">
         <h1 className="text-3xl font-bold text-text">Panel administratora</h1>
-        <p className="text-muted">Zarządzaj kontami użytkowników i ligami.</p>
+        <p className="text-muted">
+          Zarządzaj kontami, ligami i rozliczeniem kuponów.
+        </p>
       </section>
+      <SettleCouponsPanel />
       <AdminUsersPanel
         currentUserUuid={currentUserUuid}
         initialUsers={users}

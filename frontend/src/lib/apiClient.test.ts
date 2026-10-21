@@ -29,6 +29,7 @@ import {
   removeFavoriteLeague,
   saveTyperLongTermPicks,
   saveTyperPrediction,
+  settleOpenCoupons,
   setAdminLeagueActive,
   setAdminUserActive,
   setAdminUserAdmin,
@@ -1181,5 +1182,29 @@ describe("tipster client", () => {
     expect(requested).toContain("/api/backend/tipsters/catalog/suggested-odds");
     expect(requested).toContain("match_id=124426");
     expect(requested).toContain("event_id=1");
+  });
+
+  it("POSTs coupon settlement through the BFF", async () => {
+    const payload = {
+      legs_settled: 3,
+      coupons_settled: 1,
+      legs_skipped: 0,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    await expect(settleOpenCoupons()).resolves.toEqual(payload);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/tipsters/parlays/settle");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
   });
 });
