@@ -15,49 +15,59 @@ export interface AppRelease {
 // patch_notes/<tag>.md (złączone kontynuacje punktów w jeden string).
 
 export const APP_RELEASE: AppRelease = {
-  version: "1.3.0",
-  heading: "EkstraBet 1.3.0 - Sezon 1",
-  releaseDate: "28.09.2026",
+  version: "1.4.0",
+  heading: "EkstraBet 1.4.0 - Sezon 1",
+  releaseDate: "21.10.2026",
   character:
-    "Wydanie funkcjonalne — moje zakłady i ranking typerów, przebieg meczu " +
-    "NHL oraz predykcja mistrza, awansu i spadku na stronie ligi",
+    "Wydanie funkcjonalne — predykcje meczów NHL, składy drużyn i statystyki " +
+    "ligowe oraz ranking zdarzeń zawodników",
   changes: [
-    "[EB-11] Moje zakłady i ranking typerów: strona `/moje-zaklady` " +
-      "(bankroll, kupony, historia i wyniki) w menu oraz ranking na " +
-      "`/typers`; sekcja przeniesiona z profilu, z dopracowaniem filtrów " +
-      "i podatku od wygranej po testach.",
-    "[EB-31] Zakładka „Przebieg meczu” na stronie meczu NHL " +
-      "(`/matches/<match_id>/`) — gole, kary, gra w przewadze i puste bramki.",
-    "[EB-32] Predykcja końca sezonu na stronie ligi `/leagues/<league_id>/`: " +
-      "tabela punktów oraz kluczowe miejsca (mistrz, awans do pucharów, spadek).",
-    "[SZP-141] Migracja bankrolla typerów i wycofanie starych tabel kuponów " +
-      "ze skryptu sync local→prod; konta systemowe nie logują się hasłem.",
-    "[SZP-142] Wyliczanie poprawności zdarzeń piłkarskich na kuponie.",
-    "[SZP-143] Repozytorium bankrolla typerów (kapitał startowy i jednostka).",
-    "[SZP-144] Repozytorium kuponów typerów.",
-    "[SZP-145] Rozliczanie kuponów typerów po zakończeniu zdarzeń.",
-    "[SZP-146] Ranking i analityka zakładów (profit, ROI, skuteczność) " +
-      "w repozytorium typerów.",
-    "[SZP-147] Serwis zakładów gracza — bankroll, kupony i wyniki.",
-    "[SZP-148] Router i schematy API sekcji zakładów użytkownika.",
-    "[SZP-149] Typy TypeScript i klient frontendowy zakładów użytkownika.",
-    "[SZP-150] Sekcja „Moje zakłady”: bankroll, budowanie kuponu, historia " +
-      "i podsumowanie wyników.",
-    "[SZP-226] Repozytorium slotów awansu i spadku dla lig piłkarskich.",
-    "[SZP-227] Helpery slotów ligowych (mistrz, puchary, spadek).",
-    "[SZP-228] Serwis, schemat i router projekcji sezonu ze slotami awansu i spadku.",
-    "[SZP-229] Model UI i tabela kluczowych miejsc (mistrz, awans, spadek) " +
-      "w projekcji sezonu.",
-    "[SZP-230] Zakładki „Punkty” i „Kluczowe miejsca” w oknie projekcji " +
-      "sezonu na `/leagues/<league_id>/`.",
-    "[SZP-231] Synchronizacja kolumny slotów w skrypcie local→prod oraz " +
-      "aktualizacja dokumentacji bazy.",
-    "[SZP-232] Ranking typerów na `/typers` — filtry, tabela wyników i link " +
-      "w nawigacji.",
-    "[SZP-233] Poprawki dokumentacji bazy dla struktur typowania (bankroll i kupony).",
-    "[TECH] Paczka SQL do podpinania terminarza pod symulację sezonu " +
-      "(`sql/simulate_season.sql`).",
-    "[TECH] Wykluczenie credentiali Cursora z repozytorium (`.gitignore`).",
+    "[EB-33] Predykcje meczów NHL z aktualnego składu: rynki drużynowe " +
+      "i propsy zawodników na karcie meczu (`/matches/<match_id>/`), " +
+      "sortowanie tabel składu na stronie drużyny (`/teams/<team_id>/`) " +
+      "oraz jeden przebieg modelu zamiast osobnej predykcji pierwotnej " +
+      "i ostatecznej.",
+    "[SZP-235] Zmiany bazodanowe pod przewidywania hokejowe oraz aktualizacja " +
+      "dokumentacji schematu.",
+    "[SZP-236] Stałe i backend do obliczania wyników rynków hokejowych.",
+    "[SZP-237] Rozliczanie zdarzeń z dyspozycją per sport (piłka i hokej) " +
+      "w statystykach modeli.",
+    "[SZP-238] Repozytorium historii meczów hokejowych dla pipeline'u predykcji.",
+    "[SZP-239] Cechy terminarza hokejowego w modelu (przerwy, mecze dzień po dniu).",
+    "[SZP-240] Ratingi drużyn i bramkarzy hokejowych.",
+    "[SZP-241] Model bazowy hokeja i macierz rynków meczowych.",
+    "[SZP-242] Komenda CLI `predict-hockey` i zapis predykcji hokejowych do bazy.",
+    "[SZP-243] Sloty linii i ratingi zawodników hokejowych.",
+    "[SZP-244] Siła składu i korekta modelu bazowego hokeja.",
+    "[SZP-245] Model startu bramkarza w pipeline hokejowym.",
+    "[SZP-246] Model ML goli drużynowych `HOCKEY_GOALS_GBM_V1`.",
+    "[SZP-247] Generator przewidywanego składu hokejowego.",
+    "[SZP-248] Model beta propsów zawodników hokejowych (gole, asysty, punkty, " +
+      "strzały).",
+    "[SZP-249] Predykcja pierwotna i ostateczna hokeja oraz skrypty przebiegu modelu.",
+    "[SZP-250] API szczegółów meczu hokejowego: skład, kontekst terminarza " +
+      "i predykcje zawodników.",
+    "[SZP-251] API i widok składu drużyny hokejowej na `/teams/<team_id>/`.",
+    "[SZP-252] Karta meczu NHL (`/matches/<match_id>/`): przewidywany skład, " +
+      "kontekst przedmeczowy i predykcje zawodników.",
+    "[SZP-253] Predykcje, zakłady i statystyki hokejowe na `/bets`, `/stats` " +
+      "i w składzie drużyny.",
+    "[SZP-254] Wynik NHL z dogrywką oraz statystyki sezonowe W/L/OT na " +
+      "`/teams/<team_id>/` i w panelu przedmeczowym.",
+    "[SZP-255] Tabela NHL i wykresy statystyk ligowych na `/leagues/<league_id>/`.",
+    "[SZP-256] Ranking skumulowanych predykcji zdarzeń zawodników NHL " +
+      "na `/nhl/predictions`.",
+    "[SZP-258] Wykresy rozkładu goli na karcie meczu NHL (`/matches/<match_id>/`).",
+    "[SZP-259] Statystyki drużyn specjalnych (przewaga i osłabienie) na stronie " +
+      "ligi `/leagues/<league_id>/`.",
+    "[NEW] Oznaczenie poprawnych odpowiedzi w tabeli ujawnionych typów " +
+      "na `/typer-lm`.",
+    "[NEW] Znak „@” przy meczach wyjazdowych w dzienniku meczów na panelu " +
+      "zawodnika (`/players`).",
+    "[FIX] Poprawka liczenia rozegranych meczów w tabeli hokejowej.",
+    "[TECH] Dopisanie nowych tabel hokejowych do skryptu synchronizacji " +
+      "local→prod (`scripts/sync_local_to_prod.py`).",
+    "[INFO] Notatki wydania 1.3.0 w ekspanderze wersji na stronie głównej `/`.",
   ],
 };
 
