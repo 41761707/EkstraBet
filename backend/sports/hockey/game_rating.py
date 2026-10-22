@@ -1,9 +1,9 @@
-"""Hockey game ratings: weights, counters and play-by-play credits."""
+"""Hockey game ratings: weights, credits and a two-team payload."""
 
 from __future__ import annotations
 
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, ROUND_HALF_UP
 
 import pandas as pd
@@ -31,6 +31,10 @@ BLOCK_AVERAGE_FORWARD = 0.49
 GOAL_EVENT_ID = 181
 MINOR_PENALTY_EVENT_ID = 183
 MAJOR_PENALTY_EVENT_ID = 185
+
+GROUP_FORWARD = "forward"
+GROUP_DEFENSE = "defense"
+GROUP_GOALIE = "goalie"
 
 
 @dataclass(frozen=True)
@@ -86,6 +90,20 @@ class RatingParts:
     def total(self) -> Decimal:
         """Sum offense and defense without rounding again."""
         return self.offense + self.defense
+
+
+@dataclass(frozen=True)
+class RatedPlayer:
+    """One player scored for a match, before JSON serialization.
+
+    ``group`` is ``forward``, ``defense`` or ``goalie``.
+    """
+
+    player_id: int
+    player_name: str
+    team_id: int
+    group: str
+    parts: RatingParts
 
 
 def _as_decimal(value: float) -> Decimal:
@@ -420,3 +438,215 @@ def attribute_events(
     if goal_count == 0:
         _apply_box_score_fallback(indexed.totals, indexed.box_points)
     return _freeze(indexed.totals)
+
+
+def player_group(
+    roster_position: str | None,
+    player_position: str | None,
+    shots_against: int | None) -> str:
+    """Choose ``forward``, ``defense`` or ``goalie``.
+
+    The match roster wins. The player position is used only when
+    the roster cell is missing. Shots against still mark a goalie
+    who has no goalie position.
+    """
+    roster = _plain_text(roster_position)
+    if roster is not None:
+        listed = roster
+    else:
+        listed = _plain_text(player_position)
+    if listed == "G":
+        return GROUP_GOALIE
+    # Bez pozycji bramkarza zostają strzały na bramkę.
+    if shots_against is not None and shots_against > 0:
+        return GROUP_GOALIE
+    if listed == "D":
+        return GROUP_DEFENSE
+    return GROUP_FORWARD
+
+
+def block_average_for(
+    group: str,
+    roster_position: str | None) -> float:
+    """Return the historical block average for one chart group.
+
+    Defenders share one average. Forwards use the roster code,
+    and any other forward code, including a missing one, uses
+    the generic forward average.
+    """
+    if group == GROUP_DEFENSE:
+        return BLOCK_AVERAGE_DEFENSE
+    if group != GROUP_FORWARD:
+        return 0.0
+    position = _plain_text(roster_position)
+    if position == "C":
+        return BLOCK_AVERAGE_CENTER
+    if position == "LW":
+        return BLOCK_AVERAGE_LEFT_WING
+    if position == "RW":
+        return BLOCK_AVERAGE_RIGHT_WING
+    return BLOCK_AVERAGE_FORWARD
+
+
+def _count_or_none(value: object) -> int | None:
+    """Return a counter, with a negative value clamped to zero."""
+    number = _optional_int(value)
+    if number is None:
+        return None
+    if number < 0:
+        return 0
+    return number
+
+
+def _empty_credits() -> EventCredits:
+    """Return credits for a player missing from the event index."""
+    return EventCredits(
+        es_points=0,
+        empty_net_goals=0,
+        minor_penalties=0,
+        major_penalties=0)
+
+
+def _counts_for(
+    row: pd.Series,
+    credit: EventCredits,
+    group: str,
+    roster_position: str | None) -> SkaterCounts:
+    """Map one box-score row onto skater counters."""
+    # Samo wyzerowanie bloków zostawia karę za średnią obok obron.
+    if group == GROUP_GOALIE:
+        blocked = 0
+        block_average = 0.0
+    else:
+        blocked = _non_negative_int(row.get("blocked"))
+        block_average = block_average_for(group, roster_position)
+    return SkaterCounts(
+        goals=_non_negative_int(row.get("goals")),
+        assists=_non_negative_int(row.get("assists")),
+        es_points=credit.es_points,
+        empty_net_goals=credit.empty_net_goals,
+        shots_on_goal=_non_negative_int(row.get("sog")),
+        plus_minus=_optional_int(row.get("plus_minus")),
+        minor_penalties=credit.minor_penalties,
+        major_penalties=credit.major_penalties,
+        blocked=blocked,
+        block_average=block_average,
+        faceoffs_taken=_non_negative_int(row.get("faceoff")),
+        faceoffs_won=_non_negative_int(row.get("faceoff_won")))
+
+
+def _rate_row(
+    row: pd.Series,
+    credits: dict[int, EventCredits],
+    save_rate: float) -> RatedPlayer | None:
+    """Rate one player row. A row without an id is skipped."""
+    player_id = _optional_int(row.get("player_id"))
+    team_id = _optional_int(row.get("team_id"))
+    if player_id is None or team_id is None:
+        return None
+    roster_position = _plain_text(row.get("roster_position"))
+    player_position = _plain_text(row.get("player_position"))
+    shots_against = _count_or_none(row.get("shots_against"))
+    group = player_group(
+        roster_position,
+        player_position,
+        shots_against)
+    credit = credits.get(player_id)
+    if credit is None:
+        credit = _empty_credits()
+    counts = _counts_for(row, credit, group, roster_position)
+    parts = rate_skater(counts)
+    if group == GROUP_GOALIE:
+        score = rate_goalie(
+            shots_against,
+            _count_or_none(row.get("shots_saved")),
+            save_rate)
+        parts = replace(
+            parts,
+            goaltending=_round_part(Decimal(str(score))))
+    player_name = _plain_text(row.get("player_name"))
+    if player_name is None:
+        player_name = ""
+    return RatedPlayer(
+        player_id=player_id,
+        player_name=player_name,
+        team_id=team_id,
+        group=group,
+        parts=parts)
+
+
+def _parts_payload(parts: RatingParts) -> dict[str, float]:
+    """Serialize the nine leaves in contract order."""
+    return {
+        "production": float(parts.production),
+        "empty_net": float(parts.empty_net),
+        "shots": float(parts.shots),
+        "teammate_goals": float(parts.teammate_goals),
+        "faceoffs": float(parts.faceoffs),
+        "goals_against": float(parts.goals_against),
+        "penalties": float(parts.penalties),
+        "blocks": float(parts.blocks),
+        "goaltending": float(parts.goaltending)
+    }
+
+
+def _player_payload(player: RatedPlayer) -> dict[str, object]:
+    """Serialize one rated player, including offense and defense."""
+    return {
+        "player_id": player.player_id,
+        "player_name": player.player_name,
+        "group": player.group,
+        "offense": float(player.parts.offense),
+        "defense": float(player.parts.defense),
+        "total": float(player.parts.total),
+        "parts": _parts_payload(player.parts)
+    }
+
+
+def _team_payload(
+    team_id: int,
+    team_name: str,
+    players: list[RatedPlayer]) -> dict[str, object]:
+    """Serialize one team. Player order is not the chart order."""
+    return {
+        "team_id": team_id,
+        "team_name": team_name,
+        "players": [_player_payload(player) for player in players]
+    }
+
+
+def build_match_rating(
+    players: pd.DataFrame,
+    events: pd.DataFrame,
+    save_rate: float,
+    home_team_id: int,
+    away_team_id: int,
+    home_team_name: str,
+    away_team_name: str) -> dict:
+    """Build the two-team rating payload for one match.
+
+    Home is the first team and away is the second, even when a
+    side has no players. Players from any other team are skipped.
+    Goalies get goaltending and do not keep a block score.
+    Forwards and defenders keep goaltending at zero.
+    """
+    credits = attribute_events(players, events)
+    home_players: list[RatedPlayer] = []
+    away_players: list[RatedPlayer] = []
+    if not players.empty:
+        for _, row in players.iterrows():
+            rated = _rate_row(row, credits, save_rate)
+            if rated is None:
+                continue
+            if rated.team_id == home_team_id:
+                home_players.append(rated)
+            elif rated.team_id == away_team_id:
+                away_players.append(rated)
+    return {
+        "teams": [
+            _team_payload(
+                home_team_id, home_team_name, home_players),
+            _team_payload(
+                away_team_id, away_team_name, away_players)
+        ]
+    }

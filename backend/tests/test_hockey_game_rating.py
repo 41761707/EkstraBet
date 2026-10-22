@@ -1,4 +1,4 @@
-"""Unit tests for hockey skater and goalie game ratings."""
+"""Unit tests for hockey game ratings."""
 
 from __future__ import annotations
 
@@ -15,7 +15,10 @@ from backend.sports.hockey.game_rating import MINOR_PENALTY_EVENT_ID
 from backend.sports.hockey.game_rating import RatingParts
 from backend.sports.hockey.game_rating import SkaterCounts
 from backend.sports.hockey.game_rating import attribute_events
+from backend.sports.hockey.game_rating import block_average_for
+from backend.sports.hockey.game_rating import build_match_rating
 from backend.sports.hockey.game_rating import normalize
+from backend.sports.hockey.game_rating import player_group
 from backend.sports.hockey.game_rating import rate_goalie
 from backend.sports.hockey.game_rating import rate_skater
 
@@ -428,6 +431,224 @@ class TestHockeyEventCredits(unittest.TestCase):
         self.assertEqual(credits[1].major_penalties, 1)
         self.assertEqual(credits[1].es_points, 0)
         self.assertEqual(credits[1].empty_net_goals, 0)
+
+
+def _rating_player(
+    player_id: int,
+    player_name: str,
+    team_id: int = HOME_TEAM_ID,
+    goals: int = 0,
+    assists: int = 0,
+    plus_minus: int | None = 0,
+    sog: int = 0,
+    blocked: int = 0,
+    faceoff: int = 0,
+    faceoff_won: int = 0,
+    shots_against: int | None = None,
+    shots_saved: int | None = None,
+    roster_position: str | None = None,
+    player_position: str | None = None) -> dict[str, object]:
+    """Build one rating row. A missing roster stays missing."""
+    return {
+        "player_id": player_id,
+        "player_name": player_name,
+        "team_id": team_id,
+        "goals": goals,
+        "assists": assists,
+        "plus_minus": plus_minus,
+        "sog": sog,
+        "blocked": blocked,
+        "faceoff": faceoff,
+        "faceoff_won": faceoff_won,
+        "shots_against": shots_against,
+        "shots_saved": shots_saved,
+        "roster_position": roster_position,
+        "player_position": player_position
+    }
+
+
+def _rate(
+    players: pd.DataFrame,
+    events: pd.DataFrame | None = None,
+    save_rate: float = 0.907) -> dict:
+    """Rate a frame with home first and away second."""
+    if events is None:
+        events = pd.DataFrame()
+    return build_match_rating(
+        players,
+        events,
+        save_rate,
+        HOME_TEAM_ID,
+        AWAY_TEAM_ID,
+        "Philadelphia Flyers",
+        "Ottawa Senators")
+
+
+class TestHockeyMatchRating(unittest.TestCase):
+    """Position groups and the two-team rating payload."""
+
+    def _assert_balanced(self, rating: dict) -> None:
+        """Every published total is offense plus defense."""
+        self.assertEqual(len(rating["teams"]), 2)
+        for team in rating["teams"]:
+            for player in team["players"]:
+                self.assertEqual(
+                    player["offense"] + player["defense"],
+                    player["total"])
+
+    def test_roster_defense_beats_wing_and_uses_defense_average(
+        self) -> None:
+        self.assertEqual(player_group("D", "R", None), "defense")
+        self.assertEqual(block_average_for("defense", "D"), 1.44)
+        players = pd.DataFrame([
+            _rating_player(
+                7, "Halliday S.",
+                roster_position="D",
+                player_position="R",
+                blocked=0,
+                plus_minus=0)
+        ])
+
+        rating = _rate(players)
+        player = rating["teams"][0]["players"][0]
+
+        self.assertEqual(player["group"], "defense")
+        self.assertEqual(player["parts"]["blocks"], -0.1)
+        self.assertEqual(player["parts"]["goaltending"], 0.0)
+        self.assertEqual(rating["teams"][0]["team_id"], HOME_TEAM_ID)
+        self.assertEqual(rating["teams"][1]["team_id"], AWAY_TEAM_ID)
+        self.assertEqual(rating["teams"][1]["players"], [])
+        self._assert_balanced(rating)
+
+    def test_missing_roster_goalie_gets_saves_and_no_blocks(self) -> None:
+        self.assertEqual(player_group(None, "G", None), "goalie")
+        self.assertEqual(player_group("", "G", None), "goalie")
+        players = pd.DataFrame([
+            _rating_player(
+                8, "Sogaard M.",
+                roster_position=None,
+                player_position="G",
+                shots_against=30,
+                shots_saved=30,
+                blocked=6,
+                plus_minus=None)
+        ])
+
+        rating = _rate(players)
+        player = rating["teams"][0]["players"][0]
+
+        self.assertEqual(player["group"], "goalie")
+        self.assertEqual(player["offense"], 0.0)
+        self.assertEqual(player["defense"], 2.8)
+        self.assertEqual(player["total"], 2.8)
+        self.assertEqual(player["parts"]["goaltending"], 2.8)
+        self.assertEqual(player["parts"]["blocks"], 0.0)
+        self._assert_balanced(rating)
+
+    def test_shots_against_mark_a_goalie_without_a_position(self) -> None:
+        self.assertEqual(player_group(None, None, 12), "goalie")
+        self.assertEqual(player_group("C", "G", None), "forward")
+        self.assertEqual(player_group("D", "G", 0), "defense")
+        self.assertEqual(player_group("G", "D", None), "goalie")
+
+    def test_forward_block_average_follows_the_roster_code(self) -> None:
+        self.assertEqual(block_average_for("forward", "C"), 0.57)
+        self.assertEqual(block_average_for("forward", "LW"), 0.45)
+        self.assertEqual(block_average_for("forward", "RW"), 0.46)
+        self.assertEqual(block_average_for("forward", "R"), 0.49)
+        self.assertEqual(block_average_for("forward", "L"), 0.49)
+        self.assertEqual(block_average_for("forward", "F"), 0.49)
+        self.assertEqual(block_average_for("forward", "W"), 0.49)
+        self.assertEqual(block_average_for("forward", "NN"), 0.49)
+        self.assertEqual(block_average_for("forward", None), 0.49)
+        self.assertEqual(block_average_for("forward", ""), 0.49)
+        self.assertEqual(block_average_for("defense", "LW"), 1.44)
+
+    def test_three_point_game_scores_3_2_and_away_team_is_second(
+        self) -> None:
+        players = pd.DataFrame([
+            _rating_player(
+                1, "Konecny T.",
+                goals=1,
+                assists=2,
+                plus_minus=3,
+                sog=4,
+                roster_position="C"),
+            _rating_player(
+                2, "Batherson D.",
+                assists=1,
+                plus_minus=1,
+                roster_position="C"),
+            _rating_player(
+                3, "Sanderson J.",
+                assists=1,
+                plus_minus=1,
+                roster_position="C"),
+            _rating_player(
+                4, "Other O.",
+                goals=2,
+                plus_minus=2,
+                sog=2),
+            _rating_player(9, "Stranger S.", team_id=30, goals=5)
+        ])
+        events = pd.DataFrame([
+            _event(
+                1,
+                GOAL_EVENT_ID,
+                description="Batherson D. + Sanderson J."),
+            _event(4, GOAL_EVENT_ID, description="Konecny T."),
+            _event(4, GOAL_EVENT_ID, description="Konecny T.")
+        ])
+
+        rating = _rate(players, events)
+        home = rating["teams"][0]
+        away = rating["teams"][1]
+
+        self.assertEqual(home["team_id"], HOME_TEAM_ID)
+        self.assertEqual(home["team_name"], "Philadelphia Flyers")
+        self.assertEqual(
+            [row["player_id"] for row in home["players"]],
+            [1, 2, 3, 4])
+        self.assertEqual(away["team_id"], AWAY_TEAM_ID)
+        self.assertEqual(away["team_name"], "Ottawa Senators")
+        self.assertEqual(away["players"], [])
+        konecny = home["players"][0]
+        self.assertEqual(konecny["group"], "forward")
+        self.assertEqual(konecny["offense"], 3.2)
+        self.assertEqual(konecny["defense"], 0.0)
+        self.assertEqual(konecny["total"], 3.2)
+        self.assertEqual(konecny["parts"]["production"], 3.0)
+        self.assertEqual(konecny["parts"]["shots"], 0.2)
+        self.assertEqual(konecny["parts"]["goaltending"], 0.0)
+        self.assertEqual(konecny["parts"]["goals_against"], 0.0)
+        self.assertEqual(konecny["parts"]["empty_net"], 0.0)
+        # Asysta w es_points, więc plus/minus nie dokłada gola.
+        self.assertEqual(home["players"][1]["total"], 1.0)
+        self.assertEqual(
+            home["players"][1]["parts"]["teammate_goals"], 0.0)
+        self.assertEqual(home["players"][2]["total"], 1.0)
+        self._assert_balanced(rating)
+
+    def test_negative_counters_stay_at_zero(self) -> None:
+        players = pd.DataFrame([
+            _rating_player(
+                1, "Wing W.",
+                roster_position="LW",
+                goals=-1,
+                assists=-2,
+                sog=-3,
+                shots_against=-4)
+        ])
+
+        rating = _rate(players)
+        player = rating["teams"][0]["players"][0]
+
+        self.assertEqual(player["group"], "forward")
+        self.assertEqual(player["parts"]["production"], 0.0)
+        self.assertEqual(player["parts"]["shots"], 0.0)
+        self.assertEqual(player["parts"]["goaltending"], 0.0)
+        self.assertEqual(player["total"], 0.0)
+        self._assert_balanced(rating)
 
 
 if __name__ == "__main__":
