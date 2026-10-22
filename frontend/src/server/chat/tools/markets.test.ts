@@ -281,6 +281,7 @@ function makeMatchDetails(
     away_team_history: [],
     boxscore: null,
     hockey_boxscore: null,
+    hockey_game_rating: null,
     hockey_lineups: null,
     hockey_prediction_stage: null,
     hockey_schedule_context: null,

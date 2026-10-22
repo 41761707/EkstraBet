@@ -705,6 +705,38 @@ export interface HockeyMatchBoxscore {
   skaters: HockeySkaterBoxscoreRow[];
 }
 
+export interface HockeyRatingParts {
+  production: number;
+  empty_net: number;
+  shots: number;
+  teammate_goals: number;
+  faceoffs: number;
+  goals_against: number;
+  penalties: number;
+  blocks: number;
+  goaltending: number;
+}
+
+export interface HockeyRatedPlayer {
+  player_id: number;
+  player_name: string;
+  group: "forward" | "defense" | "goalie";
+  offense: number;
+  defense: number;
+  total: number;
+  parts: HockeyRatingParts;
+}
+
+export interface HockeyRatedTeam {
+  team_id: number;
+  team_name: string;
+  players: HockeyRatedPlayer[];
+}
+
+export interface HockeyGameRating {
+  teams: HockeyRatedTeam[];
+}
+
 export type HockeyLineupStatus = "confirmed" | "probable";
 
 export type HockeyPredictionStage = "initial" | "final";
@@ -900,6 +932,7 @@ export interface MatchDetails {
   away_team_history: TeamSeasonMatchPoint[];
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
+  hockey_game_rating: HockeyGameRating | null;
   hockey_lineups: HockeyMatchLineups | null;
   hockey_prediction_stage: HockeyPredictionStage | null;
   hockey_schedule_context: HockeyScheduleContext | null;
