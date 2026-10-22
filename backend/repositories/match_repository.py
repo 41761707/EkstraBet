@@ -7,6 +7,9 @@ from datetime import date, datetime, time, timedelta
 import pandas as pd
 
 from backend.database import get_db_connection
+from backend.sports.hockey.game_rating import (
+    DEFAULT_SAVE_RATE,
+    MIN_SEASON_SHOTS_AGAINST)
 from backend.sports.hockey.player_predictions import (
     HOCKEY_PLAYER_PROPS_MODEL_NAME)
 
@@ -430,6 +433,62 @@ def fetch_hockey_match_boxscore(match_id: int) -> tuple[pd.DataFrame, pd.DataFra
         goalies = pd.read_sql(goalie_query, conn, params=(match_id,))
         skaters = pd.read_sql(skater_query, conn, params=(match_id,))
     return goalies, skaters
+
+
+def fetch_hockey_game_rating_players(match_id: int) -> pd.DataFrame:
+    """Return both teams' box-score rows used to rate one match."""
+    query = """
+        SELECT
+            p.id AS player_id,
+            p.common_name AS player_name,
+            box.team_id,
+            t.name AS team_name,
+            box.goals,
+            box.assists,
+            box.plus_minus,
+            box.sog,
+            box.blocked,
+            box.faceoff,
+            box.faceoff_won,
+            box.shots_against,
+            box.shots_saved,
+            hmr.position AS roster_position,
+            p.position AS player_position
+        FROM hockey_match_player_stats box
+        JOIN players p ON box.player_id = p.id
+        JOIN teams t ON box.team_id = t.id
+        LEFT JOIN hockey_match_rosters hmr
+            ON hmr.match_id = box.match_id
+            AND hmr.player_id = box.player_id
+        WHERE box.match_id = %s
+        ORDER BY t.name, p.common_name
+    """
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=(match_id,))
+
+
+def fetch_hockey_season_save_rate(match_id: int) -> float:
+    """Return the season save rate, or the default below the shot floor."""
+    # Krótka próbka sezonu zostawia zapasową skuteczność obron.
+    query = """
+        SELECT
+            COALESCE(SUM(box.shots_against), 0) AS shots_against,
+            COALESCE(SUM(box.shots_saved), 0) AS shots_saved
+        FROM matches current_match
+        JOIN matches season_match
+            ON season_match.season = current_match.season
+        JOIN hockey_match_player_stats box
+            ON box.match_id = season_match.id
+        WHERE current_match.id = %s
+            AND box.shots_against > 0
+    """
+    with get_db_connection() as conn:
+        totals = pd.read_sql(query, conn, params=(match_id,))
+    shots_against = int(totals.iloc[0]["shots_against"])
+    if shots_against < MIN_SEASON_SHOTS_AGAINST:
+        return DEFAULT_SAVE_RATE
+    shots_saved = float(totals.iloc[0]["shots_saved"])
+    return shots_saved / float(shots_against)
 
 
 def fetch_hockey_match_lineups(match_id: int) -> pd.DataFrame:
