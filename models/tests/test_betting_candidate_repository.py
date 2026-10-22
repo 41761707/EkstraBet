@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import inspect
+import math
 from datetime import datetime
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
+from backend.sports.football.markets import DEVIG_MARKETS
+from backend.sports.football.markets import EXACT_GOALS_GROUP_EVENT_ID
 from models.pipeline.betting.config import BettingStrategyConfig
 from models.pipeline.data import betting_candidate_repository as repository
 from models.pipeline.data.betting_candidate_repository import (
@@ -56,7 +59,7 @@ def _capture(
             params: tuple[object, ...]) -> pd.DataFrame:
         captured["query"] = query
         captured["params"] = params
-        return pd.DataFrame(columns=list(BETTING_CANDIDATE_COLUMNS))
+        return pd.DataFrame(columns=list(repository._SQL_FRAME_COLUMNS))
 
     with patch.object(repository, "_read_sql", side_effect=_read_sql):
         fetch_candidates(_AS_OF, _HORIZON, filters or _filters())
@@ -78,8 +81,9 @@ def test_joins_prediction_to_odds_on_match_and_event() -> None:
     assert "INNER JOIN models md" in text
     assert "INNER JOIN sports s" in text
     assert "wm.game_date AS kickoff" in text
-    for column in BETTING_CANDIDATE_COLUMNS:
+    for column in repository._SQL_FRAME_COLUMNS:
         assert f"AS {column}" in text
+    assert "AS devig_probability" not in text
 
 
 def test_keeps_one_bookmaker_by_price_then_id() -> None:
@@ -158,27 +162,66 @@ def test_query_and_module_are_select_only() -> None:
     assert "READ_SQL" in source
 
 
-def test_returns_the_frame_from_the_select() -> None:
-    expected = pd.DataFrame([{
+def test_returns_candidates_with_fair_probability() -> None:
+    raw = _raw_row(implied=0.5, implied_sum=7.0 / 6.0, priced_outcomes=3)
+    incomplete = _raw_row(
+        prediction_id=11,
+        event_id=8,
+        implied=0.5,
+        implied_sum=1.2,
+        priced_outcomes=1,
+        market_size=2)
+
+    def _read_sql(
+            _query: str,
+            _params: tuple[object, ...]) -> pd.DataFrame:
+        return pd.DataFrame([raw, incomplete])
+
+    with patch.object(repository, "_read_sql", side_effect=_read_sql):
+        frame = fetch_candidates(_AS_OF, _HORIZON, _filters())
+    assert list(frame.columns) == list(BETTING_CANDIDATE_COLUMNS)
+    assert "implied_sum" not in frame.columns
+    assert frame["league_id"].iloc[0] == 7
+    assert frame["devig_probability"].iloc[0] == pytest.approx(3.0 / 7.0)
+    assert math.isnan(frame["devig_probability"].iloc[1])
+
+
+def test_fair_price_uses_one_book_before_the_ranking() -> None:
+    query, _params = _capture()
+    text = _sql(query)
+    assert text.index("AS implied_sum") < text.index("WHERE ranked.rn = 1")
+    assert "SUM(1.0 / o.odds) OVER (" in text
+    assert "PARTITION BY o.match_id, o.bookmaker," in text
+    assert "mk.league" in text
+    assert "AS league_id" in text
+    fair_window = text.split("SUM(1.0 / o.odds) OVER (", 1)[1]
+    fair_window = fair_window.split(") AS implied_sum", 1)[0]
+    assert "model_id" not in fair_window
+    assert "p." not in fair_window
+    for name, event_ids in DEVIG_MARKETS:
+        listed = ", ".join(str(event_id) for event_id in sorted(event_ids))
+        assert f"WHEN o.event IN ({listed}) THEN '{name}'" in text
+    assert str(EXACT_GOALS_GROUP_EVENT_ID) not in text
+
+
+def _raw_row(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
         "prediction_id": 10,
         "odds_id": 20,
         "match_id": 30,
         "event_id": 1,
         "model_id": 8,
         "bookmaker_id": 4,
+        "league_id": 7,
         "kickoff": _HORIZON,
         "value_pct": 55.0,
-        "odds": 1.9}])
-
-    def _read_sql(
-            _query: str,
-            _params: tuple[object, ...]) -> pd.DataFrame:
-        return expected
-
-    with patch.object(repository, "_read_sql", side_effect=_read_sql):
-        frame = fetch_candidates(_AS_OF, _HORIZON, _filters())
-    assert list(frame.columns) == list(BETTING_CANDIDATE_COLUMNS)
-    assert frame.equals(expected)
+        "odds": 2.0,
+        "implied": 0.5,
+        "implied_sum": 7.0 / 6.0,
+        "priced_outcomes": 3,
+        "market_size": 3}
+    payload.update(overrides)
+    return payload
 
 
 def test_rejects_a_window_that_cannot_contain_a_kickoff() -> None:

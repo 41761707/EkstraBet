@@ -39,6 +39,7 @@ def _candidate(**overrides: object) -> BettingCandidate:
         "event_id": 1,
         "model_id": 8,
         "bookmaker_id": 4,
+        "league_id": 12,
         "kickoff": datetime(2026, 8, 1, 18, 0, tzinfo=timezone.utc),
         "value_pct": 55.0,
         "odds": 1.9
@@ -302,6 +303,7 @@ def test_candidate_and_decision_round_trip() -> None:
         "event_id": candidate.event_id,
         "model_id": candidate.model_id,
         "bookmaker_id": candidate.bookmaker_id,
+        "league_id": candidate.league_id,
         "kickoff": candidate.kickoff,
         "value_pct": candidate.value_pct,
         "odds": candidate.odds
@@ -312,6 +314,18 @@ def test_candidate_and_decision_round_trip() -> None:
         calibrated_probability=decision.calibrated_probability,
         reason=decision.reason)
     assert restored == decision
+
+
+def test_candidate_accepts_a_missing_league() -> None:
+    candidate = _candidate(league_id=None)
+    assert candidate.league_id is None
+
+
+def test_candidate_rejects_a_non_positive_league() -> None:
+    with pytest.raises(ValueError, match="league_id"):
+        _candidate(league_id=0)
+    with pytest.raises(ValueError, match="league_id"):
+        _candidate(league_id=True)
 
 
 def test_candidate_rejects_odds_at_one() -> None:
