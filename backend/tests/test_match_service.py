@@ -467,6 +467,144 @@ class TestMatchService(unittest.TestCase):
         mock_fetch_props.assert_called_once()
 
     @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_player_predictions",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.league_repository"
+        ".fetch_special_round_names",
+        return_value={})
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_team_matches_before_date",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_head_to_head_for_match",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service._league_has_player_stats",
+        return_value=False)
+    @patch(
+        "backend.services.match_service.odds_service.get_match_odds_items",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_prediction_analysis",
+        return_value=None)
+    @patch(
+        "backend.services.match_service.prediction_service"
+        ".get_match_final_predictions",
+        return_value=[])
+    @patch(
+        "backend.services.match_service.match_assessment_repository"
+        ".fetch_match_assessments",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_season_save_rate",
+        return_value=0.907)
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_game_rating_players")
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_events",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_boxscore")
+    @patch(
+        "backend.services.match_service.match_repository"
+        ".fetch_hockey_match_lineups",
+        return_value=pd.DataFrame())
+    @patch(
+        "backend.services.match_service.match_repository.fetch_match_by_id")
+    def test_get_match_details_includes_hockey_game_rating(
+        self,
+        mock_fetch_match: unittest.mock.MagicMock,
+        _mock_fetch_lineups: unittest.mock.MagicMock,
+        mock_fetch_boxscore: unittest.mock.MagicMock,
+        _mock_fetch_events: unittest.mock.MagicMock,
+        mock_fetch_players: unittest.mock.MagicMock,
+        mock_fetch_save_rate: unittest.mock.MagicMock,
+        _mock_fetch_assessments: unittest.mock.MagicMock,
+        _mock_fetch_predictions: unittest.mock.MagicMock,
+        _mock_fetch_analysis: unittest.mock.MagicMock,
+        _mock_fetch_odds: unittest.mock.MagicMock,
+        _mock_has_player_stats: unittest.mock.MagicMock,
+        _mock_fetch_h2h: unittest.mock.MagicMock,
+        _mock_fetch_history: unittest.mock.MagicMock,
+        _mock_special_rounds: unittest.mock.MagicMock,
+        _mock_fetch_props: unittest.mock.MagicMock) -> None:
+        from api.schemas.match import MatchDetails
+
+        frame = self._sample_match_frame()
+        frame["sport_id"] = 2
+        mock_fetch_match.return_value = frame
+        mock_fetch_boxscore.return_value = (
+            pd.DataFrame(),
+            pd.DataFrame([{
+                "player_id": 1,
+                "player_name": "Konecny T.",
+                "team_id": 10,
+                "team_name": "Legia"
+            }]))
+        mock_fetch_players.return_value = pd.DataFrame([{
+            "player_id": 1,
+            "player_name": "Konecny T.",
+            "team_id": 10,
+            "team_name": "Legia",
+            "goals": 1,
+            "assists": 2,
+            "plus_minus": 3,
+            "sog": 4,
+            "blocked": 0,
+            "faceoff": 0,
+            "faceoff_won": 0,
+            "shots_against": None,
+            "shots_saved": None,
+            "roster_position": "C",
+            "player_position": "C"
+        }])
+
+        details = get_match_details(100)
+        assert details is not None
+        rating = details["hockey_game_rating"]
+        assert rating is not None
+        self.assertEqual(
+            [team["team_id"] for team in rating["teams"]],
+            [10, 20])
+        self.assertEqual(rating["teams"][0]["team_name"], "Legia")
+        self.assertEqual(rating["teams"][1]["team_name"], "Lech")
+        self.assertEqual(rating["teams"][1]["players"], [])
+        player = rating["teams"][0]["players"][0]
+        self.assertEqual(player["total"], 3.2)
+        self.assertEqual(
+            player["offense"] + player["defense"],
+            player["total"])
+        mock_fetch_players.assert_called_once_with(100)
+        mock_fetch_save_rate.assert_called_once_with(100)
+        parsed = MatchDetails.model_validate(details)
+        assert parsed.hockey_game_rating is not None
+        self.assertEqual(
+            parsed.hockey_game_rating.teams[0].players[0].total,
+            3.2)
+        without_key = dict(details)
+        without_key.pop("hockey_game_rating")
+        omitted = MatchDetails.model_validate(without_key)
+        self.assertIsNone(omitted.hockey_game_rating)
+
+        mock_fetch_boxscore.return_value = (
+            pd.DataFrame(),
+            pd.DataFrame())
+        empty_details = get_match_details(100)
+        assert empty_details is not None
+        self.assertIsNone(empty_details["hockey_game_rating"])
+        mock_fetch_players.assert_called_once()
+        mock_fetch_save_rate.assert_called_once()
+
+    @patch(
         "backend.services.match_service.league_repository"
         ".fetch_special_round_names",
         return_value={})

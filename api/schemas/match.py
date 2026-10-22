@@ -677,6 +677,60 @@ class HockeyScoreChartResponse(BaseModel):
         description="Up to five likeliest final scores")
 
 
+class HockeyRatingParts(BaseModel):
+    """Nine rounded leaves of one hockey game rating."""
+
+    production: float = Field(..., description="Goals and assists")
+    empty_net: float = Field(..., description="Empty-net goal adjustment")
+    shots: float = Field(..., description="Unconverted shots")
+    teammate_goals: float = Field(
+        ...,
+        description="Even-strength goals by teammates")
+    faceoffs: float = Field(..., description="Faceoff differential")
+    goals_against: float = Field(
+        ...,
+        description="Even-strength goals against")
+    penalties: float = Field(..., description="Minor and major penalties")
+    blocks: float = Field(..., description="Blocks versus position average")
+    goaltending: float = Field(
+        ...,
+        description="Saves above the season rate")
+
+
+class HockeyRatedPlayer(BaseModel):
+    """One player's game rating on the protocol-point scale."""
+
+    player_id: int = Field(..., description="Player ID")
+    player_name: str = Field(..., description="Player display name")
+    group: Literal["forward", "defense", "goalie"] = Field(
+        ...,
+        description="Chart group: forward, defense or goalie")
+    offense: float = Field(..., description="Offensive part of the rating")
+    defense: float = Field(..., description="Defensive part of the rating")
+    total: float = Field(..., description="Offense plus defense")
+    parts: HockeyRatingParts = Field(
+        ...,
+        description="Rounded rating leaves")
+
+
+class HockeyRatedTeam(BaseModel):
+    """Rated players of one club. Order is not the chart order."""
+
+    team_id: int = Field(..., description="Team ID")
+    team_name: str = Field(..., description="Team name")
+    players: list[HockeyRatedPlayer] = Field(
+        ...,
+        description="Rated players, possibly empty")
+
+
+class HockeyGameRating(BaseModel):
+    """Home and away game ratings for a played hockey match."""
+
+    teams: list[HockeyRatedTeam] = Field(
+        ...,
+        description="Home team first, then the away team")
+
+
 class MatchDetails(BaseModel):
     """Full match payload for the match detail page."""
 
@@ -737,6 +791,10 @@ class MatchDetails(BaseModel):
     hockey_boxscore: HockeyMatchBoxscore | None = Field(
         None,
         description="Hockey player stats when available for a played match")
+    hockey_game_rating: HockeyGameRating | None = Field(
+        None,
+        description=(
+            "Hockey player ratings for a played match with a box score"))
     hockey_lineups: HockeyMatchLineups | None = Field(
         None,
         description="Hockey match lineups grouped by team and line")
