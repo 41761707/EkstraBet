@@ -19,6 +19,7 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
+from pydantic import ValidationError
 
 from backend.config import REPO_ROOT
 from backend.database import get_db_connection
@@ -30,6 +31,7 @@ from backend.services.model_statistics_maintenance_service import (
     StatisticsRefreshReport,
     refresh_model_statistics,
     replace_changed_finals)
+from models.pipeline.betting.config import load_betting_strategy_config
 from models.pipeline.core.artifacts import load_meta
 from models.pipeline.core.artifacts import load_model_artifact
 from models.pipeline.core.config import FutureEventsRunConfig
@@ -1034,6 +1036,13 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
     loaded: list[tuple[ModelRunConfig, int]] = []
     for path in sorted(_HOCKEY_PREDICTION_CONFIGS.glob("*.json")):
         task_type = _prediction_task_type(path)
+        if task_type is None and _is_betting_strategy_config(path):
+            # Poprawna strategia piłkarska nie jest modelem hokeja.
+            logger.info(
+                "Skipping prediction config %s "
+                "because it is a betting strategy",
+                path.name)
+            continue
         if task_type in _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS:
             continue
         config = load_model_config(path)
@@ -1053,6 +1062,15 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
             continue
         loaded.append((config, model_id))
     return loaded
+
+
+def _is_betting_strategy_config(path: Path) -> bool:
+    """Return whether the file is a valid betting strategy config."""
+    try:
+        load_betting_strategy_config(path)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValidationError):
+        return False
+    return True
 
 
 def _prediction_task_type(path: Path) -> str | None:

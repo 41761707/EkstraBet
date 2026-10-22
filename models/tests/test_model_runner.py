@@ -1224,6 +1224,68 @@ def test_cli_predict_hockey_gbm_scores_without_a_roster(
     assert match["lineup_fallback"] is True
 
 
+def test_active_hockey_configs_skip_betting_strategy(
+        caplog: pytest.LogCaptureFixture) -> None:
+    """A valid football betting strategy must not abort NHL loading."""
+    from models.pipeline.core import cli
+
+    strategy = (
+        REPO_ROOT
+        / "models"
+        / "configs"
+        / "prediction"
+        / "football_betting_strategy_v1.json")
+    assert strategy.is_file()
+
+    def _both(name: str) -> int:
+        if name == "HOCKEY_GOALS_GBM_V1":
+            return 12
+        if name == "HOCKEY_RATINGS_POISSON_V1":
+            return 21
+        raise RegistryError(name)
+
+    with caplog.at_level(
+            logging.INFO, logger="models.pipeline.core.cli"), patch(
+            "models.pipeline.core.cli.resolve_model_id",
+            side_effect=_both), patch(
+            "models.pipeline.core.cli._artifact_recommends_inactive",
+            return_value=False):
+        loaded = cli._active_hockey_configs()
+    names = [config.model_name for config, _model_id in loaded]
+    assert "HOCKEY_GOALS_GBM_V1" in names
+    assert "HOCKEY_RATINGS_POISSON_V1" in names
+    assert "football_betting_strategy_v1.json" in caplog.text
+
+
+def test_active_hockey_configs_reject_broken_prediction_json(
+        tmp_path: Path) -> None:
+    """A damaged JSON in the prediction directory must abort loading."""
+    from models.pipeline.core import cli
+
+    source = REPO_ROOT / "models" / "configs" / "prediction"
+    for path in source.glob("*.json"):
+        (tmp_path / path.name).write_text(
+            path.read_text(encoding="utf-8"),
+            encoding="utf-8")
+    (tmp_path / "zzz_broken.json").write_text("{", encoding="utf-8")
+
+    def _both(name: str) -> int:
+        if name == "HOCKEY_GOALS_GBM_V1":
+            return 12
+        if name == "HOCKEY_RATINGS_POISSON_V1":
+            return 21
+        raise RegistryError(name)
+
+    with patch.object(
+            cli, "_HOCKEY_PREDICTION_CONFIGS", tmp_path), patch(
+            "models.pipeline.core.cli.resolve_model_id",
+            side_effect=_both), patch(
+            "models.pipeline.core.cli._artifact_recommends_inactive",
+            return_value=False):
+        with pytest.raises(json.JSONDecodeError):
+            cli._active_hockey_configs()
+
+
 def test_both_active_hockey_models_stay_loaded() -> None:
     from models.pipeline.core import cli
 
