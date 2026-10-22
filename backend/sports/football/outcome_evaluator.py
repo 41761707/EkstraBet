@@ -10,6 +10,15 @@ from backend.sports.football.event_settlement_registry import (
     LineMarketRule,
     MatchBoxscore,
     parse_line_market)
+from backend.sports.football.markets import BET_MARKET_EVENT_IDS
+from backend.sports.football.markets import BTTS_NO_EVENT_IDS
+from backend.sports.football.markets import BTTS_YES_EVENT_IDS
+from backend.sports.football.markets import EXACT_SCORE_EVENT_IDS
+from backend.sports.football.markets import GOALS_6_PLUS_EVENT_ID
+from backend.sports.football.markets import GOALS_EXACT_TOTAL_EVENTS
+from backend.sports.football.markets import OVER_25_EVENT_IDS
+from backend.sports.football.markets import RESULT_EVENT_OUTCOMES
+from backend.sports.football.markets import UNDER_25_EVENT_IDS
 
 
 SettlementTarget = Literal["final_prediction", "bet", "tipster_leg"]
@@ -17,33 +26,12 @@ SettlementTarget = Literal["final_prediction", "bet", "tipster_leg"]
 EventFamily = Literal["REZULTAT", "BTTS", "OU", "GOALS", "EXACT"]
 
 VALID_MATCH_RESULTS = frozenset({"1", "X", "2"})
-BET_MARKET_EVENT_IDS = frozenset({1, 2, 3, 6, 8, 12, 172})
-
-RESULT_EVENT_OUTCOMES = {
-    1: "1",
-    2: "X",
-    3: "2"
-}
-BTTS_YES_EVENT_IDS = frozenset({6})
-BTTS_NO_EVENT_IDS = frozenset({172})
-OVER_25_EVENT_IDS = frozenset({8})
-UNDER_25_EVENT_IDS = frozenset({12})
 DOUBLE_CHANCE_HOME_EVENT_ID = 4
 DOUBLE_CHANCE_AWAY_EVENT_ID = 5
 HANDICAP_HOME_MINUS_15_EVENT_ID = 49
 HANDICAP_HOME_PLUS_15_EVENT_ID = 50
 HANDICAP_AWAY_MINUS_15_EVENT_ID = 51
 HANDICAP_AWAY_PLUS_15_EVENT_ID = 52
-EXACT_SCORE_EVENT_IDS = frozenset(range(198, 234))
-GOALS_EXACT_TOTAL_EVENTS = {
-    174: 0,
-    175: 1,
-    176: 2,
-    177: 3,
-    178: 4,
-    179: 5
-}
-GOALS_6_PLUS_EVENT_ID = 180
 EXACT_SCORE_PATTERN = re.compile(
     r"^(?P<home>0|1|2|3|4|5\+):(?P<away>0|1|2|3|4|5\+)$")
 _STAT_LABELS = {

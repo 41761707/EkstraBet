@@ -18,6 +18,13 @@ def _require_positive_id(name: str, value: int) -> None:
         raise ValueError(f"{name} must be a positive integer")
 
 
+def _require_optional_positive_id(name: str, value: int | None) -> None:
+    """Allow a missing league and reject every other non-positive id."""
+    if value is None:
+        return
+    _require_positive_id(name, value)
+
+
 def _require_unit_interval(name: str, value: float) -> None:
     """Reject probabilities outside the closed unit interval."""
     if (
@@ -34,7 +41,8 @@ class BettingCandidate:
     """One stored prediction joined to one stored odds row.
 
     ``value_pct`` is the stored probability on a 0-100 scale.
-    ``odds`` is the bookmaker price. Values stay in the source rows.
+    ``odds`` is the bookmaker price. ``league_id`` is ``matches.league``
+    and may be missing. Values stay in the source rows.
     """
 
     prediction_id: int
@@ -43,6 +51,7 @@ class BettingCandidate:
     event_id: int
     model_id: int
     bookmaker_id: int
+    league_id: int | None
     kickoff: datetime
     value_pct: float
     odds: float
@@ -54,6 +63,7 @@ class BettingCandidate:
         _require_positive_id("event_id", self.event_id)
         _require_positive_id("model_id", self.model_id)
         _require_positive_id("bookmaker_id", self.bookmaker_id)
+        _require_optional_positive_id("league_id", self.league_id)
         if not isinstance(self.kickoff, datetime):
             raise ValueError("kickoff must be a datetime")
         if (
