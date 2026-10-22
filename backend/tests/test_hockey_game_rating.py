@@ -1,4 +1,4 @@
-"""Unit tests for hockey skater game rating."""
+"""Unit tests for hockey skater and goalie game ratings."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from backend.sports.hockey.game_rating import BLOCK_AVERAGE_DEFENSE
 from backend.sports.hockey.game_rating import BLOCK_AVERAGE_FORWARD
 from backend.sports.hockey.game_rating import RatingParts
 from backend.sports.hockey.game_rating import SkaterCounts
+from backend.sports.hockey.game_rating import rate_goalie
 from backend.sports.hockey.game_rating import rate_skater
 
 
@@ -175,6 +176,27 @@ class TestHockeySkaterRating(unittest.TestCase):
             block_average=BLOCK_AVERAGE_DEFENSE))
         self.assertEqual(forward.blocks, Decimal("0.0"))
         self.assertEqual(defense.blocks, Decimal("-0.1"))
+
+
+class TestHockeyGoalieRating(unittest.TestCase):
+    """rate_goalie scores saves above a season rate and nothing else."""
+
+    def test_shutout_on_thirty_shots_scores_2_8(self) -> None:
+        self.assertEqual(rate_goalie(30, 30, 0.907), 2.8)
+
+    def test_twenty_three_saves_on_twenty_eight_shots_score_minus_2_4(
+        self) -> None:
+        self.assertEqual(rate_goalie(28, 23, 0.907), -2.4)
+
+    def test_missing_shots_against_score_zero(self) -> None:
+        self.assertEqual(rate_goalie(None, 30, 0.907), 0.0)
+
+    def test_zero_shots_against_score_zero(self) -> None:
+        self.assertEqual(rate_goalie(0, 0, 0.907), 0.0)
+
+    def test_missing_saves_use_the_rounded_negative_expectation(self) -> None:
+        # -0.907 * 10 = -9.07, czyli -9.1 po tym samym zaokrągleniu.
+        self.assertEqual(rate_goalie(10, None, 0.907), -9.1)
 
 
 if __name__ == "__main__":

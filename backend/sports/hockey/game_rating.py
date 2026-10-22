@@ -1,4 +1,4 @@
-"""Hockey skater rating from ready-made box-score counters."""
+"""Hockey skater and goalie ratings from ready-made counters."""
 
 from __future__ import annotations
 
@@ -136,3 +136,21 @@ def rate_skater(counts: SkaterCounts) -> RatingParts:
             + _as_decimal(MAJOR_PENALTY) * counts.major_penalties),
         blocks=_round_part(_as_decimal(BLOCK_ABOVE_AVERAGE) * block_margin),
         goaltending=_round_part(Decimal("0")))
+
+
+def rate_goalie(
+    shots_against: int | None,
+    shots_saved: int | None,
+    save_rate: float) -> float:
+    """Score saves above the season rate, rounded to one decimal.
+
+    A missing or zero shot total scores 0.0. Missing saves count
+    as zero.
+    """
+    if shots_against is None or shots_against == 0:
+        return 0.0
+    saved = 0 if shots_saved is None else shots_saved
+    # Iloczyn float psuje 0.907, więc surowiec jest Decimal.
+    expected_saves = _as_decimal(save_rate) * shots_against
+    raw = Decimal(saved) - expected_saves
+    return float(_round_part(raw))
