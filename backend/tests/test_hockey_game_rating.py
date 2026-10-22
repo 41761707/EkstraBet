@@ -5,10 +5,17 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
+import pandas as pd
+
 from backend.sports.hockey.game_rating import BLOCK_AVERAGE_DEFENSE
 from backend.sports.hockey.game_rating import BLOCK_AVERAGE_FORWARD
+from backend.sports.hockey.game_rating import GOAL_EVENT_ID
+from backend.sports.hockey.game_rating import MAJOR_PENALTY_EVENT_ID
+from backend.sports.hockey.game_rating import MINOR_PENALTY_EVENT_ID
 from backend.sports.hockey.game_rating import RatingParts
 from backend.sports.hockey.game_rating import SkaterCounts
+from backend.sports.hockey.game_rating import attribute_events
+from backend.sports.hockey.game_rating import normalize
 from backend.sports.hockey.game_rating import rate_goalie
 from backend.sports.hockey.game_rating import rate_skater
 
@@ -197,6 +204,230 @@ class TestHockeyGoalieRating(unittest.TestCase):
     def test_missing_saves_use_the_rounded_negative_expectation(self) -> None:
         # -0.907 * 10 = -9.07, czyli -9.1 po tym samym zaokrągleniu.
         self.assertEqual(rate_goalie(10, None, 0.907), -9.1)
+
+
+HOME_TEAM_ID = 10
+AWAY_TEAM_ID = 20
+
+
+def _player(
+    player_id: int,
+    player_name: str,
+    team_id: int = HOME_TEAM_ID,
+    goals: int = 0,
+    assists: int = 0) -> dict[str, object]:
+    """Build one player row. The name column is the common name."""
+    return {
+        "player_id": player_id,
+        "player_name": player_name,
+        "team_id": team_id,
+        "goals": goals,
+        "assists": assists
+    }
+
+
+def _event(
+    player_id: int,
+    event_id: int,
+    team_id: int = HOME_TEAM_ID,
+    description: str | None = None,
+    pp_flag: int = 0,
+    en_flag: int = 0) -> dict[str, object]:
+    """Build one play-by-play row."""
+    return {
+        "event_id": event_id,
+        "player_id": player_id,
+        "team_id": team_id,
+        "pp_flag": pp_flag,
+        "en_flag": en_flag,
+        "description": description
+    }
+
+
+class TestHockeyEventCredits(unittest.TestCase):
+    """attribute_events reads goals, assists and penalties."""
+
+    def test_event_ids_are_goal_minor_and_major(self) -> None:
+        self.assertEqual(GOAL_EVENT_ID, 181)
+        self.assertEqual(MINOR_PENALTY_EVENT_ID, 183)
+        self.assertEqual(MAJOR_PENALTY_EVENT_ID, 185)
+
+    def test_normalize_matches_a_name_without_diacritics(self) -> None:
+        self.assertEqual(normalize("Stützle T."), normalize("Stutzle T."))
+
+    def test_assist_matches_stutzle_without_diacritics(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Scorer S."),
+            _player(2, "Stützle T.")
+        ])
+        events = pd.DataFrame([
+            _event(
+                player_id=1,
+                event_id=181,
+                description="Stutzle T.")
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[2].es_points, 1)
+        self.assertEqual(credits[1].es_points, 1)
+        self.assertEqual(credits[1].empty_net_goals, 0)
+
+    def test_power_play_goal_adds_no_even_strength_points(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Scorer S."),
+            _player(2, "Sanderson J."),
+            _player(3, "Halliday S.")
+        ])
+        events = pd.DataFrame([
+            _event(
+                player_id=1,
+                event_id=181,
+                description="Sanderson J. + Halliday S., W przewadze",
+                pp_flag=1,
+                en_flag=0)
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[1].es_points, 0)
+        self.assertEqual(credits[1].empty_net_goals, 0)
+        self.assertEqual(credits[2].es_points, 0)
+        self.assertEqual(credits[3].es_points, 0)
+
+    def test_empty_net_goal_credits_scorer_and_assists(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Scorer S."),
+            _player(2, "Armia J."),
+            _player(3, "Haula E.")
+        ])
+        events = pd.DataFrame([
+            _event(
+                player_id=1,
+                event_id=181,
+                description="Armia J. + Haula E., Do pustej bramki",
+                pp_flag=0,
+                en_flag=1)
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[1].empty_net_goals, 1)
+        self.assertEqual(credits[1].es_points, 1)
+        self.assertEqual(credits[2].es_points, 1)
+        self.assertEqual(credits[2].empty_net_goals, 0)
+        self.assertEqual(credits[3].es_points, 1)
+        self.assertEqual(credits[3].empty_net_goals, 0)
+
+    def test_empty_net_still_counts_on_a_power_play_goal(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Scorer S."),
+            _player(2, "Assist A.")
+        ])
+        events = pd.DataFrame([
+            _event(
+                player_id=1,
+                event_id=181,
+                description="Assist A.",
+                pp_flag=1,
+                en_flag=1)
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[1].empty_net_goals, 1)
+        self.assertEqual(credits[1].es_points, 0)
+        self.assertEqual(credits[2].es_points, 0)
+
+    def test_unmatched_and_ambiguous_assists_are_skipped(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Scorer S."),
+            _player(2, "Twin T."),
+            _player(3, "Twin T."),
+            _player(4, "Away A.", team_id=AWAY_TEAM_ID),
+            _player(5, "Real R.")
+        ])
+        events = pd.DataFrame([
+            _event(
+                player_id=1,
+                event_id=181,
+                description="Nobody N. + Twin T. + Away A. + Real R.")
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[1].es_points, 1)
+        self.assertEqual(credits[2].es_points, 0)
+        self.assertEqual(credits[3].es_points, 0)
+        self.assertEqual(credits[4].es_points, 0)
+        self.assertEqual(credits[5].es_points, 1)
+
+    def test_same_player_is_credited_once_per_goal(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Scorer S."),
+            _player(2, "Haula E.")
+        ])
+        events = pd.DataFrame([
+            _event(
+                player_id=1,
+                event_id=181,
+                description="Haula E. + Haula E.")
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[2].es_points, 1)
+
+    def test_missing_goal_events_use_box_score_points(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Assist A.", assists=2),
+            _player(2, "Quiet Q.", goals=1, assists=1)
+        ])
+
+        credits = attribute_events(players, pd.DataFrame())
+
+        self.assertEqual(credits[1].es_points, 2)
+        self.assertEqual(credits[1].empty_net_goals, 0)
+        self.assertEqual(credits[1].minor_penalties, 0)
+        self.assertEqual(credits[2].es_points, 2)
+        self.assertEqual(credits[2].empty_net_goals, 0)
+
+    def test_one_goal_event_disables_box_score_fallback(self) -> None:
+        players = pd.DataFrame([
+            _player(1, "Assist A.", assists=2),
+            _player(2, "Scorer S.", goals=1)
+        ])
+        events = pd.DataFrame([
+            _event(player_id=2, event_id=181, description=None),
+            _event(player_id=1, event_id=183)
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[1].es_points, 0)
+        self.assertEqual(credits[1].minor_penalties, 1)
+        self.assertEqual(credits[2].es_points, 1)
+        self.assertEqual(credits[2].empty_net_goals, 0)
+
+    def test_penalties_are_counted_from_events_not_minutes(self) -> None:
+        players = pd.DataFrame([_player(1, "Penal P.")])
+        events = pd.DataFrame([
+            _event(player_id=1, event_id=183),
+            _event(player_id=1, event_id=183),
+            _event(player_id=1, event_id=185),
+            _event(player_id=1, event_id=184),
+            _event(player_id=1, event_id=186),
+            _event(player_id=1, event_id=187),
+            _event(player_id=1, event_id=188),
+            _event(player_id=1, event_id=189)
+        ])
+
+        credits = attribute_events(players, events)
+
+        self.assertEqual(credits[1].minor_penalties, 2)
+        self.assertEqual(credits[1].major_penalties, 1)
+        self.assertEqual(credits[1].es_points, 0)
+        self.assertEqual(credits[1].empty_net_goals, 0)
 
 
 if __name__ == "__main__":
