@@ -82,12 +82,14 @@ def build_hockey_team_roster(
     """Group the current roster and attach season counting stats.
 
     ``hockey_rosters.line`` is the only slot. The last match supplies
-    the jersey number and whether the player dressed. An empty line
-    stays outside, and an injured player stays in the injured group.
+    the jersey number, whether the player dressed, and the previous
+    seat. An empty line stays outside, and an injured player stays
+    in the injured group.
     """
+    match_rows = _match_rows(last_match)
     players = _player_records(
         roster,
-        _match_rows(last_match),
+        match_rows,
         _aggregate_stats(season_stats))
     return {
         "team_id": team_id,
@@ -97,7 +99,8 @@ def build_hockey_team_roster(
         "forwards": _forwards(players),
         "injured_players": sum(
             1 for player in players if player["is_injured"]),
-        "groups": _groups(players)
+        "groups": _groups(players),
+        "lineup_changes": _lineup_changes(players, match_rows, last_match)
     }
 
 
@@ -214,9 +217,104 @@ def _match_rows(last_match: pd.DataFrame) -> dict[int, dict[str, Any]]:
     for row in last_match.itertuples(index=False):
         rows[int(row.player_id)] = {
             "position": _optional_text(row.position),
+            "line": _optional_int(row.line),
             "number": _optional_int(row.number)
         }
     return rows
+
+
+def _lineup_changes(
+        players: list[dict[str, Any]],
+        match_rows: dict[int, dict[str, Any]],
+        last_match: pd.DataFrame) -> dict[str, Any]:
+    """Return dressed players whose line, pair or goalie role changed."""
+    moves: list[dict[str, Any]] = []
+    for player in players:
+        move = _lineup_move(player, match_rows.get(player["player_id"]))
+        if move is not None:
+            moves.append(move)
+    moves.sort(key=_move_sort_key)
+    return {
+        "match_date": _match_date(last_match),
+        "moves": moves
+    }
+
+
+def _lineup_move(
+        player: dict[str, Any],
+        match: dict[str, Any] | None) -> dict[str, Any] | None:
+    current = _dressed_seat(player["group_id"], player["line"])
+    if current is None or match is None:
+        return None
+    previous_position = _position(match["position"])
+    previous = _recorded_seat(previous_position, match["line"])
+    # Kontuzja i ławka nie są ruchem. Skrzydło na tej samej linii też nie.
+    if previous_position is None or previous is None or previous == current:
+        return None
+    return {
+        "player_id": player["player_id"],
+        "common_name": player["common_name"],
+        "previous_position": previous_position,
+        "previous_line": match["line"],
+        "position": player["position"],
+        "line": player["line"]
+    }
+
+
+def _dressed_seat(
+        group_id: str,
+        line: int | None) -> tuple[str, int] | None:
+    if line is None:
+        return None
+    if group_id in {"F1", "F2", "F3", "F4"} and 1 <= line <= 4:
+        return ("F", line)
+    if group_id in {"D1", "D2", "D3"} and 1 <= line <= 3:
+        return ("D", line)
+    if group_id == "G" and line in _GOALIE_DEPTH:
+        return ("G", line)
+    return None
+
+
+def _recorded_seat(
+        position: str | None,
+        line: int | None) -> tuple[str, int] | None:
+    if line is None:
+        return None
+    if position in _FORWARD_POSITIONS and 1 <= line <= 4:
+        return ("F", line)
+    if position == "D" and 1 <= line <= 3:
+        return ("D", line)
+    if position == _GOALIE_POSITION and line in _GOALIE_DEPTH:
+        return ("G", line)
+    return None
+
+
+def _move_sort_key(move: dict[str, Any]) -> tuple[object, ...]:
+    seat = _recorded_seat(move["position"], move["line"])
+    kind = seat[0] if seat is not None else "Z"
+    line = seat[1] if seat is not None else 9
+    order = {"F": 0, "D": 1, "G": 2}
+    return (
+        order.get(kind, 9),
+        line,
+        move["common_name"].lower(),
+        move["player_id"])
+
+
+def _match_date(frame: pd.DataFrame) -> str | None:
+    if frame.empty or "game_date" not in frame.columns:
+        return None
+    value = frame.iloc[0]["game_date"]
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.date().isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    text = str(value).strip()
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        return text[:10]
+    return None
 
 
 def _aggregate_stats(frame: pd.DataFrame) -> dict[int, dict[str, Any]]:

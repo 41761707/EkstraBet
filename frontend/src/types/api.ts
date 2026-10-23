@@ -553,6 +553,22 @@ export interface HockeyRosterGroup {
   players: HockeyRosterPlayer[];
 }
 
+/** One dressed player who changed line, pair or goalie role. */
+export interface HockeyLineupMove {
+  player_id: number;
+  common_name: string;
+  previous_position: string;
+  previous_line: number;
+  position: string;
+  line: number;
+}
+
+/** Seat changes versus the previous played match. */
+export interface HockeyLineupChanges {
+  match_date: string | null;
+  moves: HockeyLineupMove[];
+}
+
 /** Current hockey roster from GET /teams/{id}/roster. */
 export interface HockeyTeamRoster {
   team_id: number;
@@ -562,6 +578,7 @@ export interface HockeyTeamRoster {
   forwards: HockeyRosterPlayer[];
   injured_players: number;
   groups: HockeyRosterGroup[];
+  lineup_changes: HockeyLineupChanges;
 }
 
 export interface EventFamilyRef {

@@ -155,6 +155,7 @@ describe("playersOnPowerPlay", () => {
       defensemen: [],
       forwards: [],
       injured_players: 1,
+      lineup_changes: { match_date: null, moves: [] },
       groups: [
         {
           group_id: "F1",

@@ -29,7 +29,8 @@ _MATCH_COLUMNS = [
     "position",
     "line",
     "number",
-    "toi"]
+    "toi",
+    "game_date"]
 _STAT_COLUMNS = [
     "player_id",
     "goals",
@@ -88,8 +89,10 @@ def fetch_last_match_roster(team_id: int) -> pd.DataFrame:
             r.position,
             r.line,
             r.number,
-            s.toi
+            s.toi,
+            m.game_date
         FROM hockey_match_rosters r
+        INNER JOIN matches m ON m.id = r.match_id
         LEFT JOIN hockey_match_player_stats s
             ON s.match_id = r.match_id
            AND s.player_id = r.player_id

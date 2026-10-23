@@ -196,6 +196,7 @@ function roster(): HockeyTeamRoster {
     defensemen: [],
     forwards: [],
     injured_players: 1,
+    lineup_changes: { match_date: null, moves: [] },
     groups: [
       {
         group_id: "F1",
@@ -254,6 +255,7 @@ describe("HockeyTeamRosterSection", () => {
     );
 
     expect(html).toContain("Aktualny skład drużyny");
+    expect(html).not.toContain("Zmiany względem");
     expect(html).toContain("1. piątka");
     expect(html).toContain("2. piątka");
     expect(html).toContain("3. piątka");
@@ -328,6 +330,36 @@ describe("HockeyTeamRosterSection", () => {
     expect(goalies.indexOf("Starter S.")).toBeLessThan(goalies.indexOf("Backup B."));
     expect(goalies.indexOf("Podstawowy")).toBeLessThan(goalies.indexOf("Rezerwowy"));
     expect(goalies).toContain("border-accent");
+  });
+
+  it("marks a line promotion on the player card and skips a wing label", () => {
+    const html = renderToStaticMarkup(
+      <HockeyTeamRosterSection
+        roster={{
+          ...roster(),
+          lineup_changes: {
+            match_date: "2026-10-21",
+            moves: [
+              {
+                player_id: 1,
+                common_name: "Center A.",
+                previous_position: "LW",
+                previous_line: 4,
+                position: "C",
+                line: 1,
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    const card = sliceBetween(html, "Center A.", "Bramkarze");
+
+    expect(card).toContain("Awans z 4. linii");
+    expect(card).toContain("text-success");
+    expect(card).toContain("↑");
+    expect(card).not.toContain("lewe skrzydło");
+    expect(html).not.toContain("Zmiany względem");
   });
 
   it("shows an error instead of an empty roster", () => {

@@ -86,6 +86,34 @@ class HockeyPlayerRosterResponse(BaseModel):
         description="Whether the player dressed in the last played match")
 
 
+class HockeyLineupMoveResponse(BaseModel):
+    """One dressed player whose even-strength seat changed."""
+
+    player_id: int = Field(..., description="Player ID")
+    common_name: str = Field(..., description="Display name")
+    previous_position: str = Field(
+        ...,
+        description="Position in the previous match (G/D/LW/C/RW)")
+    previous_line: int = Field(
+        ...,
+        description="Line, pair or goalie depth in the previous match")
+    position: str = Field(..., description="Position on the current sheet")
+    line: int = Field(
+        ...,
+        description="Line, pair or goalie depth on the current sheet")
+
+
+class HockeyLineupChangesResponse(BaseModel):
+    """Seat changes versus the previous played match."""
+
+    match_date: str | None = Field(
+        None,
+        description="Calendar date of the previous match, YYYY-MM-DD")
+    moves: list[HockeyLineupMoveResponse] = Field(
+        ...,
+        description="Players who changed line, pair or goalie role")
+
+
 class HockeyRosterGroupResponse(BaseModel):
     """Players sharing one roster section."""
 
@@ -115,3 +143,6 @@ class HockeyTeamRosterResponse(BaseModel):
     groups: list[HockeyRosterGroupResponse] = Field(
         ...,
         description="Line, pair, goalie, injured and outside sections")
+    lineup_changes: HockeyLineupChangesResponse = Field(
+        ...,
+        description="Internal seat changes since the previous match")

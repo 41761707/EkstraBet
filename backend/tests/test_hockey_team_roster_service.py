@@ -443,6 +443,80 @@ def test_injured_forward_does_not_fill_an_open_seat() -> None:
     assert len(_players(payload, "F1")) == 2
 
 
+def test_lineup_changes_keep_internal_seat_moves() -> None:
+    roster = _roster_frame([
+        _roster(
+            player_id=1,
+            common_name="Center A.",
+            roster_position="C",
+            roster_line=1),
+        _roster(
+            player_id=2,
+            common_name="Wing L.",
+            roster_position="C",
+            roster_line=2),
+        _roster(
+            player_id=3,
+            common_name="Defence D.",
+            roster_position="D",
+            roster_line=1),
+        _roster(
+            player_id=4,
+            common_name="Goalie G.",
+            roster_position="G",
+            roster_line=2),
+        _roster(
+            player_id=5,
+            common_name="New N.",
+            roster_position="RW",
+            roster_line=1),
+        _roster(
+            player_id=6,
+            common_name="Hurt H.",
+            roster_position="LW",
+            roster_line=1,
+            is_injured=1),
+        _roster(
+            player_id=7,
+            common_name="Scratch S.",
+            player_position="C")])
+    last_match = _match_frame([
+        _match(player_id=1, position="C", line=2, number=19),
+        _match(player_id=2, position="LW", line=2, number=17),
+        _match(player_id=3, position="D", line=2, number=8),
+        _match(player_id=4, position="G", line=1, number=90),
+        _match(player_id=6, position="LW", line=3, number=12),
+        _match(player_id=7, position="C", line=4, number=15)])
+    last_match["game_date"] = datetime.date(2026, 10, 21)
+
+    payload = build_hockey_team_roster(
+        TEAM_ID, "Jackets", roster, last_match, _empty_stats())
+
+    changes = payload["lineup_changes"]
+    assert changes["match_date"] == "2026-10-21"
+    assert [move["player_id"] for move in changes["moves"]] == [1, 3, 4]
+    assert changes["moves"][0]["previous_line"] == 2
+    assert changes["moves"][0]["line"] == 1
+    assert changes["moves"][1]["previous_position"] == "D"
+    assert changes["moves"][2]["previous_line"] == 1
+    assert changes["moves"][2]["line"] == 2
+    HockeyTeamRosterResponse.model_validate(payload)
+
+
+def test_lineup_changes_are_empty_without_a_previous_match() -> None:
+    roster = _roster_frame([
+        _roster(
+            player_id=1,
+            common_name="Center A.",
+            roster_position="C",
+            roster_line=1)])
+
+    payload = build_hockey_team_roster(
+        TEAM_ID, "Jackets", roster, _match_frame([]), _empty_stats())
+
+    assert payload["lineup_changes"] == {"match_date": None, "moves": []}
+
+
 def test_missing_team_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "backend.services.hockey_team_roster_service"

@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { LineShiftMark } from "@/components/teams/HockeyLineupChanges";
+import {
+  lineShiftsByPlayer,
+  type LineShiftMarker,
+} from "@/components/teams/lineupChangeLabels";
 import {
   placePowerPlayUnit,
   playersOnPowerPlay,
@@ -75,6 +80,7 @@ export function HockeyRosterBoard({ roster }: { roster: HockeyTeamRoster }) {
   const [statsScope, setStatsScope] = useState<StatsScope>("unit");
   const [statsWindow, setStatsWindow] = useState<RosterStatWindow>("season");
   const sheet = sheetFor(roster, unitId);
+  const shifts = lineShiftsByPlayer(roster.lineup_changes);
   const statsPlayers = statsScope === "unit" ? sheet.unitPlayers : allPlayers(roster);
 
   return (
@@ -85,8 +91,13 @@ export function HockeyRosterBoard({ roster }: { roster: HockeyTeamRoster }) {
         back={sheet.back}
         showBack={sheet.showBack}
         overflow={sheet.overflow}
+        shifts={shifts}
       />
-      <GoalieRow players={playersIn(roster, "G")} windowId={statsWindow} />
+      <GoalieRow
+        players={playersIn(roster, "G")}
+        windowId={statsWindow}
+        shifts={shifts}
+      />
       <RosterGroup
         title="Poza składem"
         players={playersIn(roster, "outside")}
@@ -143,11 +154,13 @@ function LineFormation({
   back,
   showBack,
   overflow,
+  shifts,
 }: {
   wings: (HockeyRosterPlayer | null)[];
   back: (HockeyRosterPlayer | null)[];
   showBack: boolean;
   overflow: HockeyRosterPlayer[];
+  shifts: ReadonlyMap<number, LineShiftMarker>;
 }) {
   return (
     <div className="space-y-4">
@@ -157,6 +170,7 @@ function LineFormation({
             key={player?.player_id ?? `wing-${index}`}
             player={player}
             position={WING_SLOTS[index]}
+            shift={shiftFor(player, shifts)}
           />
         ))}
       </div>
@@ -167,6 +181,7 @@ function LineFormation({
               key={player?.player_id ?? `pair-${index}`}
               player={player}
               position="D"
+              shift={shiftFor(player, shifts)}
             />
           ))}
         </div>
@@ -175,7 +190,11 @@ function LineFormation({
         <div className="mx-auto flex max-w-3xl flex-wrap justify-center gap-3">
           {overflow.map((player) => (
             <div key={player.player_id} className="w-40">
-              <SkaterCard player={player} position={player.position || "—"} />
+              <SkaterCard
+                player={player}
+                position={player.position || "—"}
+                shift={shiftFor(player, shifts)}
+              />
             </div>
           ))}
         </div>
@@ -187,9 +206,11 @@ function LineFormation({
 function SkaterCard({
   player,
   position,
+  shift,
 }: {
   player: HockeyRosterPlayer | null;
   position: string;
+  shift: LineShiftMarker | null;
 }) {
   if (!player) {
     return (
@@ -211,16 +232,29 @@ function SkaterCard({
       <div className="text-xs text-muted">
         {player.number === null ? "—" : `#${player.number}`}
       </div>
+      {shift ? <LineShiftMark marker={shift} /> : null}
     </div>
   );
+}
+
+function shiftFor(
+  player: HockeyRosterPlayer | null,
+  shifts: ReadonlyMap<number, LineShiftMarker>,
+): LineShiftMarker | null {
+  if (!player) {
+    return null;
+  }
+  return shifts.get(player.player_id) ?? null;
 }
 
 function GoalieRow({
   players,
   windowId,
+  shifts,
 }: {
   players: HockeyRosterPlayer[];
   windowId: RosterStatWindow;
+  shifts: ReadonlyMap<number, LineShiftMarker>;
 }) {
   if (players.length === 0) {
     return null;
@@ -231,7 +265,12 @@ function GoalieRow({
       <h3 className="text-sm font-semibold text-text">Bramkarze</h3>
       <div className="flex flex-wrap justify-center gap-3">
         {orderedGoalies(players).map((player) => (
-          <GoalieCard key={player.player_id} player={player} windowId={windowId} />
+          <GoalieCard
+            key={player.player_id}
+            player={player}
+            windowId={windowId}
+            shift={shiftFor(player, shifts)}
+          />
         ))}
       </div>
     </section>
@@ -241,9 +280,11 @@ function GoalieRow({
 function GoalieCard({
   player,
   windowId,
+  shift,
 }: {
   player: HockeyRosterPlayer;
   windowId: RosterStatWindow;
+  shift: LineShiftMarker | null;
 }) {
   const role = goalieRole(player.line);
   const border = role === "Podstawowy" ? "border-accent" : "border-border";
@@ -256,6 +297,7 @@ function GoalieCard({
       <div className="text-xs text-muted">
         {player.number === null ? "—" : `#${player.number}`}
       </div>
+      {shift ? <LineShiftMark marker={shift} /> : null}
       <div className="mt-1 text-sm text-text">
         {formatRosterStat(player, counting, "save_percentage")}
         <span className="text-muted"> SV%</span>

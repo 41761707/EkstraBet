@@ -37,6 +37,7 @@ def test_last_match_requires_roster_rows(monkeypatch) -> None:
     assert "m.result" in match_query
     assert "m.game_date DESC, m.id DESC" in match_query
     assert match_params == (TEAM_ID, "0")
+    assert "m.game_date" in queries[1][0]
     assert queries[1][1][0] == MATCH_ID
 
 
