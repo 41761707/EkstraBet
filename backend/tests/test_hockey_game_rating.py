@@ -7,15 +7,12 @@ from decimal import Decimal
 
 import pandas as pd
 
-from backend.sports.hockey.game_rating import BLOCK_AVERAGE_DEFENSE
-from backend.sports.hockey.game_rating import BLOCK_AVERAGE_FORWARD
 from backend.sports.hockey.game_rating import GOAL_EVENT_ID
 from backend.sports.hockey.game_rating import MAJOR_PENALTY_EVENT_ID
 from backend.sports.hockey.game_rating import MINOR_PENALTY_EVENT_ID
 from backend.sports.hockey.game_rating import RatingParts
 from backend.sports.hockey.game_rating import SkaterCounts
 from backend.sports.hockey.game_rating import attribute_events
-from backend.sports.hockey.game_rating import block_average_for
 from backend.sports.hockey.game_rating import build_match_rating
 from backend.sports.hockey.game_rating import normalize
 from backend.sports.hockey.game_rating import player_group
@@ -33,7 +30,6 @@ def _counts(
     minor_penalties: int = 0,
     major_penalties: int = 0,
     blocked: int = 0,
-    block_average: float = BLOCK_AVERAGE_FORWARD,
     faceoffs_taken: int = 0,
     faceoffs_won: int = 0) -> SkaterCounts:
     """Build skater counters, with untouched stats left neutral."""
@@ -47,7 +43,6 @@ def _counts(
         minor_penalties=minor_penalties,
         major_penalties=major_penalties,
         blocked=blocked,
-        block_average=block_average,
         faceoffs_taken=faceoffs_taken,
         faceoffs_won=faceoffs_won)
 
@@ -68,43 +63,42 @@ class TestHockeySkaterRating(unittest.TestCase):
         self.assertEqual(parts.offense + parts.defense, parts.total)
         self.assertEqual(parts.goaltending, Decimal("0.0"))
 
-    def test_even_strength_three_points_and_plus_three_score_3_2(self) -> None:
+    def test_even_strength_three_points_and_plus_three_score_3_3(self) -> None:
         parts = rate_skater(_counts(
             goals=1,
             assists=2,
             es_points=3,
             shots_on_goal=4,
             plus_minus=3))
-        self._assert_score(parts, "3.2", "0.0", "3.2")
+        self._assert_score(parts, "3.3", "0.0", "3.3")
         self.assertEqual(parts.production, Decimal("3.0"))
-        self.assertEqual(parts.shots, Decimal("0.2"))
+        self.assertEqual(parts.shots, Decimal("0.3"))
         self.assertEqual(format(parts.empty_net, "f"), "0.0")
         self.assertEqual(format(parts.penalties, "f"), "0.0")
         self.assertEqual(format(parts.goals_against, "f"), "0.0")
         self.assertEqual(format(parts.blocks, "f"), "0.0")
 
-    def test_even_strength_three_points_and_minus_one_score_1_8(self) -> None:
+    def test_even_strength_three_points_and_minus_one_score_1_9(self) -> None:
         parts = rate_skater(_counts(
             goals=1,
             assists=2,
             es_points=3,
             shots_on_goal=4,
             plus_minus=-1))
-        self._assert_score(parts, "3.2", "-1.4", "1.8")
+        self._assert_score(parts, "3.3", "-1.4", "1.9")
         self.assertEqual(parts.production, Decimal("3.0"))
-        self.assertEqual(parts.shots, Decimal("0.2"))
+        self.assertEqual(parts.shots, Decimal("0.3"))
         self.assertEqual(parts.goals_against, Decimal("-1.4"))
 
     def test_quiet_defender_scores_shots_teammates_and_blocks(self) -> None:
         parts = rate_skater(_counts(
             shots_on_goal=1,
             plus_minus=2,
-            blocked=4,
-            block_average=BLOCK_AVERAGE_DEFENSE))
-        self._assert_score(parts, "0.5", "0.1", "0.6")
+            blocked=4))
+        self._assert_score(parts, "0.5", "0.4", "0.9")
         self.assertEqual(parts.shots, Decimal("0.1"))
         self.assertEqual(parts.teammate_goals, Decimal("0.4"))
-        self.assertEqual(parts.blocks, Decimal("0.1"))
+        self.assertEqual(parts.blocks, Decimal("0.4"))
 
     def test_two_minors_and_minus_three_score_minus_1_4(self) -> None:
         parts = rate_skater(_counts(
@@ -149,9 +143,9 @@ class TestHockeySkaterRating(unittest.TestCase):
             es_points=0,
             shots_on_goal=3,
             plus_minus=0))
-        self._assert_score(parts, "1.1", "0.0", "1.1")
+        self._assert_score(parts, "1.2", "0.0", "1.2")
         self.assertEqual(parts.production, Decimal("1.0"))
-        self.assertEqual(parts.shots, Decimal("0.1"))
+        self.assertEqual(parts.shots, Decimal("0.2"))
         self.assertEqual(parts.goals_against, Decimal("0.0"))
 
     def test_empty_net_goal_trims_the_goal(self) -> None:
@@ -177,15 +171,13 @@ class TestHockeySkaterRating(unittest.TestCase):
         self.assertEqual(parts.shots, Decimal("0.0"))
         self.assertEqual(parts.goals_against, Decimal("0.0"))
 
-    def test_zero_blocks_follow_the_position_average(self) -> None:
-        forward = rate_skater(_counts(
-            blocked=0,
-            block_average=BLOCK_AVERAGE_FORWARD))
-        defense = rate_skater(_counts(
-            blocked=0,
-            block_average=BLOCK_AVERAGE_DEFENSE))
-        self.assertEqual(forward.blocks, Decimal("0.0"))
-        self.assertEqual(defense.blocks, Decimal("-0.1"))
+    def test_each_block_scores_one_tenth(self) -> None:
+        one = rate_skater(_counts(blocked=1))
+        four = rate_skater(_counts(blocked=4))
+        none = rate_skater(_counts(blocked=0))
+        self.assertEqual(one.blocks, Decimal("0.1"))
+        self.assertEqual(four.blocks, Decimal("0.4"))
+        self.assertEqual(none.blocks, Decimal("0.0"))
 
 
 class TestHockeyGoalieRating(unittest.TestCase):
@@ -496,10 +488,8 @@ class TestHockeyMatchRating(unittest.TestCase):
                     player["offense"] + player["defense"],
                     player["total"])
 
-    def test_roster_defense_beats_wing_and_uses_defense_average(
-        self) -> None:
+    def test_roster_defense_beats_a_wing_position(self) -> None:
         self.assertEqual(player_group("D", "R", None), "defense")
-        self.assertEqual(block_average_for("defense", "D"), 1.44)
         players = pd.DataFrame([
             _rating_player(
                 7, "Halliday S.",
@@ -513,7 +503,7 @@ class TestHockeyMatchRating(unittest.TestCase):
         player = rating["teams"][0]["players"][0]
 
         self.assertEqual(player["group"], "defense")
-        self.assertEqual(player["parts"]["blocks"], -0.1)
+        self.assertEqual(player["parts"]["blocks"], 0.0)
         self.assertEqual(player["parts"]["goaltending"], 0.0)
         self.assertEqual(rating["teams"][0]["team_id"], HOME_TEAM_ID)
         self.assertEqual(rating["teams"][1]["team_id"], AWAY_TEAM_ID)
@@ -551,20 +541,7 @@ class TestHockeyMatchRating(unittest.TestCase):
         self.assertEqual(player_group("D", "G", 0), "defense")
         self.assertEqual(player_group("G", "D", None), "goalie")
 
-    def test_forward_block_average_follows_the_roster_code(self) -> None:
-        self.assertEqual(block_average_for("forward", "C"), 0.57)
-        self.assertEqual(block_average_for("forward", "LW"), 0.45)
-        self.assertEqual(block_average_for("forward", "RW"), 0.46)
-        self.assertEqual(block_average_for("forward", "R"), 0.49)
-        self.assertEqual(block_average_for("forward", "L"), 0.49)
-        self.assertEqual(block_average_for("forward", "F"), 0.49)
-        self.assertEqual(block_average_for("forward", "W"), 0.49)
-        self.assertEqual(block_average_for("forward", "NN"), 0.49)
-        self.assertEqual(block_average_for("forward", None), 0.49)
-        self.assertEqual(block_average_for("forward", ""), 0.49)
-        self.assertEqual(block_average_for("defense", "LW"), 1.44)
-
-    def test_three_point_game_scores_3_2_and_away_team_is_second(
+    def test_three_point_game_scores_3_3_and_away_team_is_second(
         self) -> None:
         players = pd.DataFrame([
             _rating_player(
@@ -614,11 +591,11 @@ class TestHockeyMatchRating(unittest.TestCase):
         self.assertEqual(away["players"], [])
         konecny = home["players"][0]
         self.assertEqual(konecny["group"], "forward")
-        self.assertEqual(konecny["offense"], 3.2)
+        self.assertEqual(konecny["offense"], 3.3)
         self.assertEqual(konecny["defense"], 0.0)
-        self.assertEqual(konecny["total"], 3.2)
+        self.assertEqual(konecny["total"], 3.3)
         self.assertEqual(konecny["parts"]["production"], 3.0)
-        self.assertEqual(konecny["parts"]["shots"], 0.2)
+        self.assertEqual(konecny["parts"]["shots"], 0.3)
         self.assertEqual(konecny["parts"]["goaltending"], 0.0)
         self.assertEqual(konecny["parts"]["goals_against"], 0.0)
         self.assertEqual(konecny["parts"]["empty_net"], 0.0)

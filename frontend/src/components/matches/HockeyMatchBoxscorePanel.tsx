@@ -13,6 +13,7 @@ import {
   type SkaterSortKey,
 } from "@/components/matches/hockeyBoxscoreSort";
 import { HockeyGameRatingCharts } from "@/components/matches/HockeyGameRatingCharts";
+import { formatRating } from "@/components/matches/hockeyGameRatingModel";
 import type {
   HockeyGameRating,
   HockeyGoalieBoxscoreRow,
@@ -43,6 +44,11 @@ interface BoxscoreIdentity {
   team_id: number;
 }
 
+type RatedGoalieRow = HockeyGoalieBoxscoreRow & { rating: number | null };
+type RatedSkaterRow = HockeySkaterBoxscoreRow & { rating: number | null };
+
+const MISSING_RATING = "—";
+
 function formatValue(value: number | string | null | undefined): string {
   if (value === null || value === undefined) {
     return "—";
@@ -64,7 +70,7 @@ function formatAccuracy(value: number | null): string {
   return value === null ? "—" : value.toFixed(2);
 }
 
-const GOALIE_COLUMNS: readonly BoxscoreColumn<HockeyGoalieBoxscoreRow, GoalieSortKey>[] = [
+const GOALIE_COLUMNS: readonly BoxscoreColumn<RatedGoalieRow, GoalieSortKey>[] = [
   {
     key: "team_name",
     label: "Drużyna",
@@ -88,6 +94,15 @@ const GOALIE_COLUMNS: readonly BoxscoreColumn<HockeyGoalieBoxscoreRow, GoalieSor
     align: "center",
     kind: "stat",
     display: (row) => formatValue(row.points),
+  },
+  {
+    key: "rating",
+    label: "Ocena",
+    title: "Ocena meczu",
+    align: "center",
+    kind: "stat",
+    display: (row) => formatRatingCell(row.rating),
+    tone: (row) => plusMinusClassName(row.rating),
   },
   {
     key: "penalty_minutes",
@@ -131,7 +146,7 @@ const GOALIE_COLUMNS: readonly BoxscoreColumn<HockeyGoalieBoxscoreRow, GoalieSor
   },
 ];
 
-const SKATER_COLUMNS: readonly BoxscoreColumn<HockeySkaterBoxscoreRow, SkaterSortKey>[] = [
+const SKATER_COLUMNS: readonly BoxscoreColumn<RatedSkaterRow, SkaterSortKey>[] = [
   {
     key: "team_name",
     label: "Drużyna",
@@ -173,6 +188,15 @@ const SKATER_COLUMNS: readonly BoxscoreColumn<HockeySkaterBoxscoreRow, SkaterSor
     display: (row) => formatValue(row.points),
   },
   {
+    key: "rating",
+    label: "Ocena",
+    title: "Ocena meczu",
+    align: "center",
+    kind: "stat",
+    display: (row) => formatRatingCell(row.rating),
+    tone: (row) => plusMinusClassName(row.rating),
+  },
+  {
     key: "plus_minus",
     label: "+/-",
     title: "Plus/minus",
@@ -207,6 +231,36 @@ const SKATER_COLUMNS: readonly BoxscoreColumn<HockeySkaterBoxscoreRow, SkaterSor
   },
 ];
 
+function formatRatingCell(value: number | null): string {
+  if (value === null) {
+    return MISSING_RATING;
+  }
+  return formatRating(value);
+}
+
+function totalsByPlayer(rating: HockeyGameRating | null): Map<number, number> {
+  const totals = new Map<number, number>();
+  if (!rating) {
+    return totals;
+  }
+  for (const team of rating.teams) {
+    for (const player of team.players) {
+      totals.set(player.player_id, player.total);
+    }
+  }
+  return totals;
+}
+
+function withRating<Row extends { player_id: number }>(
+  rows: Row[],
+  totals: Map<number, number>,
+): Array<Row & { rating: number | null }> {
+  return rows.map((row) => ({
+    ...row,
+    rating: totals.get(row.player_id) ?? null,
+  }));
+}
+
 function textClass(kind: ColumnKind): string {
   if (kind === "player") {
     return "font-medium text-text";
@@ -221,12 +275,16 @@ export function HockeyMatchBoxscorePanel({
   boxscore,
   rating = null,
 }: HockeyMatchBoxscorePanelProps) {
+  const totals = totalsByPlayer(rating ?? null);
+  const goalies = withRating(boxscore.goalies, totals);
+  const skaters = withRating(boxscore.skaters, totals);
+
   return (
     <div className="space-y-6">
       <section className="space-y-3">
         <h3 className="text-lg font-semibold text-text">Bramkarze</h3>
         <SortableBoxscoreTable
-          rows={boxscore.goalies}
+          rows={goalies}
           columns={GOALIE_COLUMNS}
           valueOf={goalieSortValue}
           emptyMessage="Brak statystyk bramkarzy dla tego meczu."
@@ -236,7 +294,7 @@ export function HockeyMatchBoxscorePanel({
       <section className="space-y-3">
         <h3 className="text-lg font-semibold text-text">Zawodnicy</h3>
         <SortableBoxscoreTable
-          rows={boxscore.skaters}
+          rows={skaters}
           columns={SKATER_COLUMNS}
           valueOf={skaterSortValue}
           emptyMessage="Brak statystyk zawodników z pola dla tego meczu."

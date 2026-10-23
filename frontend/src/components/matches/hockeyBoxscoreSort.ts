@@ -13,7 +13,8 @@ export type GoalieSortKey =
   | "time_on_ice"
   | "shots_against"
   | "shots_saved"
-  | "saves_accuracy";
+  | "saves_accuracy"
+  | "rating";
 
 export type SkaterSortKey =
   | "team_name"
@@ -24,7 +25,8 @@ export type SkaterSortKey =
   | "plus_minus"
   | "penalty_minutes"
   | "shots_on_goal"
-  | "time_on_ice";
+  | "time_on_ice"
+  | "rating";
 
 export interface BoxscoreSortState<Key extends string> {
   key: Key;
@@ -87,21 +89,27 @@ export function timeOnIceSeconds(value: string | null | undefined): number | nul
 }
 
 export function goalieSortValue(
-  row: HockeyGoalieBoxscoreRow,
+  row: HockeyGoalieBoxscoreRow & { rating?: number | null },
   key: GoalieSortKey,
 ): BoxscoreSortValue {
   if (key === "time_on_ice") {
     return timeOnIceSeconds(row.time_on_ice);
   }
+  if (key === "rating") {
+    return row.rating ?? null;
+  }
   return row[key];
 }
 
 export function skaterSortValue(
-  row: HockeySkaterBoxscoreRow,
+  row: HockeySkaterBoxscoreRow & { rating?: number | null },
   key: SkaterSortKey,
 ): BoxscoreSortValue {
   if (key === "time_on_ice") {
     return timeOnIceSeconds(row.time_on_ice);
+  }
+  if (key === "rating") {
+    return row.rating ?? null;
   }
   return row[key];
 }

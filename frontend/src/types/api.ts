@@ -1380,6 +1380,7 @@ export interface HockeyPlayerMatchStat {
   shots_against: number | null;
   shots_saved: number | null;
   saves_acc: number | null;
+  rating: number | null;
 }
 
 export interface HockeyPlayerMatchStatsResponse {
@@ -1389,6 +1390,31 @@ export interface HockeyPlayerMatchStatsResponse {
   player_role: "skater" | "goalie";
   summary: HockeyPlayerStatsSummary;
   matches: HockeyPlayerMatchStat[];
+}
+
+export interface HockeyRatingAverage {
+  player_id: number;
+  player_name: string;
+  team_name: string;
+  games: number;
+  average: number;
+}
+
+export interface HockeyRatingGame {
+  player_id: number;
+  player_name: string;
+  match_id: number;
+  match_date: string;
+  opponent_name: string;
+  total: number;
+}
+
+export interface HockeyRatingBoard {
+  season_id: number;
+  window: number;
+  averages: HockeyRatingAverage[];
+  best_games: HockeyRatingGame[];
+  worst_games: HockeyRatingGame[];
 }
 
 export type PlayerMatchStatsResponse =
@@ -1410,13 +1436,15 @@ export type HockeySkaterStatKey =
   | "sog"
   | "plus_minus"
   | "penalty_minutes"
-  | "toi_minutes";
+  | "toi_minutes"
+  | "rating";
 
 export type HockeyGoalieStatKey =
   | "shots_against"
   | "shots_saved"
   | "saves_acc"
-  | "toi_minutes";
+  | "toi_minutes"
+  | "rating";
 
 export type PlayerStatKey =
   | FootballPlayerStatKey

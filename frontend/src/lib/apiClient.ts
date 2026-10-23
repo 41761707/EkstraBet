@@ -33,6 +33,7 @@ import {
   type ModelListResponse,
   type PerformanceBreakdown,
   type SuggestedCatalogOdds,
+  type HockeyRatingBoard,
   type PlayerMatchStatsResponse,
   type PredictionPreviewRequest,
   type PredictionPreviewResponse,
@@ -176,6 +177,17 @@ export async function getPlayerMatchStats(
       limit: options.limit ?? 50,
     },
   );
+}
+
+/** Stored hockey ratings: window 5, 10, or 0 for the whole season. */
+export async function getHockeyRatingBoard(
+  seasonId: number,
+  window: 0 | 5 | 10,
+): Promise<HockeyRatingBoard> {
+  return fetchViaBff<HockeyRatingBoard>("/players/hockey/game-ratings", {
+    season_id: seasonId,
+    window,
+  });
 }
 
 export async function getSportTeamHistory(

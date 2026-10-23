@@ -274,6 +274,7 @@ def fetch_hockey_player_match_stats(
             t2.name AS away_team,
             DATE_FORMAT(CAST(m.game_date AS DATE), '%d.%m') AS match_date,
             {stat_columns}
+            game_rating.total AS rating,
             CASE
                 WHEN t1.id = stat.team_id THEN t2.shortcut
                 WHEN t2.id = stat.team_id THEN t1.shortcut
@@ -284,6 +285,9 @@ def fetch_hockey_player_match_stats(
             END AS opponent_name
         FROM hockey_match_player_stats stat
         JOIN matches m ON stat.match_id = m.id
+        LEFT JOIN hockey_player_game_ratings game_rating
+            ON game_rating.match_id = stat.match_id
+            AND game_rating.player_id = stat.player_id
         JOIN teams t1 ON t1.id = m.home_team
         JOIN teams t2 ON t2.id = m.away_team
         WHERE stat.player_id = %s

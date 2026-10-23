@@ -12,21 +12,15 @@ import pandas as pd
 PRODUCTION_GOAL = 1.00
 PRODUCTION_ASSIST = 1.00
 EMPTY_NET_GOAL = -0.30
-UNCONVERTED_SHOT = 0.05
+UNCONVERTED_SHOT = 0.10
 TEAMMATE_GOAL = 0.20
 FACEOFF_DIFF = 0.02
 GOAL_AGAINST = -0.35
 MINOR_PENALTY = -0.15
 MAJOR_PENALTY = -0.30
-BLOCK_ABOVE_AVERAGE = 0.04
+BLOCK = 0.10
 DEFAULT_SAVE_RATE = 0.907
 MIN_SEASON_SHOTS_AGAINST = 100
-
-BLOCK_AVERAGE_DEFENSE = 1.44
-BLOCK_AVERAGE_CENTER = 0.57
-BLOCK_AVERAGE_LEFT_WING = 0.45
-BLOCK_AVERAGE_RIGHT_WING = 0.46
-BLOCK_AVERAGE_FORWARD = 0.49
 
 GOAL_EVENT_ID = 181
 MINOR_PENALTY_EVENT_ID = 183
@@ -50,7 +44,6 @@ class SkaterCounts:
     minor_penalties: int
     major_penalties: int
     blocked: int
-    block_average: float
     faceoffs_taken: int
     faceoffs_won: int
 
@@ -144,7 +137,6 @@ def rate_skater(counts: SkaterCounts) -> RatingParts:
     faceoff_margin = (counts.faceoffs_won
         - (counts.faceoffs_taken - counts.faceoffs_won))
     unconverted_shots = max(0, counts.shots_on_goal - counts.goals)
-    block_margin = counts.blocked - _as_decimal(counts.block_average)
     return RatingParts(
         production=_round_part(
             _as_decimal(PRODUCTION_GOAL) * counts.goals
@@ -159,7 +151,7 @@ def rate_skater(counts: SkaterCounts) -> RatingParts:
         penalties=_round_part(
             _as_decimal(MINOR_PENALTY) * counts.minor_penalties
             + _as_decimal(MAJOR_PENALTY) * counts.major_penalties),
-        blocks=_round_part(_as_decimal(BLOCK_ABOVE_AVERAGE) * block_margin),
+        blocks=_round_part(_as_decimal(BLOCK) * counts.blocked),
         goaltending=_round_part(Decimal("0")))
 
 
@@ -465,29 +457,6 @@ def player_group(
     return GROUP_FORWARD
 
 
-def block_average_for(
-    group: str,
-    roster_position: str | None) -> float:
-    """Return the historical block average for one chart group.
-
-    Defenders share one average. Forwards use the roster code,
-    and any other forward code, including a missing one, uses
-    the generic forward average.
-    """
-    if group == GROUP_DEFENSE:
-        return BLOCK_AVERAGE_DEFENSE
-    if group != GROUP_FORWARD:
-        return 0.0
-    position = _plain_text(roster_position)
-    if position == "C":
-        return BLOCK_AVERAGE_CENTER
-    if position == "LW":
-        return BLOCK_AVERAGE_LEFT_WING
-    if position == "RW":
-        return BLOCK_AVERAGE_RIGHT_WING
-    return BLOCK_AVERAGE_FORWARD
-
-
 def _count_or_none(value: object) -> int | None:
     """Return a counter, with a negative value clamped to zero."""
     number = _optional_int(value)
@@ -510,16 +479,13 @@ def _empty_credits() -> EventCredits:
 def _counts_for(
     row: pd.Series,
     credit: EventCredits,
-    group: str,
-    roster_position: str | None) -> SkaterCounts:
+    group: str) -> SkaterCounts:
     """Map one box-score row onto skater counters."""
-    # Samo wyzerowanie bloków zostawia karę za średnią obok obron.
+    # Bramkarz jest liczony z obron, nie z bloków.
     if group == GROUP_GOALIE:
         blocked = 0
-        block_average = 0.0
     else:
         blocked = _non_negative_int(row.get("blocked"))
-        block_average = block_average_for(group, roster_position)
     return SkaterCounts(
         goals=_non_negative_int(row.get("goals")),
         assists=_non_negative_int(row.get("assists")),
@@ -530,7 +496,6 @@ def _counts_for(
         minor_penalties=credit.minor_penalties,
         major_penalties=credit.major_penalties,
         blocked=blocked,
-        block_average=block_average,
         faceoffs_taken=_non_negative_int(row.get("faceoff")),
         faceoffs_won=_non_negative_int(row.get("faceoff_won")))
 
@@ -554,7 +519,7 @@ def _rate_row(
     credit = credits.get(player_id)
     if credit is None:
         credit = _empty_credits()
-    counts = _counts_for(row, credit, group, roster_position)
+    counts = _counts_for(row, credit, group)
     parts = rate_skater(counts)
     if group == GROUP_GOALIE:
         score = rate_goalie(

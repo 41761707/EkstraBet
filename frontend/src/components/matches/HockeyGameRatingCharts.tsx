@@ -1,3 +1,4 @@
+import { HockeyGameRatingExplainer } from "@/components/matches/HockeyGameRatingExplainer";
 import {
   formatRating,
   groupRatingRows,
@@ -16,9 +17,17 @@ import type {
 } from "@/types/api";
 
 const RATING_DESCRIPTION =
-  "Liczba jest w skali punktów z protokołu. Trzy punkty przy spokojnej defensywie zostają koło 3.";
+  "Ocena zawodnika na podstawie jego dyspozycji w trakcie meczu. Oddzielnie mierzona dla defensywy i ofensywy.";
 
 const EMPTY_TEAM_LABEL = "Brak oceny";
+
+const RATING_COLUMNS_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2";
+
+const TEAM_COLUMN_CLASS = [
+  "grid min-w-0 items-start gap-3",
+  "grid-rows-[auto_auto_auto_auto]",
+  "md:grid-rows-subgrid md:row-span-4",
+].join(" ");
 
 const CHARTS: readonly { metric: HockeyRatingMetric; title: string }[] = [
   { metric: "total", title: "Ogólna" },
@@ -52,11 +61,12 @@ export function HockeyGameRatingCharts({ rating }: HockeyGameRatingChartsProps) 
     <section className="space-y-3">
       <h3 className="text-lg font-semibold text-text">Ocena</h3>
       <p className="text-sm text-muted">{RATING_DESCRIPTION}</p>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className={RATING_COLUMNS_CLASS}>
         {rating.teams.map((team) => (
           <HockeyRatingTeamColumn key={team.team_id} team={team} />
         ))}
       </div>
+      <HockeyGameRatingExplainer />
     </section>
   );
 }
@@ -65,7 +75,7 @@ function HockeyRatingTeamColumn({ team }: { team: HockeyRatedTeam }) {
   const scale = ratingScale(team.players);
 
   return (
-    <div className="min-w-0 space-y-3">
+    <div className={TEAM_COLUMN_CLASS}>
       <h4 className="text-base font-semibold text-text">{team.team_name}</h4>
       {team.players.length === 0 ? (
         <p className="text-sm text-muted">{EMPTY_TEAM_LABEL}</p>

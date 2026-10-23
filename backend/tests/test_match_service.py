@@ -579,7 +579,7 @@ class TestMatchService(unittest.TestCase):
         self.assertEqual(rating["teams"][1]["team_name"], "Lech")
         self.assertEqual(rating["teams"][1]["players"], [])
         player = rating["teams"][0]["players"][0]
-        self.assertEqual(player["total"], 3.2)
+        self.assertEqual(player["total"], 3.3)
         self.assertEqual(
             player["offense"] + player["defense"],
             player["total"])
@@ -589,7 +589,7 @@ class TestMatchService(unittest.TestCase):
         assert parsed.hockey_game_rating is not None
         self.assertEqual(
             parsed.hockey_game_rating.teams[0].players[0].total,
-            3.2)
+            3.3)
         without_key = dict(details)
         without_key.pop("hockey_game_rating")
         omitted = MatchDetails.model_validate(without_key)
