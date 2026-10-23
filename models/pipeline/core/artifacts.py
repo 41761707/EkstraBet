@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,18 @@ def load_model_artifact(artifact_dir: Path) -> Any:
     if not target.is_file():
         raise FileNotFoundError(f"Model artifact not found: {target}")
     return joblib.load(target)
+
+
+def model_file_fingerprint(model_path: Path) -> str:
+    """Return the SHA-256 hex digest of a model file's raw bytes.
+
+    The digest identifies one saved training file. It is not a hash
+    of the feature column names.
+    """
+    path = Path(model_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Model artifact not found: {path}")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def save_keras_model_artifact(artifact_dir: Path, model: Any) -> Path:
