@@ -212,7 +212,12 @@ function BoxscoreTab({ match }: { match: MatchDetails }) {
     return null;
   }
   if (match.hockey_boxscore) {
-    return <HockeyMatchBoxscorePanel boxscore={match.hockey_boxscore} />;
+    return (
+      <HockeyMatchBoxscorePanel
+        boxscore={match.hockey_boxscore}
+        rating={match.hockey_game_rating}
+      />
+    );
   }
   if (match.boxscore && match.boxscore.length > 0) {
     return (

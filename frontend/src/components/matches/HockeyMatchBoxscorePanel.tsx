@@ -12,7 +12,9 @@ import {
   type GoalieSortKey,
   type SkaterSortKey,
 } from "@/components/matches/hockeyBoxscoreSort";
+import { HockeyGameRatingCharts } from "@/components/matches/HockeyGameRatingCharts";
 import type {
+  HockeyGameRating,
   HockeyGoalieBoxscoreRow,
   HockeyMatchBoxscore,
   HockeySkaterBoxscoreRow,
@@ -20,6 +22,7 @@ import type {
 
 interface HockeyMatchBoxscorePanelProps {
   boxscore: HockeyMatchBoxscore;
+  rating?: HockeyGameRating | null;
 }
 
 type ColumnAlign = "left" | "center";
@@ -216,6 +219,7 @@ function textClass(kind: ColumnKind): string {
 
 export function HockeyMatchBoxscorePanel({
   boxscore,
+  rating = null,
 }: HockeyMatchBoxscorePanelProps) {
   return (
     <div className="space-y-6">
@@ -238,6 +242,7 @@ export function HockeyMatchBoxscorePanel({
           emptyMessage="Brak statystyk zawodników z pola dla tego meczu."
         />
       </section>
+      {rating ? <HockeyGameRatingCharts rating={rating} /> : null}
     </div>
   );
 }
