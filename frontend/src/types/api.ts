@@ -1409,12 +1409,19 @@ export interface HockeyRatingGame {
   total: number;
 }
 
+export interface HockeyRatingPositionGames {
+  best_games: HockeyRatingGame[];
+  worst_games: HockeyRatingGame[];
+}
+
 export interface HockeyRatingBoard {
   season_id: number;
   window: number;
   averages: HockeyRatingAverage[];
-  best_games: HockeyRatingGame[];
-  worst_games: HockeyRatingGame[];
+  worst_averages: HockeyRatingAverage[];
+  forward: HockeyRatingPositionGames;
+  defense: HockeyRatingPositionGames;
+  goalie: HockeyRatingPositionGames;
 }
 
 export type PlayerMatchStatsResponse =

@@ -165,7 +165,7 @@ describe("playerPlayedAway", () => {
 
     expect(html).toContain("Ocena");
     expect(points).toHaveLength(1);
-    expect(points[0]?.value).toBe(-1.4);
+    expect(points[0]?.value).toBe(3.6);
     expect(averageStoredRating([missing, rated])).toBe(-1.4);
     expect(averageStoredRating([missing])).toBeNull();
 
@@ -178,7 +178,7 @@ describe("playerPlayedAway", () => {
       />,
     );
     expect(log).toContain("—");
-    expect(log).toContain("\u22121.4");
+    expect(log).toContain("3.6");
     expect(log).not.toContain(">0<");
   });
 });

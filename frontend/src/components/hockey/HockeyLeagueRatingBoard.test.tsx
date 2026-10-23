@@ -16,6 +16,7 @@ describe("HockeyLeagueRatingBoard", () => {
     expect(html).toContain("Oceny meczowe");
     expect(html).toContain("Ostatnie 5 meczów");
     expect(html).toContain("Najgorsze mecze");
+    expect(html).toContain("Piątka to noc bez wkładu");
   });
 
   it("draws a positive night to the right of zero and a negative one to the left", () => {
@@ -23,12 +24,17 @@ describe("HockeyLeagueRatingBoard", () => {
       <HockeyRatingBoardCharts board={sampleBoard} />,
     );
 
+    expect(html).toContain("Najlepsza średnia");
+    expect(html).toContain("Najgorsza średnia");
+    expect(html).toContain("Napastnicy");
+    expect(html).toContain("Obrońcy");
+    expect(html).toContain("Bramkarze");
     expect(html).toContain("Edmonton Oilers · 9 meczów");
     expect(html).toContain('href="/matches/10"');
     expect(html).toContain("left:50%");
     expect(html).toContain("right:50%");
-    expect(html).toContain("+5.5");
-    expect(html).toContain("\u22124.9");
+    expect(html).toContain("10.5");
+    expect(html).toContain("0.1");
   });
 });
 
@@ -44,24 +50,37 @@ const sampleBoard: HockeyRatingBoard = {
       average: 3,
     },
   ],
-  best_games: [
-    {
-      player_id: 1,
-      player_name: "McDavid C.",
-      match_id: 10,
-      match_date: "02.10.2026",
-      opponent_name: "Vancouver Canucks",
-      total: 5.5,
-    },
-  ],
-  worst_games: [
+  worst_averages: [
     {
       player_id: 2,
       player_name: "Lankinen K.",
-      match_id: 11,
-      match_date: "02.10.2026",
-      opponent_name: "Edmonton Oilers",
-      total: -4.9,
+      team_name: "Vancouver Canucks",
+      games: 8,
+      average: -1.2,
     },
   ],
+  forward: {
+    best_games: [
+      {
+        player_id: 1,
+        player_name: "McDavid C.",
+        match_id: 10,
+        match_date: "02.10.2026",
+        opponent_name: "Vancouver Canucks",
+        total: 5.5,
+      },
+    ],
+    worst_games: [
+      {
+        player_id: 2,
+        player_name: "Lankinen K.",
+        match_id: 11,
+        match_date: "02.10.2026",
+        opponent_name: "Edmonton Oilers",
+        total: -4.9,
+      },
+    ],
+  },
+  defense: { best_games: [], worst_games: [] },
+  goalie: { best_games: [], worst_games: [] },
 };

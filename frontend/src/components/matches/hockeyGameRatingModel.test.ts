@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatDisplayedRating,
   formatRating,
   groupRatingRows,
   ratingScale,
@@ -162,6 +163,16 @@ describe("ratingScale", () => {
     ];
 
     expect(ratingScale(players)).toBe(3.2);
+  });
+});
+
+describe("formatDisplayedRating", () => {
+  it("puts a quiet night on five and leaves the ends open", () => {
+    expect(formatDisplayedRating(0)).toBe("5.0");
+    expect(formatDisplayedRating(3.3)).toBe("8.3");
+    expect(formatDisplayedRating(-1.4)).toBe("3.6");
+    expect(formatDisplayedRating(5.5)).toBe("10.5");
+    expect(formatDisplayedRating(-6)).toBe("\u22121.0");
   });
 });
 

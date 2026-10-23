@@ -13,6 +13,8 @@ def get_hockey_rating_board(season_id: int, window: int) -> dict:
         "season_id": season_id,
         "window": window,
         "averages": board["averages"],
-        "best_games": board["best_games"],
-        "worst_games": board["worst_games"]
+        "worst_averages": board["worst_averages"],
+        "forward": board["forward"],
+        "defense": board["defense"],
+        "goalie": board["goalie"]
     }

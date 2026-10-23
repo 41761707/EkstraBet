@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { formatRating } from "@/components/matches/hockeyGameRatingModel";
+import { formatDisplayedRating } from "@/components/matches/hockeyGameRatingModel";
 import {
   FOOTBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
@@ -67,7 +67,7 @@ export function PlayerSummaryTiles({
             emoji="⭐"
             label="Średnia ocena"
             value={
-              averageRating === null ? "—" : formatRating(averageRating)
+              averageRating === null ? "—" : formatDisplayedRating(averageRating)
             }
           />
         ) : null}

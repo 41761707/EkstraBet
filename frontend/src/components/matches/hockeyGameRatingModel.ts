@@ -19,6 +19,9 @@ const CHART_GROUP_ORDER: readonly HockeyRatedPlayer["group"][] = [
 
 const RATING_SCALE_FLOOR = 1;
 
+/** A quiet night. The contribution is added on top and is not clipped. */
+export const RATING_BASELINE = 5;
+
 // minus z protokołu (U+2212), nie dywiz z klawiatury
 const RATING_MINUS = "\u2212";
 
@@ -72,7 +75,16 @@ export function ratingScale(players: readonly HockeyRatedPlayer[]): number {
   return scale;
 }
 
-/** One decimal: `+3.2`, `−1.4`, or unsigned `0.0`. */
+/** Contribution on the baseline: `8.3`, `5.0`, `3.6`, or `−1.2`. */
+export function formatDisplayedRating(contribution: number): string {
+  const text = (contribution + RATING_BASELINE).toFixed(1);
+  if (text.startsWith("-")) {
+    return `${RATING_MINUS}${text.slice(1)}`;
+  }
+  return text;
+}
+
+/** One decimal for a contribution: `+3.2`, `−1.4`, or unsigned `0.0`. */
 export function formatRating(value: number): string {
   const text = value.toFixed(1);
   if (text === "0.0" || text === "-0.0") {

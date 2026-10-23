@@ -150,13 +150,22 @@ def fetch_hockey_rating_rows(season_id: int) -> pd.DataFrame:
                 WHEN m.home_team = r.team_id THEN away.name
                 ELSE home.name
             END AS opponent_name,
-            r.total
+            r.total,
+            hmr.position AS roster_position,
+            p.position AS player_position,
+            box.shots_against
         FROM hockey_player_game_ratings r
         JOIN matches m ON m.id = r.match_id
         JOIN players p ON p.id = r.player_id
         JOIN teams t ON t.id = r.team_id
         JOIN teams home ON home.id = m.home_team
         JOIN teams away ON away.id = m.away_team
+        LEFT JOIN hockey_match_rosters hmr
+            ON hmr.match_id = r.match_id
+            AND hmr.player_id = r.player_id
+        LEFT JOIN hockey_match_player_stats box
+            ON box.match_id = r.match_id
+            AND box.player_id = r.player_id
         WHERE m.season = %s
     """
     with get_db_connection() as conn:

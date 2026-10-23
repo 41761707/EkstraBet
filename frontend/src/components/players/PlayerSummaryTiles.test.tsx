@@ -40,7 +40,7 @@ describe("PlayerSummaryTiles", () => {
     );
 
     expect(rated).toContain("Średnia ocena");
-    expect(rated).toContain("+1.2");
+    expect(rated).toContain("6.2");
     expect(empty).toContain("Średnia ocena");
     expect(empty).toContain("—");
     expect(empty).not.toContain("+0.0");

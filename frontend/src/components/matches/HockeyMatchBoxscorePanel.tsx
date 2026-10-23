@@ -13,7 +13,10 @@ import {
   type SkaterSortKey,
 } from "@/components/matches/hockeyBoxscoreSort";
 import { HockeyGameRatingCharts } from "@/components/matches/HockeyGameRatingCharts";
-import { formatRating } from "@/components/matches/hockeyGameRatingModel";
+import {
+  formatDisplayedRating,
+  RATING_BASELINE,
+} from "@/components/matches/hockeyGameRatingModel";
 import type {
   HockeyGameRating,
   HockeyGoalieBoxscoreRow,
@@ -66,6 +69,22 @@ function plusMinusClassName(value: number | null | undefined): string {
   return "bg-danger-bg font-semibold text-danger-text";
 }
 
+const RATING_GREEN_FROM = 6;
+
+function ratingClassName(contribution: number | null | undefined): string {
+  if (contribution === null || contribution === undefined) {
+    return "text-text";
+  }
+  const shown = Number((contribution + RATING_BASELINE).toFixed(1));
+  if (shown >= RATING_GREEN_FROM) {
+    return "bg-success-bg font-semibold text-success-text";
+  }
+  if (shown < RATING_BASELINE) {
+    return "bg-danger-bg font-semibold text-danger-text";
+  }
+  return "text-text";
+}
+
 function formatAccuracy(value: number | null): string {
   return value === null ? "—" : value.toFixed(2);
 }
@@ -102,7 +121,7 @@ const GOALIE_COLUMNS: readonly BoxscoreColumn<RatedGoalieRow, GoalieSortKey>[] =
     align: "center",
     kind: "stat",
     display: (row) => formatRatingCell(row.rating),
-    tone: (row) => plusMinusClassName(row.rating),
+    tone: (row) => ratingClassName(row.rating),
   },
   {
     key: "penalty_minutes",
@@ -194,7 +213,7 @@ const SKATER_COLUMNS: readonly BoxscoreColumn<RatedSkaterRow, SkaterSortKey>[] =
     align: "center",
     kind: "stat",
     display: (row) => formatRatingCell(row.rating),
-    tone: (row) => plusMinusClassName(row.rating),
+    tone: (row) => ratingClassName(row.rating),
   },
   {
     key: "plus_minus",
@@ -235,7 +254,7 @@ function formatRatingCell(value: number | null): string {
   if (value === null) {
     return MISSING_RATING;
   }
-  return formatRating(value);
+  return formatDisplayedRating(value);
 }
 
 function totalsByPlayer(rating: HockeyGameRating | null): Map<number, number> {

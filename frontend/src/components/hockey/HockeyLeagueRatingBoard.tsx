@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { ExpandableSection } from "@/components/ExpandableSection";
-import { formatRating } from "@/components/matches/hockeyGameRatingModel";
+import { formatDisplayedRating } from "@/components/matches/hockeyGameRatingModel";
 import { StatusMessage } from "@/components/StatusMessage";
 import { ApiError, getHockeyRatingBoard } from "@/lib/apiClient";
 import {
@@ -15,6 +15,7 @@ import type {
   HockeyRatingAverage,
   HockeyRatingBoard,
   HockeyRatingGame,
+  HockeyRatingPositionGames,
 } from "@/types/api";
 
 const WINDOWS = [
@@ -25,6 +26,12 @@ const WINDOWS = [
 
 const EMPTY_TITLE = "Brak zapisanych ocen";
 const EMPTY_MESSAGE = "Oceny pojawią się po naliczeniu skryptem.";
+
+const POSITION_CHARTS = [
+  { key: "forward", title: "Napastnicy" },
+  { key: "defense", title: "Obrońcy" },
+  { key: "goalie", title: "Bramkarze" },
+] as const;
 
 type RatingWindow = (typeof WINDOWS)[number]["value"];
 
@@ -66,6 +73,9 @@ export function HockeyLeagueRatingBoard({ seasonId }: { seasonId: number }) {
     <ExpandableSection title="Oceny meczowe">
       <div className="space-y-4">
         <WindowSelect window={window} onChange={setWindow} />
+        <p className="text-sm text-muted">
+          Ocena 5 jest oceną wyjściową dla każdego zawodnika. Wartości powyżej oznaczają występ lepszy od średniej, natomiast wartości poniżej - gorszy.
+        </p>
         <BoardBody board={board} errorMessage={errorMessage} />
       </div>
     </ExpandableSection>
@@ -119,17 +129,16 @@ function BoardBody({
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted">Ładowanie ocen...</p>
-        <h4 className="text-sm font-semibold text-text">Średnia</h4>
-        <h4 className="text-sm font-semibold text-text">Najlepsze mecze</h4>
+        <h4 className="text-sm font-semibold text-text">Najlepsza średnia</h4>
+        <h4 className="text-sm font-semibold text-text">Najgorsza średnia</h4>
+        <h4 className="text-sm font-semibold text-text">Napastnicy</h4>
+        <h4 className="text-sm font-semibold text-text">Obrońcy</h4>
+        <h4 className="text-sm font-semibold text-text">Bramkarze</h4>
         <h4 className="text-sm font-semibold text-text">Najgorsze mecze</h4>
       </div>
     );
   }
-  if (
-    board.averages.length === 0
-    && board.best_games.length === 0
-    && board.worst_games.length === 0
-  ) {
+  if (boardIsEmpty(board)) {
     return (
       <StatusMessage
         variant="empty"
@@ -149,37 +158,82 @@ interface RatingBarRow {
   value: number;
 }
 
-/** Bar charts for the season board. Best and worst nights share one scale. */
+/** Bar charts for averages and for each position's best and worst nights. */
 export function HockeyRatingBoardCharts({
   board,
 }: {
   board: HockeyRatingBoard;
 }) {
-  const nightScale = signedScale([
-    ...board.best_games.map((row) => row.total),
-    ...board.worst_games.map((row) => row.total),
+  const averageScale = signedScale([
+    ...board.averages.map((row) => row.average),
+    ...board.worst_averages.map((row) => row.average),
   ]);
 
   return (
     <div className="space-y-4">
-      <SignedRatingChart
-        title="Średnia"
-        scale={signedScale(board.averages.map((row) => row.average))}
-        rows={board.averages.map(averageRow)}
-      />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SignedRatingChart
+          title="Najlepsza średnia"
+          scale={averageScale}
+          rows={board.averages.map(averageRow)}
+        />
+        <SignedRatingChart
+          title="Najgorsza średnia"
+          scale={averageScale}
+          rows={board.worst_averages.map(averageRow)}
+        />
+      </div>
+      {POSITION_CHARTS.map((position) => (
+        <PositionNightCharts
+          key={position.key}
+          title={position.title}
+          games={board[position.key]}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PositionNightCharts({
+  title,
+  games,
+}: {
+  title: string;
+  games: HockeyRatingPositionGames;
+}) {
+  const scale = signedScale([
+    ...games.best_games.map((row) => row.total),
+    ...games.worst_games.map((row) => row.total),
+  ]);
+
+  return (
+    <section className="space-y-3">
+      <h4 className="text-base font-semibold text-text">{title}</h4>
       <div className="grid gap-4 lg:grid-cols-2">
         <SignedRatingChart
           title="Najlepsze mecze"
-          scale={nightScale}
-          rows={board.best_games.map(gameRow)}
+          scale={scale}
+          rows={games.best_games.map(gameRow)}
         />
         <SignedRatingChart
           title="Najgorsze mecze"
-          scale={nightScale}
-          rows={board.worst_games.map(gameRow)}
+          scale={scale}
+          rows={games.worst_games.map(gameRow)}
         />
       </div>
-    </div>
+    </section>
+  );
+}
+
+function boardIsEmpty(board: HockeyRatingBoard): boolean {
+  const nights = [board.forward, board.defense, board.goalie];
+  const nightsEmpty = nights.every(
+    (games) => games.best_games.length === 0 && games.worst_games.length === 0,
+  );
+  return (
+    board.averages.length === 0 &&
+    board.worst_averages.length === 0 &&
+    nightsEmpty
   );
 }
 
@@ -194,7 +248,7 @@ function SignedRatingChart({
 }) {
   return (
     <section className="space-y-3 rounded-xl border border-border bg-surface p-4">
-      <h4 className="text-sm font-semibold text-text">{title}</h4>
+      <h5 className="text-sm font-semibold text-text">{title}</h5>
       {rows.length === 0 ? (
         <p className="text-sm text-muted">Brak ocen w tym zakresie.</p>
       ) : (
@@ -251,7 +305,7 @@ function SignedRatingBar({
         )}
       </div>
       <span className="text-xs tabular-nums text-text">
-        {formatRating(row.value)}
+        {formatDisplayedRating(row.value)}
       </span>
     </div>
   );

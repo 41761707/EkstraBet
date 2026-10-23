@@ -1,23 +1,21 @@
 import { ExpandableSection } from "@/components/ExpandableSection";
 
 const INTRO =
-  "Liczba jest w skali punktów z protokołu. " +
-  "Ofensywa i defensywa sumują się do oceny ogólnej. " +
-  "Skali nie przycinamy.";
+  "Ocena 5 jest oceną wyjściową dla każdego zawodnika. Wartości powyżej oznaczają występ lepszy od średniej, natomiast wartości poniżej - gorszy. " +
+  "Aspekty gry ofensywny jak i defensywne liczone są osobno na podstawie różnych aspektów gry."
 
 const ROUNDING =
-  "Każdy składnik zaokrąglamy do jednego miejsca po przecinku i dopiero potem sumujemy. " +
-  "Jeden minor (−0.15) na karcie jest −0.2, a dwa minory (−0.30) są −0.3.";
+  "Każdy składnik zaokrąglamy do jednego miejsca po przecinku."
 
 const EXCLUDED =
-  "Nie wchodzą hity, czas na lodzie i celność strzałów.";
+  "Aktualnie algorytm nie bierze pod uwagę uderzeń, czasu na lodzie i celności strzałów.";
 
 const GOALIE =
-  "Bramkarza liczymy inaczej. Bierzemy skuteczność obron z sezonu, " +
-  "na przykład 90,7%, i mnożymy ją przez strzały na bramkę w tym meczu. " +
-  "Wychodzi, ile obron powinien mieć. " +
+  "Ocena bramkarza liczona jest inaczej, zgodnie z następujących schematem: Bierzemy skuteczność obron z sezonu, " +
+  "na przykład 90.7%, i mnożymy ją przez strzały na bramkę w tym meczu. " +
+  "Na tej podstawie obliczamy, ile obron oczekujemy od bramkarza w danym meczu. " +
   "Każda obrona powyżej tej liczby dodaje 1.0, a każda poniżej odejmuje 1.0. " +
-  "Przy 30 strzałach oczekujemy 27,2 obrony, więc 30 obron daje +2,8.";
+  "Przy 30 strzałach oczekujemy 27.2 obrony, więc 30 obron daje +2.8.";
 
 interface RatingWeightRow {
   item: string;
@@ -31,12 +29,12 @@ const OFFENSE_WEIGHTS: readonly RatingWeightRow[] = [
   {
     item: "Strzał",
     counted: "strzał celny, który nie jest golem",
-    weight: "+0.10",
+    weight: "+0.1",
   },
   {
     item: "Gol kolegi",
-    counted: "plus/minus powyżej punktów w grze równej",
-    weight: "+0.20",
+    counted: "plus/minus powyżej punktów (liczone w grze w równowadze)",
+    weight: "+0.2",
   },
   {
     item: "Wznowienie",
@@ -46,7 +44,7 @@ const OFFENSE_WEIGHTS: readonly RatingWeightRow[] = [
   {
     item: "Pusta bramka",
     counted: "gol do pustej bramki",
-    weight: "−0.30",
+    weight: "−0.3",
   },
 ];
 
@@ -58,11 +56,11 @@ const DEFENSE_WEIGHTS: readonly RatingWeightRow[] = [
     weight: "−0.35",
   },
   { item: "Kara mniejsza", counted: "każda kara 2 minuty", weight: "−0.15" },
-  { item: "Kara większa", counted: "każda kara 5 minut", weight: "−0.30" },
+  { item: "Kara większa", counted: "każda kara 5 minut", weight: "−0.3" },
   {
     item: "Blok",
     counted: "każdy zablokowany strzał",
-    weight: "+0.10",
+    weight: "+0.1",
   },
   {
     item: "Bramkarz",
@@ -79,17 +77,17 @@ const EXAMPLE_ROWS: readonly {
   {
     night: "1 gol, 2 asysty, 4 strzały celne, plus/minus +3",
     included: "Produkcja +3.0, trzy strzały poza golem +0.3, defensywa 0.0",
-    rating: "+3.3",
+    rating: "8.3",
   },
   {
     night: "Te same punkty, plus/minus −1",
     included: "Ta sama ofensywa +3.3, cztery bramki stracone −1.4",
-    rating: "+1.9",
+    rating: "6.9",
   },
   {
     night: "Bramkarz, 30 obron z 30 strzałów",
-    included: "Sezon 90,7% razy 30 strzałów to 27,2 oczekiwanej obrony. Zostało +2,8",
-    rating: "+2.8",
+    included: "Sezon 90.7% razy 30 strzałów to 27.2 oczekiwanej obrony. Zostało +2,8",
+    rating: "7.8",
   },
 ];
 
@@ -101,12 +99,27 @@ export function HockeyGameRatingExplainer() {
         <p>{INTRO}</p>
         <RatingWeightTable title="Ofensywa" rows={OFFENSE_WEIGHTS} />
         <RatingWeightTable title="Defensywa" rows={DEFENSE_WEIGHTS} />
-        <p>{GOALIE}</p>
+        <GoalieNote />
         <p>{ROUNDING}</p>
         <ExampleNightsTable />
         <p>{EXCLUDED}</p>
       </div>
     </ExpandableSection>
+  );
+}
+
+function GoalieNote() {
+  return (
+    <div className="space-y-2">
+      <p className="font-medium text-text">Bramkarz</p>
+      <table className="w-full border border-border text-sm">
+        <tbody>
+          <tr>
+            <td className="px-3 py-2 text-text">{GOALIE}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 

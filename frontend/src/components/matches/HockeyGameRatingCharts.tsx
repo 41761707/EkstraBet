@@ -1,5 +1,6 @@
 import { HockeyGameRatingExplainer } from "@/components/matches/HockeyGameRatingExplainer";
 import {
+  formatDisplayedRating,
   formatRating,
   groupRatingRows,
   ratingScale,
@@ -17,7 +18,7 @@ import type {
 } from "@/types/api";
 
 const RATING_DESCRIPTION =
-  "Ocena zawodnika na podstawie jego dyspozycji w trakcie meczu. Oddzielnie mierzona dla defensywy i ofensywy.";
+  "Ocena startuje od 5. Słupek w prawo jest powyżej piątki, w lewo poniżej. Wkład ofensywy i defensywy sumuje się do odchylenia od 5.";
 
 const EMPTY_TEAM_LABEL = "Brak oceny";
 
@@ -189,7 +190,9 @@ function HockeyRatingBarRow({
           />
         )}
       </div>
-      <span className="text-xs tabular-nums text-text">{formatRating(value)}</span>
+      <span className="text-xs tabular-nums text-text">
+        {metric === "total" ? formatDisplayedRating(value) : formatRating(value)}
+      </span>
     </div>
   );
 }

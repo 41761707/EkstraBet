@@ -100,7 +100,7 @@ describe("HockeyGameRatingCharts", () => {
       html.indexOf("Ottawa Senators"),
     );
     expect(html.match(/Ogólna/g)).toHaveLength(2);
-    expect(html.match(/Ofensywa/g)).toHaveLength(4);
+    expect(html.match(/Ofensywa/g)).toHaveLength(3);
     expect(html.match(/Defensywa/g)).toHaveLength(3);
     expect(html.indexOf("Ogólna")).toBeLessThan(html.indexOf("Ofensywa"));
     expect(html.indexOf("Ofensywa")).toBeLessThan(html.indexOf("Defensywa"));
@@ -147,14 +147,16 @@ describe("HockeyGameRatingCharts", () => {
     expect(html).toContain("30 obron z 30 strzałów");
     expect(html).toContain("strzał celny, który nie jest golem");
     expect(html).toContain("każdy zablokowany strzał");
-    expect(html).toContain("+0.10");
-    expect(html).toContain("90,7%");
-    expect(html).toContain("27,2");
+    expect(html).toContain("+0.1");
+    expect(html).toContain("90.7%");
+    expect(html).toContain("27.2");
     expect(html).not.toContain("1.44");
     expect(html).toContain("\u22120.35");
+    expect(html).toContain("Ocena 5 jest oceną wyjściową dla każdego zawodnika.");
     expect(html).toContain("+3.3");
-    expect(html).toContain("+1.9");
-    expect(html).toContain("+2.8");
+    expect(html).toContain("8.3");
+    expect(html).toContain("6.9");
+    expect(html).toContain("7.8");
     expect(html).toContain("plus/minus \u22121");
     expect(html).toContain("bramki stracone \u22121.4");
     expect(html).not.toMatch(/<details[^>]*\sopen(?:[\s=]|>)/);

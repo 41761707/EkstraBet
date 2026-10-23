@@ -6,7 +6,12 @@ from decimal import Decimal
 
 import pandas as pd
 
-from backend.sports.hockey.game_rating import _round_part
+from backend.sports.hockey.game_rating import (
+    GROUP_DEFENSE,
+    GROUP_FORWARD,
+    GROUP_GOALIE,
+    _round_part,
+    player_group)
 
 
 MIN_AVERAGE_GAMES = 5
@@ -17,24 +22,29 @@ SEASON_WINDOW = 0
 def build_hockey_rating_board(
     frame: pd.DataFrame,
     window: int) -> dict:
-    """Build averages and the ten best and worst games.
+    """Build average charts and the best and worst nights by position.
 
-    Window 0 keeps every rated game in the frame. 5 and 10 keep
-    that many latest games per player. Averages need five games.
-    Best and worst games ignore the window.
+    Window 0 keeps every rated game. 5 and 10 keep that many
+    latest games per player. Averages need five games.
+    Best and worst nights ignore the window and stay inside
+    one position group.
     """
     if frame.empty:
-        return {
-            "averages": [],
-            "best_games": [],
-            "worst_games": []
-        }
+        return _empty_board()
     rows = [_plain_row(row) for _, row in frame.iterrows()]
-    return {
-        "averages": _averages(rows, window),
-        "best_games": _extreme_games(rows, highest_first=True),
-        "worst_games": _extreme_games(rows, highest_first=False)
-    }
+    ranked = _ranked_averages(rows, window)
+    board = _empty_board()
+    board["averages"] = _take_averages(ranked, _average_sort_key)
+    board["worst_averages"] = _take_averages(
+        ranked,
+        _worst_average_sort_key)
+    for group in (GROUP_FORWARD, GROUP_DEFENSE, GROUP_GOALIE):
+        chosen = [row for row in rows if row["player_group"] == group]
+        board[group] = {
+            "best_games": _extreme_games(chosen, highest_first=True),
+            "worst_games": _extreme_games(chosen, highest_first=False)
+        }
+    return board
 
 
 def _plain_row(row: pd.Series) -> dict:
@@ -48,12 +58,52 @@ def _plain_row(row: pd.Series) -> dict:
         "match_date": stamp.strftime("%d.%m.%Y"),
         "opponent_name": str(row["opponent_name"]),
         "total": float(row["total"]),
-        "date_rank": float(stamp.timestamp())
+        "date_rank": float(stamp.timestamp()),
+        "player_group": _group_of(row)
     }
 
 
-def _averages(rows: list[dict], window: int) -> list[dict]:
-    """Return the ten highest averages that have five games."""
+def _empty_position() -> dict:
+    """Best and worst lists before any night is classified."""
+    return {"best_games": [], "worst_games": []}
+
+
+def _empty_board() -> dict:
+    """Board with every chart present and empty."""
+    return {
+        "averages": [],
+        "worst_averages": [],
+        "forward": _empty_position(),
+        "defense": _empty_position(),
+        "goalie": _empty_position()
+    }
+
+
+def _group_of(row: pd.Series) -> str:
+    """Classify the night the same way as the match rating charts."""
+    shots = row["shots_against"] if "shots_against" in row.index else None
+    if shots is None or pd.isna(shots):
+        shot_count = None
+    else:
+        shot_count = int(shots)
+    return player_group(
+        _optional_text(row, "roster_position"),
+        _optional_text(row, "player_position"),
+        shot_count)
+
+
+def _optional_text(row: pd.Series, column: str) -> str | None:
+    """Return a position cell, or None when it is missing."""
+    if column not in row.index or pd.isna(row[column]):
+        return None
+    text = str(row[column]).strip()
+    if text == "":
+        return None
+    return text
+
+
+def _ranked_averages(rows: list[dict], window: int) -> list[dict]:
+    """Return every average that has five games."""
     grouped: dict[int, list[dict]] = {}
     for row in rows:
         grouped.setdefault(row["player_id"], []).append(row)
@@ -63,8 +113,13 @@ def _averages(rows: list[dict], window: int) -> list[dict]:
         if len(chosen) < MIN_AVERAGE_GAMES:
             continue
         ranked.append(_average_entry(chosen))
-    ranked.sort(key=_average_sort_key)
-    return [_public_average(item) for item in ranked[:LIST_LIMIT]]
+    return ranked
+
+
+def _take_averages(ranked: list[dict], key) -> list[dict]:
+    """Keep ten averages in the order of ``key``."""
+    ordered = sorted(ranked, key=key)
+    return [_public_average(item) for item in ordered[:LIST_LIMIT]]
 
 
 def _latest(games: list[dict], window: int) -> list[dict]:
@@ -100,6 +155,11 @@ def _average_entry(chosen: list[dict]) -> dict:
 def _average_sort_key(item: dict) -> tuple:
     """Higher average, then the later night, then player id."""
     return (-item["average"], -item["date_rank"], item["player_id"])
+
+
+def _worst_average_sort_key(item: dict) -> tuple:
+    """Lower average, then the later night, then player id."""
+    return (item["average"], -item["date_rank"], item["player_id"])
 
 
 def _public_average(item: dict) -> dict:

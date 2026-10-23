@@ -55,7 +55,11 @@ function goalie(playerId: number): HockeyGoalieBoxscoreRow {
 function boxscore(): HockeyMatchBoxscore {
   return {
     goalies: [goalie(8)],
-    skaters: [skater(1, "Konecny T."), skater(2, "Halliday S.")],
+    skaters: [
+      skater(1, "Konecny T."),
+      skater(2, "Halliday S."),
+      skater(3, "Quiet Q."),
+    ],
   };
 }
 
@@ -74,6 +78,15 @@ function rating(): HockeyGameRating {
             defense: 0,
             total: 3.3,
             parts: { ...ZERO_PARTS, production: 3.3 },
+          },
+          {
+            player_id: 3,
+            player_name: "Quiet Q.",
+            group: "forward",
+            offense: 0.4,
+            defense: 0,
+            total: 0.4,
+            parts: { ...ZERO_PARTS },
           },
           {
             player_id: 8,
@@ -97,9 +110,11 @@ describe("HockeyMatchBoxscorePanel rating column", () => {
     );
 
     expect(html.indexOf(">Pkt<")).toBeLessThan(html.indexOf(">Ocena<"));
-    expect(html).toContain("+3.3");
-    expect(html).toContain("bg-success-bg");
-    expect(html).toContain("+2.8");
+    expect(html).toContain("8.3");
+    expect(html).toContain("bg-success-bg font-semibold text-success-text\">8.3");
+    expect(html).toContain("text-text\">5.4");
+    expect(html).not.toContain("bg-success-bg font-semibold text-success-text\">5.4");
+    expect(html).toContain("7.8");
     expect(html).toContain(">—<");
   });
 
@@ -109,7 +124,7 @@ describe("HockeyMatchBoxscorePanel rating column", () => {
     );
 
     expect(html).toContain("Ocena");
-    expect(html).not.toContain("+3.3");
+    expect(html).not.toContain("8.3");
     expect(html).toContain(">—<");
   });
 });

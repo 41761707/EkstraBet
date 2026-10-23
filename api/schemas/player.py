@@ -208,20 +208,37 @@ class HockeyRatingGame(BaseModel):
     total: float = Field(..., description="Game rating")
 
 
-class HockeyRatingBoardResponse(BaseModel):
-    """Averages plus the best and worst nights of a season."""
+class HockeyRatingPositionGames(BaseModel):
+    """Best and worst stored nights for one position group."""
 
-    season_id: int = Field(..., description="Season ID")
-    window: int = Field(..., description="5, 10, or 0 for the whole season")
-    averages: list[HockeyRatingAverage] = Field(
-        ...,
-        description="Highest mean ratings")
     best_games: list[HockeyRatingGame] = Field(
         ...,
         description="Highest single-game ratings")
     worst_games: list[HockeyRatingGame] = Field(
         ...,
         description="Lowest single-game ratings")
+
+
+class HockeyRatingBoardResponse(BaseModel):
+    """Average charts plus the best and worst nights by position."""
+
+    season_id: int = Field(..., description="Season ID")
+    window: int = Field(..., description="5, 10, or 0 for the whole season")
+    averages: list[HockeyRatingAverage] = Field(
+        ...,
+        description="Highest mean ratings")
+    worst_averages: list[HockeyRatingAverage] = Field(
+        ...,
+        description="Lowest mean ratings")
+    forward: HockeyRatingPositionGames = Field(
+        ...,
+        description="Forward nights")
+    defense: HockeyRatingPositionGames = Field(
+        ...,
+        description="Defender nights")
+    goalie: HockeyRatingPositionGames = Field(
+        ...,
+        description="Goalie nights")
 
 
 class TeamPlayerStatLeaderRow(BaseModel):

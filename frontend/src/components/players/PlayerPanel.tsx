@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
+import { RATING_BASELINE } from "@/components/matches/hockeyGameRatingModel";
 import { PlayerGameLogTable } from "@/components/players/PlayerGameLogTable";
 import {
   HOCKEY_GOALIE_PLAYER_STATS,
@@ -400,9 +401,10 @@ export function playerChartPoints(
     if (statKey === "rating" && "rating" in match && match.rating == null) {
       continue;
     }
+    const stored = getMatchStatValue(match, statKey);
     points.push({
       label: buildChartLabel(match, teamNameDisplay),
-      value: getMatchStatValue(match, statKey),
+      value: statKey === "rating" ? stored + RATING_BASELINE : stored,
     });
   }
   return points;

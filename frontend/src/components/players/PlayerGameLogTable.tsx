@@ -1,4 +1,4 @@
-import { formatRating } from "@/components/matches/hockeyGameRatingModel";
+import { formatDisplayedRating } from "@/components/matches/hockeyGameRatingModel";
 import { getStatDefinition } from "@/components/players/playerStatsConfig";
 import type {
   FootballPlayerMatchStat,
@@ -95,7 +95,7 @@ function formatStatCell(
   if (value === null || value === undefined) {
     return "—";
   }
-  return formatRating(Number(value));
+  return formatDisplayedRating(Number(value));
 }
 
 function getMatchStatValue(
