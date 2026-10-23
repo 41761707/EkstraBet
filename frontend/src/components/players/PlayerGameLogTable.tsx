@@ -1,9 +1,10 @@
+import { formatDisplayedRating } from "@/components/matches/hockeyGameRatingModel";
+import { getStatDefinition } from "@/components/players/playerStatsConfig";
 import type {
   FootballPlayerMatchStat,
   HockeyPlayerMatchStat,
   PlayerStatKey,
 } from "@/types/api";
-import { getStatDefinition } from "@/components/players/playerStatsConfig";
 
 interface PlayerGameLogTableProps {
   sportId: number;
@@ -68,7 +69,7 @@ export function PlayerGameLogTable({
                   key={column.key}
                   className="px-3 py-2 text-center text-text"
                 >
-                  {formatTableValue(getMatchStatValue(match, column.key))}
+                  {formatStatCell(match, column.key)}
                 </td>
               ))}
             </tr>
@@ -81,6 +82,20 @@ export function PlayerGameLogTable({
 
 function formatTableValue(value: string | number | null | undefined) {
   return value ?? "-";
+}
+
+function formatStatCell(
+  match: FootballPlayerMatchStat | HockeyPlayerMatchStat,
+  statKey: PlayerStatKey,
+): string {
+  const value = getMatchStatValue(match, statKey);
+  if (statKey !== "rating") {
+    return String(formatTableValue(value));
+  }
+  if (value === null || value === undefined) {
+    return "—";
+  }
+  return formatDisplayedRating(Number(value));
 }
 
 function getMatchStatValue(

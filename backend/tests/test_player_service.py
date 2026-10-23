@@ -136,6 +136,42 @@ class TestPlayerService(unittest.TestCase):
 
     @patch(
         "backend.services.player_service.player_repository"
+        ".fetch_player_position",
+        return_value="C")
+    @patch(
+        "backend.services.player_service.player_repository"
+        ".fetch_hockey_player_match_stats")
+    def test_hockey_player_stats_copy_rating_and_keep_a_missing_one_empty(
+        self,
+        mock_fetch_stats: unittest.mock.MagicMock,
+        _mock_position: unittest.mock.MagicMock) -> None:
+        """A stored total is copied. A row without the column stays None."""
+        rated = _hockey_skater_row(
+            100,
+            "Los Angeles Kings",
+            "Ottawa Senators",
+            "OTT",
+            "Ottawa Senators")
+        rated["rating"] = 1.9
+        missing = _hockey_skater_row(
+            101,
+            "Ottawa Senators",
+            "Los Angeles Kings",
+            "LAK",
+            "Los Angeles Kings")
+        mock_fetch_stats.return_value = pd.DataFrame([rated, missing])
+
+        payload = player_service.get_hockey_player_match_stats(
+            player_id=7,
+            season_id=12,
+            limit=10)
+
+        assert payload is not None
+        self.assertEqual(payload["matches"][0]["rating"], 1.9)
+        self.assertIsNone(payload["matches"][1]["rating"])
+
+    @patch(
+        "backend.services.player_service.player_repository"
         ".fetch_football_player_match_stats")
     def test_football_player_stats_include_opponent_name_home_and_away(
         self,

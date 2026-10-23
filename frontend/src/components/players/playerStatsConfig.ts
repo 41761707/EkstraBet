@@ -149,6 +149,16 @@ export const HOCKEY_SKATER_PLAYER_STATS: PlayerStatDefinition[] = [
     step: 0.5,
     hasLineSlider: true,
   },
+  {
+    key: "rating",
+    label: "Ocena",
+    chartTitle: "Ocena",
+    defaultLine: 5,
+    minLine: 0,
+    maxLine: 10,
+    step: 0.5,
+    hasLineSlider: true,
+  },
 ];
 
 export const HOCKEY_GOALIE_PLAYER_STATS: PlayerStatDefinition[] = [
@@ -191,6 +201,16 @@ export const HOCKEY_GOALIE_PLAYER_STATS: PlayerStatDefinition[] = [
     maxLine: 65,
     step: 0.5,
     hasLineSlider: false,
+  },
+  {
+    key: "rating",
+    label: "Ocena",
+    chartTitle: "Ocena",
+    defaultLine: 5,
+    minLine: 0,
+    maxLine: 10,
+    step: 0.5,
+    hasLineSlider: true,
   },
 ];
 

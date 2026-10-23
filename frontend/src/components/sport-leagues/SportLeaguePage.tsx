@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ExpandableSection } from "@/components/ExpandableSection";
 import { HockeyLeagueEventRankings } from "@/components/hockey/HockeyLeagueEventRankings";
+import { HockeyLeagueRatingBoard } from "@/components/hockey/HockeyLeagueRatingBoard";
 import { LeagueHeader } from "@/components/leagues/LeagueHeader";
 import { MatchList } from "@/components/MatchList";
 import { SportLeagueDateFilter } from "@/components/sport-leagues/SportLeagueDateFilter";
@@ -211,6 +212,9 @@ export async function SportLeaguePage({
         </ExpandableSection>
 
         {sportId === HOCKEY_SPORT_ID ? <HockeyLeagueEventRankings /> : null}
+        {sportId === HOCKEY_SPORT_ID ? (
+          <HockeyLeagueRatingBoard seasonId={filters.seasonId} />
+        ) : null}
       </div>
     </div>
   );

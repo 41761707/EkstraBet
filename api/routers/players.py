@@ -11,6 +11,7 @@ from api.schemas.player import (
     FootballPlayersListResponse,
     FootballPlayerSummary,
     HockeyPlayerMatchStatsResponse,
+    HockeyRatingBoardResponse,
     PlayerCountriesResponse,
     PlayerCountryOption,
     PlayerSeasonOption,
@@ -20,6 +21,7 @@ from api.schemas.player import (
     PlayerTeamOption,
     PlayerTeamsResponse)
 from backend.services import player_service
+from backend.services.hockey_rating_board import get_hockey_rating_board
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +42,37 @@ async def players_info() -> dict[str, object]:
             "GET /players/{sport_id}/filters/seasons - Season filters",
             "GET /players/{sport_id} - Player list for selected filters",
             "GET /players/{sport_id}/{player_id}/match-stats - Player match stats",
+            "GET /players/hockey/game-ratings - Stored hockey rating board",
         ],
     }
+
+
+_RATING_WINDOWS = {0, 5, 10}
+
+
+@router.get(
+    "/hockey/game-ratings",
+    response_model=HockeyRatingBoardResponse)
+async def get_hockey_game_ratings(
+    season_id: int = Query(..., ge=1, description="Season ID"),
+    window: int = Query(0, description="5, 10, or 0 for the whole season")
+) -> HockeyRatingBoardResponse:
+    """Return season averages and the best and worst rated games."""
+    if window not in _RATING_WINDOWS:
+        raise HTTPException(
+            status_code=422,
+            detail="window must be 0, 5 or 10")
+    try:
+        payload = get_hockey_rating_board(season_id, window)
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch hockey rating board for season %s: %s",
+            season_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch hockey rating board") from exc
+    return HockeyRatingBoardResponse(**payload)
 
 
 def _require_available_sport(sport_id: int) -> dict:

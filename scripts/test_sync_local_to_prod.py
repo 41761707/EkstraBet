@@ -67,6 +67,9 @@ def test_excluded_and_table_order() -> None:
     assert "gamblers" not in names
     assert names.index("teams") < names.index("matches")
     assert names.index("matches") < names.index("odds")
+    assert names.index("matches") < names.index("hockey_player_game_ratings")
+    assert names.index("hockey_match_events") < names.index(
+        "hockey_player_game_ratings")
     assert names.index("predictions") < names.index("final_predictions")
 
 

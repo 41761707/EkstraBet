@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
+import { RATING_BASELINE } from "@/components/matches/hockeyGameRatingModel";
 import { PlayerGameLogTable } from "@/components/players/PlayerGameLogTable";
 import {
   HOCKEY_GOALIE_PLAYER_STATS,
@@ -15,12 +16,13 @@ import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { getPlayerMatchStats } from "@/lib/apiClient";
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { formatTeamName } from "@/lib/teamNameDisplay";
-import type {
-  FootballPlayerMatchStat,
-  HockeyPlayerMatchStat,
-  HockeyPlayerMatchStatsResponse,
-  PlayerMatchStatsResponse,
-  PlayerStatKey,
+import {
+  HOCKEY_SPORT_ID,
+  type FootballPlayerMatchStat,
+  type HockeyPlayerMatchStat,
+  type HockeyPlayerMatchStatsResponse,
+  type PlayerMatchStatsResponse,
+  type PlayerStatKey,
 } from "@/types/api";
 
 interface PlayerPanelProps {
@@ -201,6 +203,11 @@ function PlayerPanelLoadedBody({
         sportId={sportId}
         playerRole={playerRole}
         summary={data.summary}
+        averageRating={
+          sportId === HOCKEY_SPORT_ID
+            ? averageStoredRating(data.matches)
+            : undefined
+        }
       />
 
       {displayStats.length === 0 ? (
@@ -225,10 +232,11 @@ function PlayerPanelLoadedBody({
                 title={definition.chartTitle}
                 playerName={playerName}
                 thresholdLine={threshold}
-                points={chartMatches.map((match) => ({
-                  label: buildChartLabel(match, teamNameDisplay),
-                  value: getMatchStatValue(match, statKey),
-                }))}
+                points={playerChartPoints(
+                  chartMatches,
+                  statKey,
+                  teamNameDisplay,
+                )}
               />
             );
           })}
@@ -362,6 +370,44 @@ function getPlayerRole(
     return data.player_role;
   }
   return position === "G" ? "goalie" : undefined;
+}
+
+/** Mean of stored ratings. A match without a row does not count as zero. */
+export function averageStoredRating(
+  matches: readonly { rating?: number | null }[],
+): number | null {
+  let sum = 0;
+  let count = 0;
+  for (const match of matches) {
+    if (match.rating == null) {
+      continue;
+    }
+    sum += match.rating;
+    count += 1;
+  }
+  if (count === 0) {
+    return null;
+  }
+  return sum / count;
+}
+
+export function playerChartPoints(
+  matches: PlayerMatchStatsResponse["matches"],
+  statKey: PlayerStatKey,
+  teamNameDisplay: TeamNameDisplayPreference,
+): { label: string; value: number }[] {
+  const points: { label: string; value: number }[] = [];
+  for (const match of matches) {
+    if (statKey === "rating" && "rating" in match && match.rating == null) {
+      continue;
+    }
+    const stored = getMatchStatValue(match, statKey);
+    points.push({
+      label: buildChartLabel(match, teamNameDisplay),
+      value: statKey === "rating" ? stored + RATING_BASELINE : stored,
+    });
+  }
+  return points;
 }
 
 function getMatchStatValue(

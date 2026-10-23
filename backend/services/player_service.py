@@ -268,6 +268,7 @@ def _build_hockey_match_stat_row(
             if pd.notna(row["opponent_name"]) else ""),
         "toi": str(row["toi"]),
         "toi_minutes": round(_toi_to_minutes(row["toi"]), 2),
+        "rating": _optional_rating(row),
     }
     if is_goalie:
         return {
@@ -285,6 +286,16 @@ def _build_hockey_match_stat_row(
         "penalty_minutes": int(row["penalty_minutes"]),
         "sog": int(row["sog"]),
     }
+
+
+def _optional_rating(row: pd.Series) -> float | None:
+    """Return a stored total, or None when the match was not filled."""
+    if "rating" not in row.index:
+        return None
+    value = row["rating"]
+    if pd.isna(value):
+        return None
+    return float(value)
 
 
 def _build_hockey_summary(

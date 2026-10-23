@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { formatDisplayedRating } from "@/components/matches/hockeyGameRatingModel";
 import {
   FOOTBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
@@ -11,6 +12,7 @@ interface PlayerSummaryTilesProps {
   sportId: number;
   playerRole?: "skater" | "goalie";
   summary: FootballPlayerStatsSummary | HockeyPlayerStatsSummary;
+  averageRating?: number | null;
 }
 
 const tiles = [
@@ -41,13 +43,14 @@ export function PlayerSummaryTiles({
   sportId,
   playerRole,
   summary,
+  averageRating,
 }: PlayerSummaryTilesProps) {
   if (sportId === HOCKEY_SPORT_ID) {
     const hockeySummary = summary as HockeyPlayerStatsSummary;
     const hockeyTiles =
       playerRole === "goalie" ? hockeyGoalieTiles : hockeySkaterTiles;
     return (
-      <SummaryGrid columns={playerRole === "goalie" ? "four" : "seven"}>
+      <SummaryGrid columns={playerRole === "goalie" ? "five" : "eight"}>
         {hockeyTiles.map((tile) => (
           <SummaryTile
             key={tile.key}
@@ -59,6 +62,15 @@ export function PlayerSummaryTiles({
             )}
           />
         ))}
+        {averageRating !== undefined ? (
+          <SummaryTile
+            emoji="⭐"
+            label="Średnia ocena"
+            value={
+              averageRating === null ? "—" : formatDisplayedRating(averageRating)
+            }
+          />
+        ) : null}
       </SummaryGrid>
     );
   }
@@ -86,13 +98,15 @@ function SummaryGrid({
   columns,
   children,
 }: {
-  columns: "four" | "seven";
+  columns: "four" | "five" | "eight";
   children: ReactNode;
 }) {
   const className =
-    columns === "seven"
-      ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7"
-      : "grid gap-3 sm:grid-cols-2 xl:grid-cols-4";
+    columns === "eight"
+      ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
+      : columns === "five"
+        ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+        : "grid gap-3 sm:grid-cols-2 xl:grid-cols-4";
   return <div className={className}>{children}</div>;
 }
 

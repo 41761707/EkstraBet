@@ -705,6 +705,38 @@ export interface HockeyMatchBoxscore {
   skaters: HockeySkaterBoxscoreRow[];
 }
 
+export interface HockeyRatingParts {
+  production: number;
+  empty_net: number;
+  shots: number;
+  teammate_goals: number;
+  faceoffs: number;
+  goals_against: number;
+  penalties: number;
+  blocks: number;
+  goaltending: number;
+}
+
+export interface HockeyRatedPlayer {
+  player_id: number;
+  player_name: string;
+  group: "forward" | "defense" | "goalie";
+  offense: number;
+  defense: number;
+  total: number;
+  parts: HockeyRatingParts;
+}
+
+export interface HockeyRatedTeam {
+  team_id: number;
+  team_name: string;
+  players: HockeyRatedPlayer[];
+}
+
+export interface HockeyGameRating {
+  teams: HockeyRatedTeam[];
+}
+
 export type HockeyLineupStatus = "confirmed" | "probable";
 
 export type HockeyPredictionStage = "initial" | "final";
@@ -900,6 +932,7 @@ export interface MatchDetails {
   away_team_history: TeamSeasonMatchPoint[];
   boxscore: MatchPlayerStat[] | null;
   hockey_boxscore: HockeyMatchBoxscore | null;
+  hockey_game_rating: HockeyGameRating | null;
   hockey_lineups: HockeyMatchLineups | null;
   hockey_prediction_stage: HockeyPredictionStage | null;
   hockey_schedule_context: HockeyScheduleContext | null;
@@ -1347,6 +1380,7 @@ export interface HockeyPlayerMatchStat {
   shots_against: number | null;
   shots_saved: number | null;
   saves_acc: number | null;
+  rating: number | null;
 }
 
 export interface HockeyPlayerMatchStatsResponse {
@@ -1356,6 +1390,38 @@ export interface HockeyPlayerMatchStatsResponse {
   player_role: "skater" | "goalie";
   summary: HockeyPlayerStatsSummary;
   matches: HockeyPlayerMatchStat[];
+}
+
+export interface HockeyRatingAverage {
+  player_id: number;
+  player_name: string;
+  team_name: string;
+  games: number;
+  average: number;
+}
+
+export interface HockeyRatingGame {
+  player_id: number;
+  player_name: string;
+  match_id: number;
+  match_date: string;
+  opponent_name: string;
+  total: number;
+}
+
+export interface HockeyRatingPositionGames {
+  best_games: HockeyRatingGame[];
+  worst_games: HockeyRatingGame[];
+}
+
+export interface HockeyRatingBoard {
+  season_id: number;
+  window: number;
+  averages: HockeyRatingAverage[];
+  worst_averages: HockeyRatingAverage[];
+  forward: HockeyRatingPositionGames;
+  defense: HockeyRatingPositionGames;
+  goalie: HockeyRatingPositionGames;
 }
 
 export type PlayerMatchStatsResponse =
@@ -1377,13 +1443,15 @@ export type HockeySkaterStatKey =
   | "sog"
   | "plus_minus"
   | "penalty_minutes"
-  | "toi_minutes";
+  | "toi_minutes"
+  | "rating";
 
 export type HockeyGoalieStatKey =
   | "shots_against"
   | "shots_saved"
   | "saves_acc"
-  | "toi_minutes";
+  | "toi_minutes"
+  | "rating";
 
 export type PlayerStatKey =
   | FootballPlayerStatKey

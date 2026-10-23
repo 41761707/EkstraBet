@@ -122,6 +122,20 @@ describe("sortBoxscoreRows", () => {
     ]);
   });
 
+  it("sorts a higher rating above a lower one and keeps a missing rating last", () => {
+    const rows = [
+      { ...skater({ player_id: 1 }), rating: 0.4 },
+      { ...skater({ player_id: 2 }), rating: null },
+      { ...skater({ player_id: 3 }), rating: 3.3 },
+    ];
+    const desc = nextBoxscoreSort(null, "rating");
+
+    expect(desc.direction).toBe("desc");
+    expect(sortBoxscoreRows(rows, desc, skaterSortValue).map((row) => row.player_id)).toEqual([
+      3, 1, 2,
+    ]);
+  });
+
   it("sorts goalies by save percentage and names in Polish order", () => {
     const rows = [
       goalie({

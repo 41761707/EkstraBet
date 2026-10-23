@@ -122,6 +122,10 @@ _TABLE_SPECS: tuple[TableSpec, ...] = (
     TableSpec(
         "hockey_match_events", SyncKind.WINDOW_CHILD, match_fk="match_id"),
     TableSpec(
+        "hockey_player_game_ratings",
+        SyncKind.WINDOW_CHILD,
+        match_fk="match_id"),
+    TableSpec(
         "football_player_stats", SyncKind.WINDOW_CHILD, match_fk="match_id"),
     TableSpec(
         "football_special_round_add",

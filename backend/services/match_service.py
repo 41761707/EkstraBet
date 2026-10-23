@@ -26,6 +26,7 @@ from backend.services.round_label import resolve_round_label
 from backend.sports.basketball.lineups import map_basketball_lineups
 from backend.sports.hockey.boxscore import map_hockey_boxscore
 from backend.sports.hockey.events import map_hockey_match_events
+from backend.sports.hockey.game_rating import build_match_rating
 from backend.sports.hockey.first_period_goals import fetch_first_period_goals
 from backend.sports.hockey.lineups import map_current_roster_lineups
 from backend.sports.hockey.lineups import map_hockey_lineups
@@ -510,6 +511,7 @@ _HOCKEY_SECTION_EMPTY = {
     "hockey_stats": None,
     "hockey_lineups": None,
     "hockey_boxscore": None,
+    "hockey_game_rating": None,
     "hockey_events": None,
     "hockey_prediction_stage": None,
     "hockey_schedule_context": None,
@@ -623,7 +625,13 @@ def _hockey_detail_sections(
         summary["away_team"]["name"],
         summary["is_played"])
     if summary["is_played"]:
-        _fill_played_hockey(sections, match_id, home_team_id)
+        _fill_played_hockey(
+            sections,
+            match_id,
+            home_team_id,
+            away_team_id,
+            summary["home_team"]["name"],
+            summary["away_team"]["name"])
     sections.update(_hockey_prematch_fields(
         match_id,
         sport_id,
@@ -643,15 +651,31 @@ def _hockey_detail_sections(
 def _fill_played_hockey(
     sections: dict[str, Any],
     match_id: int,
-    home_team_id: int) -> None:
-    """Attach the box score and the play-by-play of a finished game."""
+    home_team_id: int,
+    away_team_id: int,
+    home_team_name: str,
+    away_team_name: str) -> None:
+    """Attach box score, rating and play-by-play of a finished game."""
     goalies_frame, skaters_frame = (
         match_repository.fetch_hockey_match_boxscore(match_id))
+    events_frame = match_repository.fetch_hockey_match_events(match_id)
     if not goalies_frame.empty or not skaters_frame.empty:
         sections["hockey_boxscore"] = map_hockey_boxscore(
             goalies_frame,
             skaters_frame)
-    events_frame = match_repository.fetch_hockey_match_events(match_id)
+        # Odczyt oceny tylko przy niepustym box score.
+        players = match_repository.fetch_hockey_game_rating_players(
+            match_id)
+        save_rate = match_repository.fetch_hockey_season_save_rate(
+            match_id)
+        sections["hockey_game_rating"] = build_match_rating(
+            players,
+            events_frame,
+            save_rate,
+            home_team_id,
+            away_team_id,
+            home_team_name,
+            away_team_name)
     sections["hockey_events"] = map_hockey_match_events(
         events_frame,
         home_team_id)
