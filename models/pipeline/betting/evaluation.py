@@ -80,7 +80,7 @@ def evaluate_selections(
     return EvaluationReport(
         brier=_brier(rows),
         log_loss=_log_loss(rows),
-        reliability=_max_reliability_gap(rows),
+        reliability=_reliability(rows),
         roi=_roi(bets),
         hit_rate=_hit_rate(bets),
         bet_count=len(bets),
@@ -240,27 +240,115 @@ def _bets(rows: Sequence[_ScoredRow]) -> list[_ScoredRow]:
     return [row for row in rows if row.decision.decision == "bet"]
 
 
+def brier_score(
+        probabilities: Sequence[float],
+        outcomes: Sequence[int]) -> float:
+    """Return the mean squared error of the quoted probabilities.
+
+    The sum follows the given order. ``evaluate_selections`` sorts
+    by ``(prediction_id, odds_id)`` before calling this function.
+    """
+    total = 0.0
+    for probability, outcome in zip(probabilities, outcomes):
+        gap = float(probability) - float(outcome)
+        total += gap * gap
+    return total / len(probabilities)
+
+
+def log_loss_score(
+        probabilities: Sequence[float],
+        outcomes: Sequence[int]) -> float:
+    """Return the mean binary log loss of the quoted probabilities.
+
+    The sum follows the given order. ``evaluate_selections`` sorts
+    by ``(prediction_id, odds_id)`` before calling this function.
+    """
+    # Decyzja dopuszcza 0 i 1, a logarytm zera nie jest liczbą.
+    total = 0.0
+    for probability, outcome in zip(probabilities, outcomes):
+        clipped = _clip_probability(float(probability))
+        result = float(outcome)
+        total += -(
+            result * math.log(clipped)
+            + (1.0 - result) * math.log(1.0 - clipped))
+    return total / len(probabilities)
+
+
+def reliability_score(
+        probabilities: Sequence[float],
+        outcomes: Sequence[int]) -> float:
+    """Return the worst absolute calibration gap across equal bins.
+
+    Five equal-width bins are used and the last bin includes 1.
+    The sum inside a bin follows the given order.
+    ``evaluate_selections`` sorts by ``(prediction_id, odds_id)``
+    before calling this function.
+    """
+    # Bramka configu porównuje ten maksymalny błąd, nie średnią ważoną.
+    worst = 0.0
+    seen = False
+    for index in range(_RELIABILITY_BINS):
+        gap = _bin_gap(probabilities, outcomes, index)
+        if gap is None:
+            continue
+        seen = True
+        if gap > worst:
+            worst = gap
+    if not seen:
+        raise RuntimeError("reliability bins missed every probability")
+    return worst
+
+
+def unit_stake_roi(
+        outcomes: Sequence[int],
+        odds: Sequence[float]) -> float | None:
+    """Return profit over stake, using stake 1 on every bet.
+
+    A win pays ``odds - 1`` and a loss costs 1. Empty input returns
+    ``None``. The sum follows the given order.
+    """
+    if not outcomes:
+        return None
+    # Stawka żyje tylko w tym ilorazie. To nie jest zapis salda.
+    profit = 0.0
+    for outcome, price in zip(outcomes, odds):
+        if int(outcome) == 1:
+            profit += float(price) - _UNIT_STAKE
+        else:
+            profit -= _UNIT_STAKE
+    return profit / (len(outcomes) * _UNIT_STAKE)
+
+
+def unit_stake_hit_rate(outcomes: Sequence[int]) -> float | None:
+    """Return the share of bets that won.
+
+    Empty input returns ``None``.
+    """
+    if not outcomes:
+        return None
+    wins = sum(int(outcome) for outcome in outcomes)
+    return wins / len(outcomes)
+
+
 def _brier(rows: Sequence[_ScoredRow]) -> float:
     """Return the mean squared error of the quoted probabilities."""
-    total = 0.0
-    for row in rows:
-        gap = row.decision.calibrated_probability - float(row.outcome)
-        total += gap * gap
-    return total / len(rows)
+    return brier_score(
+        [row.decision.calibrated_probability for row in rows],
+        [row.outcome for row in rows])
 
 
 def _log_loss(rows: Sequence[_ScoredRow]) -> float:
     """Return the mean binary log loss of the quoted probabilities."""
-    # Decyzja dopuszcza 0 i 1, a logarytm zera nie jest liczbą.
-    total = 0.0
-    for row in rows:
-        probability = _clip_probability(
-            row.decision.calibrated_probability)
-        outcome = float(row.outcome)
-        total += -(
-            outcome * math.log(probability)
-            + (1.0 - outcome) * math.log(1.0 - probability))
-    return total / len(rows)
+    return log_loss_score(
+        [row.decision.calibrated_probability for row in rows],
+        [row.outcome for row in rows])
+
+
+def _reliability(rows: Sequence[_ScoredRow]) -> float:
+    """Return the worst absolute calibration gap across equal bins."""
+    return reliability_score(
+        [row.decision.calibrated_probability for row in rows],
+        [row.outcome for row in rows])
 
 
 def _clip_probability(probability: float) -> float:
@@ -272,39 +360,24 @@ def _clip_probability(probability: float) -> float:
     return probability
 
 
-def _max_reliability_gap(rows: Sequence[_ScoredRow]) -> float:
-    """Return the worst absolute calibration gap across equal bins."""
-    # Bramka configu porównuje ten maksymalny błąd, nie średnią ważoną.
-    worst = 0.0
-    seen = False
-    for index in range(_RELIABILITY_BINS):
-        gap = _bin_gap(rows, index)
-        if gap is None:
-            continue
-        seen = True
-        if gap > worst:
-            worst = gap
-    if not seen:
-        raise RuntimeError("reliability bins missed every probability")
-    return worst
-
-
-def _bin_gap(rows: Sequence[_ScoredRow], index: int) -> float | None:
+def _bin_gap(
+        probabilities: Sequence[float],
+        outcomes: Sequence[int],
+        index: int) -> float | None:
     """Return one bin's absolute gap, or none when the bin is empty."""
     low = index / _RELIABILITY_BINS
     high = (index + 1) / _RELIABILITY_BINS
-    chosen = [
-        row for row in rows
-        if _in_reliability_bin(
-            row.decision.calibrated_probability,
-            low,
-            high,
-            index)]
-    if not chosen:
+    chosen_probabilities: list[float] = []
+    chosen_outcomes: list[float] = []
+    for probability, outcome in zip(probabilities, outcomes):
+        if not _in_reliability_bin(float(probability), low, high, index):
+            continue
+        chosen_probabilities.append(float(probability))
+        chosen_outcomes.append(float(outcome))
+    if not chosen_probabilities:
         return None
-    predicted = _mean([
-        row.decision.calibrated_probability for row in chosen])
-    observed = _mean([float(row.outcome) for row in chosen])
+    predicted = _mean(chosen_probabilities)
+    observed = _mean(chosen_outcomes)
     return abs(predicted - observed)
 
 
@@ -321,29 +394,14 @@ def _in_reliability_bin(
 
 def _roi(bets: Sequence[_ScoredRow]) -> float | None:
     """Return profit over stake, using stake 1 on every bet."""
-    if not bets:
-        return None
-    # Stawka żyje tylko w tym ilorazie. To nie jest zapis salda.
-    return _profit(bets) / (len(bets) * _UNIT_STAKE)
-
-
-def _profit(bets: Sequence[_ScoredRow]) -> float:
-    """Return the sum of unit-stake win and loss amounts."""
-    total = 0.0
-    for row in bets:
-        if row.outcome == 1:
-            total += float(row.decision.candidate.odds) - _UNIT_STAKE
-        else:
-            total -= _UNIT_STAKE
-    return total
+    return unit_stake_roi(
+        [row.outcome for row in bets],
+        [float(row.decision.candidate.odds) for row in bets])
 
 
 def _hit_rate(bets: Sequence[_ScoredRow]) -> float | None:
     """Return the share of bets that won."""
-    if not bets:
-        return None
-    wins = sum(row.outcome for row in bets)
-    return wins / len(bets)
+    return unit_stake_hit_rate([row.outcome for row in bets])
 
 
 def _kickoff_bounds(
