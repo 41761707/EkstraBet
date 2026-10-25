@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 02.10.2026
+###### Ostatnia data modyfikacji: 24.10.2026
 
 ## Opis struktury bazy
 
@@ -14,6 +14,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [BASKETBALL_MATCHES_ADD](#basketball_matches_add) (Dodatkowe statystyki meczów koszykarskich)
 - [BASKETBALL_MATCH_ROSTERS](#basketball_match_rosters) (Składy drużyn koszykarskich w danym spotkaniu)
 - [BETS](#bets) (Wszystkie możliwe do zrealizowania zakłady)
+- [BETTING_RECOMMENDATIONS](#betting_recommendations) (Werdykt meta-modelu dla pary predykcja–kurs)
 - [BOOKMAKERS](#bookmakers) (Wszyscy bukmacherzy brani pod uwagę w ramach badania)
 - [CHAMPIONS_LEAGUE_TYPER_MATCHES](#champions_league_typer_matches) (Opublikowane mecze konkursu Typer LM)
 - [CHAMPIONS_LEAGUE_TYPER_PREDICTIONS](#champions_league_typer_predictions) (Bieżące typy 1X2 użytkowników Typera LM)
@@ -296,6 +297,36 @@ Dane do tabeli generowane są w ramach działania modułu **basketball_scrapper.
   skrypt `sql/model_statistics_maintenance.sql` (kontrola duplikatów + indeks).
   Implementacja aplikacji **nie** wykonuje DDL.
 
+
+---
+
+### BETTING_RECOMMENDATIONS
+
+(Werdykt meta-modelu dla pary predykcja–kurs i wersji artefaktu)
+
+
+| POLE                   | DOMENA      | ZAKRES        | UWAGI                                              | WARTOŚC DOMYŚLNA         |
+| ---------------------- | ----------- | ------------- | -------------------------------------------------- | ------------------------ |
+| **ID**                 | INT         | INT           | ID werdyktu                                        | AUTOMATYCZNIE GENEROWANY |
+| *PREDICTION_ID*        | INT         | INT           | Klucz obcy, powiązanie z tabelą *predictions*      | NOT NULL                 |
+| *ODDS_ID*              | INT         | INT           | Klucz obcy, powiązanie z tabelą *odds*             | NOT NULL                 |
+| DECISION               | VARCHAR(16) | {bet, no_bet} | Werdykt pary: wziąć zakład albo nie               | NOT NULL                 |
+| CALIBRATED_PROBABILITY | DOUBLE      | [0, 1]        | Skalibrowane prawdopodobieństwo trafienia          | NOT NULL                 |
+| MODEL_FINGERPRINT      | CHAR(64)    | STRING        | Skrót SHA-256 pliku modelu                         | NOT NULL                 |
+| CREATED_AT             | TIMESTAMP   | DATETIME      | Czas zapisu werdyktu                               | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `PREDICTION_ID` → `predictions(ID)`
+- Klucz obcy: `ODDS_ID` → `odds(ID)`
+- **Unikalny indeks:** `(PREDICTION_ID, ODDS_ID, MODEL_FINGERPRINT)` — jeden werdykt na parę i wersję artefaktu
+- Indeks: `(MODEL_FINGERPRINT, DECISION)`
+
+**Sposób generowania danych do tabeli:**
+
+Dane wyliczane przez pipeline ML.
 
 ---
 

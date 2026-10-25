@@ -19,6 +19,7 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
+from pydantic import ValidationError
 
 from backend.config import REPO_ROOT
 from backend.database import get_db_connection
@@ -30,6 +31,12 @@ from backend.services.model_statistics_maintenance_service import (
     StatisticsRefreshReport,
     refresh_model_statistics,
     replace_changed_finals)
+from models.pipeline.betting.commands import run_backtest_betting_strategy
+from models.pipeline.betting.commands import run_build_betting_dataset
+from models.pipeline.betting.commands import run_evaluate_betting_meta
+from models.pipeline.betting.commands import run_predict_betting_meta
+from models.pipeline.betting.commands import run_train_betting_meta
+from models.pipeline.betting.config import load_betting_strategy_config
 from models.pipeline.core.artifacts import load_meta
 from models.pipeline.core.artifacts import load_model_artifact
 from models.pipeline.core.config import FutureEventsRunConfig
@@ -444,7 +451,92 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help="Enable debug logging")
+    _add_betting_parsers(subparsers)
     return parser
+
+
+def _add_betting_parsers(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register EB-18 commands. Settlement is not one of them."""
+    dataset_parser = subparsers.add_parser(
+        "build-betting-dataset",
+        help="Build a betting dataset from predictions and odds")
+    _add_betting_dataset_args(dataset_parser)
+    train_parser = subparsers.add_parser(
+        "train-betting-meta",
+        help="Train the betting meta-model and save its artifact")
+    _add_betting_dataset_args(train_parser)
+    _add_artifact_arg(train_parser)
+    evaluate_parser = subparsers.add_parser(
+        "evaluate-betting-meta",
+        help="Score the saved meta-model on the out-of-sample window")
+    _add_betting_dataset_args(evaluate_parser)
+    _add_artifact_arg(evaluate_parser)
+    backtest_parser = subparsers.add_parser(
+        "backtest-betting-strategy",
+        help="Compare baselines and the meta-model on the same pairs")
+    _add_betting_dataset_args(backtest_parser)
+    _add_artifact_arg(backtest_parser)
+    predict_parser = subparsers.add_parser(
+        "predict-betting-meta",
+        help="Insert verdicts for future pairs without training")
+    _add_strategy_arg(predict_parser)
+    _add_artifact_arg(predict_parser)
+    predict_parser.add_argument(
+        "--as-of",
+        required=True,
+        type=_parse_betting_as_of,
+        help="Naive ISO datetime; only a later kickoff is scored")
+    predict_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
+
+
+def _add_betting_dataset_args(parser: argparse.ArgumentParser) -> None:
+    """Require both betting configs. The artifact is a separate flag."""
+    _add_training_arg(parser)
+    _add_strategy_arg(parser)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging")
+
+
+def _add_training_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--training-config",
+        required=True,
+        type=Path,
+        help="Path to the betting training JSON config")
+
+
+def _add_strategy_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--strategy-config",
+        required=True,
+        type=Path,
+        help="Path to the betting strategy JSON config")
+
+
+def _add_artifact_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--artifact-dir",
+        required=True,
+        type=Path,
+        help="Directory of model.joblib, metrics.json and meta.json")
+
+
+def _parse_betting_as_of(value: str) -> datetime:
+    """Parse a naive ISO datetime. A bare date is midnight."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "as-of must be an ISO datetime") from exc
+    if parsed.tzinfo is not None:
+        raise argparse.ArgumentTypeError("as-of must be a naive datetime")
+    return parsed
 
 
 def _parse_match_ids(raw: str | None) -> list[int]:
@@ -1034,6 +1126,13 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
     loaded: list[tuple[ModelRunConfig, int]] = []
     for path in sorted(_HOCKEY_PREDICTION_CONFIGS.glob("*.json")):
         task_type = _prediction_task_type(path)
+        if task_type is None and _is_betting_strategy_config(path):
+            # Poprawna strategia piłkarska nie jest modelem hokeja.
+            logger.info(
+                "Skipping prediction config %s "
+                "because it is a betting strategy",
+                path.name)
+            continue
         if task_type in _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS:
             continue
         config = load_model_config(path)
@@ -1053,6 +1152,15 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
             continue
         loaded.append((config, model_id))
     return loaded
+
+
+def _is_betting_strategy_config(path: Path) -> bool:
+    """Return whether the file is a valid betting strategy config."""
+    try:
+        load_betting_strategy_config(path)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValidationError):
+        return False
+    return True
 
 
 def _prediction_task_type(path: Path) -> str | None:
@@ -1711,6 +1819,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_predict_hockey(args)
         elif args.command == "predict-hockey-props":
             payload = run_predict_hockey_props(args)
+        elif args.command == "build-betting-dataset":
+            payload = run_build_betting_dataset(args)
+        elif args.command == "train-betting-meta":
+            payload = run_train_betting_meta(args)
+        elif args.command == "evaluate-betting-meta":
+            payload = run_evaluate_betting_meta(args)
+        elif args.command == "backtest-betting-strategy":
+            payload = run_backtest_betting_strategy(args)
+        elif args.command == "predict-betting-meta":
+            payload = run_predict_betting_meta(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

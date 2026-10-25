@@ -1,0 +1,11 @@
+{
+  "probability_threshold": 0.5,
+  "football_sport_name": "Piłka nożna",
+  "excluded_model_names": [
+    "FOOTBALL_PLAYED_BETTER_V1",
+    "FOOTBALL_PLAYED_BETTER_NOXG_V1"
+  ],
+  "max_brier": 0.24,
+  "max_reliability_error": 0.05,
+  "min_roi": 0.0
+}

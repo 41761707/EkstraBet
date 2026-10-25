@@ -215,6 +215,98 @@ Dwa komplementarne modele:
 - **Evaluate:** metryki obejmują m.in. Brier score per klasa i uproszczony
   reliability summary (`calibration_reliability`).
 
+## Meta-model wyboru zakładu (EB-18)
+
+Meta-model czyta istniejące `predictions` i `odds`. Dla jednej pary
+zapisuje `bet` albo `no_bet` oraz skalibrowane prawdopodobieństwo.
+Nie kopiuje `predictions.value` ani kursu i nie prowadzi salda.
+
+### Trzy uruchomienia
+
+1. `train-betting-meta` uczy artefakt na zakończonych meczach, zapisuje
+   oba odciski i raport. Nie wstawia wierszy do `betting_recommendations`.
+2. `predict-betting-meta` ładuje ten artefakt i dopisuje werdykty par
+   z kickoffem późniejszym niż `--as-of`, których ten `model_fingerprint`
+   jeszcze nie ma. Modelu nie uczy. Nowa predykcja w `predictions` nie
+   uruchamia treningu. Łapie ją kolejne wywołanie tej komendy.
+3. EB-9 czyta wiersze `decision = bet`, których `model_fingerprint` jest
+   równy odciskowi z `meta.json` gotowego artefaktu. Predyktora nie
+   importuje i `model.joblib` nie ładuje. Stawkę opublikowanego kuponu
+   i saldo zostawia przy sobie oraz przy EB-11.
+
+Gdy `metrics.json` nie spełnia bramki ze strategii (`max_brier`,
+`max_reliability_error`, `min_roi`), `predict-betting-meta` kończy się
+kodem 1 i nie otwiera zapisu. EB-9 nie dostaje wtedy wierszy tej tabeli
+i zostaje przy własnym selektorze.
+
+### Filtr modeli
+
+Pula jest filtrem odczytu. Wchodzi model piłki nożnej
+(`sports.name` z configu strategii, obecnie `Piłka nożna`) z
+`models.active = 1`, poza nazwami z `excluded_model_names`:
+`FOOTBALL_PLAYED_BETTER_V1` i `FOOTBALL_PLAYED_BETTER_NOXG_V1`.
+Te dwa zapisują ocenę po meczu do `match_model_assessments`.
+Filtr czyta flagę i nazwę z bazy, a nie stałą listę modeli wynikowych.
+Dla wielu bukmacherów zostaje jeden kurs: `odds DESC`, potem `id ASC`.
+
+### Dwa odciski
+
+Oba pola są w `meta.json`.
+
+| Pole | Skrót | Rozjazd |
+|------|--------|---------|
+| `feature_schema_fingerprint` | SHA-256 posortowanej listy nazw kolumn cech | Inferencja staje. Ta sama lista kolumn przepuszcza nowy mecz. |
+| `model_fingerprint` | SHA-256 surowych bajtów `model.joblib`, 64 znaki hex | Predykcja staje, gdy plik nie zgadza się z `meta.json`. |
+
+Nowy trening zmienia bajty `model.joblib`, więc dostaje nowy
+`model_fingerprint` i własne wiersze. Poprzednie werdykty zostają.
+Ponowna predykcja tym samym plikiem istniejącego wiersza nie zmienia.
+Skrót kolumn do klucza tabeli nie wchodzi.
+
+`betting_recommendations` trzyma jeden werdykt na
+`(prediction_id, odds_id, model_fingerprint)`. Kolumny:
+[db_documentation/db_documentation.md](../db_documentation/db_documentation.md).
+
+### Komendy
+
+- Trening i splity: `models/configs/training/football_betting_meta_v1.json`
+- Próg, pula i bramka: `models/configs/prediction/football_betting_strategy_v1.json`
+
+`--artifact-dir` jest jawny. JSON go nie zawiera. Dataset, trening,
+ewaluacja i backtest biorą kickoff od 1970-01-01 do chwili uruchomienia.
+Mecz bez etykiety wypada z datasetu. Backtest zostawia plik modelu
+bez zmian. Gdy par nie starcza na train, calibration i test, raport
+nadal ma baseline, a meta-model wraca w nim jako błąd.
+
+```bash
+python models/scripts/model_runner.py build-betting-dataset \
+  --training-config models/configs/training/football_betting_meta_v1.json \
+  --strategy-config models/configs/prediction/football_betting_strategy_v1.json
+
+python models/scripts/model_runner.py train-betting-meta \
+  --training-config models/configs/training/football_betting_meta_v1.json \
+  --strategy-config models/configs/prediction/football_betting_strategy_v1.json \
+  --artifact-dir models/artifacts/dev/football_betting_meta_v1
+
+python models/scripts/model_runner.py evaluate-betting-meta \
+  --training-config models/configs/training/football_betting_meta_v1.json \
+  --strategy-config models/configs/prediction/football_betting_strategy_v1.json \
+  --artifact-dir models/artifacts/dev/football_betting_meta_v1
+
+python models/scripts/model_runner.py backtest-betting-strategy \
+  --training-config models/configs/training/football_betting_meta_v1.json \
+  --strategy-config models/configs/prediction/football_betting_strategy_v1.json \
+  --artifact-dir models/artifacts/dev/football_betting_meta_v1
+
+python models/scripts/model_runner.py predict-betting-meta \
+  --strategy-config models/configs/prediction/football_betting_strategy_v1.json \
+  --artifact-dir models/artifacts/dev/football_betting_meta_v1 \
+  --as-of 2026-10-24T22:00:00
+```
+
+`--as-of` jest naiwnym czasem ISO. Sama data oznacza północ.
+Komend `snapshot-odds` i `settle-betting-strategy` nie ma.
+
 ## Zasady importów
 
 **Może importować:** `backend.config`, `backend.database`, moduły w `models/pipeline/`.
