@@ -9,6 +9,7 @@ import pandas as pd
 
 from backend.database import get_db_connection
 from backend.repositories.tipster_repository import FOOTBALL_SPORT_ID
+from backend.repositories.tipster_repository import _FINISHED_RESULTS
 from backend.services.probability_service import to_unit_probability
 from backend.sports.football.event_settlement_registry import (
     is_settleable_event)
@@ -43,7 +44,8 @@ _SQL_COLUMNS = (
     "event_family")
 _NULLABLE_COLUMNS = ("league_id", "league_tier", "event_family")
 
-# Katalog kuponu przyjmuje tylko piłkę; inny sport i tak odpadnie przy zapisie.
+# Katalog kuponu przyjmuje tylko piłkę; inny sport odpada przy zapisie.
+# Predykat rezultatu jest ten sam: 1/X/2 nie wchodzi do puli.
 # Limit jest po filtrze rejestru, żeby niesettleable nie zjadł slotu.
 _CANDIDATE_SQL = """
     WITH window_matches AS (
@@ -55,6 +57,10 @@ _CANDIDATE_SQL = """
         WHERE mk.game_date >= %s
             AND mk.game_date < %s
             AND mk.sport_id = %s
+            AND (
+                mk.result IS NULL
+                OR mk.result NOT IN (%s, %s, %s)
+            )
     )
     SELECT
         p.match_id AS match_id,
@@ -127,18 +133,23 @@ def fetch_candidates(
     """Return settleable published prediction-odds pairs in the window.
 
     Kickoff is ``matches.game_date`` in the half-open interval
-    ``[now, now + horizon_days)``. The window is football only, the same
-    sport the tipster catalog accepts. One bookmaker survives per match
-    and event: the highest price, then the lowest odds id. Probability
-    is the published percentage on the unit scale. Implied probability
-    is ``1 / odds`` without removing the bookmaker margin. At most
-    ``MAX_CANDIDATES`` rows are kept, earliest kickoff first.
-    ``event_family`` is the catalog family name, not its id.
+    ``[now, now + horizon_days)``. The window is football only, and a
+    final result of 1, X or 2 is omitted, the same rule as the tipster
+    catalog. One bookmaker survives per match and event: the highest
+    price, then the lowest odds id. Probability is the published
+    percentage on the unit scale. Implied probability is ``1 / odds``
+    without removing the bookmaker margin. At most ``MAX_CANDIDATES``
+    rows are kept, earliest kickoff first. ``event_family`` is the
+    catalog family name, not its id.
     """
     horizon_end = _horizon_end(now, horizon_days)
     frame = _read_sql(
         _CANDIDATE_SQL,
-        (now, horizon_end, FOOTBALL_SPORT_ID))
+        (
+            now,
+            horizon_end,
+            FOOTBALL_SPORT_ID,
+            *_FINISHED_RESULTS))
     return _to_candidates(frame)
 
 

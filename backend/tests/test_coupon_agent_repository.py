@@ -48,6 +48,17 @@ def _sql(query: str) -> str:
     return " ".join(query.split())
 
 
+def _window_params(days: int = 7) -> tuple[object, ...]:
+    """Params of the candidate window, including the catalog result."""
+    return (
+        _NOW,
+        _NOW + timedelta(days=days),
+        repository.FOOTBALL_SPORT_ID,
+        "1",
+        "X",
+        "2")
+
+
 class TestFetchCandidatesQuery(unittest.TestCase):
     """The read is one future-window SELECT with the best price."""
 
@@ -75,9 +86,7 @@ class TestFetchCandidatesQuery(unittest.TestCase):
         self.assertIn("mk.game_date >= %s", text)
         self.assertIn("mk.game_date < %s", text)
         self.assertNotIn("CAST(mk.game_date AS DATE)", text)
-        self.assertEqual(
-            params,
-            (_NOW, _NOW + timedelta(days=3), repository.FOOTBALL_SPORT_ID))
+        self.assertEqual(params, _window_params(days=3))
 
     def test_joins_published_prediction_to_best_odds(self) -> None:
         query, _params = self._capture()
@@ -101,8 +110,12 @@ class TestFetchCandidatesQuery(unittest.TestCase):
         self.assertIn("mk.sport_id = %s", text)
         self.assertNotIn("sport_id = 1", text)
         self.assertNotIn("sport_id = 2", text)
-        self.assertEqual(params[-1], repository.FOOTBALL_SPORT_ID)
+        self.assertEqual(params[2], repository.FOOTBALL_SPORT_ID)
         self.assertEqual(repository.FOOTBALL_SPORT_ID, 1)
+        self.assertIn(
+            "mk.result IS NULL OR mk.result NOT IN (%s, %s, %s)",
+            text)
+        self.assertEqual(params[3:], ("1", "X", "2"))
 
     def test_query_is_select_only(self) -> None:
         query, _params = self._capture()
@@ -131,7 +144,7 @@ class TestFetchCandidatesQuery(unittest.TestCase):
         self.assertIs(mock_read.call_args.args[1], mock_conn)
         self.assertEqual(
             mock_read.call_args.kwargs["params"],
-            (_NOW, _NOW + timedelta(days=7), repository.FOOTBALL_SPORT_ID))
+            _window_params(days=7))
 
 
 class TestFetchCandidatesRows(unittest.TestCase):

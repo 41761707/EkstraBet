@@ -32,3 +32,25 @@ class SelectorConfig:
     stake_units: float = 1.0
     max_combined_odds: float = 5.0
     leg_penalty: float = 0.10
+
+
+# Jeden kupon na dobę i na agenta. Podniesienie stałej nie zdejmuje
+# blokady tego samego zbioru (match_id, event_id) w tej dobie.
+MAX_COUPONS_PER_DAY = 1
+
+
+@dataclass(frozen=True)
+class AgentSpec:
+    """One system username and an optional selector override.
+
+    ``selector`` replaces the default weights and stake. ``None`` keeps
+    ``SelectorConfig`` defaults, including ``stake_units`` of 1.
+    """
+
+    username: str
+    selector: SelectorConfig | None = None
+
+
+# Seed EB-11. Kolejny agent to nowy users + bankroll + wpis tutaj.
+AGENTS: list[AgentSpec] = [
+    AgentSpec("agent-kuponowy")]

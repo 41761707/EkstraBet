@@ -678,6 +678,47 @@ class TestFetchCoupons(unittest.TestCase):
         cursor.close.assert_called_once()
 
 
+class TestFetchCouponLegSetsBetween(unittest.TestCase):
+    """Daily idempotency reads coupons in a half-open created_at window."""
+
+    @patch(_GET_CONN)
+    def test_groups_pairs_and_keeps_a_legless_coupon(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        start = datetime(2026, 10, 25, 0, 0)
+        end = datetime(2026, 10, 26, 0, 0)
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[
+                {
+                    "coupon_id": 10,
+                    "match_id": 1,
+                    "event_id": 6},
+                {
+                    "coupon_id": 10,
+                    "match_id": 2,
+                    "event_id": 7},
+                {
+                    "coupon_id": 11,
+                    "match_id": None,
+                    "event_id": None}]])
+        sets = repo.fetch_coupon_leg_sets_between(9, start, end)
+        query, params = cursor.execute.call_args.args
+        compact = " ".join(query.split())
+        self.assertIn("c.user_id = %s", compact)
+        self.assertIn("c.created_at >= %s", compact)
+        self.assertIn("c.created_at < %s", compact)
+        self.assertIn("LEFT JOIN tipster_coupon_legs", compact)
+        self.assertNotIn("INSERT", compact.upper())
+        self.assertNotIn("UPDATE", compact.upper())
+        self.assertNotIn("DELETE", compact.upper())
+        self.assertEqual(params, (9, start, end))
+        self.assertEqual(
+            sets,
+            [frozenset({(1, 6), (2, 7)}), frozenset()])
+        cursor.close.assert_called_once()
+
+
 class TestFetchOpenLegsForFinishedMatches(unittest.TestCase):
     """Settlement fetch covers finished open legs and crash-recovery coupons."""
 
