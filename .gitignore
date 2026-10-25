@@ -240,3 +240,7 @@ models/artifacts/dev/**/*
 deploy/mysql.env
 .agents/
 .codex/
+
+#NHL
+nhl_api/*
+Ekstrabet_local
