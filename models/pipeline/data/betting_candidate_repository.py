@@ -225,3 +225,176 @@ def _read_sql(query: str, params: tuple[object, ...]) -> pd.DataFrame:
     """Run one SELECT and return its rows."""
     with get_db_connection() as connection:
         return pd.read_sql(query, connection, params=params)
+
+
+_SETTLEMENT_COLUMNS = (
+    "result",
+    "home_team_goals",
+    "away_team_goals",
+    "event_name")
+_ID_CHUNK = 500
+_MATCH_SETTLEMENT_SQL = """
+SELECT
+    m.id AS match_id,
+    m.result AS result,
+    m.home_team_goals AS home_team_goals,
+    m.away_team_goals AS away_team_goals
+FROM matches m
+WHERE m.id IN ({placeholders})
+"""
+_EVENT_NAME_SQL = """
+SELECT
+    e.id AS event_id,
+    e.name AS event_name
+FROM events e
+WHERE e.id IN ({placeholders})
+"""
+
+
+def attach_settlement_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add the match score and the event name to candidate rows.
+
+    The label builder needs ``result``, both goal columns and
+    ``events.name``. Those values are not on the prediction-odds pair.
+    An empty frame does not open a connection. The statements are
+    SELECT only.
+    """
+    _require_candidate_frame(frame)
+    attached = frame.copy()
+    if attached.empty:
+        return _with_empty_settlement(attached)
+    matches = _lookup_rows(
+        _MATCH_SETTLEMENT_SQL,
+        _positive_ids(attached["match_id"]),
+        "match_id")
+    events = _lookup_rows(
+        _EVENT_NAME_SQL,
+        _positive_ids(attached["event_id"]),
+        "event_id")
+    attached["result"] = _mapped(
+        attached["match_id"], matches, "match_id", "result")
+    attached["home_team_goals"] = _mapped(
+        attached["match_id"], matches, "match_id", "home_team_goals")
+    attached["away_team_goals"] = _mapped(
+        attached["match_id"], matches, "match_id", "away_team_goals")
+    attached["event_name"] = _mapped(
+        attached["event_id"], events, "event_id", "event_name")
+    logger.info(
+        "Attached settlement columns for %s betting candidates",
+        len(attached))
+    return attached
+
+
+def _require_candidate_frame(frame: pd.DataFrame) -> None:
+    """Reject a frame that is not the candidate contract."""
+    if not isinstance(frame, pd.DataFrame):
+        raise ValueError("candidates must be a DataFrame")
+    missing = [
+        name for name in BETTING_CANDIDATE_COLUMNS
+        if name not in frame.columns]
+    if missing:
+        joined = ", ".join(missing)
+        raise ValueError(f"candidates are missing columns: {joined}")
+    if frame.index.has_duplicates:
+        raise ValueError("candidate index must be unique")
+
+
+def _with_empty_settlement(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add the settlement columns without reading the database."""
+    attached = frame.copy()
+    for name in _SETTLEMENT_COLUMNS:
+        attached[name] = pd.Series(index=attached.index, dtype="object")
+    return attached
+
+
+def _lookup_rows(
+        sql: str,
+        ids: list[int],
+        key: str) -> pd.DataFrame:
+    """SELECT rows for one id column, in chunks."""
+    if not ids:
+        return pd.DataFrame(columns=[key])
+    frames = [
+        _read_sql(
+            sql.format(placeholders=_placeholders(chunk)),
+            tuple(chunk))
+        for chunk in _chunks(ids)]
+    if not frames:
+        return pd.DataFrame(columns=[key])
+    return pd.concat(frames, ignore_index=True)
+
+
+def _mapped(
+        keys: pd.Series,
+        table: pd.DataFrame,
+        key_name: str,
+        column: str) -> pd.Series:
+    """Map a lookup column onto ``keys``, leaving gaps empty."""
+    if table.empty or column not in table.columns or key_name not in table:
+        return pd.Series([None] * len(keys), index=keys.index, dtype="object")
+    unique = _first_by_key(table, key_name)
+    lookup = {
+        int(key): value
+        for key, value in zip(
+            unique[key_name].tolist(),
+            unique[column].tolist())
+        if not _missing_cell(key)}
+    mapped = [
+        None if _missing_cell(key) else lookup.get(int(key))
+        for key in keys.tolist()]
+    return pd.Series(mapped, index=keys.index, dtype="object")
+
+
+def _first_by_key(table: pd.DataFrame, key_name: str) -> pd.DataFrame:
+    """Keep the first row for each key."""
+    seen: set[int] = set()
+    labels: list[object] = []
+    for label, key in zip(table.index.tolist(), table[key_name].tolist()):
+        if _missing_cell(key):
+            continue
+        number = int(key)
+        if number in seen:
+            continue
+        seen.add(number)
+        labels.append(label)
+    return table.loc[labels]
+
+
+def _positive_ids(values: pd.Series) -> list[int]:
+    """Return unique positive ids in first-seen order."""
+    ordered: list[int] = []
+    seen: set[int] = set()
+    for value in values.tolist():
+        if _missing_cell(value):
+            continue
+        number = int(value)
+        if number <= 0 or number in seen:
+            continue
+        seen.add(number)
+        ordered.append(number)
+    return ordered
+
+
+def _chunks(ids: list[int]) -> list[list[int]]:
+    """Split ids so one IN list stays within the chunk size."""
+    return [
+        ids[start:start + _ID_CHUNK]
+        for start in range(0, len(ids), _ID_CHUNK)]
+
+
+def _placeholders(ids: list[int]) -> str:
+    """Return one ``%s`` per id. The ids themselves stay parameters."""
+    if not ids:
+        raise ValueError("id chunk must not be empty")
+    return ", ".join(["%s"] * len(ids))
+
+
+def _missing_cell(value: object) -> bool:
+    """Return whether a cell is null."""
+    if value is None:
+        return True
+    try:
+        missing = pd.isna(value)
+    except (TypeError, ValueError):
+        return False
+    return bool(missing)

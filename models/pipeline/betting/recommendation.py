@@ -129,24 +129,26 @@ def write_recommendations(
 
 def run_betting_predict(
         artifact_dir: Path,
-        as_of: datetime) -> PredictReport:
+        as_of: datetime,
+        strategy: BettingStrategyConfig | None = None) -> PredictReport:
     """Score missing future pairs and insert their verdicts.
 
     The artifact is not trained. When the report gate fails, the
     result is all zeros and no write connection is opened. A model
     file whose digest disagrees with ``meta.json`` stops the run
-    before any read of pairs.
+    before any read of pairs. ``strategy`` selects the pool and the
+    gate. Omitting it loads the football strategy file.
     """
     directory = Path(artifact_dir)
     moment = _require_as_of(as_of)
-    strategy = _load_strategy()
-    predictor = BettingMetaPredictor(directory, strategy)
+    selected = _require_strategy(strategy)
+    predictor = BettingMetaPredictor(directory, selected)
     if not predictor.check_model_ready():
         logger.info(
             "Betting artifact is not ready; wrote no recommendations")
         return _empty_report()
     digest = _require_file_fingerprint(directory)
-    report = _predict_ready(predictor, digest, moment, strategy)
+    report = _predict_ready(predictor, digest, moment, selected)
     logger.info(
         "Betting predict inserted=%s skipped=%s rejected=%s",
         report.inserted_count,
@@ -336,6 +338,16 @@ def _require_file_fingerprint(artifact_dir: Path) -> str:
         raise ValueError(
             "model file fingerprint does not match the artifact")
     return digest
+
+
+def _require_strategy(
+        strategy: BettingStrategyConfig | None) -> BettingStrategyConfig:
+    """Use the caller's config, or the football file when it is omitted."""
+    if strategy is None:
+        return _load_strategy()
+    if not isinstance(strategy, BettingStrategyConfig):
+        raise ValueError("strategy must be a BettingStrategyConfig")
+    return strategy
 
 
 def _load_strategy() -> BettingStrategyConfig:

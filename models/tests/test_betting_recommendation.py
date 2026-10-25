@@ -462,6 +462,34 @@ def test_invalid_pair_is_rejected(ready_artifact: Path) -> None:
     assert 140.0 not in store.inserted[0]
 
 
+def test_explicit_strategy_is_not_replaced_by_the_file(
+        ready_artifact: Path) -> None:
+    strategy = _train_strategy().model_copy(
+        update={"football_sport_name": "Custom Football"})
+    store = _Store()
+    frame = _frame(_candidate_row())
+
+    def _refuse_default() -> BettingStrategyConfig:
+        raise AssertionError("default strategy file was loaded")
+
+    with (
+            patch.object(
+                recommendation,
+                "fetch_candidates",
+                return_value=frame) as fetch,
+            patch.object(
+                recommendation,
+                "get_db_connection",
+                _connect(store)),
+            patch.object(
+                recommendation,
+                "_load_strategy",
+                _refuse_default)):
+        run_betting_predict(ready_artifact, _AS_OF, strategy)
+    passed = fetch.call_args.args[2]
+    assert passed.football_sport_name == "Custom Football"
+
+
 def test_unready_model_writes_nothing(tmp_path: Path) -> None:
     with (
             patch.object(recommendation, "fetch_candidates") as fetch,

@@ -17,6 +17,8 @@ from models.pipeline.data import betting_candidate_repository as repository
 from models.pipeline.data.betting_candidate_repository import (
     BETTING_CANDIDATE_COLUMNS)
 from models.pipeline.data.betting_candidate_repository import (
+    attach_settlement_columns)
+from models.pipeline.data.betting_candidate_repository import (
     fetch_candidates)
 
 _AS_OF = datetime(2026, 8, 1, 0, 0)
@@ -222,6 +224,121 @@ def _raw_row(**overrides: object) -> dict[str, object]:
         "market_size": 3}
     payload.update(overrides)
     return payload
+
+
+def _candidate_row(**overrides: object) -> dict[str, object]:
+    payload = {
+        name: _raw_row()[name]
+        for name in BETTING_CANDIDATE_COLUMNS
+        if name != "devig_probability"}
+    payload["devig_probability"] = 0.48
+    payload.update(overrides)
+    return payload
+
+
+def test_settlement_statements_are_select_only() -> None:
+    for query in (
+            repository._MATCH_SETTLEMENT_SQL,
+            repository._EVENT_NAME_SQL):
+        text = _sql(query).upper()
+        assert text.startswith("SELECT")
+        assert "FROM MATCHES" in text or "FROM EVENTS" in text
+        for word in _WRITE_WORDS:
+            assert word not in text
+
+
+def test_empty_frame_does_not_read_settlement() -> None:
+    frame = pd.DataFrame(columns=list(BETTING_CANDIDATE_COLUMNS))
+    with patch.object(
+            repository,
+            "_read_sql",
+            side_effect=AssertionError("sql")):
+        attached = attach_settlement_columns(frame)
+    assert attached.empty
+    assert list(attached.index) == []
+    for name in repository._SETTLEMENT_COLUMNS:
+        assert name in attached.columns
+
+
+def test_attach_settlement_keeps_the_candidate_index() -> None:
+    frame = pd.DataFrame([_candidate_row()])
+    frame.index = [7]
+    queries: list[str] = []
+
+    def _read(
+            query: str,
+            params: tuple[object, ...]) -> pd.DataFrame:
+        queries.append(_sql(query).upper())
+        if "FROM MATCHES" in queries[-1]:
+            assert params == (30,)
+            return pd.DataFrame([{
+                "match_id": 30,
+                "result": "1",
+                "home_team_goals": 2,
+                "away_team_goals": 0}])
+        assert params == (1,)
+        return pd.DataFrame([{"event_id": 1, "event_name": "1"}])
+
+    with patch.object(repository, "_read_sql", side_effect=_read):
+        attached = attach_settlement_columns(frame)
+    assert list(attached.index) == [7]
+    assert attached.loc[7, "prediction_id"] == 10
+    assert attached.loc[7, "result"] == "1"
+    assert attached.loc[7, "event_name"] == "1"
+    assert attached.loc[7, "home_team_goals"] == 2
+    assert attached.loc[7, "away_team_goals"] == 0
+    assert all(query.startswith("SELECT") for query in queries)
+
+
+def test_missing_match_leaves_the_score_empty() -> None:
+    frame = pd.DataFrame([_candidate_row()])
+
+    def _read(
+            query: str,
+            params: tuple[object, ...]) -> pd.DataFrame:
+        del params
+        if "FROM MATCHES" in _sql(query).upper():
+            return pd.DataFrame(columns=[
+                "match_id",
+                "result",
+                "home_team_goals",
+                "away_team_goals"])
+        return pd.DataFrame([{"event_id": 1, "event_name": "1"}])
+
+    with patch.object(repository, "_read_sql", side_effect=_read):
+        attached = attach_settlement_columns(frame)
+    assert attached.loc[0, "result"] is None
+    assert attached.loc[0, "event_name"] == "1"
+
+
+def test_settlement_ids_are_read_in_chunks() -> None:
+    rows = [
+        _candidate_row(prediction_id=index, match_id=index, event_id=index)
+        for index in (1, 2)]
+    frame = pd.DataFrame(rows)
+    calls: list[tuple[object, ...]] = []
+
+    def _read(
+            query: str,
+            params: tuple[object, ...]) -> pd.DataFrame:
+        calls.append(params)
+        if "FROM MATCHES" in _sql(query).upper():
+            match_id = int(params[0])
+            return pd.DataFrame([{
+                "match_id": match_id,
+                "result": "X",
+                "home_team_goals": 1,
+                "away_team_goals": 1}])
+        event_id = int(params[0])
+        return pd.DataFrame([{
+            "event_id": event_id,
+            "event_name": "X"}])
+
+    with patch.object(repository, "_ID_CHUNK", 1), \
+            patch.object(repository, "_read_sql", side_effect=_read):
+        attached = attach_settlement_columns(frame)
+    assert calls == [(1,), (2,), (1,), (2,)]
+    assert list(attached["result"]) == ["X", "X"]
 
 
 def test_rejects_a_window_that_cannot_contain_a_kickoff() -> None:
