@@ -1,0 +1,34 @@
+"""Weights and hard limits for the coupon-agent selector."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+# Sufit fazy testowej: kupon ma się mieścić w iloczynie 5, nie gonić
+# longshota. Kara 0.10 (zamiast 0.05) odcina słabą nogę, która mieści
+# się w suficie, ale prawie nic nie wnosi. Dwa kursy 2.0 (iloczyn 4)
+# nadal mogą wejść razem. Dwa kursy 3.0 (iloczyn 9) nie wejdą.
+
+
+@dataclass(frozen=True)
+class SelectorConfig:
+    """Limits and weights for one pass of the coupon selector.
+
+    ``max_combined_odds`` is a hard ceiling on the product of leg
+    prices. ``leg_penalty`` is subtracted once per leg after the first
+    from the sum of leg scores.
+    """
+
+    max_legs: int = 8
+    min_legs: int = 1
+    max_candidates: int = 200
+    beam_width: int = 500
+    w_confidence: float = 1.0
+    w_disagreement: float = 1.5
+    w_longshot: float = 0.75
+    min_probability: float = 0.35
+    max_abs_edge_pp: float = 15.0
+    stake_units: float = 1.0
+    max_combined_odds: float = 5.0
+    leg_penalty: float = 0.10
