@@ -6,14 +6,15 @@ import { BetsPanel } from "@/components/tipsters/BetsPanel";
 import {
   COMBINED_SELECTION_LABEL,
   couponHistoryStatusLabel,
-  couponStatusClassName,
+  couponShapeLabel,
+  couponStatusPillClassName,
   formatCouponCombinedOdds,
   formatTipsterAmount,
   formatTipsterProfit,
   historyEventLabel,
-  historyMatchLabel,
+  historyMatchLine,
   isCombinedLeg,
-  legOutcomeClassName,
+  legOutcomeDotClassName,
   legOutcomeLabel,
   signedAmountClassName,
 } from "@/components/tipsters/tipsterModel";
@@ -65,28 +66,14 @@ export function CouponHistoryTable({
 
   return (
     <BetsPanel title={COUPON_HISTORY_TITLE}>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="min-w-full text-sm">
-          <thead className="bg-surface-muted text-left text-muted">
-            <tr>
-              <th className="px-3 py-2 font-medium">Data</th>
-              <th className="px-3 py-2 font-medium">Zdarzenia</th>
-              <th className="px-3 py-2 text-right font-medium">Kurs</th>
-              <th className="px-3 py-2 text-right font-medium">Stawka</th>
-              <th className="px-3 py-2 text-right font-medium">Wynik</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {coupons.items.map((coupon) => (
-              <CouponHistoryRow
-                key={coupon.id}
-                coupon={coupon}
-                currency={currency}
-              />
-            ))}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        {coupons.items.map((coupon) => (
+          <CouponHistoryCard
+            key={coupon.id}
+            coupon={coupon}
+            currency={currency}
+          />
+        ))}
       </div>
       <PaginationBar
         basePath={profilePath}
@@ -99,12 +86,12 @@ export function CouponHistoryTable({
   );
 }
 
-interface CouponHistoryRowProps {
+interface CouponHistoryCardProps {
   coupon: CouponSummary;
   currency: CurrencyCode;
 }
 
-function CouponHistoryRow({ coupon, currency }: CouponHistoryRowProps) {
+function CouponHistoryCard({ coupon, currency }: CouponHistoryCardProps) {
   const created = coupon.created_at
     ? formatMatchDateTime(coupon.created_at)
     : "—";
@@ -114,62 +101,107 @@ function CouponHistoryRow({ coupon, currency }: CouponHistoryRowProps) {
     coupon.legs,
   );
   return (
-    <tr className="border-t border-border align-top text-text">
-      <td className="px-3 py-2 text-muted">{created}</td>
-      <td className="px-3 py-2">
-        <ul className="space-y-1">
-          {coupon.legs.map((leg) => (
-            <HistoryLegLine key={leg.id} leg={leg} />
-          ))}
-        </ul>
-      </td>
-      <td className="px-3 py-2 text-right">
-        {formatCouponCombinedOdds(coupon)}
-      </td>
-      <td className="px-3 py-2 text-right">
-        {formatTipsterAmount(coupon.stake_amount, currency)}
-      </td>
-      <td
-        className={`px-3 py-2 text-right ${signedAmountClassName(coupon.profit)}`}
-      >
-        {formatTipsterProfit(coupon.profit, currency)}
-      </td>
-      <td
-        className={`px-3 py-2 ${couponStatusClassName(
-          coupon.settled,
-          coupon.outcome,
-          coupon.legs,
-        )}`}
-      >
-        {statusLabel}
-      </td>
-    </tr>
+    <article className="rounded-xl border border-border bg-surface-raised p-4">
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-text">
+              {couponShapeLabel(coupon.legs.length)}
+            </h3>
+            <time className="text-xs text-muted">{created}</time>
+            <span
+              className={
+                "rounded-full border px-2 py-0.5 text-xs font-medium " +
+                couponStatusPillClassName(
+                  coupon.settled,
+                  coupon.outcome,
+                  coupon.legs,
+                )
+              }
+            >
+              {statusLabel}
+            </span>
+          </div>
+          <CouponStakeLine coupon={coupon} currency={currency} />
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-xl font-semibold tabular-nums text-text">
+            {formatCouponCombinedOdds(coupon)}
+          </p>
+          <p className="text-xs text-muted">Kurs</p>
+        </div>
+      </header>
+      <ul className="mt-3 divide-y divide-border border-t border-border">
+        {coupon.legs.map((leg) => (
+          <HistoryLeg key={leg.id} leg={leg} />
+        ))}
+      </ul>
+    </article>
   );
 }
 
-function HistoryLegLine({ leg }: { leg: CouponLegSummary }) {
+function CouponStakeLine({
+  coupon,
+  currency,
+}: CouponHistoryCardProps) {
   return (
-    <li>
+    <p className="mt-2 text-sm text-muted">
+      Stawka {formatTipsterAmount(coupon.stake_amount, currency)}
+      {coupon.profit === null ? null : (
+        <>
+          <span aria-hidden="true"> · </span>
+          <span className={signedAmountClassName(coupon.profit)}>
+            {formatTipsterProfit(coupon.profit, currency)}
+          </span>
+        </>
+      )}
+    </p>
+  );
+}
+
+function HistoryLeg({ leg }: { leg: CouponLegSummary }) {
+  const outcomeLabel = legOutcomeLabel(leg.outcome);
+  return (
+    <li className="flex items-start gap-3 py-3">
+      <span
+        className={
+          "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full " +
+          legOutcomeDotClassName(leg.outcome)
+        }
+        title={outcomeLabel}
+        aria-label={outcomeLabel}
+      />
       <Link
         href={`/matches/${leg.match_id}`}
-        className="transition hover:text-accent-text-hover"
+        className="group min-w-0 flex-1"
       >
-        {historyMatchLabel(leg)}
-      </Link>
-      {isCombinedLeg(leg.event_ids) ? (
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-text group-hover:text-accent-text-hover">
+            {historyEventLabel(leg)}
+          </span>
+          {isCombinedLeg(leg.event_ids) ? (
+            <span
+              className={
+                "rounded-md bg-accent-soft px-1.5 py-0.5 text-xs " +
+                "font-medium text-accent-text"
+              }
+            >
+              {COMBINED_SELECTION_LABEL}
+            </span>
+          ) : null}
+        </span>
         <span
           className={
-            "ml-2 rounded-md bg-accent-soft px-1.5 py-0.5 text-xs " +
-            "font-medium text-accent-text"
+            "mt-0.5 block text-sm text-muted " +
+            "group-hover:text-accent-text-hover"
           }
         >
-          {COMBINED_SELECTION_LABEL}
+          {historyMatchLine(leg)}
         </span>
-      ) : null}
-      {`: ${historyEventLabel(leg)} · ${formatOdds(leg.odds)} · `}
-      <span className={legOutcomeClassName(leg.outcome)}>
-        {legOutcomeLabel(leg.outcome)}
-      </span>
+      </Link>
+      <p className="shrink-0 text-sm font-semibold tabular-nums text-text">
+        {formatOdds(leg.odds)}
+      </p>
     </li>
   );
 }

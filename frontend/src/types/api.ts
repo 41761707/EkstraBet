@@ -2071,6 +2071,9 @@ export interface CouponLegSummary {
   match_id: number;
   home_name: string | null;
   away_name: string | null;
+  match_result: string | null;
+  home_goals: number | null;
+  away_goals: number | null;
   event_ids: number[];
   event_names: string[];
   odds: number;

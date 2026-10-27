@@ -79,7 +79,10 @@ def _leg_sql_row(
         outcome: int | None = None,
         home_name: str | None = "Legia",
         away_name: str | None = "Lech",
-        event_name: str | None = "BTTS tak") -> dict[str, object]:
+        event_name: str | None = "BTTS tak",
+        home_goals: int | None = None,
+        away_goals: int | None = None,
+        match_result: str | None = None) -> dict[str, object]:
     return {
         "leg_id": leg_id,
         "coupon_id": coupon_id,
@@ -91,7 +94,10 @@ def _leg_sql_row(
         "event_id": event_id,
         "event_name": event_name,
         "home_name": home_name,
-        "away_name": away_name}
+        "away_name": away_name,
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "match_result": match_result}
 
 
 def _mock_connection(
@@ -556,7 +562,10 @@ class TestFetchCoupons(unittest.TestCase):
                         event_id=6,
                         odds=Decimal("2.5000"),
                         source="custom_odds",
-                        event_name="BTTS tak"),
+                        event_name="BTTS tak",
+                        home_goals=2,
+                        away_goals=1,
+                        match_result="1"),
                     _leg_sql_row(
                         leg_id=20,
                         coupon_id=10,
@@ -577,6 +586,9 @@ class TestFetchCoupons(unittest.TestCase):
             ["BTTS tak", "Poniżej 2.5 goli"])
         self.assertEqual(items[0]["legs"][0]["home_name"], "Legia")
         self.assertEqual(items[0]["legs"][0]["away_name"], "Lech")
+        self.assertEqual(items[0]["legs"][0]["home_goals"], 2)
+        self.assertEqual(items[0]["legs"][0]["away_goals"], 1)
+        self.assertEqual(items[0]["legs"][0]["match_result"], "1")
         self.assertIsInstance(items[0]["stake_amount"], float)
         count_query, count_params = cursor.execute.call_args_list[0].args
         self.assertIn("SELECT COUNT(*) AS total", count_query)
@@ -592,6 +604,9 @@ class TestFetchCoupons(unittest.TestCase):
         legs_query, legs_params = cursor.execute.call_args_list[2].args
         self.assertIn("FROM tipster_coupon_legs l", legs_query)
         self.assertIn("LEFT JOIN matches m", legs_query)
+        self.assertIn("m.home_team_goals AS home_goals", legs_query)
+        self.assertIn("m.away_team_goals AS away_goals", legs_query)
+        self.assertIn("m.result AS match_result", legs_query)
         self.assertIn("LEFT JOIN teams t1", legs_query)
         self.assertIn("LEFT JOIN tipster_coupon_leg_events e", legs_query)
         self.assertIn("LEFT JOIN events ev", legs_query)

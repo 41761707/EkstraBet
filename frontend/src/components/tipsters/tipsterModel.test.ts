@@ -17,7 +17,9 @@ import {
   groupCatalogEvents,
   groupCatalogMatches,
   historyEventLabel,
+  couponShapeLabel,
   historyMatchLabel,
+  historyMatchLine,
   isCombinedLeg,
   isMissingTipsterProfileError,
   isOwnerBankroll,
@@ -510,6 +512,28 @@ describe("historyMatchLabel and groupCatalogEvents", () => {
         away_name: null,
       }),
     ).toBe("Mecz 99");
+    expect(
+      historyMatchLine({
+        match_id: 12345,
+        home_name: "Legia",
+        away_name: "Lech",
+        home_goals: 2,
+        away_goals: 1,
+        match_result: "1",
+      }),
+    ).toBe("Legia 2 : 1 Lech");
+    expect(
+      historyMatchLine({
+        match_id: 99,
+        home_name: "Wisła",
+        away_name: "Śląsk",
+        home_goals: 0,
+        away_goals: 0,
+        match_result: "0",
+      }),
+    ).toBe("Wisła – Śląsk");
+    expect(couponShapeLabel(1)).toBe("Singiel");
+    expect(couponShapeLabel(4)).toBe("AKO 4");
     expect(
       historyEventLabel({
         event_ids: [6, 12],

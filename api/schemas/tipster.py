@@ -123,6 +123,13 @@ class CouponLegSummary(BaseModel):
         None, description="Home team name at read time")
     away_name: str | None = Field(
         None, description="Away team name at read time")
+    match_result: str | None = Field(
+        None,
+        description="Match result: 0 not played, 1 home, X draw, 2 away")
+    home_goals: int | None = Field(
+        None, description="Home goals when the match has a result")
+    away_goals: int | None = Field(
+        None, description="Away goals when the match has a result")
     odds: float = Field(..., description="Snapshotted leg odds")
     bookmaker_id: int | None = Field(None, description="Bookmaker ID")
     source: LegSource = Field(..., description="catalog or custom_odds")

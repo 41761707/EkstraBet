@@ -224,7 +224,10 @@ _SELECT_LEGS_FOR_COUPONS = """
         e.event_id,
         ev.name AS event_name,
         t1.name AS home_name,
-        t2.name AS away_name
+        t2.name AS away_name,
+        m.result AS match_result,
+        m.home_team_goals AS home_goals,
+        m.away_team_goals AS away_goals
     FROM tipster_coupon_legs l
     LEFT JOIN matches m ON m.id = l.match_id
     LEFT JOIN teams t1 ON m.home_team = t1.id
@@ -906,7 +909,10 @@ def _group_leg_rows(
                 row["outcome"],
                 row.get("home_name"),
                 row.get("away_name"),
-                [])
+                [],
+                row.get("match_result"),
+                row.get("home_goals"),
+                row.get("away_goals"))
             order_by_coupon.setdefault(coupon_id, []).append(leg_id)
         event_id = row.get("event_id")
         if event_id is not None:
@@ -946,12 +952,18 @@ def _leg_document(
         outcome: object,
         home_name: object = None,
         away_name: object = None,
-        event_names: list[str] | None = None) -> dict[str, Any]:
+        event_names: list[str] | None = None,
+        match_result: object = None,
+        home_goals: object = None,
+        away_goals: object = None) -> dict[str, Any]:
     return {
         "id": leg_id,
         "match_id": match_id,
         "home_name": _as_optional_str(home_name),
         "away_name": _as_optional_str(away_name),
+        "match_result": _as_optional_str(match_result),
+        "home_goals": _as_optional_int(home_goals),
+        "away_goals": _as_optional_int(away_goals),
         "event_ids": event_ids,
         "event_names": list(event_names or []),
         "odds": float(odds),

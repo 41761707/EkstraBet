@@ -571,6 +571,42 @@ export function historyMatchLabel(
   return `Mecz ${leg.match_id}`;
 }
 
+const FINISHED_MATCH_RESULTS = new Set(["1", "X", "2"]);
+
+/** Played match reads as "Home 2 : 1 Away"; an open match keeps the dash. */
+export function historyMatchLine(
+  leg: Pick<
+    CouponLegSummary,
+    | "match_id"
+    | "home_name"
+    | "away_name"
+    | "match_result"
+    | "home_goals"
+    | "away_goals"
+  >,
+): string {
+  const names = historyMatchLabel(leg);
+  if (
+    !FINISHED_MATCH_RESULTS.has(leg.match_result ?? "") ||
+    typeof leg.home_goals !== "number" ||
+    typeof leg.away_goals !== "number"
+  ) {
+    return names;
+  }
+  const score = `${leg.home_goals} : ${leg.away_goals}`;
+  if (leg.home_name && leg.away_name) {
+    return `${leg.home_name} ${score} ${leg.away_name}`;
+  }
+  return `${names} ${score}`;
+}
+
+export function couponShapeLabel(legCount: number): string {
+  if (legCount <= 1) {
+    return "Singiel";
+  }
+  return `AKO ${legCount}`;
+}
+
 export function historyEventLabel(
   leg: Pick<CouponLegSummary, "event_ids" | "event_names">,
 ): string {
@@ -877,32 +913,32 @@ export function couponHistoryStatusLabel(
   return couponOutcomeLabel(settled, outcome);
 }
 
-export function couponStatusClassName(
+export function couponStatusPillClassName(
   settled: number,
   outcome: number | null,
   legs: Array<Pick<CouponLegSummary, "outcome">>,
 ): string {
   const label = couponHistoryStatusLabel(settled, outcome, legs);
   if (label === "Wygrany") {
-    return "text-success";
+    return "border-success-border bg-success-bg text-success-text";
   }
   if (label === "Przegrany") {
-    return "text-danger";
+    return "border-danger-border bg-danger-bg text-danger-text";
   }
   if (label === "W rozliczeniu") {
-    return "text-warning";
+    return "border-warning-border bg-warning-bg text-warning-text";
   }
-  return "text-muted";
+  return "border-border bg-surface-muted text-muted";
 }
 
-export function legOutcomeClassName(outcome: number | null): string {
+export function legOutcomeDotClassName(outcome: number | null): string {
   if (outcome === 1) {
-    return "text-success";
+    return "bg-success";
   }
   if (outcome === 0) {
-    return "text-danger";
+    return "bg-danger";
   }
-  return "text-muted";
+  return "bg-border-strong";
 }
 
 export function signedAmountClassName(value: number | null): string {
