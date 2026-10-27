@@ -237,7 +237,10 @@ Nie kopiuje `predictions.value` ani kursu i nie prowadzi salda.
 Gdy `metrics.json` nie spełnia bramki ze strategii (`max_brier`,
 `max_reliability_error`, `min_roi`), `predict-betting-meta` kończy się
 kodem 1 i nie otwiera zapisu. EB-9 nie dostaje wtedy wierszy tej tabeli
-i zostaje przy własnym selektorze.
+i zostaje przy własnym selektorze. `--allow-unready` na
+`predict-betting-meta` zapisuje werdykty mimo bramki. Ta sama flaga na
+`publish-coupon-agent` bierze z nich `decision = bet`. Bez flagi agent
+zostaje przy własnym selektorze.
 
 ### Filtr modeli
 
@@ -302,10 +305,109 @@ python models/scripts/model_runner.py predict-betting-meta \
   --strategy-config models/configs/prediction/football_betting_strategy_v1.json \
   --artifact-dir models/artifacts/dev/football_betting_meta_v1 \
   --as-of 2026-10-24T22:00:00
+
+python models/scripts/model_runner.py predict-betting-meta \
+  --strategy-config models/configs/prediction/football_betting_strategy_v1.json \
+  --artifact-dir models/artifacts/dev/football_betting_meta_v1 \
+  --as-of 2026-10-24T22:00:00 \
+  --allow-unready
 ```
 
 `--as-of` jest naiwnym czasem ISO. Sama data oznacza północ.
 Komend `snapshot-odds` i `settle-betting-strategy` nie ma.
+
+Procedura publikacji kuponu agenta jest niżej, w sekcji
+[Agent kuponowy (EB-9)](#agent-kuponowy-eb-9).
+
+## Agent kuponowy (EB-9)
+
+Komenda `publish-coupon-agent` składa jeden kupon na dobę dla każdego
+konta z `backend/services/coupon_agent_config.py` (`AGENTS`). Seed to
+`agent-kuponowy`. Nie woła HTTP i nie czyta JWT, więc działa przy
+włączonym `AUTH`. Baza to `DB_*` tego procesu (`get_db_connection()`).
+Nie ma flagi środowiska, ścieżki bazy ani pliku do późniejszego importu.
+
+Domyślnie komenda **zapisuje**. `--dry-run` loguje nogi i score i nie
+robi INSERT. Kolejność jest zawsze ta sama: najpierw dry-run, potem
+zapis. Drugie uruchomienie w tej samej dobie kalendarzowej
+(`Europe/Warsaw`) kończy się `already_published`, bez drugiego kuponu.
+
+Kod 0: każdy agent ma `published`, `already_published` albo `no_bet`.
+Kod 1: błąd I/O albo `missing_user`. Przy `--all` (albo bez
+`--username`, co znaczy to samo) brak jednego konta nie przerywa
+pozostałych; kod 1 jest na końcu.
+
+`--username NAME` publikuje jedno konto. Brak tego konta albo jego
+wiersza `tipster_bankrolls` to `missing_user` i kod 1, zero kuponów.
+
+Pula bez gotowego artefaktu EB-18 zostaje przy własnym selektorze.
+`--allow-unready` zwęża pulę do zapisanych `bet` także wtedy, gdy
+raport nie przechodzi bramki. Agent nie importuje predyktora i nie
+ładuje `model.joblib`.
+
+### Lokal i baza testowa
+
+`DB_*` z `.env` albo ze środowiska bazy testowej. To nie jest produkcja.
+
+```bash
+python models/scripts/model_runner.py publish-coupon-agent --dry-run
+python models/scripts/model_runner.py publish-coupon-agent --dry-run --allow-unready
+python models/scripts/model_runner.py publish-coupon-agent
+```
+
+### Produkcja
+
+Ta sama komenda, na VPS, w katalogu repozytorium, w kontenerze `api`
+z [compose.production.yml](../compose.production.yml). Obraz musi być
+zbudowany z kodu EB-9. Port `3306` zostaje zamknięty. Kontener jest
+read-only: proces czyta kod z obrazu i pisze SQL do usługi `mysql`
+(`DB_HOST=mysql`, `TZ=Europe/Warsaw`). Log idzie na stdout. Konto SQL
+to użytkownik z `/etc/ekstrabet/api.env`, ten sam co API. Drugiego
+użytkownika MySQL pod agenta nie ma.
+
+Nie uruchamiać agenta z laptopa przez tunel ani z hasłem produkcyjnym
+w lokalnym `.env`.
+
+```bash
+docker compose -f compose.production.yml exec -T api \
+  python models/scripts/model_runner.py publish-coupon-agent --dry-run
+
+docker compose -f compose.production.yml exec -T api \
+  python models/scripts/model_runner.py publish-coupon-agent
+```
+
+Zanim padnie zapis bez `--dry-run`:
+
+1. Obraz `api` na VPS jest zbudowany z kodu EB-9. Sam plik na laptopie
+   nie wystarcza.
+2. Na tej samej bazie jest user z `AGENTS` (`agent-kuponowy`,
+   `is_system=1`) i wiersz `tipster_bankrolls`. Sync go nie dowiezie.
+   Brak konta daje `missing_user`, kod 1 i zero kuponów. Konto zakłada
+   się raz, na tej bazie, tą samą ścieżką co inne konta systemowe EB-11.
+3. Na produkcji są przyszłe `final_predictions` i `odds`. Pusta pula
+   daje `no_bet`, kod 0, bez insertu. To stan danych. Predykcji nie
+   dociągamy z laptopa. Najpierw własny przebieg modeli na VPS, potem
+   ponowny dry-run.
+4. Dry-run: w logu nogi i score, w bazie bez zmian.
+5. Uruchomienie bez `--dry-run`.
+6. Kontrola `https://<produkcja>/profile/agent-kuponowy`. Pusty stan
+   to „Historia pojawi się po kuponach tego konta systemowego.”
+   Ranking `/typers` liczy kupon dopiero po rozliczeniu.
+7. Powtórka tego samego dnia (strefa kontenera to `Europe/Warsaw`)
+   daje `already_published`, bez drugiego kuponu.
+
+### Synchronizacja na produkcję
+
+Agent i predykcja meta-modelu lecą na bazie lokalnej. Pełny przebieg
+`scripts/sync/sync_local_to_prod.py` przenosi na produkcję
+`betting_recommendations` (cała tabela, upsert po `id`).
+
+Skrypt `scripts/sync/sync_local_to_prod.py` pomija `users`, `tipster_bankrolls`,
+`tipster_coupons`, `tipster_coupon_legs` i `tipster_coupon_leg_events`.
+Kupony kont systemowych wgrywa
+`scripts/sync/sync_local_coupons_to_prod.py`: po nazwie konta, bez
+kopiowania `id` kuponu. `agent-kuponowy` i jego bankroll muszą już być
+na produkcji. Kierunek jest jeden: lokal do produkcji.
 
 ## Zasady importów
 

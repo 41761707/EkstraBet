@@ -6,36 +6,57 @@ Strategies:
   - append: id > max(id) on prod only
 
 Production MySQL stays private: default transport is SSH + docker compose exec.
-Does not sync users / tipster bankrolls / coupons (handled separately).
+Does not sync users, tipster bankrolls, or tipster coupons
+(coupons, legs, leg events). betting_recommendations are mirrored
+from local on every run. System coupons are copied by
+scripts/sync/sync_local_coupons_to_prod.py, which does not reuse coupon ids.
 """
 
 from __future__ import annotations
 
 import argparse
-import base64
-import getpass
 import os
-import shlex
-import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date
+from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from typing import Protocol
 
 import mysql.connector
 from mysql.connector.connection import MySQLConnection
 
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SYNC_DIR = Path(__file__).resolve().parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+if str(_SYNC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SYNC_DIR))
 
-from backend.timezone import apply_mysql_session_timezone
+import mysql_transport
+from mysql_transport import DbConfig
+from mysql_transport import DirectProdMysql
+from mysql_transport import ProdMysql
+from mysql_transport import SshDockerProdMysql
+from mysql_transport import SshTransportConfig
+from mysql_transport import build_remote_mysql_bash as _build_remote_mysql_bash
+from mysql_transport import configure_stdio_utf8 as _configure_stdio_utf8
+from mysql_transport import connect as _connect
+from mysql_transport import env_value as _env_value
+from mysql_transport import load_env_file as _load_env_file
+from mysql_transport import quote_ident as _quote_ident
+from mysql_transport import resolve_local_db as _resolve_local_db
+from mysql_transport import resolve_prod_direct as _resolve_prod_direct
+from mysql_transport import resolve_ssh_transport as _resolve_ssh_transport
+from mysql_transport import sql_literal as _sql_literal
+from mysql_transport import unix_utf8_bytes as _unix_utf8_bytes
 
-_DEFAULT_DB_NAME = "ekstrabet"
+# Testy łatają subprocess.run na tym module; klient SSH używa tego samego.
+subprocess = mysql_transport.subprocess
+
+
 _DEFAULT_WINDOW_DAYS = 3
 _DEFAULT_BATCH_SIZE = 200
 _EXCLUDED_TABLES = frozenset({
@@ -54,6 +75,7 @@ class SyncKind(str, Enum):
     WINDOW = "window"
     WINDOW_CHILD = "window_child"
     APPEND = "append"
+    MIRROR = "mirror"
 
 
 @dataclass(frozen=True)
@@ -138,38 +160,16 @@ _TABLE_SPECS: tuple[TableSpec, ...] = (
         "player_predictions", SyncKind.WINDOW_CHILD, match_fk="match_id"),
     TableSpec(
         "final_predictions", SyncKind.WINDOW_CHILD, via_predictions=True),
+    # Werdykty meta-modelu. Lokal jest źródłem; prod ich nie liczy.
+    TableSpec("betting_recommendations", SyncKind.MIRROR),
     TableSpec("bets", SyncKind.WINDOW_CHILD, match_fk="match_id"),
     TableSpec(
         "match_model_assessments",
         SyncKind.WINDOW_CHILD,
         match_fk="match_id"),
+    # Kupony i bankroll tipstera są w _EXCLUDED_TABLES.
     # --- append-only ---
     TableSpec("transfers", SyncKind.APPEND))
-
-
-@dataclass(frozen=True)
-class DbConfig:
-    """MySQL connection settings."""
-
-    host: str
-    port: str
-    user: str
-    password: str
-    database: str
-
-
-@dataclass(frozen=True)
-class SshTransportConfig:
-    """SSH + Compose path to production MySQL."""
-
-    ssh_host: str
-    remote_repo: str
-    compose_file: str
-    mysql_service: str
-    remote_mysql_env: str
-    mysql_user: str | None
-    mysql_password: str | None
-    mysql_database: str
 
 
 @dataclass(frozen=True)
@@ -185,292 +185,6 @@ class SyncSettings:
     local_db: DbConfig
     ssh: SshTransportConfig | None
     prod_direct: DbConfig | None
-
-
-class ProdMysql(Protocol):
-    """Production MySQL access (direct or via SSH)."""
-
-    def scalar(self, sql: str) -> Any:
-        """Return a single scalar from a read-only query."""
-
-    def execute_script(self, sql: str) -> None:
-        """Execute one or more SQL statements (writes)."""
-
-
-def _configure_stdio_utf8() -> None:
-    """Configure stdin/stdout/stderr streams to use UTF-8."""
-    for stream in (sys.stdin, sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if callable(reconfigure):
-            reconfigure(encoding="utf-8")
-
-
-def _load_env_file(env_path: Path) -> dict[str, str]:
-    """Load key=value pairs from an env file into a dictionary."""
-    values: dict[str, str] = {}
-    if not env_path.is_file():
-        return values
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip("'").strip('"')
-        if key:
-            values[key] = value
-    return values
-
-
-def _env_value(
-        key: str,
-        file_values: dict[str, str],
-        default: str = "") -> str:
-    """Return a config value from process env, then file, then default."""
-    return os.environ.get(key) or file_values.get(key, default)
-
-
-def _resolve_local_db(file_values: dict[str, str]) -> DbConfig:
-    """Build local MySQL settings from .env / environment."""
-    password = _env_value("DB_PASSWORD", file_values)
-    if not password:
-        password = getpass.getpass("Local MySQL password: ")
-    return DbConfig(
-        host=_env_value("DB_HOST", file_values, "localhost"),
-        port=_env_value("DB_PORT", file_values, "3306"),
-        user=_env_value("DB_USER", file_values, "root"),
-        password=password,
-        database=_env_value("DB_NAME", file_values, _DEFAULT_DB_NAME))
-
-
-def _resolve_prod_direct(file_values: dict[str, str]) -> DbConfig:
-    """Build direct production MySQL settings (tunnel / direct)."""
-    password = _env_value("PROD_DB_PASSWORD", file_values)
-    if not password:
-        password = getpass.getpass("Production MySQL password: ")
-    return DbConfig(
-        host=_env_value("PROD_DB_HOST", file_values, "127.0.0.1"),
-        port=_env_value("PROD_DB_PORT", file_values, "3306"),
-        user=_env_value("PROD_DB_USER", file_values, "root"),
-        password=password,
-        database=_env_value("PROD_DB_NAME", file_values, _DEFAULT_DB_NAME))
-
-
-def _resolve_ssh_transport(file_values: dict[str, str]) -> SshTransportConfig:
-    """Build SSH transport settings for private Compose MySQL."""
-    ssh_host = _env_value("SYNC_SSH_HOST", file_values)
-    remote_repo = _env_value("SYNC_REMOTE_REPO", file_values)
-    if not ssh_host or not remote_repo:
-        raise ValueError(
-            "SYNC_SSH_HOST and SYNC_REMOTE_REPO are required for "
-            "SYNC_TRANSPORT=ssh")
-    return SshTransportConfig(
-        ssh_host=ssh_host,
-        remote_repo=remote_repo,
-        compose_file=_env_value(
-            "SYNC_COMPOSE_FILE", file_values, "compose.production.yml"),
-        mysql_service=_env_value("SYNC_MYSQL_SERVICE", file_values, "mysql"),
-        remote_mysql_env=_env_value(
-            "SYNC_REMOTE_MYSQL_ENV", file_values, "/etc/ekstrabet/mysql.env"),
-        mysql_user=_env_value("SYNC_REMOTE_MYSQL_USER", file_values) or None,
-        mysql_password=(
-            _env_value("SYNC_REMOTE_MYSQL_PASSWORD", file_values) or None),
-        mysql_database=_env_value(
-            "SYNC_REMOTE_MYSQL_DATABASE", file_values, _DEFAULT_DB_NAME))
-
-
-def _connect(db: DbConfig) -> MySQLConnection:
-    """Open a MySQL connection from DbConfig."""
-    conn = mysql.connector.connect(
-        host=db.host,
-        port=int(db.port),
-        user=db.user,
-        password=db.password,
-        database=db.database,
-        charset="utf8mb4",
-        use_unicode=True,
-        autocommit=False)
-    apply_mysql_session_timezone(conn)
-    return conn
-
-
-class DirectProdMysql:
-    """Production access through a direct (or tunneled) TCP connection."""
-
-    def __init__(self, db: DbConfig) -> None:
-        self._db = db
-        self._conn = _connect(db)
-
-    def scalar(self, sql: str) -> Any:
-        """Return a single scalar from a read-only query."""
-        cursor = self._conn.cursor()
-        try:
-            cursor.execute(sql)
-            row = cursor.fetchone()
-            return None if row is None else row[0]
-        finally:
-            cursor.close()
-
-    def execute_script(self, sql: str) -> None:
-        """Execute one or more SQL statements (writes)."""
-        cursor = self._conn.cursor()
-        try:
-            for statement in _split_sql_statements(sql):
-                cursor.execute(statement)
-            self._conn.commit()
-        except Exception:
-            self._conn.rollback()
-            raise
-        finally:
-            cursor.close()
-
-    def close(self) -> None:
-        """Close the underlying connection."""
-        self._conn.close()
-
-
-class SshDockerProdMysql:
-    """Production access via SSH + docker compose exec mysql."""
-
-    def __init__(self, config: SshTransportConfig) -> None:
-        self._config = config
-
-    def scalar(self, sql: str) -> Any:
-        """Return a single scalar from a read-only query."""
-        # -N: bez naglowkow; SQL przez stdin (bezpieczne cudzyslowy)
-        output = self._run_mysql(mysql_extra=["-N"], sql=sql)
-        text = output.strip()
-        if not text or text.upper() == "NULL":
-            return None
-        if text.isdigit() or (text.startswith("-") and text[1:].isdigit()):
-            return int(text)
-        try:
-            return float(text)
-        except ValueError:
-            return text
-
-    def execute_script(self, sql: str) -> None:
-        """Execute one or more SQL statements (writes)."""
-        self._run_mysql(mysql_extra=[], sql=sql)
-
-    def _run_mysql(self, mysql_extra: list[str], sql: str) -> str:
-        """Run mysql client inside the Compose mysql service over SSH."""
-        cfg = self._config
-        remote = _build_remote_mysql_bash(cfg, mysql_extra, sql)
-        command = ["ssh", cfg.ssh_host, "bash", "-s"]
-        # bajty + LF: text=True na Windows wysyla CR LF i psuje pipefail
-        result = subprocess.run(
-            command,
-            input=_unix_utf8_bytes(remote),
-            capture_output=True,
-            check=False)
-        stdout = _decode_ssh_output(result.stdout)
-        stderr = _decode_ssh_output(result.stderr)
-        if result.returncode != 0:
-            detail = (stderr or stdout).strip()
-            raise RuntimeError(
-                f"Remote MySQL via SSH failed (exit {result.returncode}): "
-                f"{detail or 'no details'}")
-        return stdout
-
-
-def _build_remote_mysql_bash(
-        cfg: SshTransportConfig,
-        mysql_extra: list[str],
-        sql: str) -> str:
-    """Build a remote bash snippet that runs mysql in the Compose service."""
-    repo = shlex.quote(cfg.remote_repo)
-    compose = shlex.quote(cfg.compose_file)
-    service = shlex.quote(cfg.mysql_service)
-    env_file = shlex.quote(cfg.remote_mysql_env)
-    database = shlex.quote(cfg.mysql_database)
-    extra = " ".join(shlex.quote(part) for part in mysql_extra)
-    # SQL w base64 — unikamy heredoc/quoting i kolizji ze stdin bash -s
-    encoded = base64.b64encode(sql.encode("utf-8")).decode("ascii")
-    encoded_q = shlex.quote(encoded)
-
-    if cfg.mysql_user and cfg.mysql_password:
-        user = shlex.quote(cfg.mysql_user)
-        # haslo w env sesji bash na VPS, nie w lokalnym ps
-        password_q = shlex.quote(cfg.mysql_password)
-        auth = (
-            f"export MYSQL_USER={user}\n"
-            f"export MYSQL_PWD={password_q}\n")
-    else:
-        auth = (
-            "export MYSQL_USER=root\n"
-            'export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"\n')
-
-    # APP_ORIGIN wymagane przez interpolacje compose.production.yml
-    # MYSQL_PWD musi byc w env: compose exec -e MYSQL_PWD czyta proces
-    script = f"""set -euo pipefail
-set -a
-# shellcheck disable=SC1090
-source {env_file}
-set +a
-export APP_ORIGIN="${{APP_ORIGIN:-https://localhost}}"
-{auth}
-if [ -z "${{MYSQL_PWD}}" ]; then
-  echo "MYSQL_PWD is empty after loading {env_file}" >&2
-  exit 1
-fi
-cd {repo}
-printf '%s' {encoded_q} | base64 -d | docker compose -f {compose} exec -T \\
-  -e MYSQL_PWD \\
-  {service} mysql -u"$MYSQL_USER" {database} {extra}
-"""
-    return script.replace("\r\n", "\n").replace("\r", "\n")
-
-
-def _unix_utf8_bytes(text: str) -> bytes:
-    """Encode text as UTF-8 with LF-only newlines for remote bash."""
-    return text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
-
-
-def _decode_ssh_output(payload: bytes | None) -> str:
-    """Decode captured SSH stdout/stderr as UTF-8 text."""
-    return (payload or b"").decode("utf-8", errors="replace")
-
-
-def _split_sql_statements(sql: str) -> list[str]:
-    """Split a simple multi-statement script on semicolons."""
-    parts: list[str] = []
-    for chunk in sql.split(";"):
-        statement = chunk.strip()
-        if statement:
-            parts.append(statement)
-    return parts
-
-
-def _quote_ident(name: str) -> str:
-    """Quote a MySQL identifier with backticks."""
-    return "`" + name.replace("`", "``") + "`"
-
-
-def _sql_literal(value: Any) -> str:
-    """Render a Python value as a MySQL literal."""
-    if value is None:
-        return "NULL"
-    if isinstance(value, bool):
-        return "1" if value else "0"
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return str(value)
-    if isinstance(value, datetime):
-        return "'" + value.strftime("%Y-%m-%d %H:%M:%S") + "'"
-    if isinstance(value, date):
-        return "'" + value.strftime("%Y-%m-%d") + "'"
-    if isinstance(value, bytes):
-        return "0x" + value.hex()
-    text = str(value)
-    escaped = (
-        text.replace("\\", "\\\\")
-        .replace("'", "''")
-        .replace("\x00", "\\0")
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\x1a", "\\Z"))
-    return "'" + escaped + "'"
 
 
 def build_upsert_sql(
@@ -610,6 +324,19 @@ def _select_dictionary_rows(
     return _fetch_rows(conn, sql, (max_id,))
 
 
+def _select_mirror_rows(
+        conn: MySQLConnection,
+        table: str,
+        columns: list[str],
+        pk_column: str) -> list[tuple[Any, ...]]:
+    """Select every local row. Production is updated to match."""
+    col_sql = ", ".join(_quote_ident(column) for column in columns)
+    sql = (
+        f"SELECT {col_sql} FROM {_quote_ident(table)} "
+        f"ORDER BY {_quote_ident(pk_column)}")
+    return _fetch_rows(conn, sql)
+
+
 def _select_append_rows(
         conn: MySQLConnection,
         table: str,
@@ -747,6 +474,9 @@ def sync_table(
     elif spec.kind == SyncKind.WINDOW_CHILD:
         rows = _select_window_child_rows(
             local, spec, columns, pk_column, max_id, cutoff)
+    elif spec.kind == SyncKind.MIRROR:
+        rows = _select_mirror_rows(
+            local, spec.name, columns, pk_column)
     else:
         raise RuntimeError(f"Unhandled sync kind: {spec.kind}")
 

@@ -490,6 +490,34 @@ def test_explicit_strategy_is_not_replaced_by_the_file(
     assert passed.football_sport_name == "Custom Football"
 
 
+def test_unready_model_writes_when_the_gate_is_optional(
+        ready_artifact: Path,
+        tmp_path: Path) -> None:
+    _copy_artifact(ready_artifact, tmp_path)
+    (tmp_path / "metrics.json").write_text(
+        json.dumps({"brier": 0.9, "reliability": 0.2, "roi": -0.5}),
+        encoding="utf-8")
+    store = _Store()
+    frame = _frame(_candidate_row())
+    with (
+            patch.object(
+                recommendation,
+                "fetch_candidates",
+                return_value=frame),
+            patch.object(
+                recommendation,
+                "get_db_connection",
+                _connect(store))):
+        blocked = run_betting_predict(tmp_path, _AS_OF)
+        allowed = run_betting_predict(
+            tmp_path,
+            _AS_OF,
+            require_ready=False)
+    assert blocked == PredictReport(0, 0, 0)
+    assert allowed.inserted_count == 1
+    assert len(store.inserted) == 1
+
+
 def test_unready_model_writes_nothing(tmp_path: Path) -> None:
     with (
             patch.object(recommendation, "fetch_candidates") as fetch,

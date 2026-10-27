@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+
+import pytest
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -49,6 +51,22 @@ def test_sql_literal_and_upsert_batch() -> None:
     assert "(1, '1', 2), (2, 'X', 0)" in sql
 
 
+def test_coupon_tables_stay_out_of_sync() -> None:
+    """Coupons, legs, leg events and bankrolls are never selected."""
+    mod = _load_module()
+    blocked = (
+        "tipster_coupons",
+        "tipster_coupon_legs",
+        "tipster_coupon_leg_events",
+        "tipster_bankrolls")
+    names = [spec.name for spec in mod._selected_specs(None)]
+    for table in blocked:
+        assert table in mod._EXCLUDED_TABLES
+        assert table not in names
+    with pytest.raises(ValueError, match="Unknown or excluded"):
+        mod._selected_specs(frozenset({"tipster_coupons"}))
+
+
 def test_window_cutoff_days() -> None:
     """Window cutoff should be today minus configured days."""
     mod = _load_module()
@@ -56,7 +74,7 @@ def test_window_cutoff_days() -> None:
 
 
 def test_excluded_and_table_order() -> None:
-    """Users/tipster tables stay excluded; dictionaries precede matches."""
+    """Users, bankrolls and coupons stay excluded from the sync list."""
     mod = _load_module()
     names = [spec.name for spec in mod._selected_specs(None)]
     assert "users" not in names
@@ -71,6 +89,9 @@ def test_excluded_and_table_order() -> None:
     assert names.index("hockey_match_events") < names.index(
         "hockey_player_game_ratings")
     assert names.index("predictions") < names.index("final_predictions")
+    assert names.index("odds") < names.index("betting_recommendations")
+    assert names.index("predictions") < names.index(
+        "betting_recommendations")
 
 
 def _sample_ssh_config(mod):
@@ -120,6 +141,27 @@ def test_run_mysql_sends_binary_lf_stdin() -> None:
     assert b"\r" not in payload
     assert payload.startswith(b"set -euo pipefail\n")
     assert value == 1
+
+
+def test_execute_script_skips_mariadb_abort_flag() -> None:
+    """Oracle mysql:8.4 rejects MariaDB-only --abort-source-on-error."""
+    mod = _load_module()
+    captured: dict[str, object] = {}
+
+    def fake_run(*_args, **kwargs):
+        captured["input"] = kwargs.get("input")
+        return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+
+    prod = mod.SshDockerProdMysql(_sample_ssh_config(mod))
+    with patch.object(mod.subprocess, "run", fake_run):
+        prod.execute_script(
+            "START TRANSACTION; SELECT 1; COMMIT;",
+            abort_on_error=True)
+
+    payload = captured["input"]
+    assert isinstance(payload, bytes)
+    assert b"abort-source-on-error" not in payload
+    assert b"--force" not in payload
 
 
 def test_remote_bash_exports_explicit_mysql_password() -> None:

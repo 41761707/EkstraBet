@@ -369,16 +369,59 @@ def test_unready_artifact_exits_without_inserting(tmp_path: Path) -> None:
     assert "wrote no recommendations" in str(payload["error"])
 
 
+def test_allow_unready_predicts_when_the_gate_fails(
+        tmp_path: Path) -> None:
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    (artifact / "metrics.json").write_text(
+        json.dumps({"brier": 0.9, "reliability": 0.2, "roi": -0.5}),
+        encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def _predict(
+            artifact_dir: Path,
+            as_of: datetime,
+            strategy: object = None,
+            require_ready: bool = True) -> PredictReport:
+        seen["require_ready"] = require_ready
+        seen["artifact_dir"] = artifact_dir
+        seen["as_of"] = as_of
+        seen["strategy"] = strategy
+        return PredictReport(
+            inserted_count=1,
+            skipped_existing_count=0,
+            rejected_count=0)
+
+    with patch.object(commands, "run_betting_predict", side_effect=_predict):
+        code, payload, _raw = _run([
+            "predict-betting-meta",
+            "--strategy-config",
+            str(_STRATEGY),
+            "--artifact-dir",
+            str(artifact),
+            "--as-of",
+            "2026-08-01T12:00:00",
+            "--allow-unready"])
+    assert code == 0
+    assert payload["result"]["inserted_count"] == 1
+    assert seen["require_ready"] is False
+    assert seen["artifact_dir"] == artifact
+    assert seen["as_of"] == datetime(2026, 8, 1, 12, 0)
+    assert seen["strategy"].football_sport_name == "Piłka nożna"
+
+
 def test_predict_reports_inserted_and_skipped_pairs(tmp_path: Path) -> None:
     seen: dict[str, object] = {}
 
     def _predict(
             artifact_dir: Path,
             as_of: datetime,
-            strategy: object = None) -> PredictReport:
+            strategy: object = None,
+            require_ready: bool = True) -> PredictReport:
         seen["artifact_dir"] = artifact_dir
         seen["as_of"] = as_of
         seen["strategy"] = strategy
+        seen["require_ready"] = require_ready
         return PredictReport(
             inserted_count=2,
             skipped_existing_count=1,
@@ -407,3 +450,4 @@ def test_predict_reports_inserted_and_skipped_pairs(tmp_path: Path) -> None:
     assert seen["artifact_dir"] == tmp_path
     assert seen["as_of"] == datetime(2026, 8, 1, 12, 0)
     assert seen["strategy"].football_sport_name == "Piłka nożna"
+    assert seen["require_ready"] is True

@@ -130,22 +130,25 @@ def write_recommendations(
 def run_betting_predict(
         artifact_dir: Path,
         as_of: datetime,
-        strategy: BettingStrategyConfig | None = None) -> PredictReport:
+        strategy: BettingStrategyConfig | None = None,
+        require_ready: bool = True) -> PredictReport:
     """Score missing future pairs and insert their verdicts.
 
-    The artifact is not trained. When the report gate fails, the
-    result is all zeros and no write connection is opened. A model
-    file whose digest disagrees with ``meta.json`` stops the run
-    before any read of pairs. ``strategy`` selects the pool and the
-    gate. Omitting it loads the football strategy file.
+    The artifact is not trained. When the report gate fails and
+    ``require_ready`` is true, the result is all zeros and no write
+    connection is opened. ``require_ready`` false still writes, so a
+    weak report can be inspected. A model file whose digest disagrees
+    with ``meta.json`` stops the run before any read of pairs.
+    ``strategy`` selects the pool and the gate. Omitting it loads the
+    football strategy file.
     """
     directory = Path(artifact_dir)
     moment = _require_as_of(as_of)
     selected = _require_strategy(strategy)
+    if not isinstance(require_ready, bool):
+        raise ValueError("require_ready must be a bool")
     predictor = BettingMetaPredictor(directory, selected)
-    if not predictor.check_model_ready():
-        logger.info(
-            "Betting artifact is not ready; wrote no recommendations")
+    if not _ready_or_allowed(predictor, require_ready):
         return _empty_report()
     digest = _require_file_fingerprint(directory)
     report = _predict_ready(predictor, digest, moment, selected)
@@ -155,6 +158,26 @@ def run_betting_predict(
         report.skipped_existing_count,
         report.rejected_count)
     return report
+
+
+def _ready_or_allowed(
+        predictor: BettingMetaPredictor,
+        require_ready: bool) -> bool:
+    """Return whether this run may write verdicts.
+
+    A failed gate stops the write when readiness is required. The same
+    failure is only a warning when the caller asked to keep going.
+    """
+    if predictor.check_model_ready():
+        return True
+    if require_ready:
+        logger.info(
+            "Betting artifact is not ready; wrote no recommendations")
+        return False
+    logger.warning(
+        "Betting artifact failed the readiness gate; "
+        "writing recommendations anyway")
+    return True
 
 
 def _predict_ready(

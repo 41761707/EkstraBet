@@ -10,12 +10,13 @@ import warnings
 from dataclasses import asdict, is_dataclass
 from datetime import date
 from datetime import datetime
-from typing import NamedTuple
 from pathlib import Path
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import NamedTuple
 from typing import Sequence
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -25,12 +26,15 @@ from backend.config import REPO_ROOT
 from backend.database import get_db_connection
 from backend.repositories.model_statistics_maintenance_repository import (
     BetGenerationScope)
+from backend.services.coupon_agent_service import PublishBatchReport
+from backend.services.coupon_agent_service import publish_daily
 from backend.services.model_statistics_maintenance_service import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_PREVIEW_LIMIT,
     StatisticsRefreshReport,
     refresh_model_statistics,
     replace_changed_finals)
+from backend.timezone import WARSAW_TIME_ZONE
 from models.pipeline.betting.commands import run_backtest_betting_strategy
 from models.pipeline.betting.commands import run_build_betting_dataset
 from models.pipeline.betting.commands import run_evaluate_betting_meta
@@ -452,6 +456,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable debug logging")
     _add_betting_parsers(subparsers)
+    _add_coupon_agent_parser(subparsers)
     return parser
 
 
@@ -487,6 +492,12 @@ def _add_betting_parsers(
         required=True,
         type=_parse_betting_as_of,
         help="Naive ISO datetime; only a later kickoff is scored")
+    predict_parser.add_argument(
+        "--allow-unready",
+        action="store_true",
+        help=(
+            "Write verdicts even when metrics.json fails the "
+            "strategy gate. The coupon agent still ignores them"))
     predict_parser.add_argument(
         "--verbose",
         action="store_true",
@@ -537,6 +548,61 @@ def _parse_betting_as_of(value: str) -> datetime:
     if parsed.tzinfo is not None:
         raise argparse.ArgumentTypeError("as-of must be a naive datetime")
     return parsed
+
+
+def _parse_coupon_as_of(value: str) -> datetime:
+    """Parse an ISO date or datetime. An offset is kept."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "as-of must be an ISO date or datetime") from exc
+    return parsed
+
+
+def _add_coupon_agent_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register publish-coupon-agent. The database is process DB_*."""
+    parser = subparsers.add_parser(
+        "publish-coupon-agent",
+        help="Publish one daily coupon per configured system agent",
+        description=(
+            "Reads the candidate pool and writes tipster coupons "
+            "through get_db_connection() using DB_* of this process. "
+            "There is no database-path argument and no file to import "
+            "later. The command does not call HTTP and does not read "
+            "a JWT."))
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--username",
+        default=None,
+        help=(
+            "Publish this AGENTS username only. "
+            "Omit to publish every agent"))
+    group.add_argument(
+        "--all",
+        dest="publish_all",
+        action="store_true",
+        help=(
+            "Publish every agent in AGENTS "
+            "(same as omitting --username)"))
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Log legs and score per agent; do not insert a coupon")
+    parser.add_argument(
+        "--as-of",
+        type=_parse_coupon_as_of,
+        default=None,
+        help=(
+            "ISO date or datetime for the Warsaw clock. "
+            "Must be the current Warsaw day. Default: now"))
+    parser.add_argument(
+        "--allow-unready",
+        action="store_true",
+        help=(
+            "Build the coupon from stored bet rows even when "
+            "metrics.json fails the strategy gate"))
 
 
 def _parse_match_ids(raw: str | None) -> list[int]:
@@ -1787,11 +1853,65 @@ def _predict_one_hockey_match(
     return report, rows
 
 
+_COUPON_AGENT_OK = frozenset({
+    "published",
+    "already_published",
+    "no_bet"})
+
+
+def _coupon_agent_now() -> datetime:
+    """Return the current Warsaw time for an omitted --as-of."""
+    return datetime.now(ZoneInfo(WARSAW_TIME_ZONE))
+
+
+def run_publish_coupon_agent(
+        args: argparse.Namespace) -> PublishBatchReport:
+    """Publish one calendar day. No HTTP, no JWT, no import file."""
+    as_of = args.as_of
+    if as_of is None:
+        as_of = _coupon_agent_now()
+    # Brak --username i --all to ta sama pętla. Ścieżka bazy zostaje
+    # w repozytoriach (get_db_connection), nie w argumentach komendy.
+    username = args.username
+    allow_unready = bool(getattr(args, "allow_unready", False))
+    logger.info(
+        "publish-coupon-agent username=%s dry_run=%s as_of=%s "
+        "allow_unready=%s",
+        username if username is not None else "*",
+        bool(args.dry_run),
+        as_of.isoformat(),
+        allow_unready)
+    return publish_daily(
+        as_of,
+        username=username,
+        dry_run=bool(args.dry_run),
+        allow_unready=allow_unready)
+
+
+def _coupon_agent_exit_code(report: PublishBatchReport) -> int:
+    """Return 1 when any agent is missing or the status is unknown.
+
+    I/O never reaches this helper: it propagates and ``main`` exits 1.
+    A batch ``missing_user`` still lists every agent, then exits 1.
+    """
+    failed = [
+        item.username
+        for item in report.reports
+        if item.status not in _COUPON_AGENT_OK]
+    if not failed:
+        return 0
+    logger.error(
+        "publish-coupon-agent failed username=%s",
+        ",".join(failed))
+    return 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI main used by models/scripts/model_runner.py."""
     parser = build_parser()
     args = parser.parse_args(argv)
     _configure_logging(bool(getattr(args, "verbose", False)))
+    exit_code = 0
 
     try:
         if args.command == "train":
@@ -1829,6 +1949,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_backtest_betting_strategy(args)
         elif args.command == "predict-betting-meta":
             payload = run_predict_betting_meta(args)
+        elif args.command == "publish-coupon-agent":
+            payload = run_publish_coupon_agent(args)
+            exit_code = _coupon_agent_exit_code(payload)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:
@@ -1837,10 +1960,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     print(json.dumps(
-        {"ok": True, "result": _json_value(payload)},
+        {"ok": exit_code == 0, "result": _json_value(payload)},
         default=str,
         indent=2))
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

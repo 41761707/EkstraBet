@@ -243,14 +243,28 @@ def get_suggested_catalog_odds(
     return {"odds": _quantize_suggested_odds(raw)}
 
 
+def quantize_catalog_odds(raw: float) -> float:
+    """Round a bookmaker price to two decimal places, half up.
+
+    MySQL FLOAT returns 1.01 as a value just below 1.01. The coupon
+    writer rejects that raw price, so callers round before the check.
+    """
+    return float(_two_place_price(raw))
+
+
 def _quantize_suggested_odds(raw: float | None) -> float | None:
     if raw is None or not math.isfinite(raw) or raw < MIN_ODDS:
         return None
-    quantized = Decimal(str(raw)).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP)
+    quantized = _two_place_price(raw)
     if quantized < Decimal(str(MIN_ODDS)):
         return None
     return float(quantized)
+
+
+def _two_place_price(raw: float) -> Decimal:
+    """Quantize a price to 0.01 with half-up rounding."""
+    return Decimal(str(raw)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _resolve_stake(

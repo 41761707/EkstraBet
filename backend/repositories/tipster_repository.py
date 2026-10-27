@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -191,6 +192,24 @@ _SELECT_COUPON_BY_ID = f"""
     FROM tipster_coupons
     WHERE id = %s
     LIMIT 1
+"""
+
+# Półotwarte okno doby. LEFT JOIN zostawia kupon bez nóg, żeby
+# limit dzienny liczył sam wiersz, nie tylko kompletne zdarzenia.
+_SELECT_COUPON_LEGS_BETWEEN = """
+    SELECT
+        c.id AS coupon_id,
+        l.match_id AS match_id,
+        e.event_id AS event_id
+    FROM tipster_coupons c
+    LEFT JOIN tipster_coupon_legs l
+        ON l.coupon_id = c.id
+    LEFT JOIN tipster_coupon_leg_events e
+        ON e.leg_id = l.id
+    WHERE c.user_id = %s
+        AND c.created_at >= %s
+        AND c.created_at < %s
+    ORDER BY c.id, l.id, e.event_id
 """
 
 _SELECT_LEGS_FOR_COUPONS = """
@@ -574,6 +593,39 @@ def fetch_coupons(
             legs_by_coupon.get(int(row["id"]), []))
         for row in coupon_rows]
     return items, total
+
+
+def fetch_coupon_leg_sets_between(
+        user_id: int,
+        start: datetime,
+        end: datetime) -> list[frozenset[tuple[int, int]]]:
+    """Return one ``(match_id, event_id)`` set per coupon in ``[start, end)``.
+
+    A coupon with no legs contributes an empty set, so the daily cap
+    still sees the row. Callers use the list length as that cap and
+    set membership as the same-slip duplicate lock.
+    """
+    rows = _fetch_all(
+        _SELECT_COUPON_LEGS_BETWEEN, (user_id, start, end))
+    return _group_leg_sets(rows)
+
+
+def _group_leg_sets(
+        rows: list[dict[str, Any]]) -> list[frozenset[tuple[int, int]]]:
+    """Collapse leg rows into one pair-set per coupon id."""
+    order: list[int] = []
+    pairs: dict[int, set[tuple[int, int]]] = {}
+    for row in rows:
+        coupon_id = int(row["coupon_id"])
+        if coupon_id not in pairs:
+            pairs[coupon_id] = set()
+            order.append(coupon_id)
+        match_id = row.get("match_id")
+        event_id = row.get("event_id")
+        if match_id is None or event_id is None:
+            continue
+        pairs[coupon_id].add((int(match_id), int(event_id)))
+    return [frozenset(pairs[coupon_id]) for coupon_id in order]
 
 
 def fetch_open_legs_for_finished_matches() -> pd.DataFrame:
