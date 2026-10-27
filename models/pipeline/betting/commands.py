@@ -126,17 +126,23 @@ def run_backtest_betting_strategy(args: object) -> dict[str, object]:
 
 
 def run_predict_betting_meta(args: object) -> PredictReport:
-    """Insert missing future verdicts. An unready artifact writes none."""
+    """Insert missing future verdicts. An unready artifact writes none.
+
+    ``--allow-unready`` writes the verdicts anyway. The coupon agent
+    still ignores an artifact that fails the gate.
+    """
     strategy = load_betting_strategy_config(_strategy_path(args))
     artifact_dir = _artifact_dir(args)
+    allow_unready = _allow_unready(args)
     predictor = BettingMetaPredictor(artifact_dir, strategy)
     # Bramka jest przed zapisem. Sam raport zerowy kończyłby się kodem 0.
-    if not predictor.check_model_ready():
+    if not predictor.check_model_ready() and not allow_unready:
         raise ValueError(_NOT_READY)
     return run_betting_predict(
         artifact_dir,
         _naive(getattr(args, "as_of")),
-        strategy)
+        strategy,
+        require_ready=not allow_unready)
 
 
 def _configs(
@@ -298,6 +304,11 @@ def _strategy_path(args: object) -> Path:
 
 def _artifact_dir(args: object) -> Path:
     return Path(getattr(args, "artifact_dir"))
+
+
+def _allow_unready(args: object) -> bool:
+    """Return the CLI override. Callers without the flag stay gated."""
+    return bool(getattr(args, "allow_unready", False))
 
 
 def _naive_now() -> datetime:

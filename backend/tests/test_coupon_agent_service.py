@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import inspect
+import json
 import unittest
 from contextlib import ExitStack
 from contextlib import contextmanager
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -32,6 +35,8 @@ _ACCOUNT_ROW = {"user_id": 9, "username": "agent-kuponowy"}
 _UNSET = object()
 
 _FETCH = "backend.services.coupon_agent_service.fetch_candidates"
+_BETS = "backend.services.coupon_agent_service.fetch_ready_bets"
+_GATE = "backend.services.coupon_agent_service.ready_model_fingerprint"
 _ACCOUNT = "backend.services.coupon_agent_service.get_by_username"
 _SETS = (
     "backend.services.coupon_agent_service."
@@ -92,7 +97,9 @@ def _patched(
         max_per_day: int | None = None,
         create_return: dict[str, int] | None = None,
         create_side_effect: object = None,
-        now: datetime | None = None) -> Iterator[dict[str, MagicMock]]:
+        now: datetime | None = None,
+        fingerprint: str | None = None,
+        real_gate: bool = False) -> Iterator[dict[str, MagicMock]]:
     """Patch I/O around one ``publish_daily`` call."""
     if frame is None:
         frame = _frame()
@@ -114,6 +121,9 @@ def _patched(
         create_patch = patch(_CREATE, return_value=create_return)
     with ExitStack() as stack:
         fetch = stack.enter_context(patch(_FETCH, return_value=frame))
+        bets = stack.enter_context(patch(_BETS, return_value=frame))
+        if not real_gate:
+            stack.enter_context(patch(_GATE, return_value=fingerprint))
         account_mock = stack.enter_context(account_patch)
         sets_mock = stack.enter_context(
             patch(_SETS, return_value=sets))
@@ -125,6 +135,7 @@ def _patched(
         stack.enter_context(patch(_NOW, return_value=now))
         yield {
             "fetch": fetch,
+            "bets": bets,
             "account": account_mock,
             "sets": sets_mock,
             "create": create}
@@ -144,6 +155,8 @@ class TestAgentConfig(unittest.TestCase):
         source = inspect.getsource(service)
         self.assertNotIn("joblib", source)
         self.assertNotIn("model.joblib", source)
+        self.assertNotIn("predictor", source.lower())
+        self.assertNotIn("BettingMetaPredictor", source)
 
 
 class TestPublishHappyPath(unittest.TestCase):
@@ -400,5 +413,87 @@ class TestPublishDryRunAndNoBet(unittest.TestCase):
         mocks["account"].assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
+_DIGEST = "ab" * 32
+
+
+class TestVerdictPool(unittest.TestCase):
+    """A ready artifact replaces the baseline. A bad report does not."""
+
+    def test_ready_digest_reads_bet_rows_and_keeps_the_stake(self) -> None:
+        with _patched(fingerprint=_DIGEST) as mocks:
+            batch = publish_daily(_AS_OF)
+        self.assertEqual(batch.reports[0].status, "published")
+        mocks["fetch"].assert_not_called()
+        mocks["bets"].assert_called_once_with(_DIGEST, _AS_OF)
+        request = mocks["create"].call_args.args[1]
+        self.assertEqual(request["stake_units"], 1.0)
+
+    def test_missing_digest_does_not_read_verdicts(self) -> None:
+        with _patched() as mocks:
+            publish_daily(_AS_OF)
+        mocks["fetch"].assert_called_once()
+        mocks["bets"].assert_not_called()
+
+    def test_allow_unready_reads_bet_rows_when_the_gate_fails(self) -> None:
+        with self._artifact(
+                {"brier": 0.9, "reliability": 0.01, "roi": 0.1},
+                {"model_fingerprint": _DIGEST}) as mocks:
+            batch = publish_daily(_AS_OF, allow_unready=True)
+        self.assertEqual(batch.reports[0].status, "published")
+        mocks["fetch"].assert_not_called()
+        mocks["bets"].assert_called_once_with(_DIGEST, _AS_OF)
+
+    def test_failed_gate_ignores_an_older_digest(self) -> None:
+        with self._artifact(
+                {"brier": 0.9, "reliability": 0.01, "roi": 0.1},
+                {"model_fingerprint": _DIGEST}) as mocks:
+            batch = publish_daily(_AS_OF)
+        self.assertEqual(batch.reports[0].status, "published")
+        mocks["fetch"].assert_called_once()
+        mocks["bets"].assert_not_called()
+
+    def test_broken_metrics_json_still_publishes(self) -> None:
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            (directory / "metrics.json").write_text("{", encoding="utf-8")
+            (directory / "meta.json").write_text(
+                json.dumps({"model_fingerprint": _DIGEST}),
+                encoding="utf-8")
+            with patch.object(
+                    agent_config,
+                    "BETTING_ARTIFACT_DIR",
+                    directory), _patched(real_gate=True) as mocks:
+                batch = publish_daily(_AS_OF)
+        self.assertEqual(batch.reports[0].status, "published")
+        mocks["fetch"].assert_called_once()
+        mocks["bets"].assert_not_called()
+        mocks["create"].assert_called_once()
+
+    def _artifact(
+            self,
+            metrics: dict[str, float],
+            meta: dict[str, str]) -> Iterator[dict[str, MagicMock]]:
+        """Point the real gate at one temporary report."""
+        # Kontekst ma żyć przez cały publish, więc katalog kasujemy
+        # dopiero po wyjściu z menedżera.
+        holder = TemporaryDirectory()
+        directory = Path(holder.name)
+        (directory / "metrics.json").write_text(
+            json.dumps(metrics),
+            encoding="utf-8")
+        (directory / "meta.json").write_text(
+            json.dumps(meta),
+            encoding="utf-8")
+
+        @contextmanager
+        def _open() -> Iterator[dict[str, MagicMock]]:
+            try:
+                with patch.object(
+                        agent_config,
+                        "BETTING_ARTIFACT_DIR",
+                        directory), _patched(real_gate=True) as mocks:
+                    yield mocks
+            finally:
+                holder.cleanup()
+
+        return _open()

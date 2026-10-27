@@ -76,10 +76,11 @@ def select_coupon(
         cfg: SelectorConfig) -> CouponSelection:
     """Pick one coupon, or ``no_bet`` when nothing legal remains.
 
-    At most one leg per match. The product of prices cannot exceed
-    ``max_combined_odds``. The coupon score is the sum of leg scores
-    minus ``leg_penalty`` for every leg after the first. A mean of the
-    same scores would always keep a single leg.
+    At most one leg per match and at most ``max_legs`` legs. The
+    product of prices cannot exceed ``max_combined_odds``. The coupon
+    score is the sum of leg scores minus ``leg_penalty`` for every
+    leg after the first. A mean of the same scores would always keep
+    a single leg.
     """
     pool = _prepare_pool(candidates, cfg)
     if not pool:

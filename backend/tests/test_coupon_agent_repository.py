@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import inspect
+import json
 import unittest
 from datetime import datetime, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -13,7 +16,10 @@ from backend.repositories import coupon_agent_repository as repository
 from backend.repositories.coupon_agent_repository import (
     CANDIDATE_COLUMNS,
     MAX_CANDIDATES,
-    fetch_candidates)
+    fetch_candidates,
+    fetch_ready_bets,
+    ready_model_fingerprint)
+from backend.services import coupon_agent_config as agent_config
 
 
 _NOW = datetime(2026, 10, 25, 12, 0)
@@ -253,6 +259,190 @@ class TestFetchCandidatesRows(unittest.TestCase):
     def test_rejects_a_non_positive_horizon(self) -> None:
         with self.assertRaises(ValueError):
             fetch_candidates(_NOW, horizon_days=0)
+
+
+_DIGEST = "ab" * 32
+_OTHER = "cd" * 32
+_PASSING_METRICS = {"brier": 0.2, "reliability": 0.01, "roi": 0.1}
+
+
+def _ready_row(**overrides: object) -> dict[str, object]:
+    row = _raw_row()
+    row.pop("probability_pct")
+    row["calibrated_probability"] = 0.62
+    row.update(overrides)
+    return row
+
+
+class TestReadyBetsQuery(unittest.TestCase):
+    """A ready digest reads only its own bet rows."""
+
+    def test_query_filters_decision_and_fingerprint(self) -> None:
+        captured: dict[str, object] = {}
+
+        def _read_sql(
+                query: str,
+                params: tuple[object, ...]) -> pd.DataFrame:
+            captured["query"] = query
+            captured["params"] = params
+            columns = list(repository._READY_SQL_COLUMNS)
+            return pd.DataFrame(columns=columns)
+
+        with patch.object(repository, "_read_sql", side_effect=_read_sql):
+            frame = fetch_ready_bets(_DIGEST, _NOW, horizon_days=3)
+        self.assertTrue(frame.empty)
+        self.assertEqual(list(frame.columns), list(CANDIDATE_COLUMNS))
+        text = _sql(str(captured["query"]))
+        self.assertIn("FROM betting_recommendations br", text)
+        self.assertIn("br.decision = %s", text)
+        self.assertIn("br.model_fingerprint = %s", text)
+        self.assertIn("ON o.id = br.odds_id", text)
+        self.assertNotIn("final_predictions", text)
+        self.assertNotIn("ROW_NUMBER()", text)
+        params = tuple(captured["params"])
+        self.assertEqual(params[0], _NOW)
+        self.assertEqual(params[1], _NOW + timedelta(days=3))
+        self.assertEqual(params[-2:], ("bet", _DIGEST))
+        self.assertNotIn(_OTHER, params)
+
+    def test_query_is_select_only(self) -> None:
+        source = inspect.getsource(repository)
+        self.assertNotIn("joblib", source)
+        self.assertNotIn("model.joblib", source)
+        self.assertNotIn("predictor", source.lower())
+        upper = source.upper()
+        for word in _WRITE_WORDS:
+            self.assertNotIn(word, upper)
+
+    def test_short_digest_does_not_query(self) -> None:
+        with patch.object(repository, "_read_sql") as read:
+            with self.assertRaises(ValueError):
+                fetch_ready_bets("abc", _NOW)
+        read.assert_not_called()
+
+    def test_calibrated_probability_replaces_the_stored_percent(self) -> None:
+        row = _ready_row(probability_pct=10.0, odds=2.0)
+        frame = self._fetch([row])
+        self.assertEqual(len(frame), 1)
+        self.assertAlmostEqual(
+            float(frame["model_probability"].iloc[0]), 0.62)
+        self.assertAlmostEqual(
+            float(frame["implied_probability"].iloc[0]), 0.5)
+        self.assertAlmostEqual(float(frame["value_edge_pp"].iloc[0]), 12.0)
+
+    def test_drops_closed_ends_and_unsettleable_events(self) -> None:
+        frame = self._fetch([
+            _ready_row(match_id=1, calibrated_probability=0.0),
+            _ready_row(match_id=2, calibrated_probability=1.0),
+            _ready_row(
+                match_id=3,
+                event_id=173,
+                event_name="Dokładna liczba goli",
+                calibrated_probability=0.6),
+            _ready_row(match_id=4, calibrated_probability=0.4, odds=3.5)])
+        self.assertEqual(list(frame["match_id"]), [4])
+        self.assertAlmostEqual(
+            float(frame["model_probability"].iloc[0]), 0.4)
+
+    def _fetch(self, rows: list[dict[str, object]]) -> pd.DataFrame:
+        def _read_sql(
+                _query: str,
+                _params: tuple[object, ...]) -> pd.DataFrame:
+            return pd.DataFrame(rows)
+
+        with patch.object(repository, "_read_sql", side_effect=_read_sql):
+            return fetch_ready_bets(_DIGEST, _NOW)
+
+
+class TestArtifactGate(unittest.TestCase):
+    """The gate reads this artifact only. A failure keeps the baseline."""
+
+    def test_passing_report_returns_its_digest(self) -> None:
+        with self._report(_PASSING_METRICS, _DIGEST) as directory:
+            with patch.object(
+                    agent_config, "BETTING_ARTIFACT_DIR", directory):
+                with self.assertNoLogs(repository.logger, level="WARNING"):
+                    found = ready_model_fingerprint()
+        self.assertEqual(found, _DIGEST)
+
+    def test_allow_unready_returns_the_digest_when_the_gate_fails(self) -> None:
+        metrics = {"brier": 0.9, "reliability": 0.01, "roi": 0.1}
+        with self._report(metrics, _DIGEST) as directory:
+            with patch.object(
+                    agent_config, "BETTING_ARTIFACT_DIR", directory):
+                with self.assertLogs(
+                        repository.logger, level="WARNING") as captured:
+                    found = ready_model_fingerprint(allow_unready=True)
+        self.assertEqual(found, _DIGEST)
+        text = "\n".join(captured.output)
+        self.assertIn("stored bet rows", text)
+        self.assertNotIn("could not read", text)
+
+    def test_failed_gate_does_not_return_the_stored_digest(self) -> None:
+        metrics = {"brier": 0.9, "reliability": 0.01, "roi": 0.1}
+        with self._report(metrics, _DIGEST, broken_meta=True) as directory:
+            with patch.object(
+                    agent_config, "BETTING_ARTIFACT_DIR", directory):
+                with self.assertLogs(
+                        repository.logger, level="WARNING") as captured:
+                    found = ready_model_fingerprint()
+        self.assertIsNone(found)
+        text = "\n".join(captured.output)
+        self.assertIn("not ready", text)
+        self.assertNotIn("could not read", text)
+
+    def test_broken_metrics_json_returns_none(self) -> None:
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            (directory / "metrics.json").write_text("{", encoding="utf-8")
+            with patch.object(
+                    agent_config, "BETTING_ARTIFACT_DIR", directory):
+                with self.assertLogs(
+                        repository.logger, level="WARNING") as captured:
+                    found = ready_model_fingerprint()
+        self.assertIsNone(found)
+        self.assertIn("could not read", "\n".join(captured.output))
+
+    def test_missing_artifact_returns_none(self) -> None:
+        with TemporaryDirectory() as raw:
+            missing = Path(raw) / "absent"
+            with patch.object(
+                    agent_config, "BETTING_ARTIFACT_DIR", missing):
+                found = ready_model_fingerprint()
+        self.assertIsNone(found)
+
+    def _report(
+            self,
+            metrics: dict[str, float],
+            digest: str,
+            broken_meta: bool = False):
+        """Yield a directory with one metrics file and one meta file."""
+        holder = TemporaryDirectory()
+        directory = Path(holder.name)
+        (directory / "metrics.json").write_text(
+            json.dumps(metrics),
+            encoding="utf-8")
+        if broken_meta:
+            (directory / "meta.json").write_text("{", encoding="utf-8")
+        else:
+            (directory / "meta.json").write_text(
+                json.dumps({"model_fingerprint": digest}),
+                encoding="utf-8")
+        self.addCleanup(holder.cleanup)
+        return _kept(directory)
+
+
+class _kept:
+    """Minimal context manager around an already created directory."""
+
+    def __init__(self, directory: Path) -> None:
+        self.directory = directory
+
+    def __enter__(self) -> Path:
+        return self.directory
+
+    def __exit__(self, *args: object) -> None:
+        return None
 
 
 if __name__ == "__main__":

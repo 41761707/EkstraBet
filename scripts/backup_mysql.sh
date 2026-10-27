@@ -167,6 +167,7 @@ compose exec -T \
   mysqldump \
   -u"${MYSQL_BACKUP_USER}" \
   --single-transaction \
+  --no-tablespaces \
   --routines \
   --triggers \
   --events \

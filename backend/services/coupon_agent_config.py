@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.config import REPO_ROOT
 
-# Sufit fazy testowej: kupon ma się mieścić w iloczynie 5, nie gonić
+
+# Sufit fazy testowej: najwyżej 4 nogi i iloczyn kursów 5, nie gonić
 # longshota. Kara 0.10 (zamiast 0.05) odcina słabą nogę, która mieści
 # się w suficie, ale prawie nic nie wnosi. Dwa kursy 2.0 (iloczyn 4)
 # nadal mogą wejść razem. Dwa kursy 3.0 (iloczyn 9) nie wejdą.
@@ -15,12 +17,12 @@ from dataclasses import dataclass
 class SelectorConfig:
     """Limits and weights for one pass of the coupon selector.
 
-    ``max_combined_odds`` is a hard ceiling on the product of leg
-    prices. ``leg_penalty`` is subtracted once per leg after the first
-    from the sum of leg scores.
+    ``max_legs`` is the hard cap on legs. ``max_combined_odds`` is a
+    hard ceiling on the product of leg prices. ``leg_penalty`` is
+    subtracted once per leg after the first from the sum of leg scores.
     """
 
-    max_legs: int = 8
+    max_legs: int = 4
     min_legs: int = 1
     max_candidates: int = 200
     beam_width: int = 500
@@ -54,3 +56,12 @@ class AgentSpec:
 # Seed EB-11. Kolejny agent to nowy users + bankroll + wpis tutaj.
 AGENTS: list[AgentSpec] = [
     AgentSpec("agent-kuponowy")]
+
+# Katalog EB-18. Bramka jest w strategy JSON (Brier, reliability, ROI).
+# Brak katalogu albo raport poza bramką zostawia pulę predykcja–kurs.
+BETTING_ARTIFACT_DIR = (
+    REPO_ROOT / "models" / "artifacts" / "dev"
+    / "football_betting_meta_v1")
+BETTING_STRATEGY_PATH = (
+    REPO_ROOT / "models" / "configs" / "prediction"
+    / "football_betting_strategy_v1.json")

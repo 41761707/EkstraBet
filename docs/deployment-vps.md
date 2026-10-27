@@ -447,7 +447,7 @@ Potem: checklista sekcji 10 → backup (11) → runbook / DNS (12).
 ### 9.5 Cykliczny sync lokal → produkcja
 
 Po pierwszym imporcie (9.2) scrapery nadal piszą do bazy lokalnej. Skrypt
-[scripts/sync_local_to_prod.py](../scripts/sync_local_to_prod.py) dogania produkcję
+[scripts/sync/sync_local_to_prod.py](../scripts/sync/sync_local_to_prod.py) dogania produkcję
 **bez** otwierania MySQL na świat (SSH + `docker compose exec`).
 
 Strategie:
@@ -456,7 +456,22 @@ Strategie:
 - **mecze**: okno `game_date` (domyślnie 3 dni) **oraz** nowe `id`
 - **dzieci meczów** (`odds`, stats, `predictions`, …): to samo okno przez `match_id`
 - **append-only** (`transfers`): tylko `id > max(id)`
-- **wykluczone**: `users`, `tipster_bankrolls`, `tipster_coupons`, `tipster_coupon_legs`, `tipster_coupon_leg_events`
+- **lustro** (`betting_recommendations`): cały lokal przy każdym przebiegu
+- **wykluczone**: `users`, `tipster_bankrolls`, `tipster_coupons`, `tipster_coupon_legs`, `tipster_coupon_leg_events` (tych tabel ogólny sync nie rusza)
+
+Kupony kont systemowych (`users.is_system = 1`) przenosi osobny skrypt
+[scripts/sync/sync_local_coupons_to_prod.py](../scripts/sync/sync_local_coupons_to_prod.py).
+Dopasowanie jest po nazwie użytkownika, dniu `created_at` i zestawie
+mecz + zdarzenia. Nowy kupon dostaje `id` z autoincrement produkcji.
+Znany kupon dostaje aktualizację stawki i rozliczenia. Bankroll się nie
+kopiuje — konto systemowe i jego bankroll muszą już być na produkcji.
+Ludzkie kupony skrypt pomija.
+
+```bash
+python scripts/sync/sync_local_coupons_to_prod.py
+python scripts/sync/sync_local_coupons_to_prod.py --apply
+python scripts/sync/sync_local_coupons_to_prod.py --apply --username agent-kuponowy
+```
 
 Konfiguracja: skopiuj [deploy/sync.env.example](../deploy/sync.env.example)
 do `deploy/sync.env` (w `.gitignore`) i uzupełnij `SYNC_SSH_HOST` /
@@ -464,13 +479,13 @@ do `deploy/sync.env` (w `.gitignore`) i uzupełnij `SYNC_SSH_HOST` /
 
 ```bash
 # z maszyny deweloperskiej (dry-run — tylko zlicza wiersze)
-python scripts/sync_local_to_prod.py
+python scripts/sync/sync_local_to_prod.py
 
 # zapis na produkcję
-python scripts/sync_local_to_prod.py --apply
+python scripts/sync/sync_local_to_prod.py --apply
 
 # pelny reconcile slownikow + węższe/szersze okno
-python scripts/sync_local_to_prod.py --apply --full-dict --window-days 3
+python scripts/sync/sync_local_to_prod.py --apply --full-dict --window-days 3
 ```
 
 Transport `direct` (tunel `ssh -L`) ustawia się przez `SYNC_TRANSPORT=direct`

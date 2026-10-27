@@ -194,7 +194,7 @@ class TestCombinedOddsCeiling(unittest.TestCase):
 
 
 class TestCouponShape(unittest.TestCase):
-    """One leg per match, at most eight, stable across input order."""
+    """One leg per match, at most max_legs, stable across input order."""
 
     def test_empty_pool_is_no_bet(self) -> None:
         selection = select_coupon([], _CFG)
@@ -235,12 +235,15 @@ class TestCouponShape(unittest.TestCase):
         self.assertAlmostEqual(forward.score, backward.score)
         self.assertAlmostEqual(forward.combined_odds, backward.combined_odds)
 
-    def test_max_legs_stops_at_eight_even_when_odds_still_fit(self) -> None:
+    def test_max_legs_stops_at_the_cap_even_when_odds_still_fit(self) -> None:
         legs = [
             _candidate(match_id=index, odds=1.10, model_probability=0.88)
             for index in range(1, 11)]
         selection = select_coupon(list(reversed(legs)), _CFG)
-        self.assertEqual(_ids(selection), list(range(1, 9)))
+        self.assertEqual(
+            _ids(selection),
+            list(range(1, _CFG.max_legs + 1)))
+        self.assertEqual(len(selection.legs), _CFG.max_legs)
         self.assertLessEqual(selection.combined_odds, _CFG.max_combined_odds)
 
     def test_selector_module_has_no_io(self) -> None:

@@ -11,6 +11,9 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from backend.repositories.coupon_agent_repository import fetch_candidates
+from backend.repositories.coupon_agent_repository import fetch_ready_bets
+from backend.repositories.coupon_agent_repository import (
+    ready_model_fingerprint)
 from backend.repositories.tipster_repository import (
     fetch_coupon_leg_sets_between)
 from backend.repositories.tipster_repository import get_by_username
@@ -57,16 +60,17 @@ class PublishBatchReport:
 
 
 class _CandidatePool:
-    """Load the shared prediction-odds frame at most once per call."""
+    """Load the shared candidate frame at most once per call."""
 
-    def __init__(self, now: datetime) -> None:
+    def __init__(self, now: datetime, allow_unready: bool) -> None:
         self._now = now
+        self._allow_unready = allow_unready
         self._rows: list[AgentCandidate] | None = None
 
     def load(self) -> list[AgentCandidate]:
         """Return candidates, fetching them on the first call only."""
         if self._rows is None:
-            frame = fetch_candidates(self._now)
+            frame = _selector_frame(self._now, self._allow_unready)
             self._rows = _candidates_from_frame(frame)
         return self._rows
 
@@ -74,7 +78,8 @@ class _CandidatePool:
 def publish_daily(
         as_of: datetime,
         username: str | None = None,
-        dry_run: bool = False) -> PublishBatchReport:
+        dry_run: bool = False,
+        allow_unready: bool = False) -> PublishBatchReport:
     """Publish one coupon per configured agent for the Warsaw day.
 
     ``username`` None publishes every entry in ``AGENTS``. A name
@@ -84,7 +89,12 @@ def publish_daily(
     ``dry_run`` logs legs and score and does not insert. ``as_of``
     only confirms the current Warsaw day. The candidate pool, the
     idempotency window and the stored stamp all use the same clock.
+    A ready EB-18 artifact narrows that pool to stored ``bet`` rows.
+    ``allow_unready`` uses those rows even when the report fails the
+    gate. Stake stays ``stake_units`` from the agent config.
     """
+    if not isinstance(allow_unready, bool):
+        raise ValueError("allow_unready must be a bool")
     wall = _warsaw_wall_time(as_of)
     _require_current_warsaw_day(wall)
     # Pula startuje od teraz, nie od godziny as_of. Katalog zapisu
@@ -92,7 +102,7 @@ def publish_daily(
     # nie wchodzi w kupon i nie urywa reszty agentów.
     now = _warsaw_now()
     specs = _specs_for(username)
-    pool = _CandidatePool(now)
+    pool = _CandidatePool(now, allow_unready)
     day_start, day_end = _calendar_day_bounds(now)
     strict = username is not None
     reports = [
@@ -100,6 +110,24 @@ def publish_daily(
             spec, pool, day_start, day_end, dry_run, strict)
         for spec in specs]
     return PublishBatchReport(reports=reports)
+
+
+def _selector_frame(
+        now: datetime,
+        allow_unready: bool) -> pd.DataFrame:
+    """Return bet verdicts when the artifact may be used.
+
+    ``None`` means the report failed or could not be read. That path
+    does not query verdicts. ``allow_unready`` still reads the stored
+    digest after a failed gate.
+    """
+    fingerprint = ready_model_fingerprint(allow_unready=allow_unready)
+    if fingerprint is None:
+        return fetch_candidates(now)
+    logger.info(
+        "coupon agent pool=betting_recommendations fingerprint=%s",
+        fingerprint)
+    return fetch_ready_bets(fingerprint, now)
 
 
 def _specs_for(username: str | None) -> list[agent_config.AgentSpec]:
