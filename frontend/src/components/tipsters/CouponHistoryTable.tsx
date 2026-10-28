@@ -92,6 +92,29 @@ interface CouponHistoryCardProps {
 }
 
 function CouponHistoryCard({ coupon, currency }: CouponHistoryCardProps) {
+  return (
+    <article className="overflow-hidden rounded-xl border border-border bg-surface-raised">
+      {/* Rozliczony kupon startuje zwinięty; otwarty zostaje rozwinięty. */}
+      <details className="group" open={coupon.settled === 0}>
+        <summary
+          className={
+            "cursor-pointer list-none p-4 transition " +
+            "hover:bg-surface-muted/40 [&::-webkit-details-marker]:hidden"
+          }
+        >
+          <CouponHistoryHeader coupon={coupon} currency={currency} />
+        </summary>
+        <ul className="mx-4 mb-4 divide-y divide-border border-t border-border">
+          {coupon.legs.map((leg) => (
+            <HistoryLeg key={leg.id} leg={leg} />
+          ))}
+        </ul>
+      </details>
+    </article>
+  );
+}
+
+function CouponHistoryHeader({ coupon, currency }: CouponHistoryCardProps) {
   const created = coupon.created_at
     ? formatMatchDateTime(coupon.created_at)
     : "—";
@@ -101,42 +124,71 @@ function CouponHistoryCard({ coupon, currency }: CouponHistoryCardProps) {
     coupon.legs,
   );
   return (
-    <article className="rounded-xl border border-border bg-surface-raised p-4">
-      <header className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-text">
-              {couponShapeLabel(coupon.legs.length)}
-            </h3>
-            <time className="text-xs text-muted">{created}</time>
-            <span
-              className={
-                "rounded-full border px-2 py-0.5 text-xs font-medium " +
-                couponStatusPillClassName(
-                  coupon.settled,
-                  coupon.outcome,
-                  coupon.legs,
-                )
-              }
-            >
-              {statusLabel}
-            </span>
-          </div>
-          <CouponStakeLine coupon={coupon} currency={currency} />
+    <header className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-text">
+            {couponShapeLabel(coupon.legs.length)}
+          </h3>
+          <time className="text-xs text-muted">{created}</time>
+          <span
+            className={
+              "rounded-full border px-2 py-0.5 text-xs font-medium " +
+              couponStatusPillClassName(
+                coupon.settled,
+                coupon.outcome,
+                coupon.legs,
+              )
+            }
+          >
+            {statusLabel}
+          </span>
+          <CouponLegOutcomeDots legs={coupon.legs} />
         </div>
-        <div className="shrink-0 text-right">
+        <CouponStakeLine coupon={coupon} currency={currency} />
+      </div>
+      <div className="flex shrink-0 items-start gap-3">
+        <div className="text-right">
           <p className="text-xl font-semibold tabular-nums text-text">
             {formatCouponCombinedOdds(coupon)}
           </p>
           <p className="text-xs text-muted">Kurs</p>
         </div>
-      </header>
-      <ul className="mt-3 divide-y divide-border border-t border-border">
-        {coupon.legs.map((leg) => (
-          <HistoryLeg key={leg.id} leg={leg} />
-        ))}
-      </ul>
-    </article>
+        <span
+          className={
+            "mt-1 inline-block text-lg leading-none text-success " +
+            "transition group-open:rotate-180"
+          }
+          aria-hidden="true"
+        >
+          ▾
+        </span>
+      </div>
+    </header>
+  );
+}
+
+function CouponLegOutcomeDots({ legs }: { legs: CouponLegSummary[] }) {
+  if (legs.length === 0) {
+    return null;
+  }
+  const summary = legs.map((leg) => legOutcomeLabel(leg.outcome)).join(", ");
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      aria-label={`Wyniki zdarzeń: ${summary}`}
+    >
+      {legs.map((leg) => (
+        <span
+          key={leg.id}
+          className={
+            "h-2.5 w-2.5 shrink-0 rounded-full " +
+            legOutcomeDotClassName(leg.outcome)
+          }
+          title={legOutcomeLabel(leg.outcome)}
+        />
+      ))}
+    </span>
   );
 }
 

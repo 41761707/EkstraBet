@@ -105,6 +105,44 @@ describe("CouponHistoryTable", () => {
     expect(html).toContain("Strona 1 z 2 (21 wyników)");
   });
 
+  it("expands open coupons and collapses settled ones", () => {
+    const openCoupon = sampleCoupon({ id: 1 });
+    const settledCoupon = sampleCoupon({
+      id: 2,
+      settled: 1,
+      outcome: 1,
+      profit: 14.74,
+      legs: [
+        { ...openCoupon.legs[0], id: 81, outcome: 1 },
+        { ...openCoupon.legs[1], id: 82, outcome: 1 },
+        { ...openCoupon.legs[0], id: 83, match_id: 3, outcome: 0 },
+        { ...openCoupon.legs[1], id: 84, match_id: 4, outcome: 1 },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      <CouponHistoryTable
+        coupons={samplePage({
+          items: [openCoupon, settledCoupon],
+          total: 2,
+        })}
+        currency="PLN"
+        profilePath="/profile/alice"
+        searchParams={{}}
+      />,
+    );
+
+    const details = html.match(/<details\b[^>]*>/g) ?? [];
+    expect(details).toHaveLength(2);
+    expect(details[0]).toMatch(/\sopen(=|>|\s)/);
+    expect(details[1]).not.toMatch(/\sopen(=|>|\s)/);
+    expect(html).toContain("Wyniki zdarzeń: Przegrany, Otwarty");
+    expect(html).toContain(
+      "Wyniki zdarzeń: Wygrany, Wygrany, Przegrany, Wygrany",
+    );
+    expect(html).toContain("text-success transition group-open:rotate-180");
+    expect(html).toContain("Legia 2 : 1 Lech");
+  });
+
   it("uses public copy for an empty system profile history", () => {
     const html = renderToStaticMarkup(
       <CouponHistoryTable
