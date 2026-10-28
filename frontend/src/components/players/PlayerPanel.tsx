@@ -204,7 +204,7 @@ function PlayerPanelLoadedBody({
         playerRole={playerRole}
         summary={data.summary}
         averageRating={
-          sportId === HOCKEY_SPORT_ID
+          isHockeyResponse(data)
             ? averageStoredRating(data.matches)
             : undefined
         }
@@ -233,7 +233,7 @@ function PlayerPanelLoadedBody({
                 playerName={playerName}
                 thresholdLine={threshold}
                 points={playerChartPoints(
-                  chartMatches,
+                  isHockeyResponse(data) ? chartMatches as HockeyPlayerMatchStat[] : chartMatches as FootballPlayerMatchStat[],
                   statKey,
                   teamNameDisplay,
                 )}
