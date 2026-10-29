@@ -693,7 +693,7 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
 
     @patch(
         f"{_SERVICE}.get_suggested_catalog_odds",
-        return_value={"odds": 2.2})
+        return_value={"odds": 2.2, "bookmaker_id": 4})
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_suggested_odds_returns_stored_price(
             self,
@@ -704,7 +704,9 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
             headers=self._auth_headers(),
             params={"match_id": 124426, "event_id": 1})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"odds": 2.2})
+        self.assertEqual(
+            response.json(),
+            {"odds": 2.2, "bookmaker_id": 4})
         mock_suggest.assert_called_once_with(124426, 1)
 
     @patch(f"{_SERVICE}.get_leaderboard")

@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from backend.config import REPO_ROOT
 
 
-# Sufit fazy testowej: najwyżej 4 nogi i iloczyn kursów 5, nie gonić
-# longshota. Kara 0.10 (zamiast 0.05) odcina słabą nogę, która mieści
+# Sufit fazy testowej: najwyżej 4 zdarzenia i iloczyn kursów 5, nie gonić
+# longshota. Kara 0.10 (zamiast 0.05) odcina słabe zdarzenie, które mieści
 # się w suficie, ale prawie nic nie wnosi. Dwa kursy 2.0 (iloczyn 4)
 # nadal mogą wejść razem. Dwa kursy 3.0 (iloczyn 9) nie wejdą.
 

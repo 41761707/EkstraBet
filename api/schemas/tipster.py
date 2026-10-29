@@ -426,6 +426,10 @@ class SuggestedCatalogOdds(BaseModel):
         description=(
             "Best bookmaker odds when a prediction exists; "
             "the client may edit this value"))
+    bookmaker_id: int | None = Field(
+        None,
+        description=(
+            "Bookmaker of the odds row chosen as the default price"))
 
 
 class CatalogMatchesResponse(BaseModel):

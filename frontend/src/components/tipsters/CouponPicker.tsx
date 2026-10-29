@@ -21,7 +21,7 @@ export const EVENT_SEARCH_LABEL = "Szukaj zdarzenia";
 export const CATALOG_DATE_LABEL = "Data";
 export const ALL_LEAGUES_LABEL = "Wszystkie ligi";
 export const CATALOG_UPCOMING_HINT =
-  "Katalog pokazuje tylko mecze, które jeszcze się nie rozpoczęły.";
+  "Katalog przedstawia tylko nierozpoczęte mecze.";
 export const FAVORITES_UNAVAILABLE_HINT =
   "Nie udało się wczytać ulubionych lig — mecze ze wszystkich lig z wybranej daty.";
 const CATALOG_CHECKBOX_CLASS_NAME =

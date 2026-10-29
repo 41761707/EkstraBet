@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   addFavoriteLeague,
+  adviseMyStake,
   createAdminLeague,
   createAdminUser,
   createMyCoupon,
@@ -1143,6 +1144,53 @@ describe("tipster client", () => {
     expect(JSON.parse(String(init.body))).toEqual(request);
   });
 
+  it("POSTs stake advice through the BFF without placing a coupon", async () => {
+    const payload = {
+      advice: {
+        suggested_stake: 12.5,
+        suggested_units: 1.25,
+        kelly_fraction: 0.04,
+        p_blend: 0.42,
+        combined_odds: 1.9,
+        no_bet: false,
+        reason: "ok",
+        legs: [],
+        limits_applied: [],
+      },
+      currency: "PLN",
+      current_balance: 1000,
+      unit_size: 10,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    stubBrowserFetch(fetchMock);
+
+    const request = {
+      confidence: 70,
+      legs: [
+        {
+          match_id: 10,
+          event_ids: [1],
+          odds: 1.9,
+          source: "catalog" as const,
+          bookmaker_id: null,
+        },
+      ],
+    };
+    await expect(adviseMyStake(request)).resolves.toEqual(payload);
+    const [requested, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(requested).toContain("/api/backend/tipsters/me/advise-stake");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual(request);
+  });
+
   it("GETs the catalog with league ids through the BFF", async () => {
     const payload = { matches: [], events: [] };
     const fetchMock = vi.fn().mockResolvedValue(
@@ -1168,7 +1216,7 @@ describe("tipster client", () => {
   });
 
   it("GETs suggested catalog odds through the BFF", async () => {
-    const payload = { odds: 2.2 };
+    const payload = { odds: 2.2, bookmaker_id: 4 };
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(payload), {
         status: 200,

@@ -1492,11 +1492,13 @@ class TestFetchSuggestedCatalogOdds(unittest.TestCase):
             self,
             mock_get_conn: MagicMock) -> None:
         _conn, cursor = _mock_connection(
-            mock_get_conn, row={"odds": 2.2})
-        odds = repo.fetch_suggested_catalog_odds(124426, 1, 1.01)
-        self.assertEqual(odds, 2.2)
+            mock_get_conn, row={"odds": 2.2, "bookmaker_id": 4})
+        found = repo.fetch_suggested_catalog_odds(124426, 1, 1.01)
+        self.assertEqual(
+            found, {"odds": 2.2, "bookmaker_id": 4})
         query, params = cursor.execute.call_args.args
         self.assertIn("FROM odds o", query)
+        self.assertIn("o.bookmaker AS bookmaker_id", query)
         self.assertIn("FROM predictions p", query)
         self.assertIn("ORDER BY o.odds DESC, o.id ASC", query)
         self.assertEqual(params, (124426, 1, 1.01))

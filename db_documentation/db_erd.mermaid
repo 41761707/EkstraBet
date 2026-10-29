@@ -77,7 +77,7 @@ erDiagram
     PLAYERS ||--o{ PLAYER_PREDICTIONS : "PLAYER_ID"
     PLAYERS ||--o{ TRANSFERS : "PLAYER_ID"
 
-    %% Kupony typerów (bankroll i nogi na users)
+    %% Kupony typerów (bankroll i zdarzenia na users)
     USERS ||--o| TIPSTER_BANKROLLS : "USER_ID"
     USERS ||--o{ TIPSTER_COUPONS : "USER_ID"
     TIPSTER_COUPONS ||--o{ TIPSTER_COUPON_LEGS : "COUPON_ID"

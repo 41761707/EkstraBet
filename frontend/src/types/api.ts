@@ -2065,6 +2065,43 @@ export interface CouponCreateRequest {
   legs: CouponLegCreate[];
 }
 
+/** Body for POST /tipsters/me/advise-stake. Same legs as coupon create. */
+export interface AdviseStakeRequest {
+  confidence: number;
+  legs: CouponLegCreate[];
+}
+
+/** One blended leg. Probabilities stay on the 0-1 scale. */
+export interface LegAdvice {
+  match_id: number;
+  event_ids: number[];
+  model_probability: number | null;
+  implied_probability: number;
+  agent_liked: boolean;
+  p_used: number;
+}
+
+/** Stake suggestion. A zero stake with no_bet is a valid answer. */
+export interface StakeAdvice {
+  suggested_stake: number;
+  suggested_units: number;
+  kelly_fraction: number;
+  p_blend: number;
+  combined_odds: number;
+  no_bet: boolean;
+  reason: string;
+  legs: LegAdvice[];
+  limits_applied: string[];
+}
+
+/** Advice plus bankroll context. The endpoint does not write a coupon. */
+export interface AdviseStakeResponse {
+  advice: StakeAdvice;
+  currency: CurrencyCode;
+  current_balance: number;
+  unit_size: number;
+}
+
 /** Persisted coupon leg with nested catalog event IDs. */
 export interface CouponLegSummary {
   id: number;
@@ -2205,6 +2242,7 @@ export interface CatalogEvent {
 /** Default price for one catalog event; null when the database has none. */
 export interface SuggestedCatalogOdds {
   odds: number | null;
+  bookmaker_id: number | null;
 }
 
 /** Matches and settleable events as separate lists. */

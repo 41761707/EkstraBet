@@ -5,6 +5,7 @@ import { addIsoCalendarDays, getWarsawDateIso, normalizeWarsawNaiveDateTime } fr
 import { formatMatchDateTime, formatOdds } from "@/lib/format";
 import { parseBoolean, parseIdList, parsePositiveInt } from "@/lib/searchParams";
 import type {
+  AdviseStakeRequest,
   BankrollSettings,
   CatalogEvent,
   CatalogMatch,
@@ -15,6 +16,7 @@ import type {
   CurrencyCode,
   LeaderboardSortBy,
   LeaderboardSortOrder,
+  LegAdvice,
   PerformanceItem,
   PublicBankroll,
   StakeInputMode,
@@ -36,6 +38,18 @@ export const TIPSTER_BETTING_TAX_RATE = 0.12;
 export const APPLY_TAX_LABEL = "Uwzględnij podatek 12%";
 export const APPLY_TAX_HINT =
   "Zaznaczone: wygrana liczona od 88% stawki, przegrana od pełnej kwoty.";
+export const ASK_STAKE_ADVICE_LABEL = "Poproś o sugestię dotyczącą stawki";
+export const STAKE_ADVICE_CONFIDENCE_LABEL = "Twoja pewność kuponu wyrażona w procentach";
+export const APPLY_STAKE_ADVICE_LABEL = "Zastosuj";
+export const STAKE_ADVICE_NO_AGENT_LABEL =
+  "Agent systemowy nie grał tych zdarzeń.";
+export const STAKE_ADVICE_EMPTY_LEGS_HINT =
+  "Dodaj zdarzenie, żeby przeliczyć podpowiedź.";
+export const STAKE_ADVICE_LOADING_LABEL = "Przeliczanie podpowiedzi…";
+export const DEFAULT_STAKE_CONFIDENCE = 50;
+export const STAKE_ADVICE_DEBOUNCE_MS = 400;
+export const STAKE_ADVICE_NETWORK_ERROR =
+  "Nie udało się policzyć rady. Spróbuj ponownie.";
 
 const GENERIC_TIPSTER_SAVE_ERROR =
   "Nie udało się zapisać. Spróbuj ponownie.";
@@ -78,6 +92,7 @@ export interface DraftCouponLeg {
   matchId: number;
   eventIds: number[];
   odds: string;
+  bookmakerId?: number | null;
 }
 
 export type DraftLegMutationError = "duplicate_event" | "max_legs";
@@ -441,7 +456,7 @@ export function addEventToDraftLegs(
     return {
       legs: legs.map((leg) =>
         leg.matchId === matchId
-          ? { ...leg, eventIds: nextEventIds, odds: "" }
+          ? { matchId: leg.matchId, eventIds: nextEventIds, odds: "" }
           : leg,
       ),
     };
@@ -468,7 +483,7 @@ export function removeEventFromDraftLegs(
       if (eventIds.length === leg.eventIds.length) {
         return leg;
       }
-      return { ...leg, eventIds, odds: "" };
+      return { matchId: leg.matchId, eventIds, odds: "" };
     })
     .filter((leg) => leg.eventIds.length > 0);
 }
@@ -478,7 +493,13 @@ export function updateDraftLegOdds(
   matchId: number,
   odds: string,
 ): DraftCouponLeg[] {
-  return legs.map((leg) => (leg.matchId === matchId ? { ...leg, odds } : leg));
+  return legs.map((leg) => {
+    if (leg.matchId !== matchId) {
+      return leg;
+    }
+    // własny kurs nie jest już wierszem podpowiedzi
+    return { matchId: leg.matchId, eventIds: leg.eventIds, odds };
+  });
 }
 
 /**
@@ -490,6 +511,7 @@ export function applySuggestedLegOdds(
   matchId: number,
   eventId: number,
   odds: string,
+  bookmakerId: number | null,
 ): DraftCouponLeg[] {
   return legs.map((leg) => {
     if (leg.matchId !== matchId || leg.odds.trim() !== "") {
@@ -498,7 +520,15 @@ export function applySuggestedLegOdds(
     if (isCombinedLeg(leg.eventIds) || leg.eventIds[0] !== eventId) {
       return leg;
     }
-    return { ...leg, odds };
+    if (bookmakerId === null) {
+      return { matchId: leg.matchId, eventIds: leg.eventIds, odds };
+    }
+    return {
+      matchId: leg.matchId,
+      eventIds: leg.eventIds,
+      odds,
+      bookmakerId,
+    };
   });
 }
 
@@ -554,11 +584,148 @@ export function buildCouponCreateRequest(
   };
 }
 
+const STAKE_ADVICE_REASONS = [
+  "no_bet_low_edge",
+  "no_prediction",
+  "model_not_ready",
+  "ok",
+] as const;
+
+type StakeAdviceReason = (typeof STAKE_ADVICE_REASONS)[number];
+
+const STAKE_ADVICE_REASON_LABELS: Record<StakeAdviceReason, string> = {
+  no_bet_low_edge:
+    "Werdykt modeli nie wskazuje na przewagę nad kursem " +
+    "(wyższy kurs od przewidywanego prawdopodobieństwa). " +
+    "Sugerowana stawka to 0.",
+  no_prediction:
+    "Żadne zdarzenie nie ma opublikowanego modelu. " +
+    "Sugestia opiera się tylko i wyłącznie na wprowadzonej pewności i kursie.",
+  model_not_ready:
+    "UWAGA: Model jest w fazie testów i nie spełnia wszystkich kryteriów. " +
+    "Sugestia bazuje na zwykłej predykcji.",
+  ok: "Jest dodatnia rada stawki.",
+};
+
+const UNKNOWN_STAKE_ADVICE_REASON = "Nieznana odpowiedź systemu.";
+
+export const AKO_STAKE_ASSUMPTION =
+  "Kupon AKO: pewność kuponu to iloczyn pewności poszczególnych zdarzeń.";
+
+export const COMBINED_LEG_ASSUMPTION =
+  "Zdarzenie łączone: prawdopodobieństwo modelu to iloczyn zdarzeń z meczu.";
+
+export interface StakeAdviceAgentLine {
+  key: string;
+  label: string;
+}
+
+/** Polish copy for the advisor reason code. Unknown codes stay non-blocking. */
+export function stakeAdviceReasonLabel(reason: string): string {
+  if (isStakeAdviceReason(reason)) {
+    return STAKE_ADVICE_REASON_LABELS[reason];
+  }
+  return UNKNOWN_STAKE_ADVICE_REASON;
+}
+
+/**
+ * Body for POST /tipsters/me/advise-stake.
+ * Legs match coupon create; stake fields stay out of this payload.
+ */
+export function buildAdviseStakeRequest(
+  legs: DraftCouponLeg[],
+  confidence: number,
+): AdviseStakeRequest | { error: string } {
+  if (!Number.isInteger(confidence) || confidence < 0 || confidence > 100) {
+    return { error: "Pewność musi być liczbą całkowitą od 0 do 100." };
+  }
+  if (legs.length < 1 || legs.length > MAX_COUPON_LEGS) {
+    return { error: "Kupon musi mieć od 1 do 8 zdarzeń." };
+  }
+  const parsedLegs = parseDraftLegs(legs);
+  if (!Array.isArray(parsedLegs)) {
+    return parsedLegs;
+  }
+  return { confidence, legs: parsedLegs };
+}
+
+/** Gate for the debounced POST. A disabled checkbox never builds a body. */
+export function stakeAdviceRequestOrNull(
+  enabled: boolean,
+  legs: DraftCouponLeg[],
+  confidence: number,
+): AdviseStakeRequest | null {
+  // wyłączony checkbox nie może wysłać rady, nawet gdy zdarzenia są kompletne
+  if (!enabled) {
+    return null;
+  }
+  const request = buildAdviseStakeRequest(legs, confidence);
+  if ("error" in request) {
+    return null;
+  }
+  return request;
+}
+
+/** Combined legs and AKO coupons use a product the panel should say out loud. */
+export function stakeAdviceAssumptions(legs: DraftCouponLeg[]): string[] {
+  const notes: string[] = [];
+  if (legs.some((leg) => isCombinedLeg(leg.eventIds))) {
+    notes.push(COMBINED_LEG_ASSUMPTION);
+  }
+  if (legs.length > 1) {
+    notes.push(AKO_STAKE_ASSUMPTION);
+  }
+  return notes;
+}
+
+/** Joint blended probability shown as a percent with one decimal. */
+export function formatStakeAdviceProbability(pBlend: number): string {
+  return `${(pBlend * 100).toFixed(1)}%`;
+}
+
+/** Suggested units, two decimals, same width as money. */
+export function formatStakeAdviceUnits(units: number): string {
+  return units.toFixed(2);
+}
+
+/** Money field text after Zastosuj. The coupon save still uses this string. */
+export function formatAppliedAdviceStake(stake: number): string {
+  return quantizeTipsterAmount(stake).toFixed(2);
+}
+
+function isStakeAdviceReason(reason: string): reason is StakeAdviceReason {
+  return STAKE_ADVICE_REASONS.some((code) => code === reason);
+}
+
 export function catalogEventName(
   events: CatalogEvent[],
   eventId: number,
 ): string {
   return events.find((event) => event.id === eventId)?.name ?? `#${eventId}`;
+}
+
+/** Labels of legs a system account also played. */
+export function stakeAdviceAgentLines(
+  legs: LegAdvice[],
+  matches: CatalogMatch[],
+  events: CatalogEvent[],
+): StakeAdviceAgentLine[] {
+  return legs.filter((leg) => leg.agent_liked).map((leg) => ({
+    key: `${leg.match_id}:${leg.event_ids.join(",")}`,
+    label: formatStakeAdviceAgentLabel(leg, matches, events),
+  }));
+}
+
+function formatStakeAdviceAgentLabel(
+  leg: LegAdvice,
+  matches: CatalogMatch[],
+  events: CatalogEvent[],
+): string {
+  const title = catalogMatchTitle(matches, leg.match_id);
+  const names = leg.event_ids
+    .map((eventId) => catalogEventName(events, eventId))
+    .join(", ");
+  return `${title}: ${names}`;
 }
 
 /** History labels come from the coupon DTO, never the upcoming picker catalog. */
@@ -955,6 +1122,25 @@ export function tipsterMutationMessage(error: unknown): string {
   return GENERIC_TIPSTER_SAVE_ERROR;
 }
 
+/** Advice failures stay distinct from a failed coupon save. */
+export function stakeAdviceErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return TIPSTER_API_MESSAGES[error.message] ?? error.message;
+  }
+  return STAKE_ADVICE_NETWORK_ERROR;
+}
+
+function catalogBookmakerId(leg: DraftCouponLeg): number | null {
+  const bookmakerId = leg.bookmakerId;
+  if (typeof bookmakerId !== "number" || !Number.isInteger(bookmakerId)) {
+    return null;
+  }
+  if (bookmakerId < 1) {
+    return null;
+  }
+  return bookmakerId;
+}
+
 function parseDraftLegs(
   legs: DraftCouponLeg[],
 ): CouponLegCreate[] | { error: string } {
@@ -964,12 +1150,13 @@ function parseDraftLegs(
     if (odds === null) {
       return { error: "Każde zdarzenie musi mieć kurs co najmniej 1.01." };
     }
+    const combined = isCombinedLeg(leg.eventIds);
     parsed.push({
       match_id: leg.matchId,
       event_ids: leg.eventIds,
       odds,
-      source: isCombinedLeg(leg.eventIds) ? "custom_odds" : "catalog",
-      bookmaker_id: null,
+      source: combined ? "custom_odds" : "catalog",
+      bookmaker_id: combined ? null : catalogBookmakerId(leg),
     });
   }
   return parsed;

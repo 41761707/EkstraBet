@@ -817,18 +817,31 @@ class TestThinReads(unittest.TestCase):
         self.assertEqual(get_catalog_matches(None, None, [1]), _CATALOG)
         mock_fetch.assert_called_once_with(None, None, [1])
 
-    @patch(f"{_REPO}.fetch_suggested_catalog_odds", return_value=2.204)
+    @patch(
+        f"{_REPO}.fetch_suggested_catalog_odds",
+        return_value={"odds": 2.204, "bookmaker_id": 4})
     def test_suggested_odds_are_rounded_to_two_places(
             self, mock_fetch: MagicMock) -> None:
         self.assertEqual(
-            get_suggested_catalog_odds(124426, 1), {"odds": 2.2})
+            get_suggested_catalog_odds(124426, 1),
+            {"odds": 2.2, "bookmaker_id": 4})
         mock_fetch.assert_called_once_with(124426, 1, 1.01)
+
+    @patch(
+        f"{_REPO}.fetch_suggested_catalog_odds",
+        return_value={"odds": 1.004, "bookmaker_id": 4})
+    def test_suggested_odds_below_minimum_drop_the_bookmaker(
+            self, _mock_fetch: MagicMock) -> None:
+        self.assertEqual(
+            get_suggested_catalog_odds(124426, 1),
+            {"odds": None, "bookmaker_id": None})
 
     @patch(f"{_REPO}.fetch_suggested_catalog_odds", return_value=None)
     def test_missing_suggested_odds_stay_empty(
             self, _mock_fetch: MagicMock) -> None:
         self.assertEqual(
-            get_suggested_catalog_odds(10, 8), {"odds": None})
+            get_suggested_catalog_odds(10, 8),
+            {"odds": None, "bookmaker_id": None})
 
     def test_suggested_odds_reject_non_positive_ids(self) -> None:
         with self.assertRaises(TipsterUnprocessableError):
