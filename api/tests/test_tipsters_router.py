@@ -30,6 +30,7 @@ from api.main import create_app  # noqa: E402
 
 _SERVICE = "api.routers.tipsters.tipster_service"
 _ADVISE = "api.routers.tipsters.stake_advisor_service.advise"
+_SUGGEST = "api.routers.tipsters.event_advisor_service.suggest_events"
 _SETTLE = (
     "api.routers.tipsters.tipster_settlement_service.settle_open_coupons")
 _FETCH_UUID = (
@@ -132,6 +133,13 @@ _ADVISE_BODY = {
     "confidence": 70,
     "legs": _CREATE_COUPON_BODY["legs"]}
 
+_EMPTY_SUGGESTIONS = {
+    "cold_start": True,
+    "history_events": 0,
+    "odds_low": None,
+    "odds_high": None,
+    "tiers": {"S": [], "A": [], "B": []}}
+
 _NO_BET_ADVICE = {
     "advice": {
         "suggested_stake": 0.0,
@@ -187,10 +195,14 @@ class TestTipstersMeAuth(TipstersRouterTestCase):
         advise = self.client.post(
             "/tipsters/me/advise-stake",
             json=_ADVISE_BODY)
+        suggest = self.client.post(
+            "/tipsters/me/suggest-events",
+            json={"legs": []})
         self.assertEqual(get_bankroll.status_code, 401)
         self.assertEqual(get_coupons.status_code, 401)
         self.assertEqual(post_coupon.status_code, 401)
         self.assertEqual(advise.status_code, 401)
+        self.assertEqual(suggest.status_code, 401)
 
     @patch(f"{_SERVICE}.get_my_bankroll")
     def test_auth_disabled_hides_me_endpoints(
@@ -520,6 +532,75 @@ class TestTipstersAdviseStakeRouter(TipstersRouterTestCase):
         mock_advise.assert_called_once()
 
 
+class TestTipstersSuggestEventsRouter(TipstersRouterTestCase):
+    """POST /me/suggest-events reads a draft and does not take a stake."""
+
+    @patch(_SUGGEST, return_value=_EMPTY_SUGGESTIONS)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_empty_tiers_return_200(
+            self,
+            _mock_fetch: MagicMock,
+            mock_suggest: MagicMock) -> None:
+        response = self.client.post(
+            "/tipsters/me/suggest-events",
+            headers=self._auth_headers(),
+            json={"stake_amount": 10, "confidence": 70})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["cold_start"])
+        self.assertEqual(payload["history_events"], 0)
+        self.assertIsNone(payload["odds_low"])
+        self.assertIsNone(payload["odds_high"])
+        self.assertEqual(payload["tiers"], {"S": [], "A": [], "B": []})
+        mock_suggest.assert_called_once()
+        passed_user, request = mock_suggest.call_args.args
+        self.assertEqual(passed_user["id"], 7)
+        self.assertEqual(request, {"legs": []})
+
+    @patch(_SUGGEST)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_nine_legs_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_suggest: MagicMock) -> None:
+        body = {
+            "legs": [
+                {"match_id": 100 + index, "event_ids": [1]}
+                for index in range(9)]}
+        response = self.client.post(
+            "/tipsters/me/suggest-events",
+            headers=self._auth_headers(),
+            json=body)
+        self.assertEqual(response.status_code, 422)
+        mock_suggest.assert_not_called()
+
+    @patch(
+        _SUGGEST,
+        side_effect=TipsterUnprocessableError("Duplicate match on draft"))
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_duplicate_match_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_suggest: MagicMock) -> None:
+        body = {
+            "legs": [
+                {"match_id": 10, "event_ids": [7]},
+                {"match_id": 10, "event_ids": [8]}]}
+        response = self.client.post(
+            "/tipsters/me/suggest-events",
+            headers=self._auth_headers(),
+            json=body)
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"],
+            "Duplicate match on draft")
+        mock_suggest.assert_called_once()
+        _user, request = mock_suggest.call_args.args
+        self.assertEqual(
+            [leg["match_id"] for leg in request["legs"]],
+            [10, 10])
+
+
 class TestTipstersPerformanceRouter(TipstersRouterTestCase):
     """GET /me/performance exposes dimension labels including OTHER."""
 
@@ -780,12 +861,14 @@ class TestTipstersOpenApi(unittest.TestCase):
     def test_openapi_lists_tipsters_paths(self) -> None:
         response = self.client.get("/openapi.json")
         self.assertEqual(response.status_code, 200)
-        paths = response.json()["paths"]
+        document = response.json()
+        paths = document["paths"]
         expected = [
             "/tipsters/me/bankroll",
             "/tipsters/me/top-up",
             "/tipsters/me/coupons",
             "/tipsters/me/advise-stake",
+            "/tipsters/me/suggest-events",
             "/tipsters/me/performance",
             "/tipsters/leaderboard",
             "/tipsters/profile/{username}",
@@ -811,6 +894,15 @@ class TestTipstersOpenApi(unittest.TestCase):
         self.assertIn("post", advise)
         self.assertNotIn("put", advise)
         self.assertNotIn("/tipsters/me/advisor-settings", paths)
+        suggest = paths["/tipsters/me/suggest-events"]
+        self.assertIn("post", suggest)
+        self.assertNotIn("put", suggest)
+        ref = suggest["post"]["requestBody"]["content"][
+            "application/json"]["schema"]["$ref"]
+        schema_name = ref.rsplit("/", 1)[-1]
+        properties = document["components"]["schemas"][schema_name][
+            "properties"]
+        self.assertEqual(set(properties), {"legs"})
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""HTTP endpoints for tipster bankroll, coupons and ranking."""
+"""HTTP endpoints for tipster bankroll, coupons, ranking and suggestions."""
 
 from __future__ import annotations
 
@@ -24,9 +24,12 @@ from api.schemas.tipster import LeaderboardSortOrder
 from api.schemas.tipster import PerformanceBreakdown
 from api.schemas.tipster import SettlementResult
 from api.schemas.tipster import SuggestedCatalogOdds
+from api.schemas.tipster import SuggestEventsRequest
+from api.schemas.tipster import SuggestEventsResponse
 from api.schemas.tipster import TipsterProfileResponse
 from api.schemas.tipster import TopUpRequest
 from backend.config import get_settings
+from backend.services import event_advisor_service
 from backend.services import stake_advisor_service
 from backend.services import tipster_service
 from backend.services import tipster_settlement_service
@@ -194,6 +197,18 @@ async def post_advise_stake(
     payload = _invoke(
         lambda: stake_advisor_service.advise(user, body.model_dump()))
     return AdviseStakeResponse.model_validate(payload)
+
+
+@router.post("/me/suggest-events", response_model=SuggestEventsResponse)
+async def post_suggest_events(
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+    body: SuggestEventsRequest
+) -> SuggestEventsResponse:
+    """Suggest events for this draft. A stake is not accepted."""
+    payload = _invoke(
+        lambda: event_advisor_service.suggest_events(
+            user, body.model_dump()))
+    return SuggestEventsResponse.model_validate(payload)
 
 
 @router.get("/me/performance", response_model=PerformanceBreakdown)

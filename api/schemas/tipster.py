@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 StakeInputMode = Literal["money", "units"]
@@ -20,6 +20,7 @@ LeaderboardSortBy = Literal[
     "bets_count",
     "current_balance"]
 LeaderboardSortOrder = Literal["asc", "desc"]
+SuggestionTier = Literal["S", "A", "B"]
 
 
 class BankrollSettings(BaseModel):
@@ -186,6 +187,95 @@ class AdviseStakeResponse(BaseModel):
         ...,
         description="Caller current_balance; a debit does not hide advice")
     unit_size: float = Field(..., description="Stake unit size")
+
+
+class SuggestEventLeg(BaseModel):
+    """One draft leg. Odds and source stay off this request."""
+
+    match_id: int = Field(..., ge=1, description="Match ID")
+    event_ids: list[int] = Field(
+        ...,
+        min_length=1,
+        max_length=8,
+        description="Event IDs already on this draft leg")
+
+    @field_validator("event_ids")
+    @classmethod
+    def require_positive_event_ids(cls, value: list[int]) -> list[int]:
+        """Reject ids below 1 before the service sees the draft."""
+        if any(event_id < 1 for event_id in value):
+            raise ValueError("event_ids must be positive integers")
+        return value
+
+
+class SuggestEventsRequest(BaseModel):
+    """Draft passed to the event advisor. A missing list is empty."""
+
+    legs: list[SuggestEventLeg] = Field(
+        default_factory=list,
+        max_length=8,
+        description="Zero to eight draft legs; at most one per match")
+
+
+class EventSuggestion(BaseModel):
+    """One suggested event. It is not a placed bet."""
+
+    tier: SuggestionTier = Field(..., description="S, A or B")
+    match_id: int = Field(..., description="Match ID")
+    event_id: int = Field(..., description="Event ID")
+    event_name: str = Field(..., description="Event name")
+    league_id: int = Field(..., description="League ID")
+    league_name: str = Field(..., description="League name")
+    home_name: str = Field(..., description="Home team name")
+    away_name: str = Field(..., description="Away team name")
+    game_date: datetime = Field(..., description="Kick-off")
+    odds: float = Field(
+        ...,
+        description="Best catalog odds, two decimals")
+    bookmaker_id: int = Field(..., description="Bookmaker of that price")
+    score: float = Field(
+        ...,
+        description="Blended score, three decimals")
+    reasons: list[str] = Field(
+        ...,
+        description=(
+            "Closed reason codes: computer_bet, league_on_slip, "
+            "league_history, event_history, odds_in_band, "
+            "computer_lean"))
+
+
+class EventSuggestionTiers(BaseModel):
+    """The three floors. Empty lists are a valid answer."""
+
+    S: list[EventSuggestion] = Field(
+        default_factory=list,
+        description="Strongest fit")
+    A: list[EventSuggestion] = Field(
+        default_factory=list,
+        description="Worth considering")
+    B: list[EventSuggestion] = Field(
+        default_factory=list,
+        description="Looser fit")
+
+
+class SuggestEventsResponse(BaseModel):
+    """Suggestions for one click. Nothing is stored."""
+
+    cold_start: bool = Field(
+        ...,
+        description="True when history has fewer than 8 events")
+    history_events: int = Field(
+        ...,
+        description="Coupon events in the history window")
+    odds_low: float | None = Field(
+        None,
+        description="Lower end of the single-leg odds band")
+    odds_high: float | None = Field(
+        None,
+        description="Upper end of the single-leg odds band")
+    tiers: EventSuggestionTiers = Field(
+        ...,
+        description="S, A and B lists")
 
 
 class CouponLegSummary(BaseModel):
