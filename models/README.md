@@ -327,7 +327,7 @@ konta z `backend/services/coupon_agent_config.py` (`AGENTS`). Seed to
 włączonym `AUTH`. Baza to `DB_*` tego procesu (`get_db_connection()`).
 Nie ma flagi środowiska, ścieżki bazy ani pliku do późniejszego importu.
 
-Domyślnie komenda **zapisuje**. `--dry-run` loguje nogi i score i nie
+Domyślnie komenda **zapisuje**. `--dry-run` loguje zdarzenia i score i nie
 robi INSERT. Kolejność jest zawsze ta sama: najpierw dry-run, potem
 zapis. Drugie uruchomienie w tej samej dobie kalendarzowej
 (`Europe/Warsaw`) kończy się `already_published`, bez drugiego kuponu.
@@ -388,7 +388,7 @@ Zanim padnie zapis bez `--dry-run`:
    daje `no_bet`, kod 0, bez insertu. To stan danych. Predykcji nie
    dociągamy z laptopa. Najpierw własny przebieg modeli na VPS, potem
    ponowny dry-run.
-4. Dry-run: w logu nogi i score, w bazie bez zmian.
+4. Dry-run: w logu zdarzenia i score, w bazie bez zmian.
 5. Uruchomienie bez `--dry-run`.
 6. Kontrola `https://<produkcja>/profile/agent-kuponowy`. Pusty stan
    to „Historia pojawi się po kuponach tego konta systemowego.”

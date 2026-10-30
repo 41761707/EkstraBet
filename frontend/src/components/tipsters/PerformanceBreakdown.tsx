@@ -28,7 +28,7 @@ export const PERFORMANCE_EVENTS_LABEL = "Zdarzenia";
 export const PERFORMANCE_READING_HINT =
   "Wygrane i wynik liczą cały kupon. Zdarzenia pokazują, czy zdarzenie " +
   "z tej ligi, tego kraju albo tego typu zakładu weszło, nawet wtedy, gdy " +
-  "kupon przegrał. Śr. kurs to średni kurs tych zdarzeń, a nie kurs łączny " +
+  "kupon przegrał. Śr. kurs to średni pojedynczych zdarzeń, a nie kurs łączony dla " +
   "kuponu.";
 export const PERFORMANCE_STAKE_LABEL = "Stawka";
 export const PERFORMANCE_RESULT_LABEL = "Wynik";

@@ -19,7 +19,7 @@ import type { CurrencyCode } from "@/types/api";
 
 export const TOP_UP_TITLE = "Doładowanie";
 export const TOP_UP_HINT =
-  "Doładowanie zwiększa kapitał startowy i saldo. Waluta i jednostka zostają bez zmian.";
+  "Doładowanie zwiększa kapitał startowy i saldo.";
 
 interface TopUpFormProps {
   currency: CurrencyCode;

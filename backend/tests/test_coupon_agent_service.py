@@ -189,16 +189,14 @@ class TestPublishHappyPath(unittest.TestCase):
         self.assertEqual(leg["bookmaker_id"], 2)
         self.assertAlmostEqual(leg["odds"], 1.8)
 
-    def test_mysql_float_one_point_zero_one_reaches_the_writer(
-            self) -> None:
-        raw = 1.0099999904632568
+    def test_price_below_one_and_a_half_is_no_bet(self) -> None:
         frame = _frame([
-            _row(odds=raw, model_probability=0.99)])
+            _row(odds=1.49, model_probability=0.70)])
         with _patched(frame=frame) as mocks:
             batch = publish_daily(_AS_OF)
-        self.assertEqual(batch.reports[0].status, "published")
-        leg = mocks["create"].call_args.args[1]["legs"][0]
-        self.assertEqual(leg["odds"], 1.01)
+        self.assertEqual(batch.reports[0].status, "no_bet")
+        self.assertEqual(batch.reports[0].candidate_count, 1)
+        mocks["create"].assert_not_called()
 
     def test_each_leg_of_a_combined_slip_has_one_event(self) -> None:
         frame = _frame([
@@ -390,7 +388,7 @@ class TestPublishDryRunAndNoBet(unittest.TestCase):
 
     def test_selector_rejection_is_no_bet_without_insert(self) -> None:
         frame = _frame([
-            _row(odds=6.0, model_probability=0.50)])
+            _row(odds=1.40, model_probability=0.70)])
         with _patched(frame=frame) as mocks:
             batch = publish_daily(_AS_OF)
         self.assertEqual(batch.reports[0].status, "no_bet")

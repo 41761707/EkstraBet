@@ -110,6 +110,84 @@ class CouponCreateRequest(BaseModel):
         description="One to eight legs; at most one per match")
 
 
+class AdviseStakeRequest(BaseModel):
+    """Opt-in stake suggestion. The same legs as a coupon create."""
+
+    confidence: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="How sure the caller is, from 0 to 100")
+    legs: list[CouponLegCreate] = Field(
+        ...,
+        min_length=1,
+        max_length=8,
+        description="One to eight legs; the same shape as coupon create")
+
+
+class LegAdvice(BaseModel):
+    """One blended leg. Probabilities are on the 0-1 scale."""
+
+    match_id: int = Field(..., description="Match ID")
+    event_ids: list[int] = Field(..., description="Event IDs on this leg")
+    model_probability: float | None = Field(
+        None,
+        description=(
+            "Published or calibrated probability, or null "
+            "when no model probability was usable"))
+    implied_probability: float = Field(
+        ...,
+        description="1 divided by the leg odds, without de-vig")
+    agent_liked: bool = Field(
+        ...,
+        description="True when a system account recently played this leg")
+    p_used: float = Field(
+        ...,
+        description="Blended probability used for this leg")
+
+
+class StakeAdvice(BaseModel):
+    """Suggested stake. A zero stake with no_bet is a valid answer."""
+
+    suggested_stake: float = Field(
+        ...,
+        description="Suggested stake in the bankroll currency")
+    suggested_units: float = Field(
+        ...,
+        description="suggested_stake divided by unit_size")
+    kelly_fraction: float = Field(
+        ...,
+        description="Fractional Kelly share of the stake basis")
+    p_blend: float = Field(
+        ...,
+        description="Joint blended probability of the coupon")
+    combined_odds: float = Field(
+        ...,
+        description="Product of per-leg odds")
+    no_bet: bool = Field(
+        ...,
+        description="True when the suggested stake is zero")
+    reason: str = Field(
+        ...,
+        description=(
+            "no_bet_low_edge, no_prediction, model_not_ready, or ok"))
+    legs: list[LegAdvice] = Field(..., description="Per-leg blend")
+    limits_applied: list[str] = Field(
+        ...,
+        description="Cap codes that reduced the raw Kelly stake")
+
+
+class AdviseStakeResponse(BaseModel):
+    """Advice plus the caller's bankroll context. Nothing is written."""
+
+    advice: StakeAdvice = Field(..., description="Stake suggestion")
+    currency: CurrencyCode = Field(..., description="Bankroll currency")
+    current_balance: float = Field(
+        ...,
+        description="Caller current_balance; a debit does not hide advice")
+    unit_size: float = Field(..., description="Stake unit size")
+
+
 class CouponLegSummary(BaseModel):
     """Persisted coupon leg with match and event labels for history."""
 
@@ -348,6 +426,10 @@ class SuggestedCatalogOdds(BaseModel):
         description=(
             "Best bookmaker odds when a prediction exists; "
             "the client may edit this value"))
+    bookmaker_id: int | None = Field(
+        None,
+        description=(
+            "Bookmaker of the odds row chosen as the default price"))
 
 
 class CatalogMatchesResponse(BaseModel):

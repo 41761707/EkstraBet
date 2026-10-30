@@ -102,6 +102,7 @@ def test_repo_strategy_config_loads_and_round_trips() -> None:
     assert config.max_brier < 0.25
     assert config.max_reliability_error == 0.05
     assert config.min_roi == 0.0
+    assert config.min_odds == 1.5
 
 
 def test_training_config_rejects_missing_field(tmp_path: Path) -> None:

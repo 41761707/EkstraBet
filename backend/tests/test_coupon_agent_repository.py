@@ -102,7 +102,7 @@ class TestFetchCandidatesQuery(unittest.TestCase):
         self.assertIn("ON p.id = fp.predictions_id", text)
         self.assertIn("ON bo.match_id = p.match_id", text)
         self.assertIn("AND bo.event_id = p.event_id", text)
-        self.assertIn("WHERE o.odds > 1", text)
+        self.assertIn("WHERE o.odds >= 1.5", text)
         self.assertIn("INNER JOIN events e", text)
         window = text.split("ROW_NUMBER() OVER (", 1)[1]
         window = window.split(") AS rn", 1)[0]
@@ -222,8 +222,10 @@ class TestFetchCandidatesRows(unittest.TestCase):
             _raw_row(match_id=2, probability_pct=100.0),
             _raw_row(match_id=3, probability_pct=None),
             _raw_row(match_id=4, odds=1.0),
-            _raw_row(match_id=5, probability_pct=40.0, odds=3.5)])
-        self.assertEqual(list(frame["match_id"]), [5])
+            _raw_row(match_id=5, probability_pct=40.0, odds=3.5),
+            _raw_row(match_id=6, probability_pct=70.0, odds=1.49),
+            _raw_row(match_id=7, probability_pct=70.0, odds=1.5)])
+        self.assertEqual(list(frame["match_id"]), [5, 7])
         self.assertAlmostEqual(
             float(frame["model_probability"].iloc[0]), 0.4)
         self.assertAlmostEqual(
@@ -297,6 +299,7 @@ class TestReadyBetsQuery(unittest.TestCase):
         self.assertIn("br.decision = %s", text)
         self.assertIn("br.model_fingerprint = %s", text)
         self.assertIn("ON o.id = br.odds_id", text)
+        self.assertIn("AND o.odds >= 1.5", text)
         self.assertNotIn("final_predictions", text)
         self.assertNotIn("ROW_NUMBER()", text)
         params = tuple(captured["params"])

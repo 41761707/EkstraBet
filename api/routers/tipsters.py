@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.deps import get_current_user, require_admin, require_auth
 from api.routers.utils import parse_id_list
+from api.schemas.tipster import AdviseStakeRequest
+from api.schemas.tipster import AdviseStakeResponse
 from api.schemas.tipster import BankrollConfigureRequest
 from api.schemas.tipster import BankrollSettings
 from api.schemas.tipster import CatalogMatchesResponse
@@ -25,6 +27,7 @@ from api.schemas.tipster import SuggestedCatalogOdds
 from api.schemas.tipster import TipsterProfileResponse
 from api.schemas.tipster import TopUpRequest
 from backend.config import get_settings
+from backend.services import stake_advisor_service
 from backend.services import tipster_service
 from backend.services import tipster_settlement_service
 
@@ -180,6 +183,17 @@ async def post_my_coupon(
     payload = _invoke(
         lambda: tipster_service.create_coupon(user, body.model_dump()))
     return CouponSummary.model_validate(payload)
+
+
+@router.post("/me/advise-stake", response_model=AdviseStakeResponse)
+async def post_advise_stake(
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+    body: AdviseStakeRequest
+) -> AdviseStakeResponse:
+    """Suggest a stake for this draft. A zero stake is still HTTP 200."""
+    payload = _invoke(
+        lambda: stake_advisor_service.advise(user, body.model_dump()))
+    return AdviseStakeResponse.model_validate(payload)
 
 
 @router.get("/me/performance", response_model=PerformanceBreakdown)

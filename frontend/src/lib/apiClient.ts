@@ -18,6 +18,8 @@ import {
   FOOTBALL_SPORT_ID,
   type AdminLeague,
   type AdminUser,
+  type AdviseStakeRequest,
+  type AdviseStakeResponse,
   type AnalyticsStatType,
   type BankrollConfigureRequest,
   type BankrollSettings,
@@ -630,4 +632,19 @@ export async function createMyCoupon(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
+}
+
+/** Opt-in stake hint via POST /tipsters/me/advise-stake. Does not place a coupon. */
+export async function adviseMyStake(
+  request: AdviseStakeRequest,
+): Promise<AdviseStakeResponse> {
+  return fetchViaBff<AdviseStakeResponse>(
+    "/tipsters/me/advise-stake",
+    undefined,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  );
 }

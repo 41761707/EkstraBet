@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 
 import { SUBMIT_BUTTON_CLASS_NAME } from "@/components/inputStyles";
 import { StatusMessage } from "@/components/StatusMessage";
+import { AdvisorHintPanel } from "@/components/tipsters/AdvisorHintPanel";
 import { BetsPanel, BetsSubsection } from "@/components/tipsters/BetsPanel";
 import { CouponPicker } from "@/components/tipsters/CouponPicker";
 import { CouponStakeFields } from "@/components/tipsters/CouponStakeFields";
@@ -48,10 +49,9 @@ import type {
 export const COUPON_BUILDER_TITLE = "Nowy kupon";
 export const COUPON_BUILDER_DESCRIPTION =
   "Wybierz mecz i zdarzenie, ustaw kurs i stawkę. " +
-  "Jeśli w bazie jest już kurs tego zdarzenia, pole wypełni się samo — możesz je zmienić.";
+  "Jeśli w bazie jest już kurs tego zdarzenia, pole uzupełni się samo - w razie potrzeby możesz je zmienić.";
 export const COUPON_BUILDER_HINT =
-  "Drugie zdarzenie tego samego meczu łączy się z pierwszym. " +
-  "Wpisz kurs łączony z bukmachera — nie iloczyn kursów i nie kurs pierwszego zdarzenia.";
+  "Zdarzenia z tego samego meczu łączą się automatycznie. Kurs zdarzenia jest jedynie sugestią systemu wynikającą z cyklicznego pobierania danych od bukmacherów."
 export {
   ADD_CATALOG_EVENT_LABEL,
   ALL_LEAGUES_LABEL,
@@ -182,7 +182,13 @@ function queueSuggestedOdds(
         return;
       }
       setLegs((current) =>
-        applySuggestedLegOdds(current, matchId, eventId, formatOdds(odds)),
+        applySuggestedLegOdds(
+          current,
+          matchId,
+          eventId,
+          formatOdds(odds),
+          suggestion.bookmaker_id,
+        ),
       );
     })
     .catch(() => {
@@ -420,6 +426,17 @@ function CouponSlipForm({
         />
       </BetsSubsection>
       <BetsSubsection title="Stawka" divided>
+        {/* Zastosuj tylko wypełnia pole. Zapis kuponu nie czyta rady. */}
+        <AdvisorHintPanel
+          legs={legs}
+          matches={knownMatches}
+          events={catalog.events}
+          disabled={isSubmitting}
+          onApply={(stakeRaw) => {
+            onModeChange("money");
+            onStakeChange(stakeRaw);
+          }}
+        />
         <CouponStakeFields
           legs={legs}
           mode={mode}

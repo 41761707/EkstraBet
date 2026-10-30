@@ -10,6 +10,10 @@ import {
   EVENT_SEARCH_LABEL,
   CouponBuilder,
 } from "@/components/tipsters/CouponBuilder";
+import {
+  ASK_STAKE_ADVICE_LABEL,
+  STAKE_ADVICE_CONFIDENCE_LABEL,
+} from "@/components/tipsters/tipsterModel";
 import { getWarsawDateIso } from "@/lib/date";
 import type { CatalogMatchesResponse } from "@/types/api";
 
@@ -60,5 +64,7 @@ describe("CouponBuilder", () => {
     expect(html).toContain(`min="${getWarsawDateIso()}"`);
     expect(html).toContain(CATALOG_UPCOMING_HINT);
     expect(html).toContain(EVENT_SEARCH_LABEL);
+    expect(html).toContain(ASK_STAKE_ADVICE_LABEL);
+    expect(html).not.toContain(STAKE_ADVICE_CONFIDENCE_LABEL);
   });
 });

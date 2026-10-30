@@ -29,6 +29,7 @@ from api.main import create_app  # noqa: E402
 
 
 _SERVICE = "api.routers.tipsters.tipster_service"
+_ADVISE = "api.routers.tipsters.stake_advisor_service.advise"
 _SETTLE = (
     "api.routers.tipsters.tipster_settlement_service.settle_open_coupons")
 _FETCH_UUID = (
@@ -127,6 +128,31 @@ _CREATE_COUPON_BODY = {
         "source": "catalog",
         "bookmaker_id": 4}]}
 
+_ADVISE_BODY = {
+    "confidence": 70,
+    "legs": _CREATE_COUPON_BODY["legs"]}
+
+_NO_BET_ADVICE = {
+    "advice": {
+        "suggested_stake": 0.0,
+        "suggested_units": 0.0,
+        "kelly_fraction": 0.0,
+        "p_blend": 0.4,
+        "combined_odds": 1.85,
+        "no_bet": True,
+        "reason": "no_bet_low_edge",
+        "legs": [{
+            "match_id": 100,
+            "event_ids": [1],
+            "model_probability": 0.4,
+            "implied_probability": 0.54,
+            "agent_liked": False,
+            "p_used": 0.4}],
+        "limits_applied": []},
+    "currency": "PLN",
+    "current_balance": 50.0,
+    "unit_size": 5.0}
+
 
 class TipstersRouterTestCase(unittest.TestCase):
     """Authenticated TestClient shared by tipster contract cases."""
@@ -158,9 +184,13 @@ class TestTipstersMeAuth(TipstersRouterTestCase):
         post_coupon = self.client.post(
             "/tipsters/me/coupons",
             json=_CREATE_COUPON_BODY)
+        advise = self.client.post(
+            "/tipsters/me/advise-stake",
+            json=_ADVISE_BODY)
         self.assertEqual(get_bankroll.status_code, 401)
         self.assertEqual(get_coupons.status_code, 401)
         self.assertEqual(post_coupon.status_code, 401)
+        self.assertEqual(advise.status_code, 401)
 
     @patch(f"{_SERVICE}.get_my_bankroll")
     def test_auth_disabled_hides_me_endpoints(
@@ -398,6 +428,98 @@ class TestTipstersCouponsRouter(TipstersRouterTestCase):
         self.assertFalse(mock_list.call_args.kwargs["apply_tax"])
 
 
+class TestTipstersAdviseStakeRouter(TipstersRouterTestCase):
+    """POST /me/advise-stake is opt-in and does not place a coupon."""
+
+    @patch(_ADVISE, return_value=_NO_BET_ADVICE)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_no_bet_returns_200(
+            self,
+            _mock_fetch: MagicMock,
+            mock_advise: MagicMock) -> None:
+        response = self.client.post(
+            "/tipsters/me/advise-stake",
+            headers=self._auth_headers(),
+            json=_ADVISE_BODY)
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["advice"]["no_bet"])
+        self.assertEqual(payload["advice"]["suggested_stake"], 0.0)
+        self.assertEqual(payload["advice"]["reason"], "no_bet_low_edge")
+        self.assertEqual(payload["currency"], "PLN")
+        self.assertEqual(payload["current_balance"], 50.0)
+        self.assertEqual(payload["unit_size"], 5.0)
+        mock_advise.assert_called_once()
+        passed_user, request = mock_advise.call_args.args
+        self.assertEqual(passed_user["id"], 7)
+        self.assertEqual(request["confidence"], 70)
+        self.assertEqual(request["legs"][0]["event_ids"], [1])
+        self.assertEqual(request["legs"][0]["odds"], 1.85)
+
+    @patch(_ADVISE)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_confidence_above_100_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_advise: MagicMock) -> None:
+        body = {**_ADVISE_BODY, "confidence": 101}
+        response = self.client.post(
+            "/tipsters/me/advise-stake",
+            headers=self._auth_headers(),
+            json=body)
+        self.assertEqual(response.status_code, 422)
+        mock_advise.assert_not_called()
+
+    @patch(_ADVISE)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_odds_below_minimum_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_advise: MagicMock) -> None:
+        body = {
+            "confidence": 70,
+            "legs": [{
+                **_ADVISE_BODY["legs"][0],
+                "odds": 1.0}]}
+        response = self.client.post(
+            "/tipsters/me/advise-stake",
+            headers=self._auth_headers(),
+            json=body)
+        self.assertEqual(response.status_code, 422)
+        mock_advise.assert_not_called()
+
+    @patch(_ADVISE)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_empty_legs_returns_422(
+            self,
+            _mock_fetch: MagicMock,
+            mock_advise: MagicMock) -> None:
+        response = self.client.post(
+            "/tipsters/me/advise-stake",
+            headers=self._auth_headers(),
+            json={"confidence": 70, "legs": []})
+        self.assertEqual(response.status_code, 422)
+        mock_advise.assert_not_called()
+
+    @patch(
+        _ADVISE,
+        side_effect=TipsterNotFoundError("Bankroll not configured"))
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_missing_bankroll_returns_404(
+            self,
+            _mock_fetch: MagicMock,
+            mock_advise: MagicMock) -> None:
+        response = self.client.post(
+            "/tipsters/me/advise-stake",
+            headers=self._auth_headers(),
+            json=_ADVISE_BODY)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json()["detail"],
+            "Bankroll not configured")
+        mock_advise.assert_called_once()
+
+
 class TestTipstersPerformanceRouter(TipstersRouterTestCase):
     """GET /me/performance exposes dimension labels including OTHER."""
 
@@ -571,7 +693,7 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
 
     @patch(
         f"{_SERVICE}.get_suggested_catalog_odds",
-        return_value={"odds": 2.2})
+        return_value={"odds": 2.2, "bookmaker_id": 4})
     @patch(_FETCH_UUID, return_value=_TEST_USER)
     def test_suggested_odds_returns_stored_price(
             self,
@@ -582,7 +704,9 @@ class TestTipstersPublicRouter(TipstersRouterTestCase):
             headers=self._auth_headers(),
             params={"match_id": 124426, "event_id": 1})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"odds": 2.2})
+        self.assertEqual(
+            response.json(),
+            {"odds": 2.2, "bookmaker_id": 4})
         mock_suggest.assert_called_once_with(124426, 1)
 
     @patch(f"{_SERVICE}.get_leaderboard")
@@ -661,6 +785,7 @@ class TestTipstersOpenApi(unittest.TestCase):
             "/tipsters/me/bankroll",
             "/tipsters/me/top-up",
             "/tipsters/me/coupons",
+            "/tipsters/me/advise-stake",
             "/tipsters/me/performance",
             "/tipsters/leaderboard",
             "/tipsters/profile/{username}",
@@ -682,6 +807,10 @@ class TestTipstersOpenApi(unittest.TestCase):
                 for item in paths[path]["get"]["parameters"]]
             with self.subTest(path=path):
                 self.assertIn("apply_tax", names)
+        advise = paths["/tipsters/me/advise-stake"]
+        self.assertIn("post", advise)
+        self.assertNotIn("put", advise)
+        self.assertNotIn("/tipsters/me/advisor-settings", paths)
 
 
 if __name__ == "__main__":

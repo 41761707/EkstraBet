@@ -362,7 +362,13 @@ describe("applySuggestedLegOdds", () => {
       10,
       1,
       "2.20",
-    )).toEqual([{ matchId: 10, eventIds: [1], odds: "2.20" }]);
+      4,
+    )).toEqual([{
+      matchId: 10,
+      eventIds: [1],
+      odds: "2.20",
+      bookmakerId: 4,
+    }]);
   });
 
   it("leaves a typed price and a combined leg unchanged", () => {
@@ -370,8 +376,8 @@ describe("applySuggestedLegOdds", () => {
       { matchId: 10, eventIds: [1], odds: "1.90" },
       { matchId: 11, eventIds: [1, 6], odds: "" },
     ];
-    expect(applySuggestedLegOdds(legs, 10, 1, "2.20")).toEqual(legs);
-    expect(applySuggestedLegOdds(legs, 11, 1, "2.20")).toEqual(legs);
+    expect(applySuggestedLegOdds(legs, 10, 1, "2.20", 4)).toEqual(legs);
+    expect(applySuggestedLegOdds(legs, 11, 1, "2.20", 4)).toEqual(legs);
   });
 });
 
@@ -493,6 +499,44 @@ describe("parsePositiveAmount and buildCouponCreateRequest", () => {
       bookmaker_id: null,
     });
     expect(request.legs[1]?.source).toBe("catalog");
+    expect(request.legs[1]?.bookmaker_id).toBeNull();
+  });
+
+  it("keeps the suggested bookmaker only on a single catalog leg", () => {
+    const request = buildCouponCreateRequest(
+      [
+        { matchId: 10, eventIds: [6, 12], odds: "1.85", bookmakerId: 9 },
+        { matchId: 11, eventIds: [1], odds: "2.00", bookmakerId: 4 },
+      ],
+      "money",
+      "10",
+    );
+    expect("legs" in request).toBe(true);
+    if (!("legs" in request)) {
+      return;
+    }
+    expect(request.legs[0]?.bookmaker_id).toBeNull();
+    expect(request.legs[1]).toMatchObject({
+      source: "catalog",
+      bookmaker_id: 4,
+    });
+  });
+
+  it("drops the bookmaker when the user types a different price", () => {
+    const suggested = applySuggestedLegOdds(
+      [{ matchId: 11, eventIds: [1], odds: "" }],
+      11,
+      1,
+      "2.00",
+      4,
+    );
+    const typed = updateDraftLegOdds(suggested, 11, "1.70");
+    const request = buildCouponCreateRequest(typed, "money", "10");
+    expect("legs" in request).toBe(true);
+    if (!("legs" in request)) {
+      return;
+    }
+    expect(request.legs[0]?.bookmaker_id).toBeNull();
   });
 });
 

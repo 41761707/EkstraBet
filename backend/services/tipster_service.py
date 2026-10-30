@@ -233,14 +233,29 @@ def get_suggested_catalog_odds(
         match_id: int, event_id: int) -> dict[str, Any]:
     """Suggest current bookmaker odds for one predicted catalog event.
 
-    ``odds`` is null when the event has no stored prediction or no price
-    at or above the coupon minimum. The value is a default the user can
-    replace, because prices move after they are fetched.
+    ``odds`` and ``bookmaker_id`` are null when the event has no stored
+    prediction or no price at or above the coupon minimum. The row is
+    the best price. The value is a default the user can replace,
+    because prices move after they are fetched.
     """
     if match_id < 1 or event_id < 1:
         raise TipsterUnprocessableError("Invalid match or event")
     raw = repo.fetch_suggested_catalog_odds(match_id, event_id, MIN_ODDS)
-    return {"odds": _quantize_suggested_odds(raw)}
+    return _suggested_odds_payload(raw)
+
+
+def _suggested_odds_payload(
+        raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Quantize the selected price and keep its bookmaker."""
+    if raw is None:
+        return {"odds": None, "bookmaker_id": None}
+    odds = _quantize_suggested_odds(float(raw["odds"]))
+    if odds is None:
+        return {"odds": None, "bookmaker_id": None}
+    return {
+        "odds": odds,
+        "bookmaker_id": int(raw["bookmaker_id"])
+    }
 
 
 def quantize_catalog_odds(raw: float) -> float:

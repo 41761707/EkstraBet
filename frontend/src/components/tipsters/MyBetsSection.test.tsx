@@ -125,7 +125,6 @@ describe("MyBetsSection", () => {
     );
     expect(html).toContain("Wynik meczu");
     expect(html).not.toContain(ALL_LEAGUES_LABEL);
-    expect(html).not.toContain("Dodaj nogę");
   });
 
   it("renders own bets without profile-card chrome", () => {

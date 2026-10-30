@@ -26,7 +26,7 @@ import type {
 
 export const MY_BETS_TITLE = "Moje zakłady";
 export const MY_BETS_DESCRIPTION =
-  "Własne kupony, kapitał i rozliczenia na podstawie statystyk meczu.";
+  "Twórz własne kupony, zarządzaj swoim kapitałem i analizuj swoje wyniki.";
 export const PUBLIC_COUPONS_TITLE = "Kupony";
 export const SYSTEM_COUPONS_DESCRIPTION =
   "Publiczna historia kuponów konta systemowego.";

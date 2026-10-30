@@ -194,8 +194,8 @@ _SELECT_COUPON_BY_ID = f"""
     LIMIT 1
 """
 
-# Półotwarte okno doby. LEFT JOIN zostawia kupon bez nóg, żeby
-# limit dzienny liczył sam wiersz, nie tylko kompletne zdarzenia.
+# Półotwarte okno doby. LEFT JOIN zostawia kupon nawet bez zdarzeń, żeby
+# limit dzienny liczył sam wiersz, a nie tylko kupony, które mają zdarzenia.
 _SELECT_COUPON_LEGS_BETWEEN = """
     SELECT
         c.id AS coupon_id,
@@ -742,7 +742,9 @@ def fetch_performance(
 
 
 _SELECT_SUGGESTED_CATALOG_ODDS = """
-    SELECT o.odds AS odds
+    SELECT
+        o.odds AS odds,
+        o.bookmaker AS bookmaker_id
     FROM odds o
     WHERE o.match_id = %s
       AND o.event = %s
@@ -761,19 +763,26 @@ _SELECT_SUGGESTED_CATALOG_ODDS = """
 def fetch_suggested_catalog_odds(
         match_id: int,
         event_id: int,
-        min_odds: float) -> float | None:
-    """Return the best odds for a predicted event, or None.
+        min_odds: float) -> dict[str, Any] | None:
+    """Return the best odds row for a predicted event, or None.
 
-    Highest price wins. Equal prices keep the lowest ``odds.id``, the same
-    tie-break as automatic bet generation. No prediction or no price means
-    the coupon field stays empty for the user to type.
+    Highest price wins. Equal prices keep the lowest ``odds.id``, the
+    same tie-break as a betting verdict. ``bookmaker_id`` is the
+    bookmaker on that row. No prediction or no price means the coupon
+    field stays empty for the user to type.
     """
     row = _fetch_one(
         _SELECT_SUGGESTED_CATALOG_ODDS,
         (match_id, event_id, min_odds))
     if row is None or row.get("odds") is None:
         return None
-    return float(row["odds"])
+    bookmaker_id = row.get("bookmaker_id")
+    if bookmaker_id is None:
+        return None
+    return {
+        "odds": float(row["odds"]),
+        "bookmaker_id": int(bookmaker_id)
+    }
 
 
 def fetch_catalog_matches(

@@ -7,19 +7,21 @@ from dataclasses import dataclass
 from backend.config import REPO_ROOT
 
 
-# Sufit fazy testowej: najwyżej 4 nogi i iloczyn kursów 5, nie gonić
-# longshota. Kara 0.10 (zamiast 0.05) odcina słabą nogę, która mieści
-# się w suficie, ale prawie nic nie wnosi. Dwa kursy 2.0 (iloczyn 4)
-# nadal mogą wejść razem. Dwa kursy 3.0 (iloczyn 9) nie wejdą.
+# Sufit fazy testowej: najwyżej 4 zdarzenia i iloczyn kursów 6.
+# Pojedyncze zdarzenie poniżej 1.5 nie wchodzi do puli. Kara 0.10
+# odcina słabe zdarzenie, które mieści się w suficie, ale prawie nic
+# nie wnosi. Dwa kursy 2.4 (iloczyn 5.76) mogą wejść razem.
+# Dwa kursy 3.0 (iloczyn 9) nie wejdą.
 
 
 @dataclass(frozen=True)
 class SelectorConfig:
     """Limits and weights for one pass of the coupon selector.
 
-    ``max_legs`` is the hard cap on legs. ``max_combined_odds`` is a
-    hard ceiling on the product of leg prices. ``leg_penalty`` is
-    subtracted once per leg after the first from the sum of leg scores.
+    ``max_legs`` is the hard cap on legs. ``min_leg_odds`` is the
+    lowest price one event may have. ``max_combined_odds`` is a hard
+    ceiling on the product of leg prices. ``leg_penalty`` is subtracted
+    once per leg after the first from the sum of leg scores.
     """
 
     max_legs: int = 4
@@ -32,7 +34,8 @@ class SelectorConfig:
     min_probability: float = 0.35
     max_abs_edge_pp: float = 15.0
     stake_units: float = 1.0
-    max_combined_odds: float = 5.0
+    min_leg_odds: float = 1.5
+    max_combined_odds: float = 6.0
     leg_penalty: float = 0.10
 
 

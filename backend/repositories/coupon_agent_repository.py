@@ -22,6 +22,7 @@ from backend.sports.football.event_settlement_registry import (
 
 logger = logging.getLogger(__name__)
 _FINGERPRINT_HEX = re.compile(r"^[0-9a-fA-F]{64}$")
+_MIN_LEG_ODDS = agent_config.SelectorConfig().min_leg_odds
 
 
 MAX_CANDIDATES = 200
@@ -56,7 +57,7 @@ _NULLABLE_COLUMNS = ("league_id", "league_tier", "event_family")
 # Katalog kuponu przyjmuje tylko piłkę; inny sport odpada przy zapisie.
 # Predykat rezultatu jest ten sam: 1/X/2 nie wchodzi do puli.
 # Limit jest po filtrze rejestru, żeby niesettleable nie zjadł slotu.
-_CANDIDATE_SQL = """
+_CANDIDATE_SQL = f"""
     WITH window_matches AS (
         SELECT
             mk.id,
@@ -107,7 +108,7 @@ _CANDIDATE_SQL = """
             FROM odds o
             INNER JOIN window_matches wm_odds
                 ON wm_odds.id = o.match_id
-            WHERE o.odds > 1
+            WHERE o.odds >= {_MIN_LEG_ODDS}
         ) ranked
         WHERE ranked.rn = 1
     ) bo
@@ -148,7 +149,7 @@ _READY_SQL_COLUMNS = (
     "event_family")
 # Werdykt wskazuje konkretny wiersz kursu. Najlepsza cena z puli
 # bazowej mogłaby być inną kwotą niż ta, którą ocenił meta-model.
-_READY_BET_SQL = """
+_READY_BET_SQL = f"""
     WITH window_matches AS (
         SELECT
             mk.id,
@@ -200,7 +201,7 @@ _READY_BET_SQL = """
         ON ef.id = efm_one.event_family_id
     WHERE br.decision = %s
         AND br.model_fingerprint = %s
-        AND o.odds > 1
+        AND o.odds >= {_MIN_LEG_ODDS}
     ORDER BY
         wm.game_date,
         p.match_id,
@@ -345,7 +346,7 @@ def _candidate_or_none(row: dict[str, object]) -> dict[str, object] | None:
     if not is_settleable_event(event_id, event_name):
         return None
     probability = _stored_probability(row)
-    odds = _odds_above_one(row.get("odds"))
+    odds = _selectable_odds(row.get("odds"))
     identity = _required_identity(row)
     kickoff = row.get("kickoff")
     if probability is None or odds is None or identity is None:
@@ -511,10 +512,10 @@ def _require_fingerprint(value: str) -> str:
     return digest
 
 
-def _odds_above_one(value: object) -> float | None:
-    """Keep a price that can be inverted into an implied probability."""
+def _selectable_odds(value: object) -> float | None:
+    """Keep a price the computer may place on one event."""
     number = _finite_float(value)
-    if number is None or number <= 1.0:
+    if number is None or number < _MIN_LEG_ODDS:
         return None
     return number
 

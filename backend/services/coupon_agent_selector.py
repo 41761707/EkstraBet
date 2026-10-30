@@ -76,8 +76,9 @@ def select_coupon(
         cfg: SelectorConfig) -> CouponSelection:
     """Pick one coupon, or ``no_bet`` when nothing legal remains.
 
-    At most one leg per match and at most ``max_legs`` legs. The
-    product of prices cannot exceed ``max_combined_odds``. The coupon
+    At most one leg per match and at most ``max_legs`` legs. A leg
+    priced below ``min_leg_odds`` is ignored. The product of prices
+    cannot exceed ``max_combined_odds``. The coupon
     score is the sum of leg scores minus ``leg_penalty`` for every
     leg after the first. A mean of the same scores would always keep
     a single leg.
@@ -129,6 +130,9 @@ def _score_leg(
     """Score one leg, or drop it when it can never sit on a legal slip."""
     odds = candidate.odds
     if not math.isfinite(odds) or odds <= 1.0:
+        return None
+    # Kurs 1.5 jest dozwolony. Poniżej tej ceny zdarzenie odpada.
+    if odds + _ODDS_TOLERANCE < cfg.min_leg_odds:
         return None
     if odds > cfg.max_combined_odds + _ODDS_TOLERANCE:
         return None

@@ -244,7 +244,7 @@ def _coupon_request(
         {
             "match_id": leg.match_id,
             "event_ids": [leg.event_id],
-            # FLOAT 1.01 wraca tuż poniżej progu walidacji nóg.
+            # FLOAT 1.01 wraca tuż poniżej progu walidacji zdarzeń.
             "odds": quantize_catalog_odds(leg.odds),
             "bookmaker_id": leg.bookmaker_id,
             "source": "catalog"
