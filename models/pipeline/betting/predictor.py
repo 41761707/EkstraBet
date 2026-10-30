@@ -122,14 +122,16 @@ def select_candidates(
         config: BettingStrategyConfig) -> list[SelectionDecision]:
     """Mark bet only when the probability is above the threshold.
 
-    Equality stays no-bet. Input order is preserved. Each candidate
-    is decided on its own, with no stake attached.
+    A price below ``min_odds`` stays no-bet even when the probability
+    clears the threshold. Equality on the threshold stays no-bet.
+    A price equal to ``min_odds`` may still be a bet. Input order is
+    preserved. Each candidate is decided on its own, with no stake.
     """
     if not isinstance(config, BettingStrategyConfig):
         raise ValueError("config must be a BettingStrategyConfig")
     _require_scored(scored)
     return [
-        _decision(item, config.probability_threshold)
+        _decision(item, config.probability_threshold, config.min_odds)
         for item in scored]
 
 
@@ -264,12 +266,17 @@ def _candidate_from_row(row: pd.Series) -> BettingCandidate:
 
 def _decision(
         scored: ScoredCandidate,
-        threshold: float) -> SelectionDecision:
-    """Apply the threshold without looking at other rows."""
+        threshold: float,
+        min_odds: float) -> SelectionDecision:
+    """Apply the odds floor and the threshold, one row at a time."""
     # Sekcja 6.5: bet dopiero powyżej progu. Równość zostaje no_bet.
+    # Kurs poniżej min_odds nie jest wyborem, niezależnie od progu.
     probability = scored.calibrated_probability
-    if probability > threshold:
-        kind: DecisionKind = "bet"
+    if scored.candidate.odds < min_odds:
+        kind: DecisionKind = "no_bet"
+        reason = "odds below minimum"
+    elif probability > threshold:
+        kind = "bet"
         reason = "calibrated probability above threshold"
     else:
         kind = "no_bet"

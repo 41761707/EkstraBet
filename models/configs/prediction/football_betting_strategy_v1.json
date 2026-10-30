@@ -1,5 +1,6 @@
 {
   "probability_threshold": 0.5,
+  "min_odds": 1.5,
   "football_sport_name": "Piłka nożna",
   "excluded_model_names": [
     "FOOTBALL_PLAYED_BETTER_V1",

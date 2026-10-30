@@ -400,6 +400,17 @@ def test_threshold_marks_bet_only_strictly_above() -> None:
     assert floor[0].decision == "no_bet"
 
 
+def test_price_below_one_and_a_half_stays_no_bet() -> None:
+    short = _scored(0.9, prediction_id=1, odds_id=1, odds=1.49)
+    boundary = _scored(0.9, prediction_id=2, odds_id=2, odds=1.5)
+    decisions = select_candidates(
+        (short, boundary),
+        _strategy(probability_threshold=0.5))
+    assert [item.decision for item in decisions] == ["no_bet", "bet"]
+    assert decisions[0].reason == "odds below minimum"
+    assert decisions[1].reason == "calibrated probability above threshold"
+
+
 def test_selection_does_not_fold_a_match_into_a_coupon() -> None:
     decisions = select_candidates(
         (

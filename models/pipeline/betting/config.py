@@ -100,6 +100,8 @@ class BettingStrategyConfig(BaseModel):
         allow_inf_nan=False)
 
     probability_threshold: float
+    # Komputer nie wybiera zdarzenia poniżej tego kursu. Równość zostaje.
+    min_odds: float = 1.5
     football_sport_name: str
     excluded_model_names: tuple[str, ...]
     max_brier: float
@@ -115,6 +117,17 @@ class BettingStrategyConfig(BaseModel):
                 value < 0.0 or value > 1.0):
             raise ValueError(
                 "probability_threshold must be between 0 and 1")
+        return value
+
+    @field_validator("min_odds", mode="before")
+    @classmethod
+    def _validate_min_odds(cls, value: object) -> object:
+        _reject_bool(value)
+        if isinstance(value, (int, float)) and (
+                value != value
+                or value in (float("inf"), float("-inf"))
+                or value <= 1.0):
+            raise ValueError("min_odds must be greater than 1")
         return value
 
     @field_validator("football_sport_name")

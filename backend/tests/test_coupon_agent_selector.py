@@ -130,7 +130,7 @@ class TestScoreCandidate(unittest.TestCase):
 
 
 class TestCombinedOddsCeiling(unittest.TestCase):
-    """The product of prices is a hard ceiling of 5."""
+    """The product of prices is a hard ceiling of 6."""
 
     def test_two_prices_at_two_fit_under_the_ceiling(self) -> None:
         first = _candidate(match_id=1, odds=2.0, model_probability=0.55)
@@ -139,6 +139,14 @@ class TestCombinedOddsCeiling(unittest.TestCase):
         self.assertEqual(selection.reason, "published")
         self.assertEqual(_ids(selection), [1, 2])
         self.assertAlmostEqual(selection.combined_odds, 4.0)
+
+    def test_two_prices_at_two_point_four_fit_under_six(self) -> None:
+        first = _candidate(match_id=1, odds=2.4, model_probability=0.45)
+        second = _candidate(match_id=2, odds=2.4, model_probability=0.45)
+        selection = select_coupon([second, first], _CFG)
+        self.assertEqual(selection.reason, "published")
+        self.assertEqual(_ids(selection), [1, 2])
+        self.assertAlmostEqual(selection.combined_odds, 5.76)
 
     def test_two_prices_at_three_do_not_combine(self) -> None:
         first = _candidate(match_id=1, odds=3.0, model_probability=0.40)
@@ -168,11 +176,21 @@ class TestCombinedOddsCeiling(unittest.TestCase):
         self.assertAlmostEqual(selection.combined_odds, 4.5)
         self.assertNotIn(2, _ids(selection))
 
-    def test_single_price_above_five_is_no_bet(self) -> None:
+    def test_single_price_at_six_stays_on_the_slip(self) -> None:
         cfg = SelectorConfig(min_probability=0.10, max_abs_edge_pp=50.0)
         candidate = _candidate(
             match_id=1,
             odds=6.0,
+            model_probability=0.20)
+        selection = select_coupon([candidate], cfg)
+        self.assertEqual(selection.reason, "published")
+        self.assertAlmostEqual(selection.combined_odds, 6.0)
+
+    def test_single_price_above_six_is_no_bet(self) -> None:
+        cfg = SelectorConfig(min_probability=0.10, max_abs_edge_pp=50.0)
+        candidate = _candidate(
+            match_id=1,
+            odds=6.01,
             model_probability=0.20)
         self.assertGreater(score_candidate(candidate, cfg), float("-inf"))
         selection = select_coupon([candidate], cfg)
@@ -180,12 +198,26 @@ class TestCombinedOddsCeiling(unittest.TestCase):
         self.assertEqual(selection.legs, [])
         self.assertIsNone(selection.combined_odds)
 
-    def test_penalty_drops_a_weak_leg_that_still_fits(self) -> None:
-        strong = _candidate(match_id=1, odds=1.05, model_probability=0.90)
-        weak = _candidate(
+    def test_price_below_one_and_a_half_is_no_bet(self) -> None:
+        cfg = SelectorConfig(min_probability=0.10, max_abs_edge_pp=50.0)
+        short = _candidate(
+            match_id=1,
+            odds=1.49,
+            model_probability=0.70)
+        self.assertGreater(score_candidate(short, cfg), float("-inf"))
+        rejected = select_coupon([short], cfg)
+        self.assertEqual(rejected.reason, "no_bet")
+        boundary = _candidate(
             match_id=2,
-            odds=1.0 / 0.22,
-            model_probability=0.35)
+            odds=1.5,
+            model_probability=0.70)
+        kept = select_coupon([boundary], cfg)
+        self.assertEqual(kept.reason, "published")
+        self.assertAlmostEqual(kept.combined_odds, 1.5)
+
+    def test_penalty_drops_a_weak_leg_that_still_fits(self) -> None:
+        strong = _candidate(match_id=1, odds=1.5, model_probability=0.70)
+        weak = _candidate(match_id=2, odds=4.0, model_probability=0.40)
         weak_score = score_candidate(weak, _CFG)
         self.assertLess(weak_score, _CFG.leg_penalty)
         self.assertLessEqual(strong.odds * weak.odds, _CFG.max_combined_odds)
@@ -237,7 +269,7 @@ class TestCouponShape(unittest.TestCase):
 
     def test_max_legs_stops_at_the_cap_even_when_odds_still_fit(self) -> None:
         legs = [
-            _candidate(match_id=index, odds=1.10, model_probability=0.88)
+            _candidate(match_id=index, odds=1.50, model_probability=0.70)
             for index in range(1, 11)]
         selection = select_coupon(list(reversed(legs)), _CFG)
         self.assertEqual(
