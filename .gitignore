@@ -240,6 +240,7 @@ models/artifacts/dev/**/*
 deploy/mysql.env
 .agents/
 .codex/
+.cursor
 
 #NHL
 nhl_api/*

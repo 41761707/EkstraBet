@@ -15,71 +15,44 @@ export interface AppRelease {
 // patch_notes/<tag>.md (złączone kontynuacje punktów w jeden string).
 
 export const APP_RELEASE: AppRelease = {
-  version: "1.5.0",
-  heading: "EkstraBet 1.5.0 - Sezon 1",
-  releaseDate: "27.10.2026",
+  version: "1.5.1",
+  heading: "EkstraBet 1.5.1 - Sezon 1",
+  releaseDate: "31.10.2026",
   character:
-    "Wydanie funkcjonalne - oceny meczowe NHL, meta-model wyboru zakładu " +
-    "i dzienne kupony agentów",
+    "Wydanie funkcjonalne - doradca stawki, sugestie zdarzeń i próg " +
+    "kursu kuponów agentów",
   changes: [
-    "[EB-9] Dzienne kupony agentów z puli werdyktów meta-modelu oraz " +
-      "odświeżona historia kuponów na `/moje-zaklady` i profilu typera " +
-      "(`/profile/<username>/`).",
-    "[EB-18] Meta-model wyboru zdarzeń wartych zagrania: czyta predykcje " +
-      "i kursy piłkarskie, trenuje i kalibruje model, a osobny przebieg " +
-      "zapisuje werdykt bet/no-bet.",
-    "[EB-37] Oceny zawodników NHL po meczu: boxscore na " +
-      "`/matches/<match_id>/`, ranking sezonu na `/leagues/<league_id>/` " +
-      "oraz średnia ocena na panelu zawodnika (`/players`).",
-    "[SZP-118] Domena i konfiguracja kandydatów na zakłady (kontrakty " +
-      "selekcji oraz pliki strategii i treningu meta-modelu).",
-    "[SZP-119] Odczyt zakładów-kandydatów z predykcji i kursów aktywnych " +
-      "modeli piłkarskich.",
-    "[SZP-126] Cechy kandydata bez danych pomeczowych (w tym dewigg kursu) " +
-      "w module wyboru zakładu.",
-    "[SZP-127] Deterministyczne strategie bazowe wyboru pojedynczego zakładu.",
-    "[SZP-128] Raport oceny walk-forward meta-modelu, bez zapisu bankrolla.",
-    "[SZP-129] Przygotowanie danych treningowych i splitów walk-forward " +
-      "po dacie meczu dla modelu generującego zakłady.",
-    "[SZP-130] Trening, kalibracja i odcisk pliku meta-modelu wyboru zdarzeń " +
-      "wartych zagrania.",
-    "[SZP-131] Ocena kandydatów i decyzja bet/no-bet przez meta-model.",
-    "[SZP-132] Tabela werdyktów typerskich meta-modelu oraz dokumentacja schematu.",
-    "[SZP-133] Predykcja nowych par bet/no-bet bez ponownego treningu.",
-    "[SZP-134] Komendy CLI datasetu, treningu, ewaluacji, backtestu " +
-      "i predykcji meta-modelu (`build-betting-dataset`, `train-betting-meta`, " +
-      "`evaluate-betting-meta`, `backtest-betting-strategy`, " +
-      "`predict-betting-meta`).",
-    "[SZP-176] Podgląd rotacji w liniach (awans i spadek) na składzie drużyny " +
-      "NHL (`/teams/<team_id>/`).",
-    "[SZP-278] Wagi i ocena zawodnika z pola NHL z gotowych liczników meczowych.",
-    "[SZP-279] Ocena bramkarza NHL w modelu ocen meczowych.",
-    "[SZP-280] Bramki, asysty i kary ze zdarzeń meczu w ocenie zawodnika NHL.",
-    "[SZP-281] Złożenie oceny meczu NHL i grup pozycji (napastnicy, obrońcy, " +
-      "bramkarze).",
-    "[SZP-282] Odczyt statystyk meczu i skuteczności sezonu pod oceny hokejowe.",
-    "[SZP-283] Ocena w szczegółach meczu NHL i w schemacie API " +
-      "(`/matches/<match_id>/`).",
-    "[SZP-284] Typy i sortowanie grup ocen na froncie karty meczu NHL.",
-    "[SZP-285] Wykresy ocen w sekcji boxscore hokejowego na " +
-      "`/matches/<match_id>/`.",
-    "[SZP-286] Rozszerzenie ocen o pozostałe komponenty, poprawki graficzne " +
-      "i przeskalowanie rankingów do bazowej noty 5 — boxscore, ranking ligi " +
-      "(`/leagues/<league_id>/`) i panel zawodnika (`/players`).",
-    "[SZP-300] Repozytorium kandydatów kuponu dla agenta.",
-    "[SZP-301] Deterministyczny selektor kuponu agenta.",
-    "[SZP-302] Publikacja dziennego kuponu na konta agentów.",
-    "[SZP-303] Komenda CLI `publish-coupon-agent`, spięcie publikacji " +
-      "z werdyktami EB-18 oraz wydzielenie synchronizacji kuponów " +
-      "local→prod (`scripts/sync/sync_local_coupons_to_prod.py`).",
-    "[SZP-304] Poprawa historii kuponów na `/moje-zaklady` " +
-      "i `/profile/<username>/`: wynik meczu, oznaczenie singiel/AKO oraz " +
-      "statusy wygrany, przegrany i w rozliczeniu.",
-    "[NEW] Procent overów obok BTTS w sekcji H2H przed meczem " +
-      "(`/matches/<match_id>/`): linia 2.5 w piłce i 6.5 w hokeju.",
-    "[TECH] Przycisk rozliczania kuponów w panelu admina (`/admin`).",
-    "[TECH] Sortowanie kolumn w boxscore hokejowym na `/matches/<match_id>/`.",
-    "[LUK-5] Zwijanie kuponow w moich zakladach"
+    "[EB-20] Opcjonalna podpowiedź stawki w kreatorze kuponu na " +
+      "`/moje-zaklady` (pewność użytkownika, Kelly i limity bankrolla). " +
+      "Meta-model i kupony agentów pomijają zdarzenia poniżej kursu 1.5, " +
+      "a iloczyn kursów kuponu agenta ma sufit 6.",
+    "[EB-38] Sugestie zdarzeń w kreatorze kuponu na `/moje-zaklady`: " +
+      "tiery S/A/B z historii kuponów, pasma kursów i werdyktu komputera, " +
+      "dodawane na kupon ręcznie. Przewinięcie do kuponu po dodaniu " +
+      "zdarzenia oraz link do `/stats` w FAQ na stronie głównej.",
+    "[SZP-306] Wagi pewności, blending prawdopodobieństwa i matematyka " +
+      "fractional Kelly w doradcy stawki.",
+    "[SZP-307] Serwis rady stawki: bankroll, prawdopodobieństwo modelu, " +
+      "flaga agenta i twarde limity stawki.",
+    "[SZP-308] Endpoint podpowiedzi stawki " +
+      "`POST /tipsters/me/advise-stake`.",
+    "[SZP-309] Panel rady stawki w kreatorze na `/moje-zaklady` oraz " +
+      "podpowiedź kursu katalogowego razem z bukmacherem.",
+    "[SZP-318] Profil gustu, scoring i przydział tierów S/A/B w doradcy " +
+      "zdarzeń.",
+    "[SZP-319] Odczyt historii zakładów użytkownika i puli przyszłych " +
+      "zdarzeń pod sugestie.",
+    "[SZP-320] Serwis sugestii zdarzeń (profil, werdykt komputera, tiery).",
+    "[SZP-321] Endpoint sugestii zdarzeń `POST /tipsters/me/suggest-events`.",
+    "[SZP-322] Przycisk i panel tierów S/A/B w kreatorze kuponu na " +
+      "`/moje-zaklady`.",
+    "[FIX] Poprawka kompilacji panelu zawodnika (`/players`) przy " +
+      "średniej ocenie hokejowej i punktach wykresu.",
+    "[TECH] Odświeżenie tabeli rankingu na `/typer-lm` (oznaczenia miejsc " +
+      "i „Ty”) oraz korekta opisów regulaminu.",
+    "[TECH] Zasady pracy agenta w pliku `AGENTS.md`.",
+    "[TECH] Usunięcie starego frontendu Streamlit (`web_code`).",
+    "[TECH] Usunięcie testów wyglądu frontendu; zostają testy logiki.",
   ],
 };
 
