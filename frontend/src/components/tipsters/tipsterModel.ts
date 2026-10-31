@@ -14,6 +14,7 @@ import type {
   CouponLegSummary,
   CouponSummary,
   CurrencyCode,
+  EventSuggestion,
   LeaderboardSortBy,
   LeaderboardSortOrder,
   LegAdvice,
@@ -993,6 +994,25 @@ export function groupCatalogMatches(
     }
   }
   return groups;
+}
+
+export function catalogMatchFromSuggestion(
+  suggestion: EventSuggestion,
+): CatalogMatch {
+  return {
+    id: suggestion.match_id,
+    league_id: suggestion.league_id,
+    league_name: suggestion.league_name,
+    league_tier: null,
+    game_date: suggestion.game_date,
+    result: null,
+    home_id: 0,
+    home_name: suggestion.home_name,
+    home_shortcut: null,
+    away_id: 0,
+    away_name: suggestion.away_name,
+    away_shortcut: null,
+  };
 }
 
 export function mergeCatalogMatches(

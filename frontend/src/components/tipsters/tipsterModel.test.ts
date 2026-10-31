@@ -26,6 +26,8 @@ import {
   isPublicCouponHistoryVisible,
   couponHistoryStatusLabel,
   legOutcomeLabel,
+  catalogMatchFromSuggestion,
+  catalogMatchTitle,
   mergeCatalogMatches,
   parseEventFamilyFilter,
   parseIsSystemFilter,
@@ -705,6 +707,39 @@ describe("catalog match picker helpers", () => {
 
   it("keeps previously selected matches when the day changes", () => {
     expect(mergeCatalogMatches([legia], [arsenal])).toEqual([legia, arsenal]);
+  });
+
+  it("builds a slip match from a suggestion outside the open catalog day", () => {
+    const match = catalogMatchFromSuggestion({
+      tier: "S",
+      match_id: 50,
+      event_id: 7,
+      event_name: "Gospodarz wygrywa",
+      league_id: 9,
+      league_name: "K League",
+      home_name: "Seoul",
+      away_name: "Busan",
+      game_date: "2026-11-02T18:00:00",
+      odds: 1.8,
+      bookmaker_id: 3,
+      score: 0.9,
+      reasons: ["computer_bet"],
+    });
+    expect(match).toEqual({
+      id: 50,
+      league_id: 9,
+      league_name: "K League",
+      league_tier: null,
+      game_date: "2026-11-02T18:00:00",
+      result: null,
+      home_id: 0,
+      home_name: "Seoul",
+      home_shortcut: null,
+      away_id: 0,
+      away_name: "Busan",
+      away_shortcut: null,
+    });
+    expect(catalogMatchTitle([match], 50)).toBe("Seoul – Busan");
   });
 
   it("sends one calendar day and favorite league ids to the catalog", () => {

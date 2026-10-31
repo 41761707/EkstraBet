@@ -2102,6 +2102,53 @@ export interface AdviseStakeResponse {
   unit_size: number;
 }
 
+/** Closed suggestion floors. Weaker candidates are omitted by the API. */
+export type EventSuggestionTier = "S" | "A" | "B";
+
+/** One draft leg sent to the event advisor. Odds stay off this body. */
+export interface SuggestEventLeg {
+  match_id: number;
+  event_ids: number[];
+}
+
+/** Body for POST /tipsters/me/suggest-events. An empty list is valid. */
+export interface SuggestEventsRequest {
+  legs: SuggestEventLeg[];
+}
+
+/** One suggested event. It is not a placed bet. */
+export interface EventSuggestion {
+  tier: EventSuggestionTier;
+  match_id: number;
+  event_id: number;
+  event_name: string;
+  league_id: number;
+  league_name: string;
+  home_name: string;
+  away_name: string;
+  game_date: string;
+  odds: number;
+  bookmaker_id: number;
+  score: number;
+  reasons: string[];
+}
+
+/** The three floors. Empty lists are a valid answer. */
+export interface EventSuggestionTiers {
+  S: EventSuggestion[];
+  A: EventSuggestion[];
+  B: EventSuggestion[];
+}
+
+/** Suggestions for one click. The endpoint does not store them. */
+export interface SuggestEventsResponse {
+  cold_start: boolean;
+  history_events: number;
+  odds_low: number | null;
+  odds_high: number | null;
+  tiers: EventSuggestionTiers;
+}
+
 /** Persisted coupon leg with nested catalog event IDs. */
 export interface CouponLegSummary {
   id: number;

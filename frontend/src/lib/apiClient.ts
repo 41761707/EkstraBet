@@ -53,6 +53,8 @@ import {
   type LongTermAutoResultResponse,
   type LongTermPickChange,
   type SettlementResult,
+  type SuggestEventsRequest,
+  type SuggestEventsResponse,
   type TipsterCatalogQuery,
   type TipsterCouponsQuery,
   type TyperAdminCandidatesResponse,
@@ -640,6 +642,21 @@ export async function adviseMyStake(
 ): Promise<AdviseStakeResponse> {
   return fetchViaBff<AdviseStakeResponse>(
     "/tipsters/me/advise-stake",
+    undefined,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  );
+}
+
+/** Event suggestions via POST /tipsters/me/suggest-events. Does not place a coupon. */
+export async function suggestMyEvents(
+  request: SuggestEventsRequest,
+): Promise<SuggestEventsResponse> {
+  return fetchViaBff<SuggestEventsResponse>(
+    "/tipsters/me/suggest-events",
     undefined,
     {
       method: "POST",

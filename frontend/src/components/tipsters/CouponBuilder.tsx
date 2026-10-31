@@ -15,6 +15,13 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { AdvisorHintPanel } from "@/components/tipsters/AdvisorHintPanel";
 import { BetsPanel, BetsSubsection } from "@/components/tipsters/BetsPanel";
 import { CouponPicker } from "@/components/tipsters/CouponPicker";
+import {
+  EventSuggestionPanel,
+  SUGGESTION_DISCLAIMER,
+  SUGGESTIONS_SECTION_TITLE,
+  SuggestEventsButton,
+  useEventSuggestions,
+} from "@/components/tipsters/EventSuggestionPanel";
 import { CouponStakeFields } from "@/components/tipsters/CouponStakeFields";
 import {
   clearCouponDraft,
@@ -28,6 +35,7 @@ import {
   addEventToDraftLegs,
   applySuggestedLegOdds,
   buildCouponCreateRequest,
+  catalogMatchFromSuggestion,
   isCombinedLeg,
   mergeCatalogMatches,
   removeEventFromDraftLegs,
@@ -43,6 +51,7 @@ import type {
   CatalogMatch,
   CatalogMatchesResponse,
   CurrencyCode,
+  EventSuggestion,
   StakeInputMode,
 } from "@/types/api";
 
@@ -82,6 +91,7 @@ export function CouponBuilder({
   applyTax = false,
 }: CouponBuilderProps) {
   const draft = useCouponDraft(catalog, favoriteLeagueIds, draftStorageKey);
+  const suggestions = useEventSuggestions(draft.legs);
   return (
     <BetsPanel
       title={COUPON_BUILDER_TITLE}
@@ -108,7 +118,27 @@ export function CouponBuilder({
           onEventChange={draft.setEventId}
           onAdd={draft.handleAddEvent}
         />
+        <SuggestEventsButton
+          disabled={draft.isSubmitting}
+          onClick={() => void suggestions.load()}
+        />
       </BetsSubsection>
+      {suggestions.isOpen ? (
+        <BetsSubsection
+          title={SUGGESTIONS_SECTION_TITLE}
+          description={SUGGESTION_DISCLAIMER}
+        >
+          <EventSuggestionPanel
+            isLoading={suggestions.isLoading}
+            error={suggestions.error}
+            coldStart={suggestions.coldStart}
+            tiers={suggestions.tiers}
+            serverSuggestionsEmpty={suggestions.serverSuggestionsEmpty}
+            disabled={draft.isSubmitting}
+            onAdd={draft.handleAddSuggestedEvent}
+          />
+        </BetsSubsection>
+      ) : null}
       <CouponSlipForm
         catalog={catalog}
         knownMatches={draft.knownMatches}
@@ -132,6 +162,51 @@ export function CouponBuilder({
 
 type SuggestionTokens = MutableRefObject<Map<number, number>>;
 
+interface SubmitCouponDraftInput {
+  legs: DraftCouponLeg[];
+  mode: StakeInputMode;
+  stakeRaw: string;
+  storageKey: string;
+  submittingRef: MutableRefObject<boolean>;
+  setIsSubmitting: (value: boolean) => void;
+  setError: Dispatch<SetStateAction<string | null>>;
+  setLegs: Dispatch<SetStateAction<DraftCouponLeg[]>>;
+  setStakeRaw: (value: string) => void;
+  refresh: () => void;
+}
+
+async function submitCouponDraft(input: SubmitCouponDraftInput): Promise<void> {
+  if (input.submittingRef.current) {
+    return;
+  }
+  input.submittingRef.current = true;
+  input.setIsSubmitting(true);
+  const request = buildCouponCreateRequest(
+    input.legs,
+    input.mode,
+    input.stakeRaw,
+  );
+  if ("error" in request) {
+    input.submittingRef.current = false;
+    input.setIsSubmitting(false);
+    input.setError(request.error);
+    return;
+  }
+  input.setError(null);
+  try {
+    await createMyCoupon(request);
+    input.setLegs([]);
+    input.setStakeRaw("");
+    clearCouponDraft(input.storageKey);
+    input.refresh();
+  } catch (cause) {
+    input.setError(tipsterMutationMessage(cause));
+  } finally {
+    input.submittingRef.current = false;
+    input.setIsSubmitting(false);
+  }
+}
+
 function addCatalogEvent(
   legs: DraftCouponLeg[],
   matchId: number,
@@ -139,21 +214,33 @@ function addCatalogEvent(
   tokens: SuggestionTokens,
   setLegs: Dispatch<SetStateAction<DraftCouponLeg[]>>,
   setError: Dispatch<SetStateAction<string | null>>,
-): void {
+  beforeLegs?: () => void,
+): boolean {
   const result = addEventToDraftLegs(legs, matchId, eventId);
   if ("error" in result) {
     setError(draftLegErrorMessage(result.error));
-    return;
+    return false;
   }
+  beforeLegs?.();
   setError(null);
   setLegs(result.legs);
   const added = result.legs.find((leg) => leg.matchId === matchId);
   if (!added || isCombinedLeg(added.eventIds)) {
     // kurs łączony wpisuje użytkownik; spóźniona podpowiedź nie może wrócić
     bumpSuggestionToken(tokens, matchId);
-    return;
+    return true;
   }
   queueSuggestedOdds(matchId, eventId, tokens, setLegs);
+  return true;
+}
+
+function rememberSuggestedMatch(
+  setRestoredMatches: Dispatch<SetStateAction<CatalogMatch[]>>,
+  suggestion: EventSuggestion,
+): void {
+  // Doradca sięga poza dzień pickera. Karta nogi i szkic sesji czytają knownMatches.
+  const match = catalogMatchFromSuggestion(suggestion);
+  setRestoredMatches((current) => mergeCatalogMatches(current, [match]));
 }
 
 function bumpSuggestionToken(
@@ -240,32 +327,31 @@ function useCouponDraft(
     );
   }
 
-  async function handleSave() {
-    if (submittingRef.current) {
-      return;
-    }
-    submittingRef.current = true;
-    setIsSubmitting(true);
-    const request = buildCouponCreateRequest(legs, mode, stakeRaw);
-    if ("error" in request) {
-      submittingRef.current = false;
-      setIsSubmitting(false);
-      setError(request.error);
-      return;
-    }
-    setError(null);
-    try {
-      await createMyCoupon(request);
-      setLegs([]);
-      setStakeRaw("");
-      clearCouponDraft(storageKey);
-      router.refresh();
-    } catch (cause) {
-      setError(tipsterMutationMessage(cause));
-    } finally {
-      submittingRef.current = false;
-      setIsSubmitting(false);
-    }
+  function handleAddSuggestedEvent(suggestion: EventSuggestion) {
+    addCatalogEvent(
+      legs,
+      suggestion.match_id,
+      suggestion.event_id,
+      suggestionTokens,
+      setLegs,
+      setError,
+      () => rememberSuggestedMatch(setRestoredMatches, suggestion),
+    );
+  }
+
+  function handleSave() {
+    return submitCouponDraft({
+      legs,
+      mode,
+      stakeRaw,
+      storageKey,
+      submittingRef,
+      setIsSubmitting,
+      setError,
+      setLegs,
+      setStakeRaw,
+      refresh: () => router.refresh(),
+    });
   }
 
   return {
@@ -283,15 +369,12 @@ function useCouponDraft(
     setMode,
     setStakeRaw,
     handleAddEvent,
+    handleAddSuggestedEvent,
     handleSave,
     handleDateChange: (nextDate: string) =>
       applyPickerMatches(picker.changeDate(nextDate), selectedMatchId, setMatchId),
     handleAllLeaguesChange: (nextValue: boolean) =>
-      applyPickerMatches(
-        picker.changeIncludeAllLeagues(nextValue),
-        selectedMatchId,
-        setMatchId,
-      ),
+      applyPickerMatches(picker.changeIncludeAllLeagues(nextValue), selectedMatchId, setMatchId),
     handleOddsChange: (id: number, odds: string) =>
       setLegs(updateDraftLegOdds(legs, id, odds)),
     handleRemove: (id: number, eventIdToRemove: number) =>
