@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { MatchCardPanel } from "@/components/matches/MatchCardPanel";
+import { buildFootballMatchCard } from "@/components/matches/matchCardModel";
 import { MatchDetailTabs } from "@/components/matches/MatchDetailTabs";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
@@ -55,6 +57,18 @@ export default async function MatchPage({
     const leagueHref = leaguePath(league.slug, { season_id: match.season_id });
     const teamQuery = `season_id=${match.season_id}&league_id=${match.league_id}`;
     const roundLabel = formatRoundLabel(match.round_label);
+    const matchCard = buildFootballMatchCard({
+      sportId: match.sport_id,
+      leagueName: league.name,
+      gameDate: match.game_date,
+      roundLabel: match.round_label,
+      homeTeam: match.home_team,
+      awayTeam: match.away_team,
+      prediction: match.prediction_analysis,
+      headToHeadMeetings: match.head_to_head.meetings,
+      homeHistory: match.home_team_history,
+      awayHistory: match.away_team_history,
+    });
 
     return (
       <div className="space-y-8">
@@ -95,6 +109,8 @@ export default async function MatchPage({
         </section>
 
         <MatchDetailTabs key={match.id} match={match} />
+
+        {matchCard ? <MatchCardPanel card={matchCard} /> : null}
       </div>
     );
   } catch (error) {
