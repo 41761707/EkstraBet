@@ -26,6 +26,7 @@ import type {
   CurrencyCode,
 } from "@/types/api";
 
+export const COUPON_HISTORY_ID = "coupon-history";
 export const COUPON_HISTORY_TITLE = "Historia kuponów";
 export const COUPON_HISTORY_EMPTY_TITLE = "Brak kuponów";
 export const COUPON_HISTORY_EMPTY_MESSAGE =
@@ -54,7 +55,7 @@ export function CouponHistoryTable({
 }: CouponHistoryTableProps) {
   if (coupons.total === 0) {
     return (
-      <BetsPanel title={COUPON_HISTORY_TITLE}>
+      <BetsPanel id={COUPON_HISTORY_ID} title={COUPON_HISTORY_TITLE}>
         <StatusMessage
           variant="empty"
           title={COUPON_HISTORY_EMPTY_TITLE}
@@ -65,7 +66,7 @@ export function CouponHistoryTable({
   }
 
   return (
-    <BetsPanel title={COUPON_HISTORY_TITLE}>
+    <BetsPanel id={COUPON_HISTORY_ID} title={COUPON_HISTORY_TITLE}>
       <div className="space-y-3">
         {coupons.items.map((coupon) => (
           <CouponHistoryCard

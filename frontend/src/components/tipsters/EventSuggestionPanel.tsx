@@ -23,13 +23,15 @@ import type {
 } from "@/types/api";
 
 export const SUGGEST_EVENTS_BUTTON_LABEL = "Wygeneruj sugestie zdarzeń";
+export const SUGGEST_EVENTS_OPTIONAL_HINT =
+  "Brak pomysłu? A może szukasz inspiracji? Komputer zawsze Ci coś doradzi";
 export const ADD_SUGGESTED_EVENT_LABEL = "Dodaj do kuponu";
 export const SUGGESTIONS_SECTION_TITLE = "Sugestie zdarzeń";
 export const SUGGESTION_DISCLAIMER =
   "Poniżej znajdują się sugestie systemu dotyczące zdarzeń, które mogą Cię zainteresować. " +
-  "Sugetsie opierają się na Twojej historii kuponów, Twoich ulubionych ligach oraz predykcjach komputera i kursach bukmacherskich.";
+  "Sugestie opierają się na Twojej historii kuponów, Twoich ulubionych ligach oraz predykcjach komputera jak i kursach bukmacherskich.";
 export const COLD_START_HINT =
-  "Niewystarczająca liczba kuponów - sugestie opierają się " +
+  "Niewystarczająca liczba kuponów - sugestie opierają się tylko " +
   "na werdykcie komputera i ulubionych ligach.";
 export const EMPTY_SUGGESTIONS_TITLE =
   "Brak zdarzeń pasujących do Twojego profilu.";
@@ -123,14 +125,19 @@ export function SuggestEventsButton({
   onClick,
 }: SuggestEventsButtonProps) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={SUGGEST_BUTTON_CLASS_NAME}
-    >
-      {SUGGEST_EVENTS_BUTTON_LABEL}
-    </button>
+    <aside className="space-y-2 rounded-lg border border-dashed border-border bg-surface-muted px-4 py-3">
+      <p className="text-sm leading-relaxed text-muted">
+        {SUGGEST_EVENTS_OPTIONAL_HINT}
+      </p>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className={SUGGEST_BUTTON_CLASS_NAME}
+      >
+        {SUGGEST_EVENTS_BUTTON_LABEL}
+      </button>
+    </aside>
   );
 }
 
@@ -159,7 +166,11 @@ export function EventSuggestionPanel({
 
   return (
     <div className="space-y-3">
-      {coldStart ? <p className="text-sm text-muted">{COLD_START_HINT}</p> : null}
+      {coldStart ? (
+        <p className="rounded-lg border border-info-border bg-info-bg px-3 py-2 text-sm leading-relaxed text-info-text">
+          {COLD_START_HINT}
+        </p>
+      ) : null}
       {isLoading ? (
         <p className="text-sm text-muted">{SUGGESTIONS_LOADING_LABEL}</p>
       ) : null}

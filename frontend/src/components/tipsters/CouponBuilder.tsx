@@ -118,11 +118,11 @@ export function CouponBuilder({
           onEventChange={draft.setEventId}
           onAdd={draft.handleAddEvent}
         />
-        <SuggestEventsButton
-          disabled={draft.isSubmitting}
-          onClick={() => void suggestions.load()}
-        />
       </BetsSubsection>
+      <SuggestEventsButton
+        disabled={draft.isSubmitting}
+        onClick={() => void suggestions.load()}
+      />
       {suggestions.isOpen ? (
         <BetsSubsection
           title={SUGGESTIONS_SECTION_TITLE}
@@ -158,6 +158,18 @@ export function CouponBuilder({
       />
     </BetsPanel>
   );
+}
+
+const COUPON_SLIP_ID = "coupon-slip";
+const COUPON_HISTORY_ID = "coupon-history";
+
+function scrollToElement(id: string, delayMs = 0): void {
+  window.setTimeout(() => {
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, delayMs);
 }
 
 type SuggestionTokens = MutableRefObject<Map<number, number>>;
@@ -199,6 +211,7 @@ async function submitCouponDraft(input: SubmitCouponDraftInput): Promise<void> {
     input.setStakeRaw("");
     clearCouponDraft(input.storageKey);
     input.refresh();
+    scrollToElement(COUPON_HISTORY_ID, 600);
   } catch (cause) {
     input.setError(tipsterMutationMessage(cause));
   } finally {
@@ -224,6 +237,7 @@ function addCatalogEvent(
   beforeLegs?.();
   setError(null);
   setLegs(result.legs);
+  scrollToElement(COUPON_SLIP_ID);
   const added = result.legs.find((leg) => leg.matchId === matchId);
   if (!added || isCombinedLeg(added.eventIds)) {
     // kurs łączony wpisuje użytkownik; spóźniona podpowiedź nie może wrócić
@@ -495,6 +509,7 @@ function CouponSlipForm({
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-5">
       <BetsSubsection
+        id={COUPON_SLIP_ID}
         title="Zdarzenia na kuponie"
         description={COUPON_BUILDER_HINT}
         divided

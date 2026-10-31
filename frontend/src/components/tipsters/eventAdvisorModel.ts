@@ -15,9 +15,9 @@ export const EVENT_SUGGESTION_TIERS: readonly EventSuggestionTier[] = [
 ];
 
 const TIER_PHRASES: Record<EventSuggestionTier, string> = {
-  S: "Najmocniej pasuje",
-  A: "Warto rozważyć",
-  B: "Luźniej pasuje",
+  S: "Najlepsze dopasowania do Twoich preferencji",
+  A: "Bliskie Twoim preferencjom",
+  B: "Mogą Ci się spodobać",
 };
 
 /** Closed set. An unknown code is not a chip. */
@@ -27,7 +27,7 @@ export const EVENT_ADVISOR_REASON_LABELS: Record<string, string> = {
   league_history: "Tę ligę grasz często",
   event_history: "Ten typ zdarzenia grasz często",
   odds_in_band: "Kurs w Twoim zakresie",
-  computer_lean: "Model widzi sensowny typ",
+  computer_lean: "Model lubi ten typ",
 };
 
 export const EVENT_ADVISOR_NETWORK_ERROR =
@@ -46,7 +46,7 @@ export interface SuggestableDraftLeg {
 
 /** Full group title, for example "S — Najmocniej pasuje". */
 export function suggestionTierLabel(tier: EventSuggestionTier): string {
-  return `${tier} — ${TIER_PHRASES[tier]}`;
+  return `${tier} -  ${TIER_PHRASES[tier]}`;
 }
 
 /** Phrase next to the S/A/B badge. */

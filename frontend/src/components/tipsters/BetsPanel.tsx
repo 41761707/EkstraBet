@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
 
 interface BetsPanelProps {
+  id?: string;
   title: string;
   description?: string;
   children: ReactNode;
 }
 
 /** Karta głównej sekcji na stronie zakładów. */
-export function BetsPanel({ title, description, children }: BetsPanelProps) {
+export function BetsPanel({ id, title, description, children }: BetsPanelProps) {
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-surface">
+    <section
+      id={id}
+      className="overflow-hidden rounded-xl border border-border bg-surface"
+    >
       <header className="border-b border-border bg-surface-muted px-5 py-4">
         <h2 className="text-lg font-semibold text-text">{title}</h2>
         {description ? (
@@ -24,6 +28,7 @@ export function BetsPanel({ title, description, children }: BetsPanelProps) {
 }
 
 interface BetsSubsectionProps {
+  id?: string;
   title: string;
   description?: string;
   divided?: boolean;
@@ -32,6 +37,7 @@ interface BetsSubsectionProps {
 
 /** Blok wewnątrz karty, oddzielony kreską od poprzedniego. */
 export function BetsSubsection({
+  id,
   title,
   description,
   divided = false,
@@ -41,7 +47,7 @@ export function BetsSubsection({
     ? "space-y-3 border-t border-border pt-5"
     : "space-y-3";
   return (
-    <div className={className}>
+    <div id={id} className={className}>
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-text">{title}</h3>
         {description ? (

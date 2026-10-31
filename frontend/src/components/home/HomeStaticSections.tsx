@@ -81,8 +81,18 @@ const faqItems: { question: string; answer: ReactNode }[] = [
   },
   {
     question: "Jaka jest dokładność prognoz systemu?",
-    answer:
-      "Dokładność modeli różni się w zależności od ligi i typu prognozy. Szczegółowe statystyki wydajności każdego modelu znajdziesz w „Kąciku statystycznym”. Pamiętaj, że żaden model nie jest w 100% dokładny i wszystkie prognozy są hipotetyczne.",
+    answer: (
+      <>
+        Dokładność modeli różni się w zależności od ligi i typu prognozy. Szczegółowe statystyki wydajności każdego modelu znajdziesz w specjalnej zakładce porównującej osiągnięcia modelów. Pamiętaj, że żaden model nie jest w 100% dokładny i wszystkie prognozy są hipotetyczne. Po więcej zerknij tu: 
+        <Link
+          href="/stats"
+          className="text-accent-text transition hover:text-accent-text-hover"
+        >
+          Kącik statystyczny
+        </Link>
+        .
+      </>
+    ),
   },
   {
     question: "Jak zaprosić znajomego do korzystania z Ekstrabet?",
