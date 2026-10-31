@@ -37,19 +37,19 @@ export const TYPER_LM_RULES_SECTIONS: readonly TyperLmRulesSection[] = [
         "kursów.",
       "Nietrafiony typ: 0 punktów.",
       "Zablokowanie kursów (czyli również punktacji) odbywa się nie później niż 30 minut przed rozpoczęciem spotkania",
-      "Ranking: suma punktów meczowych i długoterminowych, potem liczba " +
-        "trafień 1X2, potem nazwa wyświetlana.",
+      "Ranking: suma punktów meczowych i długoterminowych. W przypadku remisu " +
+        "najpiere brana pod uwagę jest skuteczność, potem liczba trafień 1X2",
       "Typy 1X2 innych uczestników są prywatne do rozpoczęcia danego meczu " +
         "i stają się publiczne po jego starcie.",
     ],
   },
   {
-    heading: "Długoterminowe — tabela fazy ligowej",
+    heading: "Długoterminowe - tabela fazy ligowej",
     items: [
       "Z 36 drużyn wybierz te, które zajmą miejsca 1–8 oraz 29–36 w fazie ligowej",
       "TOP 8 (miejsca 1–8) i BOT 8 (miejsca 29–36) punktują tak samo: " +
         "0 pkt poza strefą, 2 pkt za obecność w strefie, 4 pkt za strefę " +
-        "i dokładne miejsce. Miejsca 9–28 nie punktują. Drużyna w TOP 8 " +
+        "i dokładne miejsce. Drużyna w TOP 8 " +
         "punktuje tylko wtedy, gdy jej kafelek stoi na miejscu 1–8 " +
         "(analogicznie BOT 8 na 29–36).",
       "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
@@ -57,41 +57,39 @@ export const TYPER_LM_RULES_SECTIONS: readonly TyperLmRulesSection[] = [
     ],
   },
   {
-    heading: "Długoterminowe — najlepszy strzelec i asystent",
+    heading: "Długoterminowe - najlepszy strzelec i asystent",
     items: [
-      "Najlepszy strzelec i najlepszy asystent: wpisz imię i nazwisko " +
-        "z klawiatury. Nie ma listy propozycji ani wyszukiwarki zawodników.",
+      "Najlepszy strzelec i najlepszy asystent: Wprowadź własnoręcznie imię i nazwisko zawodnika. " +
       "Wielkość liter i dodatkowe spacje nie mają znaczenia. Literówki, " +
         "znaki diakrytyczne oraz samo nazwisko zamiast imienia i nazwiska " +
-        "to pudło — na przykład Haaland i Håland to różne wpisy.",
+        "to pudło - na przykład Haaland i Håland to różne wpisy.",
       "Trafienie: 2 pkt, gdy znormalizowany wpis należy do zbioru nazwisk " +
         "opublikowanych przez administratora. Przy remisie wielu zawodników " +
-        "punktuje każdy zatwierdzony wpis. Rozlicza administrator.",
+        "punktuje każdy zatwierdzony wpis.",
       "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
         "Po tym terminie zapis jest zablokowany.",
     ],
   },
   {
-    heading: "Długoterminowe — TAK/NIE",
+    heading: "Długoterminowe - TAK/NIE",
     items: [
-      "Odpowiedź TAK albo NIE na pytania: Czy jakakolwiek drużyna wygra " +
-        "wszystkie mecze? oraz Czy jakakolwiek drużyna przegra wszystkie " +
-        "mecze?",
-      "„Wszystkie mecze” oznacza fazę ligową (kolejki 1–8) — ten sam " +
-        "horyzont co tabela.",
-      "Trafienie: 2 pkt. Rozlicza administrator.",
+      "Odpowiedź TAK albo NIE na pytania: 'Czy jakakolwiek drużyna wygra " +
+        "wszystkie mecze?' oraz 'Czy jakakolwiek drużyna przegra wszystkie " +
+        "mecze?'",
+      "„Wszystkie mecze” oznacza fazę ligową (kolejki 1–8)",
+      "Trafienie: 2 pkt.",
       "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
         "Po tym terminie zapis jest zablokowany.",
     ],
   },
   {
-    heading: "Długoterminowe — bramki drużyn",
+    heading: "Długoterminowe - bramki drużyn",
     items: [
       "Która drużyna strzeli najwięcej bramek oraz która drużyna straci " +
         "najwięcej bramek: wybierz jedną drużynę z listy 36 drużyn fazy " +
         "ligowej.",
       "Przy remisie wielu drużyn punktuje każdy zatwierdzony zwycięzca. " +
-        "Trafienie: 2 pkt. Rozlicza administrator.",
+        "Trafienie: 2 pkt.",
       "Typ można zapisać i zmieniać do startu pierwszego meczu fazy ligowej. " +
         "Po tym terminie zapis jest zablokowany.",
     ],
