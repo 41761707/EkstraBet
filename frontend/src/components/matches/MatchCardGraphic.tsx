@@ -12,6 +12,7 @@ import {
   type FootballMatchCard,
   type MatchCardForm,
   type MatchCardFormRow,
+  type MatchCardHeadToHeadRate,
   type MatchCardMeetingRow,
   type MatchCardSegment,
   type MatchCardShare,
@@ -30,13 +31,24 @@ import type { TeamFormResult } from "@/types/api";
  * i ma zostać ciemny po zapisaniu.
  */
 const CARD_BG = "#0b1120";
-const PANEL_BG = "#0f172a";
+// 10% ciemniej niż #1a2744, nadal jaśniej niż plansza.
+const PANEL_BG = "#17233d";
 const PANEL_BORDER = "#2d3f5c";
+const ROW_DIVIDER = "#2d3f5c";
+const ROW_DIVIDER_WIDTH = 2;
 const TEXT = "#e2e8f0";
 const MUTED = "#94a3b8";
 const SUBTLE = "#7b8ea6";
 const ACCENT = "#7dd3fc";
+const STAT_BG = "#243656";
 const STRIPE = "#0284c7";
+const FORM_BADGE_X = 200;
+const FORM_HOME_X = 230;
+const FORM_SCORE_X = 536;
+const FORM_AWAY_X = 584;
+const FORM_BTTS_X = 886;
+const FORM_OVER_X = 958;
+const H2H_HOME_X = FORM_HOME_X;
 const FONT = "Segoe UI, Arial, sans-serif";
 
 const TONE_FILL: Record<MatchCardSegment["tone"], string> = {
@@ -338,19 +350,20 @@ function ScoreChips({
 }
 
 interface FilledHeadToHead {
-  summary: string;
-  rates: string;
+  statsLabel: string;
+  btts: MatchCardHeadToHeadRate;
+  over: MatchCardHeadToHeadRate;
   rows: MatchCardMeetingRow[];
 }
 
 function filledHeadToHead(
   headToHead: FootballMatchCard["headToHead"],
 ): FilledHeadToHead | null {
-  const { summary, rates, rows } = headToHead;
-  if (rows.length === 0 || summary === null || rates === null) {
+  const { statsLabel, btts, over, rows } = headToHead;
+  if (rows.length === 0 || statsLabel === null || btts === null || over === null) {
     return null;
   }
-  return { summary, rates, rows };
+  return { statsLabel, btts, over, rows };
 }
 
 function HeadToHeadSection({
@@ -392,43 +405,156 @@ function HeadToHeadRows({
   headToHead: FilledHeadToHead;
   y: number;
 }) {
+  const statsY = (
+    y
+    + MATCH_CARD_METRICS.h2hHead
+    + headToHead.rows.length * MATCH_CARD_METRICS.row
+  );
   return (
     <g>
-      <CardText x={MATCH_CARD_INNER_LEFT} y={y + 96} size={26} fill={TEXT}>
-        {headToHead.summary}
-      </CardText>
-      <CardText x={MATCH_CARD_INNER_LEFT} y={y + 144} size={26} fill={ACCENT}>
-        {headToHead.rates}
-      </CardText>
+      <HeadToHeadColumns y={y + 112} />
+      <RowDivider y={y + MATCH_CARD_METRICS.h2hHead} />
       {headToHead.rows.map((row, index) => (
-        <MeetingRow
-          key={`${row.dateLabel}-${row.score}-${index}`}
-          row={row}
-          y={rowCenter(y, MATCH_CARD_METRICS.h2hHead, index)}
-        />
+        <g key={`${row.dateLabel}-${row.score}-${index}`}>
+          {index > 0 ? (
+            <RowDivider
+              y={y + MATCH_CARD_METRICS.h2hHead + index * MATCH_CARD_METRICS.row}
+            />
+          ) : null}
+          <MeetingRow
+            row={row}
+            y={rowCenter(y, MATCH_CARD_METRICS.h2hHead, index)}
+          />
+        </g>
       ))}
+      <HeadToHeadStats headToHead={headToHead} y={statsY} />
+    </g>
+  );
+}
+
+function HeadToHeadColumns({ y }: { y: number }) {
+  return (
+    <g>
+      <CardText x={MATCH_CARD_INNER_LEFT} y={y} size={22} fill={SUBTLE}>
+        Data
+      </CardText>
+      <CardText x={H2H_HOME_X} y={y} size={22} fill={SUBTLE}>
+        Gospodarze
+      </CardText>
+      <CardText x={FORM_SCORE_X} y={y} size={22} fill={SUBTLE} anchor="middle">
+        Wynik
+      </CardText>
+      <CardText x={FORM_AWAY_X} y={y} size={22} fill={SUBTLE}>
+        Goście
+      </CardText>
+      <CardText x={FORM_BTTS_X} y={y} size={22} fill={SUBTLE} anchor="middle">
+        BTTS
+      </CardText>
+      <CardText x={FORM_OVER_X} y={y} size={22} fill={SUBTLE} anchor="middle">
+        O2.5
+      </CardText>
     </g>
   );
 }
 
 function MeetingRow({ row, y }: { row: MatchCardMeetingRow; y: number }) {
-  const scoreX = MATCH_CARD_METRICS.width / 2;
   return (
     <g>
-      <CardText x={MATCH_CARD_INNER_LEFT} y={y} size={28} fill={SUBTLE}>
+      <CardText x={MATCH_CARD_INNER_LEFT} y={y} size={26} fill={SUBTLE}>
         {row.dateLabel}
       </CardText>
-      <CardText x={scoreX - 78} y={y} size={28} fill={TEXT} weight={700} anchor="end">
+      <CardText x={H2H_HOME_X} y={y} size={28} fill={TEXT} weight={600}>
         {row.homeName}
       </CardText>
-      <CardText x={scoreX} y={y} size={30} fill={ACCENT} weight={700} anchor="middle">
+      <CardText x={FORM_SCORE_X} y={y} size={30} fill={TEXT} weight={700} anchor="middle">
         {row.score}
       </CardText>
-      <CardText x={scoreX + 78} y={y} size={28} fill={TEXT} anchor="start">
+      <CardText x={FORM_AWAY_X} y={y} size={28} fill={TEXT} weight={600}>
         {row.awayName}
+      </CardText>
+      <CardText
+        x={FORM_BTTS_X}
+        y={y}
+        size={24}
+        fill={flagFill(row.bothTeamsScored)}
+        weight={700}
+        anchor="middle"
+      >
+        {flagLabel(row.bothTeamsScored)}
+      </CardText>
+      <CardText
+        x={FORM_OVER_X}
+        y={y}
+        size={24}
+        fill={flagFill(row.overTwoAndHalf)}
+        weight={700}
+        anchor="middle"
+      >
+        {flagLabel(row.overTwoAndHalf)}
       </CardText>
     </g>
   );
+}
+
+function HeadToHeadStats({
+  headToHead,
+  y,
+}: {
+  headToHead: FilledHeadToHead;
+  y: number;
+}) {
+  return (
+    <g>
+      <RowDivider y={y} />
+      <CardText x={MATCH_CARD_INNER_LEFT} y={y + 40} size={22} fill={MUTED}>
+        {headToHead.statsLabel}
+      </CardText>
+      <RateCard
+        x={MATCH_CARD_INNER_LEFT}
+        y={y + 72}
+        rate={headToHead.btts}
+      />
+      <RateCard
+        x={MATCH_CARD_INNER_LEFT + rateCardWidth() + 16}
+        y={y + 72}
+        rate={headToHead.over}
+      />
+    </g>
+  );
+}
+
+function RateCard({
+  x,
+  y,
+  rate,
+}: {
+  x: number;
+  y: number;
+  rate: MatchCardHeadToHeadRate;
+}) {
+  const width = rateCardWidth();
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={168} rx={18} fill={STAT_BG} />
+      <CardText x={x + width / 2} y={y + 46} size={32} fill={MUTED} anchor="middle">
+        {rate.label}
+      </CardText>
+      <CardText
+        x={x + width / 2}
+        y={y + 116}
+        size={52}
+        fill={ACCENT}
+        weight={700}
+        anchor="middle"
+      >
+        {rate.percentLabel}
+      </CardText>
+    </g>
+  );
+}
+
+function rateCardWidth(): number {
+  return (MATCH_CARD_INNER_WIDTH - 16) / 2;
 }
 
 function FormSection({
@@ -446,11 +572,8 @@ function FormSection({
       <CardText x={MATCH_CARD_INNER_LEFT} y={y + 48} size={36} fill={TEXT} weight={700}>
         {form.teamName}
       </CardText>
-      <CardText x={MATCH_CARD_INNER_LEFT} y={y + 108} size={26} fill={MUTED}>
-        Ostatnie mecze · gole drużyny : gole rywala
-      </CardText>
       {form.rows.length === 0 ? (
-        <CardText x={MATCH_CARD_INNER_LEFT} y={y + 168} size={30} fill={MUTED}>
+        <CardText x={MATCH_CARD_INNER_LEFT} y={y + 108} size={30} fill={MUTED}>
           Brak rozegranych meczów
         </CardText>
       ) : (
@@ -463,13 +586,20 @@ function FormSection({
 function FormRows({ form, y }: { form: MatchCardForm; y: number }) {
   return (
     <g>
-      <FormColumns y={y + 156} fill={SUBTLE} size={24} />
+      <FormColumns y={y + 114} fill={SUBTLE} size={22} />
+      <RowDivider y={y + MATCH_CARD_METRICS.formHead} />
       {form.rows.map((row, index) => (
-        <FormRow
-          key={`${row.dateLabel}-${row.opponent}-${index}`}
-          row={row}
-          y={rowCenter(y, MATCH_CARD_METRICS.formHead, index)}
-        />
+        <g key={`${row.dateLabel}-${row.homeName}-${row.score}-${index}`}>
+          {index > 0 ? (
+            <RowDivider
+              y={y + MATCH_CARD_METRICS.formHead + index * MATCH_CARD_METRICS.row}
+            />
+          ) : null}
+          <FormRow
+            row={row}
+            y={rowCenter(y, MATCH_CARD_METRICS.formHead, index)}
+          />
+        </g>
       ))}
     </g>
   );
@@ -478,20 +608,23 @@ function FormRows({ form, y }: { form: MatchCardForm; y: number }) {
 function FormRow({ row, y }: { row: MatchCardFormRow; y: number }) {
   return (
     <g>
-      <CardText x={MATCH_CARD_INNER_LEFT} y={y} size={30} fill={SUBTLE}>
+      <CardText x={MATCH_CARD_INNER_LEFT} y={y} size={24} fill={SUBTLE}>
         {row.dateLabel}
       </CardText>
-      <ResultBadge x={250} y={y} result={row.result} />
-      <CardText x={286} y={y} size={32} fill={TEXT}>
-        {row.opponent}
+      <ResultBadge x={FORM_BADGE_X} y={y} result={row.result} />
+      <CardText x={FORM_HOME_X} y={y} size={26} fill={TEXT} weight={600}>
+        {row.homeName}
       </CardText>
-      <CardText x={760} y={y} size={32} fill={TEXT} weight={700} anchor="end">
+      <CardText x={FORM_SCORE_X} y={y} size={28} fill={ACCENT} weight={700} anchor="middle">
         {row.score}
       </CardText>
+      <CardText x={FORM_AWAY_X} y={y} size={26} fill={TEXT} weight={600}>
+        {row.awayName}
+      </CardText>
       <CardText
-        x={840}
+        x={FORM_BTTS_X}
         y={y}
-        size={28}
+        size={24}
         fill={flagFill(row.bothTeamsScored)}
         weight={700}
         anchor="middle"
@@ -499,9 +632,9 @@ function FormRow({ row, y }: { row: MatchCardFormRow; y: number }) {
         {flagLabel(row.bothTeamsScored)}
       </CardText>
       <CardText
-        x={950}
+        x={FORM_OVER_X}
         y={y}
-        size={28}
+        size={24}
         fill={flagFill(row.overTwoAndHalf)}
         weight={700}
         anchor="middle"
@@ -518,17 +651,20 @@ function FormColumns({ y, fill, size }: { y: number; fill: string; size: number 
       <CardText x={MATCH_CARD_INNER_LEFT} y={y} size={size} fill={fill}>
         Data
       </CardText>
-      <CardText x={286} y={y} size={size} fill={fill}>
-        Rywal
+      <CardText x={FORM_HOME_X} y={y} size={size} fill={fill}>
+        Gospodarze
       </CardText>
-      <CardText x={760} y={y} size={size} fill={fill} anchor="end">
+      <CardText x={FORM_SCORE_X} y={y} size={size} fill={fill} anchor="middle">
         Wynik
       </CardText>
-      <CardText x={840} y={y} size={size} fill={fill} anchor="middle">
+      <CardText x={FORM_AWAY_X} y={y} size={size} fill={fill}>
+        Goście
+      </CardText>
+      <CardText x={FORM_BTTS_X} y={y} size={size} fill={fill} anchor="middle">
         BTTS
       </CardText>
-      <CardText x={950} y={y} size={size} fill={fill} anchor="middle">
-        2.5
+      <CardText x={FORM_OVER_X} y={y} size={size} fill={fill} anchor="middle">
+        Over 2.5
       </CardText>
     </g>
   );
@@ -553,6 +689,20 @@ function ResultBadge({
   );
 }
 
+function RowDivider({ y }: { y: number }) {
+  const right = MATCH_CARD_INNER_LEFT + MATCH_CARD_INNER_WIDTH;
+  return (
+    <line
+      x1={MATCH_CARD_INNER_LEFT}
+      x2={right}
+      y1={y}
+      y2={y}
+      stroke={ROW_DIVIDER}
+      strokeWidth={ROW_DIVIDER_WIDTH}
+    />
+  );
+}
+
 function Panel({ y, height }: { y: number; height: number }) {
   return (
     <rect
@@ -562,8 +712,6 @@ function Panel({ y, height }: { y: number; height: number }) {
       height={height}
       rx={28}
       fill={PANEL_BG}
-      stroke={PANEL_BORDER}
-      strokeWidth={2}
     />
   );
 }

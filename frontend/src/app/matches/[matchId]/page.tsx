@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MatchCardPanel } from "@/components/matches/MatchCardPanel";
 import { buildFootballMatchCard } from "@/components/matches/matchCardModel";
 import { MatchDetailTabs } from "@/components/matches/MatchDetailTabs";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -108,9 +107,7 @@ export default async function MatchPage({
           </div>
         </section>
 
-        <MatchDetailTabs key={match.id} match={match} />
-
-        {matchCard ? <MatchCardPanel card={matchCard} /> : null}
+        <MatchDetailTabs key={match.id} match={match} card={matchCard} />
       </div>
     );
   } catch (error) {

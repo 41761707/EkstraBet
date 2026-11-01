@@ -4,7 +4,6 @@ import {
 } from "@/components/matches/prematchHeadToHeadSummary";
 import {
   formatMatchDateTime,
-  formatPercent,
   formatProbability,
   formatRoundLabel,
 } from "@/lib/format";
@@ -23,7 +22,7 @@ export const MATCH_CARD_MEETING_LIMIT = 5;
 const HEADER_NAME_LIMIT = 34;
 const LEAGUE_NAME_LIMIT = 36;
 const H2H_NAME_LIMIT = 14;
-const OPPONENT_NAME_LIMIT = 18;
+const FORM_SIDE_LIMIT = 19;
 
 export interface MatchCardSegment {
   label: string;
@@ -51,12 +50,15 @@ export interface MatchCardMeetingRow {
   homeName: string;
   awayName: string;
   score: string;
+  bothTeamsScored: boolean;
+  overTwoAndHalf: boolean;
 }
 
 export interface MatchCardFormRow {
   dateLabel: string;
   result: TeamFormResult;
-  opponent: string;
+  homeName: string;
+  awayName: string;
   score: string;
   bothTeamsScored: boolean;
   overTwoAndHalf: boolean;
@@ -67,9 +69,15 @@ export interface MatchCardForm {
   rows: MatchCardFormRow[];
 }
 
+export interface MatchCardHeadToHeadRate {
+  label: string;
+  percentLabel: string;
+}
+
 export interface MatchCardHeadToHead {
-  summary: string | null;
-  rates: string | null;
+  statsLabel: string | null;
+  btts: MatchCardHeadToHeadRate | null;
+  over: MatchCardHeadToHeadRate | null;
   rows: MatchCardMeetingRow[];
 }
 
@@ -242,25 +250,25 @@ function buildHeadToHead(
 ): MatchCardHeadToHead {
   const played = meetings.filter(hasScore).slice(0, MATCH_CARD_MEETING_LIMIT);
   if (played.length === 0) {
-    return { summary: null, rates: null, rows: [] };
+    return { statsLabel: null, btts: null, over: null, rows: [] };
   }
   const stats = summarizeDisplayedHeadToHead(homeTeamId, played, false);
   return {
-    summary: (
-      `${matchCountLabel(stats.played)} · bilans gospodarza `
-      + `${stats.wins}W ${stats.draws}D ${stats.losses}L · `
-      + `bramki ${stats.goalsFor}:${stats.goalsConceded}`
-    ),
-    rates: (
-      `BTTS ${formatPercent(stats.bttsPercentage)} · `
-      + `Over 2.5 ${formatPercent(stats.overPercentage)}`
-    ),
-    rows: played.map((meeting) => ({
-      dateLabel: formatMatchCardDate(meeting.game_date),
-      homeName: truncateLabel(meeting.home_team.name, H2H_NAME_LIMIT),
-      awayName: truncateLabel(meeting.away_team.name, H2H_NAME_LIMIT),
-      score: `${meeting.home_goals}:${meeting.away_goals}`,
-    })),
+    statsLabel: recentMeetingsLabel(stats.played),
+    btts: { label: "BTTS", percentLabel: wholePercent(stats.bttsPercentage) },
+    over: { label: "Over 2.5", percentLabel: wholePercent(stats.overPercentage) },
+    rows: played.map((meeting) => {
+      const homeGoals = meeting.home_goals ?? 0;
+      const awayGoals = meeting.away_goals ?? 0;
+      return {
+        dateLabel: formatMatchCardDate(meeting.game_date),
+        homeName: truncateLabel(meeting.home_team.name, H2H_NAME_LIMIT),
+        awayName: truncateLabel(meeting.away_team.name, H2H_NAME_LIMIT),
+        score: `${homeGoals}:${awayGoals}`,
+        bothTeamsScored: homeGoals > 0 && awayGoals > 0,
+        overTwoAndHalf: homeGoals + awayGoals > FOOTBALL_H2H_OVER_LINE,
+      };
+    }),
   };
 }
 
@@ -269,13 +277,12 @@ function buildForm(
   history: TeamSeasonMatchPoint[],
 ): MatchCardForm {
   const rows = history.slice(0, MATCH_CARD_MEETING_LIMIT).map((point) => {
-    const teamGoals = point.is_home ? point.home_goals : point.away_goals;
-    const opponentGoals = point.is_home ? point.away_goals : point.home_goals;
     return {
       dateLabel: formatMatchCardDate(point.match_date),
       result: point.result,
-      opponent: truncateLabel(point.opponent_name, OPPONENT_NAME_LIMIT),
-      score: `${teamGoals}:${opponentGoals}`,
+      homeName: truncateLabel(point.home_team_name, FORM_SIDE_LIMIT),
+      awayName: truncateLabel(point.away_team_name, FORM_SIDE_LIMIT),
+      score: `${point.home_goals}:${point.away_goals}`,
       bothTeamsScored: point.btts,
       overTwoAndHalf: point.total_goals > FOOTBALL_H2H_OVER_LINE,
     };
@@ -289,6 +296,17 @@ function sideLabel(team: TeamInMatch): string {
     return truncateLabel(shortcut, 10);
   }
   return truncateLabel(team.name, 14);
+}
+
+function recentMeetingsLabel(count: number): string {
+  if (count === 1) {
+    return "Statystyki ostatniego spotkania";
+  }
+  return `Statystyki ostatnich ${count} spotkań`;
+}
+
+function wholePercent(value: number): string {
+  return `${Math.round(value)}%`;
 }
 
 function hasScore(meeting: MatchSummary): boolean {
@@ -305,18 +323,6 @@ function normalizeShares(values: number[]): number[] {
 
 function sumOf(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0);
-}
-
-function matchCountLabel(count: number): string {
-  if (count === 1) {
-    return "1 mecz";
-  }
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return `${count} mecze`;
-  }
-  return `${count} meczów`;
 }
 
 function truncateLabel(value: string, maxLength: number): string {

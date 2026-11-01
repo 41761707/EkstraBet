@@ -6,6 +6,7 @@ import {
   MatchDetailTabPanel,
   type MatchTab,
 } from "@/components/matches/MatchDetailTabPanel";
+import type { FootballMatchCard } from "@/components/matches/matchCardModel";
 import {
   BASKETBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
@@ -14,6 +15,7 @@ import {
 
 interface MatchDetailTabsProps {
   match: MatchDetails;
+  card: FootballMatchCard | null;
 }
 
 interface MatchTabButton {
@@ -25,7 +27,10 @@ interface MatchTabButton {
 const TAB_ACTIVE_CLASS = "border-accent text-accent-text-hover";
 const TAB_IDLE_CLASS = "border-transparent text-muted hover:text-text";
 
-function visibleMatchTabs(match: MatchDetails): MatchTabButton[] {
+function visibleMatchTabs(
+  match: MatchDetails,
+  card: FootballMatchCard | null,
+): MatchTabButton[] {
   const tabs: MatchTabButton[] = [
     { id: "prematch", label: "Statystyki przedmeczowe", visible: true },
     { id: "predictions", label: "Predykcje i kursy", visible: true },
@@ -57,6 +62,11 @@ function visibleMatchTabs(match: MatchDetails): MatchTabButton[] {
       id: "boxscore",
       label: "Boxscore - statystyki zawodników",
       visible: match.has_player_stats && match.is_played,
+    },
+    {
+      id: "infographic",
+      label: "Infografika meczowa",
+      visible: card !== null,
     },
   ];
   return tabs.filter((tab) => tab.visible);
@@ -92,9 +102,9 @@ function MatchDetailTabBar({
   );
 }
 
-export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
+export function MatchDetailTabs({ match, card }: MatchDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<MatchTab>("prematch");
-  const visibleTabs = visibleMatchTabs(match);
+  const visibleTabs = visibleMatchTabs(match, card);
   const resolvedTab = visibleTabs.some((tab) => tab.id === activeTab)
     ? activeTab
     : "prematch";
@@ -106,7 +116,7 @@ export function MatchDetailTabs({ match }: MatchDetailTabsProps) {
         activeTab={resolvedTab}
         onChange={setActiveTab}
       />
-      <MatchDetailTabPanel match={match} tab={resolvedTab} />
+      <MatchDetailTabPanel match={match} tab={resolvedTab} card={card} />
     </div>
   );
 }

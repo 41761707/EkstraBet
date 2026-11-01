@@ -1,5 +1,7 @@
 "use client";
 
+import { MatchCardPanel } from "@/components/matches/MatchCardPanel";
+import type { FootballMatchCard } from "@/components/matches/matchCardModel";
 import { HockeyMatchBoxscorePanel } from "@/components/matches/HockeyMatchBoxscorePanel";
 import { HockeyPredictionCharts } from "@/components/matches/HockeyPredictionCharts";
 import { HockeyMatchEventsPanel } from "@/components/matches/HockeyMatchEventsPanel";
@@ -31,14 +33,16 @@ export type MatchTab =
   | "players"
   | "events"
   | "stats"
-  | "boxscore";
+  | "boxscore"
+  | "infographic";
 
 interface MatchDetailTabPanelProps {
   match: MatchDetails;
   tab: MatchTab;
+  card: FootballMatchCard | null;
 }
 
-export function MatchDetailTabPanel({ match, tab }: MatchDetailTabPanelProps) {
+export function MatchDetailTabPanel({ match, tab, card }: MatchDetailTabPanelProps) {
   if (tab === "prematch") {
     return <PrematchTab match={match} />;
   }
@@ -59,6 +63,9 @@ export function MatchDetailTabPanel({ match, tab }: MatchDetailTabPanelProps) {
   }
   if (tab === "boxscore") {
     return <BoxscoreTab match={match} />;
+  }
+  if (tab === "infographic" && card !== null) {
+    return <MatchCardPanel card={card} />;
   }
   return null;
 }

@@ -39,9 +39,8 @@ export function MatchCardPanel({ card }: MatchCardPanelProps) {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-text">Grafika meczu</h2>
           <p className="text-sm text-muted">
-            Pionowa karta pod telefon. Pobrany PNG ma 1080 px szerokości.
+            Kompaktowa grafika meczu do łatwego eksportu najważniejszych informacji.
           </p>
         </div>
         <button

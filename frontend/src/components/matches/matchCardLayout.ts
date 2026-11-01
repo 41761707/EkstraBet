@@ -19,12 +19,13 @@ export const MATCH_CARD_METRICS = {
   scoreBlock: 168,
   probPad: 28,
   probEmpty: 148,
-  h2hHead: 168,
-  row: 72,
-  sectionTail: 28,
+  h2hHead: 148,
+  row: 76,
+  sectionTail: 32,
+  h2hStats: 268,
   h2hEmpty: 160,
-  formHead: 188,
-  formEmpty: 210,
+  formHead: 152,
+  formEmpty: 168,
 } as const;
 
 export const MATCH_CARD_INNER_LEFT = MATCH_CARD_METRICS.margin + MATCH_CARD_METRICS.pad;
@@ -46,11 +47,7 @@ export interface MatchCardFrame {
 
 export function layoutMatchCard(card: FootballMatchCard): MatchCardFrame {
   const probabilitiesHeight = probabilitySectionHeight(card);
-  const headToHeadHeight = stackedHeight(
-    card.headToHead.rows.length,
-    MATCH_CARD_METRICS.h2hHead,
-    MATCH_CARD_METRICS.h2hEmpty,
-  );
+  const headToHeadHeight = headToHeadSectionHeight(card.headToHead.rows.length);
   const homeFormHeight = stackedHeight(
     card.homeForm.rows.length,
     MATCH_CARD_METRICS.formHead,
@@ -107,6 +104,17 @@ function probabilitySectionHeight(card: FootballMatchCard): number {
     + blocks * MATCH_CARD_METRICS.probBlock
     + scores
     + MATCH_CARD_METRICS.probPad
+  );
+}
+
+function headToHeadSectionHeight(rowCount: number): number {
+  if (rowCount <= 0) {
+    return MATCH_CARD_METRICS.h2hEmpty;
+  }
+  return (
+    MATCH_CARD_METRICS.h2hHead
+    + rowCount * MATCH_CARD_METRICS.row
+    + MATCH_CARD_METRICS.h2hStats
   );
 }
 

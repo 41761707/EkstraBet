@@ -211,46 +211,68 @@ describe("buildFootballMatchCard", () => {
     }));
 
     expect(card?.headToHead.rows).toHaveLength(5);
-    expect(card?.headToHead.rows[0]?.score).toBe("2:1");
-    expect(card?.headToHead.summary).toBe(
-      "5 meczów · bilans gospodarza 2W 2D 1L · bramki 6:5",
-    );
-    expect(card?.headToHead.rates).toBe("BTTS 60.0% · Over 2.5 40.0%");
+    expect(card?.headToHead.rows[0]).toMatchObject({
+      score: "2:1",
+      bothTeamsScored: true,
+      overTwoAndHalf: true,
+    });
+    expect(card?.headToHead.rows[1]).toMatchObject({
+      score: "0:0",
+      bothTeamsScored: false,
+      overTwoAndHalf: false,
+    });
+    expect(card?.headToHead.statsLabel).toBe("Statystyki ostatnich 5 spotkań");
+    expect(card?.headToHead.btts).toEqual({ label: "BTTS", percentLabel: "60%" });
+    expect(card?.headToHead.over).toEqual({ label: "Over 2.5", percentLabel: "40%" });
   });
 
-  it("uses one match in the singular", () => {
+  it("keeps head-to-head rates for a single meeting", () => {
     const card = buildFootballMatchCard(cardInput({
       headToHeadMeetings: [meeting(2, 1, 0)],
     }));
 
-    expect(card?.headToHead.summary?.startsWith("1 mecz ·")).toBe(true);
+    expect(card?.headToHead.rows).toHaveLength(1);
+    expect(card?.headToHead.statsLabel).toBe("Statystyki ostatniego spotkania");
+    expect(card?.headToHead.btts?.percentLabel).toBe("0%");
+    expect(card?.headToHead.over?.percentLabel).toBe("0%");
   });
 
-  it("reads recent form from the team perspective", () => {
+  it("lists both sides of each recent match", () => {
     const card = buildFootballMatchCard(cardInput({
       homeHistory: [
         historyPoint(1, { total_goals: 2, btts: false, home_goals: 2, away_goals: 0 }),
-        historyPoint(2, { is_home: false, home_goals: 1, away_goals: 4, total_goals: 5 }),
+        historyPoint(2, {
+          is_home: false,
+          home_team_name: "Raków",
+          away_team_name: "Cracovia",
+          home_goals: 1,
+          away_goals: 4,
+          total_goals: 5,
+        }),
         historyPoint(3, {}),
         historyPoint(4, {}),
         historyPoint(5, {}),
-        historyPoint(6, { opponent_name: "Nie powinno wejść" }),
+        historyPoint(6, { away_team_name: "Nie powinno wejść" }),
       ],
     }));
 
     expect(card?.homeForm.rows).toHaveLength(5);
     expect(card?.homeForm.rows[0]).toMatchObject({
       score: "2:0",
+      homeName: "Cracovia",
+      awayName: "Raków",
       bothTeamsScored: false,
       overTwoAndHalf: false,
       dateLabel: "01.04.26",
     });
     expect(card?.homeForm.rows[1]).toMatchObject({
-      score: "4:1",
+      score: "1:4",
+      homeName: "Raków",
+      awayName: "Cracovia",
       bothTeamsScored: true,
       overTwoAndHalf: true,
     });
-    expect(card?.homeForm.rows.some((row) => row.opponent === "Nie powinno wejść")).toBe(
+    expect(card?.homeForm.rows.some((row) => row.awayName === "Nie powinno wejść")).toBe(
       false,
     );
   });
@@ -305,7 +327,7 @@ describe("layoutMatchCard", () => {
     const rowDelta = (
       5 * MATCH_CARD_METRICS.row
       + MATCH_CARD_METRICS.h2hHead
-      + MATCH_CARD_METRICS.sectionTail
+      + MATCH_CARD_METRICS.h2hStats
       - MATCH_CARD_METRICS.h2hEmpty
     ) + 2 * (
       5 * MATCH_CARD_METRICS.row
