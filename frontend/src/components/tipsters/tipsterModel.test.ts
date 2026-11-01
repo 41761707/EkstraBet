@@ -14,6 +14,8 @@ import {
   formatTipsterAmount,
   formatTipsterProfit,
   formatTipsterRoi,
+  formatTipsterUnits,
+  toPerformanceUnits,
   groupCatalogEvents,
   groupCatalogMatches,
   historyEventLabel,
@@ -324,6 +326,20 @@ describe("formatTipsterAmount and formatTipsterProfit", () => {
     expect(formatTipsterProfit(12.5, "EUR")).toBe("+12.50 EUR");
     expect(formatTipsterProfit(-10, "USD")).toBe("-10.00 USD");
     expect(formatTipsterAmount(null, "PLN")).toBe("—");
+  });
+});
+
+describe("toPerformanceUnits and formatTipsterUnits", () => {
+  it("divides money by the current unit and keeps the sign", () => {
+    expect(toPerformanceUnits(37.05, 5)).toBeCloseTo(7.41, 2);
+    expect(formatTipsterUnits(toPerformanceUnits(37.05, 5), true)).toBe(
+      "+7.41 u",
+    );
+    expect(formatTipsterUnits(toPerformanceUnits(-10, 5), true)).toBe(
+      "-2.00 u",
+    );
+    expect(formatTipsterUnits(0, true)).toBe("0.00 u");
+    expect(formatTipsterUnits(null)).toBe("—");
   });
 });
 

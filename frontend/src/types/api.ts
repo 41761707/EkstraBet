@@ -2189,7 +2189,11 @@ export interface CouponPage {
   page_size: number;
 }
 
-/** One performance breakdown bucket. */
+/**
+ * One breakdown bucket.
+ * Coupon lens: count and profit describe whole coupons.
+ * Single lens: each leg at the coupon stake (odds × stake − stake).
+ */
 export interface PerformanceItem {
   event_family_id: number | null;
   event_family_name: string | null;
@@ -2213,7 +2217,26 @@ export interface PerformanceItem {
   roi_pct: number | null;
 }
 
-/** Settled-coupon analytics by family, league and country. */
+/** Legs recounted as singles at the coupon stake. Each leg once in the total. */
+export interface PerformanceSingles {
+  by_event_family: PerformanceItem[];
+  by_league: PerformanceItem[];
+  by_country: PerformanceItem[];
+  best_event_family: PerformanceItem | null;
+  worst_event_family: PerformanceItem | null;
+  best_league: PerformanceItem | null;
+  worst_league: PerformanceItem | null;
+  best_country: PerformanceItem | null;
+  worst_country: PerformanceItem | null;
+  count: number;
+  stake_total: number;
+  profit_total: number;
+}
+
+/**
+ * Coupon lens plus a single-bet lens.
+ * Bucket profits overlap; settled_profit counts each coupon once.
+ */
 export interface PerformanceBreakdown {
   by_event_family: PerformanceItem[];
   by_league: PerformanceItem[];
@@ -2224,6 +2247,12 @@ export interface PerformanceBreakdown {
   worst_league: PerformanceItem | null;
   best_country: PerformanceItem | null;
   worst_country: PerformanceItem | null;
+  settled_count: number;
+  settled_stake: number;
+  settled_profit: number;
+  open_stake: number;
+  unit_size: number | null;
+  singles: PerformanceSingles;
 }
 
 /** One ranking row; coupon lists are never included. */

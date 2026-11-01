@@ -69,9 +69,22 @@ export function TipsterLeaderboard({
                 {TIPSTER_LEADERBOARD_EVENTS_LABEL}
               </th>
               <th className="px-3 py-2 text-right font-medium">Wynik</th>
-              <th className="px-3 py-2 text-right font-medium">Śr. wynik</th>
+              <th
+                className="px-3 py-2 text-right font-medium"
+                title="Wynik podzielony przez liczbę rozliczonych kuponów."
+              >
+                Śr. wynik
+              </th>
               <th className="px-3 py-2 text-right font-medium">ROI</th>
-              <th className="px-3 py-2 text-right font-medium">Śr. kurs</th>
+              <th
+                className="px-3 py-2 text-right font-medium"
+                title={
+                  "Średni kurs łączony kuponu. Przy filtrze ligi lub typu: " +
+                  "średni kurs zdarzeń."
+                }
+              >
+                Śr. kurs
+              </th>
               <th className="px-3 py-2 text-right font-medium">Saldo</th>
             </tr>
           </thead>

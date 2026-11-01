@@ -417,6 +417,25 @@ export function formatTipsterProfit(
   return `${sign}${value.toFixed(2)} ${currency}`;
 }
 
+export const TIPSTER_UNIT_SUFFIX = "u";
+
+/** Money divided by the current stake unit. */
+export function toPerformanceUnits(amount: number, unitSize: number): number {
+  return amount / unitSize;
+}
+
+/** Stake or profit expressed in the current unit, not in currency. */
+export function formatTipsterUnits(
+  value: number | null,
+  signed = false,
+): string {
+  if (value === null || Number.isNaN(value)) {
+    return TIPSTER_EMPTY_VALUE;
+  }
+  const sign = signed && value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)} ${TIPSTER_UNIT_SUFFIX}`;
+}
+
 /** Renders API combined_odds; never multiplies leg odds in the UI. */
 export function formatCouponCombinedOdds(
   coupon: Pick<CouponSummary, "combined_odds">,

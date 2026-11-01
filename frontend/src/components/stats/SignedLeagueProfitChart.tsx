@@ -18,6 +18,7 @@ interface SignedLeagueProfitChartProps {
   labelWidthClassName?: string;
   formatValue?: (value: number) => string;
   countSuffix?: string;
+  showTotal?: boolean;
 }
 
 const ZERO_THRESHOLD = 0.005;
@@ -90,6 +91,7 @@ export function SignedLeagueProfitChart({
   labelWidthClassName = "10rem",
   formatValue = formatProfit,
   countSuffix = "zakł.",
+  showTotal = true,
 }: SignedLeagueProfitChartProps) {
   if (points.length === 0) {
     return null;
@@ -106,9 +108,11 @@ export function SignedLeagueProfitChart({
     <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-sm font-semibold text-text">{title}</h4>
-        <span className="text-xs text-muted">
-          Suma: {formatValue(totalProfit)}
-        </span>
+        {showTotal ? (
+          <span className="text-xs text-muted">
+            Suma: {formatValue(totalProfit)}
+          </span>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-3 text-xs text-muted">

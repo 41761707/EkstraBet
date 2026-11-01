@@ -357,8 +357,12 @@ class PerformanceItem(BaseModel):
     country_name: str | None = Field(None, description="Country name")
     country_emoji: str | None = Field(
         None, description="Country flag emoji")
-    count: int = Field(..., description="Coupons in this bucket")
-    won: int = Field(..., description="Winning coupons")
+    count: int = Field(
+        ...,
+        description="Coupons in the coupon lens, legs in the single lens")
+    won: int = Field(
+        ...,
+        description="Winning coupons, or winning legs in the single lens")
     accuracy: float | None = Field(None, description="Win percentage")
     legs_count: int = Field(
         0,
@@ -373,16 +377,50 @@ class PerformanceItem(BaseModel):
         0,
         description="Winning legs that sit on a lost coupon")
     stake_total: float = Field(..., description="Sum of stakes")
-    profit_total: float = Field(..., description="Sum of profit")
+    profit_total: float = Field(
+        ...,
+        description=(
+            "Coupon profit, or single profit odds x stake - stake"))
     avg_profit: float | None = Field(None, description="Mean profit")
     avg_odds: float | None = Field(
         None,
-        description="Mean odds of the legs in this bucket")
+        description=(
+            "Mean combined coupon odds, or mean leg odds for singles"))
     roi_pct: float | None = Field(None, description="ROI percentage")
 
 
+class PerformanceSingles(BaseModel):
+    """Each settled leg played as its own single at the coupon stake."""
+
+    by_event_family: list[PerformanceItem] = Field(default_factory=list)
+    by_league: list[PerformanceItem] = Field(default_factory=list)
+    by_country: list[PerformanceItem] = Field(default_factory=list)
+    best_event_family: PerformanceItem | None = Field(
+        None, description="Family with the highest single profit")
+    worst_event_family: PerformanceItem | None = Field(
+        None, description="Family with the lowest single profit")
+    best_league: PerformanceItem | None = Field(
+        None, description="League with the highest single profit")
+    worst_league: PerformanceItem | None = Field(
+        None, description="League with the lowest single profit")
+    best_country: PerformanceItem | None = Field(
+        None, description="Country with the highest single profit")
+    worst_country: PerformanceItem | None = Field(
+        None, description="Country with the lowest single profit")
+    count: int = Field(0, description="Distinct settled legs")
+    stake_total: float = Field(
+        0, description="Coupon stake counted once per leg")
+    profit_total: float = Field(
+        0, description="Single profit counted once per leg")
+
+
 class PerformanceBreakdown(BaseModel):
-    """Settled-coupon analytics by family, league and country."""
+    """Coupon lens plus a single-bet lens for the same settled coupons.
+
+    Top-level buckets repeat a coupon in every dimension it touches, so
+    they do not add up to ``settled_profit``. ``open_stake`` is unsettled
+    and is outside both profits.
+    """
 
     by_event_family: list[PerformanceItem] = Field(
         ...,
@@ -411,6 +449,20 @@ class PerformanceBreakdown(BaseModel):
     worst_country: PerformanceItem | None = Field(
         None,
         description="Country with the lowest profit_total")
+    settled_count: int = Field(
+        0, description="Distinct settled coupons")
+    settled_stake: float = Field(
+        0, description="Stake of those coupons, each once")
+    settled_profit: float = Field(
+        0, description="Realized profit, each coupon once")
+    open_stake: float = Field(
+        0, description="Stake on coupons that are not settled yet")
+    unit_size: float | None = Field(
+        None,
+        description="Current stake unit; null when there is no bankroll")
+    singles: PerformanceSingles = Field(
+        default_factory=PerformanceSingles,
+        description="The same coupons counted as independent singles")
 
 
 class LeaderboardRow(BaseModel):

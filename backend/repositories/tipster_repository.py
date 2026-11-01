@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from datetime import datetime
 from decimal import Decimal
+from decimal import ROUND_HALF_UP
 from typing import Any
 
 import pandas as pd
@@ -402,6 +403,7 @@ _PERFORMANCE_FACTS_SQL = f"""
         c.id AS coupon_id,
         c.outcome,
         c.stake_amount,
+        c.combined_odds,
         c.profit,
         l.id AS leg_id,
         l.outcome AS leg_outcome,
@@ -423,6 +425,23 @@ _PERFORMANCE_FACTS_SQL = f"""
     LEFT JOIN event_families ef ON ef.id = efm.event_family_id
     WHERE c.user_id = %s
       AND c.settled = 1
+"""
+
+# jednostka tylko tutaj: widzi ją ten, kto i tak widzi stawki kuponów
+_SELECT_PERFORMANCE_SCALE = """
+    SELECT
+        (
+            SELECT COALESCE(SUM(c.stake_amount), 0)
+            FROM tipster_coupons c
+            WHERE c.user_id = %s
+              AND c.settled = 0
+        ) AS open_stake,
+        (
+            SELECT tb.unit_size
+            FROM tipster_bankrolls tb
+            WHERE tb.user_id = %s
+            LIMIT 1
+        ) AS unit_size
 """
 
 _SELECT_CATALOG_EVENTS = """
@@ -689,56 +708,43 @@ def fetch_leaderboard(
 def fetch_performance(
         user_id: int,
         apply_tax: bool = False) -> dict[str, Any]:
-    """Return settled-coupon breakdowns by family, league and country.
+    """Return coupon and single breakdowns for one user.
 
-    Attribution is membership (coupon belongs to a dimension value),
-    not stake allocation. A combined BTTS+O2.5 coupon counts in both
-    families with the full stake and profit; a two-league parlay does
-    the same per league and per country. Summing ``profit_total``
-    across buckets can exceed the user's realized PnL.
+    Coupon buckets repeat the whole coupon. A winning leg on a lost
+    coupon is still a loss there, and the same profit sits in every
+    family, league and country the coupon touches. Those buckets do
+    not add up to ``settled_profit``, which counts each coupon once.
+    Coupon ``avg_odds`` is the mean combined price.
 
-    ``won`` is the coupon result. ``legs_won`` is the leg result, so a
-    lost accumulator can still show a family whose own leg won. A
-    combined leg has one outcome for every event on it.
+    ``singles`` treats each leg as its own bet at the coupon stake.
+    Profit is odds × stake − stake on a win and −stake on a loss, so
+    a winning leg on a lost coupon stays a win. ``singles.profit_total``
+    counts each leg once. A combined leg (one price, several families)
+    is repeated in those family buckets and once in the total.
 
-    ``avg_odds`` is the mean of those leg prices, not the coupon's
-    combined odds.
-
-    Unmapped settleable markets (corners, DNB, handicap) share one
-    bucket: ``event_family_id`` is None and ``event_family_name`` is
-    ``OTHER`` so best/worst never surface a nameless row. Ranking
-    filter ``event_family`` equal to ``OTHER`` or ``0`` selects the
-    same unmapped events.
+    ``open_stake`` is money on coupons that are not settled. It is
+    outside both profits. ``unit_size`` is the current stake unit, so
+    the UI can show the same figures in units. Unmapped markets share
+    the ``OTHER`` bucket.
     """
     # mappingi nie pokrywają rożnych/DNB/AH — jedna etykieta dla UI
     rows = [
         _label_unmapped_event_family(row)
         for row in _fetch_all(
             _performance_facts_sql(apply_tax), (user_id,))]
-    by_event_family = _aggregate_dimension(
-        rows,
-        ("event_family_id", "event_family_name"),
-        skip_none=False)
-    by_league = _aggregate_dimension(
-        rows, ("league_id", "league_name"), skip_none=True)
-    by_country = _aggregate_dimension(
-        rows,
-        ("country_id", "country_name"),
-        skip_none=True,
-        extra_fields=("country_emoji",))
-    best_family, worst_family = _best_worst(by_event_family)
-    best_league, worst_league = _best_worst(by_league)
-    best_country, worst_country = _best_worst(by_country)
+    coupon = _performance_groups(rows, "coupon", apply_tax)
+    singles = _performance_groups(rows, "single", apply_tax)
+    singles.update(_unique_single_totals(rows, apply_tax))
+    settled = _unique_coupon_totals(rows)
+    scale = _performance_scale(user_id)
     return {
-        "by_event_family": by_event_family,
-        "by_league": by_league,
-        "by_country": by_country,
-        "best_event_family": best_family,
-        "worst_event_family": worst_family,
-        "best_league": best_league,
-        "worst_league": worst_league,
-        "best_country": best_country,
-        "worst_country": worst_country}
+        **coupon,
+        "settled_count": settled["count"],
+        "settled_stake": settled["stake_total"],
+        "settled_profit": settled["profit_total"],
+        "open_stake": scale["open_stake"],
+        "unit_size": scale["unit_size"],
+        "singles": singles}
 
 
 _SELECT_SUGGESTED_CATALOG_ODDS = """
@@ -1420,11 +1426,105 @@ def _leaderboard_document(row: dict[str, Any]) -> dict[str, Any]:
         "current_balance": float(row["current_balance"])}
 
 
+def _performance_groups(
+        rows: list[dict[str, Any]],
+        attribution: str,
+        apply_tax: bool) -> dict[str, Any]:
+    """Bucket the same facts once for coupons or once for singles."""
+    by_event_family = _aggregate_dimension(
+        rows,
+        ("event_family_id", "event_family_name"),
+        False,
+        attribution=attribution,
+        apply_tax=apply_tax)
+    by_league = _aggregate_dimension(
+        rows,
+        ("league_id", "league_name"),
+        True,
+        attribution=attribution,
+        apply_tax=apply_tax)
+    by_country = _aggregate_dimension(
+        rows,
+        ("country_id", "country_name"),
+        True,
+        ("country_emoji",),
+        attribution=attribution,
+        apply_tax=apply_tax)
+    best_family, worst_family = _best_worst(by_event_family)
+    best_league, worst_league = _best_worst(by_league)
+    best_country, worst_country = _best_worst(by_country)
+    return {
+        "by_event_family": by_event_family,
+        "by_league": by_league,
+        "by_country": by_country,
+        "best_event_family": best_family,
+        "worst_event_family": worst_family,
+        "best_league": best_league,
+        "worst_league": worst_league,
+        "best_country": best_country,
+        "worst_country": worst_country}
+
+
+def _performance_scale(user_id: int) -> dict[str, Any]:
+    """Open stake in money and the current unit size, if a bankroll exists."""
+    row = _fetch_one(_SELECT_PERFORMANCE_SCALE, (user_id, user_id))
+    if row is None:
+        return {"open_stake": 0.0, "unit_size": None}
+    unit = row.get("unit_size")
+    return {
+        "open_stake": _money(_as_decimal(row.get("open_stake") or 0)),
+        "unit_size": (
+            None if unit is None else _money(_as_decimal(unit)))}
+
+
+def _unique_coupon_totals(
+        rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Realized stake and profit, each settled coupon once."""
+    seen: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        seen.setdefault(int(row["coupon_id"]), row)
+    stake = Decimal("0")
+    profit = Decimal("0")
+    for row in seen.values():
+        stake += _as_decimal(row["stake_amount"] or 0)
+        profit += _as_decimal(row["profit"] or 0)
+    return {
+        "count": len(seen),
+        "stake_total": _money(stake),
+        "profit_total": _money(profit)}
+
+
+def _unique_single_totals(
+        rows: list[dict[str, Any]],
+        apply_tax: bool) -> dict[str, Any]:
+    """Single profit counted once per leg, not once per family."""
+    seen: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        leg_id = row.get("leg_id")
+        if leg_id is None:
+            continue
+        seen.setdefault(int(leg_id), row)
+    stake = Decimal("0")
+    profit = Decimal("0")
+    for row in seen.values():
+        leg_stake = _as_decimal(row["stake_amount"] or 0)
+        won = int(row.get("leg_outcome") or 0) == 1
+        odds = _as_decimal(row.get("leg_odds") or 0)
+        stake += leg_stake
+        profit += _single_profit(leg_stake, odds, won, apply_tax)
+    return {
+        "count": len(seen),
+        "stake_total": _money(stake),
+        "profit_total": _money(profit)}
+
+
 def _aggregate_dimension(
         rows: list[dict[str, Any]],
         key_fields: tuple[str, ...],
         skip_none: bool,
-        extra_fields: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+        extra_fields: tuple[str, ...] = (),
+        attribution: str = "coupon",
+        apply_tax: bool = False) -> list[dict[str, Any]]:
     groups: dict[tuple[object, ...], dict[str, Any]] = {}
     seen: dict[tuple[object, ...], set[int]] = {}
     seen_legs: dict[tuple[object, ...], set[int]] = {}
@@ -1434,12 +1534,16 @@ def _aggregate_dimension(
                 row[field] is None for field in key_fields):
             continue
         key = tuple(row[field] for field in key_fields)
-        coupon_id = int(row["coupon_id"])
         if key not in groups:
             groups[key] = _empty_performance_bucket(row, stored_fields)
             seen[key] = set()
             seen_legs[key] = set()
+        if attribution == "single":
+            _add_single_once(
+                groups[key], seen_legs[key], row, apply_tax)
+            continue
         _add_leg_hit(groups[key], seen_legs[key], row)
+        coupon_id = int(row["coupon_id"])
         if coupon_id in seen[key]:
             continue
         # combined ma kilka eventów — kupon w rodzinie liczymy raz
@@ -1462,9 +1566,10 @@ def _empty_performance_bucket(
         "legs_count": 0,
         "legs_won": 0,
         "legs_won_on_lost_coupons": 0,
-        "stake_total": 0.0,
-        "profit_total": 0.0,
-        "leg_odds_sum": 0.0}
+        "stake_total": Decimal("0"),
+        "profit_total": Decimal("0"),
+        "odds_sum": Decimal("0"),
+        "odds_count": 0}
     for field in key_fields:
         bucket[field] = row[field]
     return bucket
@@ -1472,24 +1577,75 @@ def _empty_performance_bucket(
 
 def _add_coupon_to_bucket(
         bucket: dict[str, Any], row: dict[str, Any]) -> None:
+    """Count the coupon result. A won leg on a loss stays a loss."""
     bucket["count"] += 1
     if int(row["outcome"] or 0) == 1:
         bucket["won"] += 1
-    bucket["stake_total"] += float(row["stake_amount"] or 0)
-    bucket["profit_total"] += float(row["profit"] or 0)
+    bucket["stake_total"] += _as_decimal(row["stake_amount"] or 0)
+    bucket["profit_total"] += _as_decimal(row["profit"] or 0)
+    _add_odds(bucket, row.get("combined_odds"))
+
+
+def _add_odds(bucket: dict[str, Any], odds: object) -> None:
+    if odds is None:
+        return
+    bucket["odds_sum"] += _as_decimal(odds)
+    bucket["odds_count"] += 1
+
+
+def _add_single_once(
+        bucket: dict[str, Any],
+        seen_legs: set[int],
+        row: dict[str, Any],
+        apply_tax: bool) -> None:
+    """Count one leg as a single, including a win on a lost coupon."""
+    leg_id = row.get("leg_id")
+    if leg_id is None or int(leg_id) in seen_legs:
+        return
+    seen_legs.add(int(leg_id))
+    won = int(row.get("leg_outcome") or 0) == 1
+    stake = _as_decimal(row["stake_amount"] or 0)
+    odds = _as_decimal(row.get("leg_odds") or 0)
+    bucket["count"] += 1
+    bucket["legs_count"] += 1
+    if won:
+        bucket["won"] += 1
+        bucket["legs_won"] += 1
+        if int(row["outcome"] or 0) != 1:
+            bucket["legs_won_on_lost_coupons"] += 1
+    bucket["stake_total"] += stake
+    bucket["profit_total"] += _single_profit(
+        stake, odds, won, apply_tax)
+    _add_odds(bucket, row.get("leg_odds"))
+
+
+def _single_profit(
+        stake: Decimal,
+        odds: Decimal,
+        won: bool,
+        apply_tax: bool) -> Decimal:
+    """Profit of one leg played as a single at the full coupon stake."""
+    # cała stawka kuponu, nie ułamek — tak czyta się wynik zdarzenia
+    if not won:
+        return -stake
+    price = odds
+    if apply_tax:
+        factor = Decimal("1") - Decimal(str(BETTING_TAX_RATE))
+        price = odds * factor
+    raw = stake * (price - Decimal("1"))
+    return raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _add_leg_hit(
         bucket: dict[str, Any],
         seen_legs: set[int],
         row: dict[str, Any]) -> None:
-    """Count each leg once; a win on a lost coupon stays visible."""
+    """Count each leg once on the coupon lens, beside the coupon result."""
     leg_id = row.get("leg_id")
     if leg_id is None or int(leg_id) in seen_legs:
         return
     seen_legs.add(int(leg_id))
     bucket["legs_count"] += 1
-    bucket["leg_odds_sum"] += float(row.get("leg_odds") or 0)
     if int(row.get("leg_outcome") or 0) != 1:
         return
     bucket["legs_won"] += 1
@@ -1512,32 +1668,62 @@ def _performance_item(
     won = int(bucket["won"])
     legs_count = int(bucket["legs_count"])
     legs_won = int(bucket["legs_won"])
-    stake_total = float(bucket["stake_total"])
-    profit_total = round(float(bucket["profit_total"]), 2)
+    stake_total = _money(_as_decimal(bucket["stake_total"]))
+    profit_total = _money(_as_decimal(bucket["profit_total"]))
     item = {
         field: _dimension_value(field, bucket[field])
         for field in key_fields}
     item.update({
         "count": count,
         "won": won,
-        "accuracy": round(won * 100 / count, 2) if count else None,
+        "accuracy": _ratio_percent(won, count),
         "legs_count": legs_count,
         "legs_won": legs_won,
-        "legs_accuracy": (
-            round(legs_won * 100 / legs_count, 2)
-            if legs_count else None),
+        "legs_accuracy": _ratio_percent(legs_won, legs_count),
         "legs_won_on_lost_coupons": int(
             bucket["legs_won_on_lost_coupons"]),
-        "stake_total": round(stake_total, 2),
+        "stake_total": stake_total,
         "profit_total": profit_total,
-        "avg_profit": round(profit_total / count, 2) if count else None,
-        "avg_odds": (
-            round(bucket["leg_odds_sum"] / legs_count, 4)
-            if legs_count else None),
-        "roi_pct": (
-            round(profit_total * 100 / stake_total, 2)
-            if stake_total else None)})
+        "avg_profit": _mean_money(profit_total, count),
+        "avg_odds": _mean_odds(
+            _as_decimal(bucket["odds_sum"]),
+            int(bucket["odds_count"])),
+        "roi_pct": _roi_percent(profit_total, stake_total)})
     return item
+
+
+def _money(value: Decimal) -> float:
+    """Two decimal places, half up, same as MySQL ROUND."""
+    quantized = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return float(quantized)
+
+
+def _ratio_percent(part: int, whole: int) -> float | None:
+    if not whole:
+        return None
+    return _money(Decimal(part * 100) / Decimal(whole))
+
+
+def _mean_money(total: float, count: int) -> float | None:
+    if not count:
+        return None
+    mean = Decimal(str(total)) / Decimal(count)
+    return _money(mean)
+
+
+def _mean_odds(odds_sum: Decimal, count: int) -> float | None:
+    if not count:
+        return None
+    mean = odds_sum / Decimal(count)
+    quantum = Decimal("0.0001")
+    return float(mean.quantize(quantum, rounding=ROUND_HALF_UP))
+
+
+def _roi_percent(profit: float, stake: float) -> float | None:
+    if not stake:
+        return None
+    ratio = Decimal(str(profit)) * Decimal(100) / Decimal(str(stake))
+    return _money(ratio)
 
 
 def _best_worst(
