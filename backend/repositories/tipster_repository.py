@@ -747,6 +747,110 @@ def fetch_performance(
         "singles": singles}
 
 
+def _coupon_result_facts_sql(apply_tax: bool) -> str:
+    """One settled coupon, dated by the latest kickoff on its legs."""
+    # outcome i kurs w GROUP BY: podatek ich używa, a ONLY_FULL_GROUP_BY
+    # nie pozwala zostawić ich poza grupą
+    profit = _settled_profit_sql(apply_tax)
+    return f"""
+    SELECT
+        c.id AS coupon_id,
+        DATE(MAX(m.game_date)) AS anchor_date,
+        c.stake_amount AS stake_amount,
+        {profit} AS profit
+    FROM tipster_coupons c
+    INNER JOIN tipster_coupon_legs l ON l.coupon_id = c.id
+    INNER JOIN matches m ON m.id = l.match_id
+    WHERE c.user_id = %s
+      AND c.settled = 1
+      AND m.game_date IS NOT NULL
+    GROUP BY c.id, c.stake_amount, c.outcome, c.combined_odds, c.profit
+"""
+
+
+_SINGLE_RESULT_FACTS_SQL = """
+    SELECT
+        l.id AS leg_id,
+        DATE(m.game_date) AS anchor_date,
+        c.stake_amount AS stake_amount,
+        l.odds AS leg_odds,
+        l.outcome AS leg_outcome
+    FROM tipster_coupon_legs l
+    INNER JOIN tipster_coupons c ON c.id = l.coupon_id
+    INNER JOIN matches m ON m.id = l.match_id
+    WHERE c.user_id = %s
+      AND c.settled = 1
+      AND l.outcome IS NOT NULL
+      AND m.game_date IS NOT NULL
+"""
+
+
+def fetch_coupon_result_facts(
+        user_id: int,
+        apply_tax: bool = False) -> list[dict[str, Any]]:
+    """Return one fact per settled coupon, dated by the last kickoff.
+
+    Profit is the coupon profit, with tax when ``apply_tax`` is set.
+    A coupon whose matches have no kickoff date is omitted.
+    """
+    rows = _fetch_all(
+        _coupon_result_facts_sql(apply_tax), (user_id,))
+    return _result_facts(rows, apply_tax=None)
+
+
+def fetch_single_result_facts(
+        user_id: int,
+        apply_tax: bool = False) -> list[dict[str, Any]]:
+    """Return one fact per settled leg, dated by that match.
+
+    Profit is the leg played as a single at the full coupon stake,
+    including a win on a lost coupon. A leg without a date is omitted.
+    """
+    rows = _fetch_all(_SINGLE_RESULT_FACTS_SQL, (user_id,))
+    return _result_facts(rows, apply_tax=apply_tax)
+
+
+def _result_facts(
+        rows: list[dict[str, Any]],
+        apply_tax: bool | None) -> list[dict[str, Any]]:
+    """Map SQL rows to calendar facts. ``apply_tax`` None keeps SQL profit."""
+    facts: list[dict[str, Any]] = []
+    for row in rows:
+        fact = _result_fact(row, apply_tax)
+        if fact is not None:
+            facts.append(fact)
+    return facts
+
+
+def _result_fact(
+        row: dict[str, Any],
+        apply_tax: bool | None) -> dict[str, Any] | None:
+    anchor_date = _as_anchor_date(row.get("anchor_date"))
+    if anchor_date is None:
+        return None
+    stake = _as_decimal(row.get("stake_amount") or 0)
+    if apply_tax is None:
+        profit = _as_decimal(row.get("profit") or 0)
+    else:
+        odds = _as_decimal(row.get("leg_odds") or 0)
+        won = int(row.get("leg_outcome") or 0) == 1
+        profit = _single_profit(stake, odds, won, apply_tax)
+    return {
+        "anchor_date": anchor_date,
+        "profit": _money(profit),
+        "stake": _money(stake)}
+
+
+def _as_anchor_date(value: object) -> date | None:
+    """Calendar day, or None when the cell is not a date."""
+    # DATETIME z konektora też niesie dzień — bierzemy samą datę
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
 _SELECT_SUGGESTED_CATALOG_ODDS = """
     SELECT
         o.odds AS odds,

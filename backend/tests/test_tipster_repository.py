@@ -1553,6 +1553,106 @@ class TestFetchPerformance(unittest.TestCase):
         self.assertEqual(taxed, Decimal("3.80"))
 
 
+class TestFetchResultFacts(unittest.TestCase):
+    """Coupon day is the latest kickoff. A leg uses its own match day."""
+
+    def _leg(
+            self,
+            leg_id: int,
+            stake: str,
+            odds: str,
+            outcome: int,
+            anchor: object) -> dict[str, object]:
+        return {
+            "leg_id": leg_id,
+            "anchor_date": anchor,
+            "stake_amount": Decimal(stake),
+            "leg_odds": Decimal(odds),
+            "leg_outcome": outcome}
+
+    @patch(_GET_CONN)
+    def test_coupon_sql_groups_by_latest_kickoff(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[{
+                "coupon_id": 1,
+                "anchor_date": datetime(2023, 4, 8, 18, 30),
+                "stake_amount": Decimal("10.00"),
+                "profit": Decimal("7.50")}, {
+                "coupon_id": 2,
+                "anchor_date": "missing",
+                "stake_amount": Decimal("5.00"),
+                "profit": Decimal("1.00")}]])
+        facts = repo.fetch_coupon_result_facts(7)
+        query, params = cursor.execute.call_args.args
+        self.assertIn("DATE(MAX(m.game_date))", query)
+        self.assertIn("c.settled = 1", query)
+        self.assertIn("m.game_date IS NOT NULL", query)
+        self.assertIn(
+            "GROUP BY c.id, c.stake_amount, c.outcome, "
+            "c.combined_odds, c.profit",
+            " ".join(query.split()))
+        self.assertIn("c.profit AS profit", query)
+        self.assertEqual(params, (7,))
+        self.assertEqual(facts, [{
+            "anchor_date": date(2023, 4, 8),
+            "profit": 7.5,
+            "stake": 10.0}])
+
+    @patch(_GET_CONN)
+    def test_coupon_tax_sql_uses_net_odds_factor(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_coupon_result_facts(7, apply_tax=True)
+        query = " ".join(cursor.execute.call_args.args[0].split())
+        self.assertIn("combined_odds", query)
+        self.assertIn(repo._net_odds_factor_sql(), query)
+        self.assertNotIn("c.profit AS profit", query)
+
+    @patch(_GET_CONN)
+    def test_single_sql_dates_each_leg_without_max(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        _conn, cursor = _mock_connection(
+            mock_get_conn, fetchall_results=[[]])
+        repo.fetch_single_result_facts(7)
+        query = cursor.execute.call_args.args[0]
+        self.assertIn("DATE(m.game_date)", query)
+        self.assertIn("l.outcome IS NOT NULL", query)
+        self.assertNotIn("MAX(", query)
+        self.assertEqual(cursor.execute.call_args.args[1], (7,))
+
+    @patch(_GET_CONN)
+    def test_single_profit_uses_full_stake_and_taxed_odds(
+            self,
+            mock_get_conn: MagicMock) -> None:
+        kickoff = date(2023, 4, 8)
+        _conn, _cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[
+                self._leg(1, "10.00", "2", 1, kickoff),
+                self._leg(2, "10.00", "2", 0, kickoff),
+                self._leg(3, "10.00", "2", 1, "missing")]])
+        plain = repo.fetch_single_result_facts(7)
+        self.assertEqual(
+            [fact["profit"] for fact in plain], [10.0, -10.0])
+        self.assertEqual(plain[0]["stake"], 10.0)
+        self.assertEqual(plain[0]["anchor_date"], kickoff)
+        _conn, _cursor = _mock_connection(
+            mock_get_conn,
+            fetchall_results=[[
+                self._leg(1, "10.00", "2", 1, kickoff)]])
+        taxed = repo.fetch_single_result_facts(7, apply_tax=True)
+        expected = float(repo._single_profit(
+            Decimal("10"), Decimal("2"), True, True))
+        self.assertEqual(taxed[0]["profit"], expected)
+        self.assertEqual(taxed[0]["profit"], 7.6)
+
+
 class TestFetchSuggestedCatalogOdds(unittest.TestCase):
     """Default coupon price is the best odds of a predicted event."""
 
