@@ -43,6 +43,27 @@ class TestSplitSqlScript(unittest.TestCase):
         script = ";\nSELECT 1;\n;\n"
         self.assertEqual(split_sql_script(script), ["SELECT 1"])
 
+    def test_semicolon_inside_single_quotes_is_kept(self) -> None:
+        script = "SELECT 'a; b';\nSELECT 'it''s; fine';\n"
+        self.assertEqual(
+            split_sql_script(script),
+            ["SELECT 'a; b'", "SELECT 'it''s; fine'"])
+
+    def test_semicolon_after_literal_still_raises(self) -> None:
+        script = "SELECT 'a; b'; SELECT 2;\n"
+        with self.assertRaises(MigrationError) as caught:
+            split_sql_script(script)
+        self.assertEqual(
+            str(caught.exception),
+            "Semicolon is allowed only at the end of a line")
+
+    def test_unclosed_literal_still_needs_a_semicolon(self) -> None:
+        with self.assertRaises(MigrationError) as caught:
+            split_sql_script("SELECT 'a; b\n")
+        self.assertEqual(
+            str(caught.exception),
+            "Migration script ended without a semicolon")
+
     def test_semicolon_inside_a_line_raises(self) -> None:
         script = "SELECT 1; SELECT 2;\n"
         with self.assertRaises(MigrationError) as caught:
