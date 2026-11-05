@@ -34,6 +34,8 @@ import {
   type ModelDetailsResponse,
   type ModelListResponse,
   type PerformanceBreakdown,
+  type ResultCalendar,
+  type ResultCalendarQuery,
   type SuggestedCatalogOdds,
   type HockeyRatingBoard,
   type PlayerMatchStatsResponse,
@@ -571,6 +573,32 @@ export async function getMyPerformance(options?: {
 }): Promise<PerformanceBreakdown> {
   return fetchViaBff<PerformanceBreakdown>("/tipsters/me/performance", {
     apply_tax: options?.applyTax ? true : undefined,
+  });
+}
+
+/** Owner result calendar from GET /tipsters/me/result-calendar. */
+export async function getMyResultCalendar(
+  options: ResultCalendarQuery,
+): Promise<ResultCalendar> {
+  return fetchViaBff<ResultCalendar>("/tipsters/me/result-calendar", {
+    lens: options.lens,
+    grain: options.grain,
+    anchor: options.anchor,
+    apply_tax: options.applyTax ? true : undefined,
+  });
+}
+
+/** Profile calendar from GET /tipsters/profile/{username}/result-calendar. */
+export async function getProfileResultCalendar(
+  username: string,
+  options: ResultCalendarQuery,
+): Promise<ResultCalendar> {
+  const path = `/tipsters/profile/${encodeURIComponent(username)}/result-calendar`;
+  return fetchViaBff<ResultCalendar>(path, {
+    lens: options.lens,
+    grain: options.grain,
+    anchor: options.anchor,
+    apply_tax: options.applyTax ? true : undefined,
   });
 }
 

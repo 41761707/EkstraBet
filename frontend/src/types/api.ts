@@ -2255,6 +2255,39 @@ export interface PerformanceBreakdown {
   singles: PerformanceSingles;
 }
 
+/** Coupon counts the coupon once; single counts one settled leg. */
+export type ResultCalendarLens = "coupon" | "single";
+
+/** Bucket size for the result calendar. */
+export type ResultCalendarGrain = "day" | "week" | "month" | "year";
+
+/** One non-empty day, week, month or year of settled results. */
+export interface ResultCalendarBucket {
+  start: string;
+  end: string;
+  profit: number;
+  stake: number;
+  count: number;
+}
+
+/**
+ * Settled results for one lens and grain.
+ * Totals sum `buckets` for the viewed period. Grain `year` spans the
+ * whole history plus the current year. Dates are `YYYY-MM-DD`.
+ */
+export interface ResultCalendar {
+  lens: ResultCalendarLens;
+  grain: ResultCalendarGrain;
+  anchor: string;
+  period_start: string;
+  period_end: string;
+  profit_total: number;
+  stake_total: number;
+  count: number;
+  unit_size: number | null;
+  buckets: ResultCalendarBucket[];
+}
+
 /** One ranking row; coupon lists are never included. */
 export interface LeaderboardRow {
   user_id: number;
@@ -2369,5 +2402,13 @@ export interface TipsterCatalogQuery {
 export interface TipsterProfileQuery {
   page?: number;
   pageSize?: number;
+  applyTax?: boolean;
+}
+
+/** Query for both result-calendar GET endpoints. `anchor` is `YYYY-MM-DD`. */
+export interface ResultCalendarQuery {
+  lens: ResultCalendarLens;
+  grain: ResultCalendarGrain;
+  anchor: string;
   applyTax?: boolean;
 }
