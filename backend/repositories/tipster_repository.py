@@ -1569,6 +1569,11 @@ def _performance_groups(
         "worst_country": worst_country}
 
 
+def fetch_performance_scale(user_id: int) -> dict[str, Any]:
+    """Return open stake and the current unit size for one user."""
+    return _performance_scale(user_id)
+
+
 def _performance_scale(user_id: int) -> dict[str, Any]:
     """Open stake in money and the current unit size, if a bankroll exists."""
     row = _fetch_one(_SELECT_PERFORMANCE_SCALE, (user_id, user_id))

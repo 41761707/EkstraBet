@@ -13,6 +13,8 @@ from typing import TypedDict
 
 from backend.repositories import tipster_repository as repo
 from backend.repositories import user_repository
+from backend.services.tipster_result_calendar import (
+    build_result_calendar)
 from backend.sports.football.event_settlement_registry import (
     is_settleable_event)
 
@@ -173,6 +175,38 @@ def get_my_performance(
         apply_tax: bool = False) -> dict[str, Any]:
     """Return settled-coupon breakdowns for the authenticated owner."""
     return repo.fetch_performance(_user_id(user), apply_tax=apply_tax)
+
+
+def get_my_result_calendar(
+        user: dict[str, Any],
+        lens: str,
+        grain: str,
+        anchor: date,
+        apply_tax: bool = False) -> dict[str, Any]:
+    """Return the caller's result calendar for one lens and grain."""
+    return _result_calendar_for_user(
+        _user_id(user), lens, grain, anchor, apply_tax)
+
+
+def get_profile_result_calendar(
+        username: str,
+        viewer: dict[str, Any] | None,
+        lens: str,
+        grain: str,
+        anchor: date,
+        apply_tax: bool = False) -> dict[str, Any]:
+    """Return a calendar when the viewer may see that user's coupons.
+
+    A missing user is not found. Someone else's human profile is
+    forbidden. A system account stays visible.
+    """
+    target = user_repository.fetch_user_by_username(username)
+    if target is None:
+        raise TipsterNotFoundError("User not found")
+    if not _can_view_coupons(target, viewer):
+        raise TipsterForbiddenError("Coupons are not visible")
+    return _result_calendar_for_user(
+        int(target["id"]), lens, grain, anchor, apply_tax)
 
 
 def get_leaderboard(
@@ -508,6 +542,29 @@ def _quantized_positive_stake(value: object) -> float:
     if amount <= 0:
         raise TipsterUnprocessableError("Stake must be greater than 0")
     return amount
+
+
+def _result_calendar_for_user(
+        user_id: int,
+        lens: str,
+        grain: str,
+        anchor: date,
+        apply_tax: bool) -> dict[str, Any]:
+    """Load one lens of facts and attach the current unit size."""
+    if lens == "coupon":
+        facts = repo.fetch_coupon_result_facts(
+            user_id, apply_tax=apply_tax)
+    else:
+        facts = repo.fetch_single_result_facts(
+            user_id, apply_tax=apply_tax)
+    calendar = build_result_calendar(facts, grain, anchor)
+    scale = repo.fetch_performance_scale(user_id)
+    return {
+        **calendar,
+        "lens": lens,
+        "grain": grain,
+        "unit_size": scale["unit_size"]
+    }
 
 
 def _coupon_page(
