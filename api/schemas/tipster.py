@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from datetime import datetime
 from typing import Literal
 
@@ -21,6 +22,8 @@ LeaderboardSortBy = Literal[
     "current_balance"]
 LeaderboardSortOrder = Literal["asc", "desc"]
 SuggestionTier = Literal["S", "A", "B"]
+ResultCalendarLens = Literal["coupon", "single"]
+ResultCalendarGrain = Literal["day", "week", "month", "year"]
 
 
 class BankrollSettings(BaseModel):
@@ -463,6 +466,62 @@ class PerformanceBreakdown(BaseModel):
     singles: PerformanceSingles = Field(
         default_factory=PerformanceSingles,
         description="The same coupons counted as independent singles")
+
+
+class ResultCalendarBucket(BaseModel):
+    """One non-empty day, week, month or year of settled results."""
+
+    start: date = Field(
+        ...,
+        description="First day of the bucket, inclusive")
+    end: date = Field(
+        ...,
+        description="Last day of the bucket, inclusive")
+    profit: float = Field(..., description="Sum of profit in currency")
+    stake: float = Field(..., description="Sum of coupon stakes")
+    count: int = Field(
+        ...,
+        description="Number of coupons or legs, not days")
+
+
+class ResultCalendarResponse(BaseModel):
+    """Settled results grouped into the buckets of one viewed period.
+
+    Totals are the sum of ``buckets``, not the whole history. Grain
+    ``year`` is the exception: the period spans every fact plus the
+    current year. ``buckets`` holds only non-empty buckets.
+    """
+
+    lens: ResultCalendarLens = Field(
+        ...,
+        description="coupon counts a coupon once; single counts a leg")
+    grain: ResultCalendarGrain = Field(
+        ...,
+        description="Bucket size: day, week, month or year")
+    anchor: date = Field(
+        ...,
+        description="Anchor date from the request, unchanged")
+    period_start: date = Field(
+        ...,
+        description="First day of the viewed period, inclusive")
+    period_end: date = Field(
+        ...,
+        description="Last day of the viewed period, inclusive")
+    profit_total: float = Field(
+        ...,
+        description="Sum of bucket profit in this period")
+    stake_total: float = Field(
+        ...,
+        description="Sum of bucket stakes in this period")
+    count: int = Field(
+        ...,
+        description="Coupons or legs in the returned buckets")
+    unit_size: float | None = Field(
+        ...,
+        description="Current stake unit; null when there is no bankroll")
+    buckets: list[ResultCalendarBucket] = Field(
+        ...,
+        description="Non-empty buckets, ordered by start")
 
 
 class LeaderboardRow(BaseModel):
