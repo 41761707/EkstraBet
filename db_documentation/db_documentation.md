@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 24.10.2026
+###### Ostatnia data modyfikacji: 05.11.2026
 
 ## Opis struktury bazy
 
@@ -52,6 +52,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [PLAYERS](#players) (lista graczy)
 - [PREDICTIONS](#predictions) (WSZYSTKIE predykcje dla każdego zdarzenia)
 - [SCHEDULE](#schedule) (Terminarz sezonu piłkarskiego)
+- [SCHEMA_MIGRATIONS](#schema_migrations) (Księga wykonanych wersji schematu bazy)
 - [SEASONS](#seasons) (Tabela z sezonami)
 - [SEASON_PROJECTION_RUNS](#season_projection_runs) (Cache przebiegów Monte Carlo projekcji końca sezonu)
 - [SEASON_PROJECTION_TEAM_ROWS](#season_projection_team_rows) (Statystyki drużyn w ramach udanego runu projekcji)
@@ -1465,6 +1466,30 @@ Dane naliczane w ramach modułu **main.py**
 **Sposób generowania danych do tabeli:**
 
 Dane dodawane ręcznie.
+
+---
+
+### SCHEMA_MIGRATIONS
+
+(Księga wykonanych wersji schematu bazy)
+
+
+| POLE        | DOMENA       | ZAKRES   | UWAGI                                  | WARTOŚC DOMYŚLNA |
+| ----------- | ------------ | -------- | -------------------------------------- | ---------------- |
+| **VERSION** | VARCHAR(32)  | STRING   | Identyfikator wersji migracji          | brak             |
+| FILENAME    | VARCHAR(255) | STRING   | Nazwa pliku, z którego pochodzi wersja | brak             |
+| CHECKSUM    | CHAR(64)     | STRING   | Skrót SHA-256 pliku migracji           | brak             |
+| APPLIED_AT  | DATETIME     | DATETIME | Czas zapisu wersji w księdze           | brak             |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `VERSION`
+- Brak kluczy obcych i ograniczeń wartości
+
+**Sposób generowania danych do tabeli:**
+
+Dane wstawiane przez runner migracji schematu.
 
 ---
 

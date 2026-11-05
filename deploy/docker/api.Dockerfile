@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir -r requirements-vps.txt
 COPY api/ ./api/
 COPY backend/ ./backend/
 COPY models/ ./models/
+COPY sql/ ./sql/
 
 RUN chown -R ekstrabet:ekstrabet /app
 

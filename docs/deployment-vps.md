@@ -369,8 +369,8 @@ Nie commituj dumpa do Gita.
 ### 9.3 Konta MySQL (ręcznie)
 
 Zaloguj się jako `root` MySQL (hasło z `mysql.env`) i załóż konta **z hasłami
-już zapisanymi** w `api.env` (i później w `backup.env`). Brak skryptów
-bootstrap/migracji w tym wydaniu.
+już zapisanymi** w `api.env` (i później w `backup.env`). Kont tych nie zakłada
+żaden skrypt. Migracje schematu są w sekcji 9.6.
 
 Przykład konta API (odczyt całej bazy + zapis tylko na tabelach konta;
 hasło = `DB_PASSWORD` z `api.env`). Na istniejącym VPS, gdzie konto było
@@ -490,6 +490,66 @@ python scripts/sync/sync_local_to_prod.py --apply --full-dict --window-days 3
 
 Transport `direct` (tunel `ssh -L`) ustawia się przez `SYNC_TRANSPORT=direct`
 i `PROD_DB_*` w `sync.env`.
+
+### 9.6 Migracje schematu
+
+Katalog `sql/migrations/` jest w obrazie `api`. Proces API nie uruchamia
+migracji. Na VPS runner idzie jednorazowym kontenerem `api`, który widzi
+host `mysql`: port `3306` nie jest wystawiony na host, a obraz `mysql` nie
+ma Pythona.
+
+Konto `ekstrabet_api` nie ma prawa `CREATE` ani `ALTER`. Kontener `api` ma
+`ENVIRONMENT=production` i `DB_USER=ekstrabet_api`, więc nie wolno nadpisywać
+`DB_USER=root`. Do migracji dokładasz konto DDL zmiennymi `DB_MIGRATE_USER`
+i `DB_MIGRATE_PASSWORD`. Hasła nie zapisuj w Git.
+
+Na bazie matce, testowej i produkcyjnej, które już mają dane, pierwsza
+komenda po tym wydaniu to `baseline`. Tworzy tabelę `schema_migrations`
+i oznacza `V001` jako wykonane. Nie wykonuje treści `V001` i nie rusza
+istniejących tabel ani wierszy.
+
+`apply` jest dla pustej bazy (wykonuje pliki od `V001`) i dla każdego
+następnego pliku `V00N`, gdy `V001` jest już w księdze. Na trzech
+istniejących bazach nie uruchamiaj `V001` przez `apply`.
+
+Pierwsze oznaczenie istniejącej bazy:
+
+```bash
+docker compose -f compose.production.yml run --rm \
+  -e DB_MIGRATE_USER=root \
+  -e DB_MIGRATE_PASSWORD='…MYSQL_ROOT_PASSWORD…' \
+  api python -m backend.db_migrate baseline
+```
+
+Kolejne wydanie, w którym doszedł plik migracji — ta sama forma z `apply`:
+
+```bash
+docker compose -f compose.production.yml run --rm \
+  -e DB_MIGRATE_USER=root \
+  -e DB_MIGRATE_PASSWORD='…MYSQL_ROOT_PASSWORD…' \
+  api python -m backend.db_migrate apply
+```
+
+`run` bierze env kontenera `api` (`ENVIRONMENT=production`,
+`DB_USER=ekstrabet_api`, `SECRET_KEY`) i tylko dokłada konto DDL. Obraz
+`mysql:8.4` bez `MYSQL_ROOT_HOST` przyjmuje `root` z sieci Compose.
+
+Gdy `root` z kontenera `api` zostanie odrzucony, w kontenerze `mysql`
+załóż osobne konto i podaj je w `DB_MIGRATE_USER`. Hasło zostaje na hoście,
+nie w Git:
+
+```sql
+CREATE USER 'ekstrabet_migrate'@'%' IDENTIFIED BY '…hasło…';
+GRANT ALL PRIVILEGES ON ekstrabet.* TO 'ekstrabet_migrate'@'%';
+FLUSH PRIVILEGES;
+```
+
+Lokalnie, gdy `DB_USER` z `.env` ma prawo DDL, wystarcza
+`python -m backend.db_migrate …` bez zmiennych `DB_MIGRATE_*`.
+
+Sync wierszy odpalaj dopiero po `apply` na produkcji. Nowa tabela, do
+której API ma pisać, dostaje `GRANT` w sekcji 9.3 w tym samym zadaniu.
+Runner grantów nie nadaje.
 
 ## 10. Minimalna weryfikacja hosta (checklista SZP-70)
 
@@ -666,7 +726,8 @@ Skrypt **odmawia** działania bez dokładnej frazy `--confirm YES_I_UNDERSTAND_D
 Cel: drugi operator ma wykonać release i rollback **wyłącznie** z tej sekcji
 (oraz powiązanych sekcji 1–11), bez wiedzy autora. Pierwsze wydanie jest
 kontrolowanym wdrożeniem z **oznaczonego tagu Git** — nie z każdego pusha.
-Brak procedury migracji schematu SQL w tym runbooku (schemat poza Git).
+Migracje schematu: sekcja 9.6. Na bazie, która już ma dane, pierwsza komenda
+po tym wydaniu to `baseline`, nie `apply`.
 Pierwsze dane: sekcja 9.2 (lokalny plik `.sql`). Późniejsza ochrona =
 backup/restore z sekcji 11.
 
@@ -827,7 +888,11 @@ Jeśli po rollbacku aplikacji dane są niespójne lub uszkodzone, przejdź do 12
 
 ### 12.8 Odtworzenie DB z backupu
 
-**Bez migracji schematu** — odtwarzasz dump z sekcji 11, nie stosujesz skryptów DDL z Git.
+Restore przywraca schemat razem z danymi (dump z sekcji 11).
+
+Gdy odtworzony dump zawiera tabelę `schema_migrations`, nie uruchamiaj
+migracji ponownie. Gdy dump jest sprzed tego mechanizmu, po restore wykonaj
+`baseline` z sekcji 9.6, nie `apply`.
 
 1. Wybierz plik `.sql.gz.enc` (preferuj backup **sprzed** awarii; zweryfikuj `.sha256`).
 2. Zatrzymaj ruch aplikacyjny (API/frontend), żeby nie pisać w trakcie restore:
@@ -877,7 +942,7 @@ curl -fsSI https://twoja-domena/api/health | head -n 15
 - [ ] Trwały `/path/to/EkstraBet/.env` z `APP_ORIGIN` (`radikey:radikey`, `600`); nie tylko `export` w sesji
 - [ ] `api.env`: `CORS_ORIGINS` zgodne z `APP_ORIGIN` (sekcja 7.2); `FRONTEND_ORIGIN` nie jest źródłem prawdy
 - [ ] Preflight `backup_mysql.sh` OK (lokalnie + off-site) przed `up --build`
-- [ ] `git checkout <TAG>` → `compose config` → `up -d --build --wait` → wszystkie healthy
+- [ ] `git checkout <TAG>` → `compose config` → `build api` → `baseline` albo `apply` (sekcja 9.6) → `up -d --build --wait` → wszystkie healthy
 - [ ] Smoke dopiero po healthy: `/api/health`, `/ready`, HTTPS, `401` bez cookie na `/api/backend/leagues`, porty zamknięte
 - [ ] Logi bez sekretów; brak cascade 5xx po starcie
 - [ ] DNS przełączony dopiero po smoke; HSTS dopiero po poprawnym HTTPS
