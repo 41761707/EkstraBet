@@ -85,7 +85,14 @@ export function ResultCalendarGrid({
     maxAbs: maxAbsoluteProfit(calendar.buckets),
   };
   if (calendar.grain === "day") {
-    return <DayGrid anchor={calendar.anchor} buckets={calendar.buckets} amounts={amounts} />;
+    return (
+      <DayGrid
+        anchor={calendar.anchor}
+        buckets={calendar.buckets}
+        amounts={amounts}
+        today={today}
+      />
+    );
   }
   if (calendar.grain === "week") {
     return <WeekGrid anchor={calendar.anchor} buckets={calendar.buckets} amounts={amounts} />;
@@ -100,37 +107,65 @@ function DayGrid({
   anchor,
   buckets,
   amounts,
+  today,
 }: {
   anchor: string;
   buckets: ResultCalendarBucket[];
   amounts: AmountContext;
+  today: string;
 }) {
   const slots = dayGrid(anchor, buckets);
   return (
-    <div className="space-y-1">
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted">
+    <div>
+      <div className="grid grid-cols-7 border-b border-border bg-surface-muted">
         {WEEKDAY_LABELS.map((label) => (
-          <div key={label}>{label}</div>
+          <div key={label} className="py-2 text-center text-xs font-medium text-muted">
+            {label}
+          </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      {/* Szczelina w kolorze obramowania rysuje kratkę bez podwójnej linii. */}
+      <div className="grid grid-cols-7 gap-px bg-border">
         {slots.map((slot, index) => (
-          <DayCell key={slot.start ?? `blank-${index}`} slot={slot} amounts={amounts} />
+          <DayCell
+            key={slot.start ?? `blank-${index}`}
+            slot={slot}
+            amounts={amounts}
+            isToday={slot.start === today}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function DayCell({ slot, amounts }: { slot: CalendarSlot; amounts: AmountContext }) {
-  if (!slot.start || !slot.bucket) {
-    return <div className="min-h-12" />;
+function DayCell({
+  slot,
+  amounts,
+  isToday,
+}: {
+  slot: CalendarSlot;
+  amounts: AmountContext;
+  isToday: boolean;
+}) {
+  if (!slot.start) {
+    return <div className="min-h-16 bg-page" />;
+  }
+  if (!slot.bucket) {
+    return (
+      <div className={`min-h-16 bg-surface px-1 py-1 ${todayRingClassName(isToday)}`}>
+        <p className="text-xs text-muted">{dayNumber(slot.start)}</p>
+      </div>
+    );
   }
   const step = intensityStep(slot.bucket.profit, amounts.maxAbs);
   return (
     <div
       title={cellTitle(slot.bucket, amounts)}
-      className={`min-h-12 px-1 py-1 ${filledCellClassName(slot.bucket.profit, step)}`}
+      className={
+        `min-h-16 px-1 py-1 ${cellBackground(slot.bucket.profit, step)} ` +
+        todayRingClassName(isToday)
+      }
     >
       <p className="text-xs text-muted">{dayNumber(slot.start)}</p>
       <p className={`text-xs font-medium leading-tight ${cellAmountClass(slot.bucket.profit)}`}>
@@ -214,7 +249,7 @@ function CardGrid({
   amounts: AmountContext;
 }) {
   return (
-    <div className={`grid gap-2 ${columnsClassName}`}>
+    <div className={`grid gap-2 p-3 ${columnsClassName}`}>
       {slots.map((slot) => (
         <ResultCard
           key={slot.start ?? "blank"}
@@ -238,7 +273,7 @@ function ResultCard({
 }) {
   if (!slot.bucket) {
     return (
-      <div className="min-h-16 px-2 py-2">
+      <div className="min-h-16 rounded-md border border-border bg-surface px-2 py-2">
         <p className="text-xs text-muted">{label}</p>
       </div>
     );
@@ -301,6 +336,10 @@ function maxAbsoluteProfit(buckets: ResultCalendarBucket[]): number {
 
 function filledCellClassName(profit: number, step: 0 | 1 | 2 | 3): string {
   return `rounded-md border border-border ${cellBackground(profit, step)}`;
+}
+
+function todayRingClassName(isToday: boolean): string {
+  return isToday ? "ring-1 ring-inset ring-accent" : "";
 }
 
 function cellBackground(profit: number, step: 0 | 1 | 2 | 3): string {

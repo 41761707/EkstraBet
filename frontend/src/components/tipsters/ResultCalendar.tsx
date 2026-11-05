@@ -24,16 +24,13 @@ import type {
   ResultCalendarLens,
 } from "@/types/api";
 
-const CALENDAR_TITLE = "Wynik w czasie";
+const CALENDAR_TITLE = "Zmiana osiągnięć w czasie - kalendarz";
 const COUPON_LENS_DESCRIPTION =
-  "Dzień kuponu to dzień rozpoczęcia jego ostatniego meczu. " +
-  "W komórce jest wynik całego kuponu.";
+  "Dzień kuponu to dzień rozpoczęcia jego ostatniego meczu.";
 const SINGLE_LENS_DESCRIPTION =
-  "Dzień zakładu to dzień rozpoczęcia tego meczu. Wszedł — wynik to kurs " +
-  "razy stawka minus stawka, także na przegranym kuponie.";
+  "Dzień zakładu to dzień rozpoczęcia rozpatrywanego meczu.";
 const WEEK_GRAIN_NOTE =
-  "Tydzień liczy się od poniedziałku do niedzieli i należy do roku, " +
-  "w którym wypada jego czwartek.";
+  "Tydzień liczy się od poniedziałku do niedzieli.";
 const LOADING_LABEL = "Wczytywanie…";
 const EMPTY_PERIOD_MESSAGE = "Brak rozliczonych wyników w tym okresie.";
 const LOAD_ERROR_TITLE = "Nie udało się wczytać wyników";
@@ -44,7 +41,7 @@ const NEXT_PERIOD_LABEL = "Następny okres";
 
 const LENS_TABS: { id: ResultCalendarLens; label: string }[] = [
   { id: "coupon", label: "Kupon" },
-  { id: "single", label: "Zakład" },
+  { id: "single", label: "Single" },
 ];
 
 const GRAIN_TABS: { id: ResultGrain; label: string }[] = [
@@ -55,7 +52,8 @@ const GRAIN_TABS: { id: ResultGrain; label: string }[] = [
 ];
 
 const NAV_BUTTON_CLASS =
-  "rounded-md px-2 py-1 text-muted hover:bg-surface-muted " +
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md " +
+  "border border-border bg-surface text-text hover:bg-surface-muted " +
   "disabled:cursor-not-allowed disabled:opacity-40";
 
 interface ResultCalendarProps {
@@ -90,8 +88,12 @@ export function ResultCalendar({
     <div className="space-y-3 border-t border-border pt-5">
       <CalendarIntro lens={view.lens} grain={view.grain} />
       <CalendarSwitches view={view} currency={currency} />
-      <PeriodNavigator view={view} currency={currency} />
-      <CalendarBody view={view} currency={currency} />
+      <div className="overflow-hidden rounded-xl border border-border bg-page">
+        <div className="border-b border-border px-3 py-2">
+          <PeriodNavigator view={view} currency={currency} />
+        </div>
+        <CalendarBody view={view} currency={currency} />
+      </div>
     </div>
   );
 }
@@ -191,15 +193,17 @@ function CalendarSwitches({
   currency: CurrencyCode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       <ChoiceTabs
         label="Soczewka"
+        variant="segmented"
         tabs={LENS_TABS}
         value={view.lens}
         onChange={view.setLens}
       />
       <ChoiceTabs
         label="Ziarno"
+        variant="segmented"
         tabs={GRAIN_TABS}
         value={view.grain}
         onChange={view.setGrain}
@@ -207,6 +211,7 @@ function CalendarSwitches({
       {view.canUseUnits ? (
         <ChoiceTabs
           label="Miara"
+          variant="segmented"
           tabs={[
             { id: "currency", label: currency },
             { id: "unit", label: UNIT_TAB_LABEL },
@@ -237,7 +242,7 @@ function PeriodNavigator({
         onClick={() => view.shift(-1)}
         className={NAV_BUTTON_CLASS}
       >
-        ‹
+        <PeriodChevron direction="previous" />
       </button>
       <div className="min-w-0 flex-1 text-center">
         <p className="text-sm font-medium text-text">
@@ -266,9 +271,25 @@ function PeriodNavigator({
         onClick={() => view.shift(1)}
         className={NAV_BUTTON_CLASS}
       >
-        ›
+        <PeriodChevron direction="next" />
       </button>
     </div>
+  );
+}
+
+function PeriodChevron({ direction }: { direction: "previous" | "next" }) {
+  const points = direction === "previous" ? "15 6 9 12 15 18" : "9 6 15 12 9 18";
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -281,18 +302,20 @@ function CalendarBody({
 }) {
   if (view.isLoading) {
     return (
-      <p className="text-sm text-muted" role="status">
+      <p className="px-3 py-3 text-sm text-muted" role="status">
         {LOADING_LABEL}
       </p>
     );
   }
   if (view.error) {
     return (
-      <StatusMessage
-        variant="error"
-        title={LOAD_ERROR_TITLE}
-        message={view.error}
-      />
+      <div className="p-3">
+        <StatusMessage
+          variant="error"
+          title={LOAD_ERROR_TITLE}
+          message={view.error}
+        />
+      </div>
     );
   }
   if (!view.calendar) {
@@ -307,7 +330,7 @@ function CalendarBody({
         today={view.today}
       />
       {view.calendar.count === 0 ? (
-        <p className="text-sm text-muted">{EMPTY_PERIOD_MESSAGE}</p>
+        <p className="px-3 py-3 text-sm text-muted">{EMPTY_PERIOD_MESSAGE}</p>
       ) : null}
     </>
   );
