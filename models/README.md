@@ -220,6 +220,8 @@ Dwa komplementarne modele:
 Meta-model czyta istniejące `predictions` i `odds`. Dla jednej pary
 zapisuje `bet` albo `no_bet` oraz skalibrowane prawdopodobieństwo.
 Nie kopiuje `predictions.value` ani kursu i nie prowadzi salda.
+Werdykt dostaje tylko predykcja z `final_predictions`, czyli najwyższy
+procent rodziny. Trening i ewaluacja dalej widzą obie strony rynku.
 
 ### Trzy uruchomienia
 
@@ -227,12 +229,15 @@ Nie kopiuje `predictions.value` ani kursu i nie prowadzi salda.
    oba odciski i raport. Nie wstawia wierszy do `betting_recommendations`.
 2. `predict-betting-meta` ładuje ten artefakt i dopisuje werdykty par
    z kickoffem późniejszym niż `--as-of`, których ten `model_fingerprint`
-   jeszcze nie ma. Modelu nie uczy. Nowa predykcja w `predictions` nie
-   uruchamia treningu. Łapie ją kolejne wywołanie tej komendy.
+   jeszcze nie ma i których predykcja jest finałem rodziny. Modelu nie
+   uczy. Nowa predykcja w `predictions` nie uruchamia treningu. Łapie
+   ją kolejne wywołanie tej komendy.
 3. EB-9 czyta wiersze `decision = bet`, których `model_fingerprint` jest
-   równy odciskowi z `meta.json` gotowego artefaktu. Predyktora nie
-   importuje i `model.joblib` nie ładuje. Stawkę opublikowanego kuponu
-   i saldo zostawia przy sobie oraz przy EB-11.
+   równy odciskowi z `meta.json` gotowego artefaktu i których predykcja
+   jest finałem rodziny. Starszy bet na drugiej stronie zostaje w tabeli
+   i nie wchodzi do kuponu. Predyktora nie importuje i `model.joblib`
+   nie ładuje. Stawkę opublikowanego kuponu i saldo zostawia przy sobie
+   oraz przy EB-11.
 
 Gdy `metrics.json` nie spełnia bramki ze strategii (`max_brier`,
 `max_reliability_error`, `min_roi`), `predict-betting-meta` kończy się

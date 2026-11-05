@@ -288,6 +288,8 @@ class TestFetchComputerBetPairs(unittest.TestCase):
         self.assertIn("betting_recommendations br", text)
         self.assertIn("br.decision = %s", text)
         self.assertIn("br.model_fingerprint = %s", text)
+        self.assertIn("INNER JOIN final_predictions fp", text)
+        self.assertIn("ON fp.predictions_id = p.id", text)
         self.assertIn("mk.game_date >= %s", text)
         self.assertIn("mk.game_date < %s", text)
         self.assertEqual(

@@ -149,6 +149,7 @@ _READY_SQL_COLUMNS = (
     "event_family")
 # Werdykt wskazuje konkretny wiersz kursu. Najlepsza cena z puli
 # bazowej mogłaby być inną kwotą niż ta, którą ocenił meta-model.
+# Finał rodziny odcina starszy bet na drugiej stronie.
 _READY_BET_SQL = f"""
     WITH window_matches AS (
         SELECT
@@ -179,6 +180,8 @@ _READY_BET_SQL = f"""
     FROM betting_recommendations br
     INNER JOIN predictions p
         ON p.id = br.prediction_id
+    INNER JOIN final_predictions fp
+        ON fp.predictions_id = p.id
     INNER JOIN odds o
         ON o.id = br.odds_id
         AND o.match_id = p.match_id
@@ -243,9 +246,11 @@ def fetch_ready_bets(
         model_fingerprint: str,
         now: datetime,
         horizon_days: int = 7) -> pd.DataFrame:
-    """Return settleable ``bet`` rows for one ready model digest.
+    """Return settleable published ``bet`` rows for one digest.
 
-    The window matches ``fetch_candidates``. ``model_probability`` is
+    The window matches ``fetch_candidates``. A bet whose prediction
+    is not the family final is left out, including rows written
+    before that gate. ``model_probability`` is
     ``calibrated_probability`` on the unit scale, not the stored
     prediction percentage. The price is the odds row named by the
     verdict. ``now`` is the same clock as the baseline pool.

@@ -115,11 +115,12 @@ def publish_daily(
 def _selector_frame(
         now: datetime,
         allow_unready: bool) -> pd.DataFrame:
-    """Return bet verdicts when the artifact may be used.
+    """Return published bet verdicts when the artifact may be used.
 
     ``None`` means the report failed or could not be read. That path
     does not query verdicts. ``allow_unready`` still reads the stored
-    digest after a failed gate.
+    digest after a failed gate. A bet on a prediction that is not the
+    family final is omitted.
     """
     fingerprint = ready_model_fingerprint(allow_unready=allow_unready)
     if fingerprint is None:

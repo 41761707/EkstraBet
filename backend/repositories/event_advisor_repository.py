@@ -134,6 +134,7 @@ _CANDIDATE_SQL = """
 """.format(window=_MATCH_WINDOW)
 
 # Flaga bet jest parą mecz+zdarzenie, nie wierszem kursu z werdyktu.
+# Werdykt drugiej strony rodziny nie jest decyzją komputera.
 _BET_PAIRS_SQL = """
     WITH window_matches AS (
 {window}
@@ -144,6 +145,8 @@ _BET_PAIRS_SQL = """
     FROM betting_recommendations br
     INNER JOIN predictions p
         ON p.id = br.prediction_id
+    INNER JOIN final_predictions fp
+        ON fp.predictions_id = p.id
     INNER JOIN window_matches wm
         ON wm.id = p.match_id
     WHERE br.decision = %s
@@ -200,10 +203,12 @@ def fetch_computer_bet_pairs(
         fingerprint: str,
         now: datetime,
         horizon_end: datetime) -> set[tuple[int, int]]:
-    """Return pairs with ``decision = bet`` for one artifact digest.
+    """Return published pairs with ``decision = bet`` for one digest.
 
-    The window matches ``fetch_candidates``. The model file is not
-    opened and the selector is not called.
+    The prediction must be the family final. A stored bet on the
+    other side stays in the table and is not a flag. The window
+    matches ``fetch_candidates``. The model file is not opened and
+    the selector is not called.
     """
     params = _window_params(now, horizon_end) + ("bet", fingerprint)
     rows = _fetch_all(_BET_PAIRS_SQL, params)

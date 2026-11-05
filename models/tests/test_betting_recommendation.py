@@ -488,6 +488,7 @@ def test_explicit_strategy_is_not_replaced_by_the_file(
         run_betting_predict(ready_artifact, _AS_OF, strategy)
     passed = fetch.call_args.args[2]
     assert passed.football_sport_name == "Custom Football"
+    assert fetch.call_args.kwargs["published_only"] is True
 
 
 def test_unready_model_writes_when_the_gate_is_optional(

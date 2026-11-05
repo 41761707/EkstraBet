@@ -52,7 +52,9 @@ def _filters(**overrides: object) -> BettingStrategyConfig:
 
 
 def _capture(
-        filters: BettingStrategyConfig | None = None
+        filters: BettingStrategyConfig | None = None,
+        *,
+        published_only: bool = False
         ) -> tuple[str, tuple[object, ...]]:
     captured: dict[str, object] = {}
 
@@ -64,7 +66,11 @@ def _capture(
         return pd.DataFrame(columns=list(repository._SQL_FRAME_COLUMNS))
 
     with patch.object(repository, "_read_sql", side_effect=_read_sql):
-        fetch_candidates(_AS_OF, _HORIZON, filters or _filters())
+        fetch_candidates(
+            _AS_OF,
+            _HORIZON,
+            filters or _filters(),
+            published_only=published_only)
     return str(captured["query"]), tuple(captured["params"])
 
 
@@ -97,6 +103,27 @@ def test_keeps_one_bookmaker_by_price_then_id() -> None:
     assert "model_id" not in window
     assert "bookmaker" not in window
     assert "WHERE ranked.rn = 1" in text
+
+
+def test_training_pool_keeps_both_sides_of_a_family() -> None:
+    query, _params = _capture()
+    assert "final_predictions" not in _sql(query)
+
+
+def test_published_only_keeps_the_family_final() -> None:
+    query, _params = _capture(published_only=True)
+    text = _sql(query)
+    assert "INNER JOIN final_predictions fp" in text
+    assert "ON fp.predictions_id = p.id" in text
+
+
+def test_published_only_rejects_a_non_bool() -> None:
+    with pytest.raises(ValueError, match="published_only"):
+        fetch_candidates(
+            _AS_OF,
+            _HORIZON,
+            _filters(),
+            published_only=1)  # type: ignore[arg-type]
 
 
 def test_drops_a_row_without_prediction_or_odds() -> None:

@@ -37,7 +37,8 @@ _SQL_FRAME_COLUMNS = _PASSTHROUGH_COLUMNS + _FAIR_INPUT_COLUMNS
 def fetch_candidates(
         as_of_at: datetime,
         horizon_end: datetime,
-        filters: BettingStrategyConfig) -> pd.DataFrame:
+        filters: BettingStrategyConfig,
+        published_only: bool = False) -> pd.DataFrame:
     """Return one stored prediction joined to one stored odds row.
 
     Kickoff is ``matches.game_date`` in the half-open window
@@ -47,10 +48,15 @@ def fetch_candidates(
     the ranking keeps one price. The statement is one SELECT.
     ``filters`` supplies the football sport name and the excluded model
     names. The probability threshold is not applied.
+    ``published_only`` keeps the family final from
+    ``final_predictions``. Training and evaluation leave it false, so
+    both sides of a market stay in the dataset.
     """
     _require_window(as_of_at, horizon_end)
+    if not isinstance(published_only, bool):
+        raise ValueError("published_only must be a bool")
     excluded = filters.excluded_model_names
-    query = _candidate_query(len(excluded))
+    query = _candidate_query(len(excluded), published_only)
     # Filtr daty jest w CTE, bo MySQL nie wpycha go do rankingu.
     params = (
         as_of_at,
@@ -72,11 +78,14 @@ def _require_window(as_of_at: datetime, horizon_end: datetime) -> None:
         raise ValueError("as_of_at must be earlier than horizon_end")
 
 
-def _candidate_query(excluded_count: int) -> str:
+def _candidate_query(
+        excluded_count: int,
+        published_only: bool) -> str:
     """Build the read of one best odds row per match and event."""
     placeholders = _excluded_placeholders(excluded_count)
     family_sql = _market_case("name")
     size_sql = _market_case("size")
+    published_sql = _published_join(published_only)
     # Nazwa sportu i wykluczone modele są parametrami, nie stałą listą.
     # De-vig liczy cały cennik firmy, zanim ranking zostawi jedną cenę.
     # Cena <= 1 nie bierze udziału w rankingu.
@@ -106,7 +115,7 @@ def _candidate_query(excluded_count: int) -> str:
             bo.priced_outcomes AS priced_outcomes,
             bo.market_size AS market_size
         FROM predictions p
-        INNER JOIN window_matches wm
+{published_sql}        INNER JOIN window_matches wm
             ON wm.id = p.match_id
         INNER JOIN (
             SELECT
@@ -162,6 +171,17 @@ def _candidate_query(excluded_count: int) -> str:
             p.event_id,
             p.id
     """
+
+
+def _published_join(published_only: bool) -> str:
+    """Return the family-final join, or nothing for the training pool."""
+    if not published_only:
+        return ""
+    # Argmax rodziny jest w final_predictions. Druga strona nie
+    # dostaje werdyktu, nawet gdy jej kurs jest krótki.
+    return (
+        "        INNER JOIN final_predictions fp\n"
+        "            ON fp.predictions_id = p.id\n")
 
 
 def _market_case(kind: str) -> str:

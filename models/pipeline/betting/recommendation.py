@@ -212,10 +212,18 @@ def _split_future(
 def _future_candidates(
         as_of: datetime,
         strategy: BettingStrategyConfig) -> pd.DataFrame:
-    """Return pool pairs whose kickoff is later than ``as_of``."""
+    """Return family finals whose kickoff is later than ``as_of``.
+
+    The other side of a family is not scored. A short price on that
+    side is not a computer decision.
+    """
     if as_of >= _OPEN_HORIZON:
         raise ValueError("as_of must be earlier than the open horizon")
-    frame = fetch_candidates(as_of, _OPEN_HORIZON, strategy)
+    frame = fetch_candidates(
+        as_of,
+        _OPEN_HORIZON,
+        strategy,
+        published_only=True)
     return _later_kickoffs(frame, as_of)
 
 
