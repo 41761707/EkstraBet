@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -23,6 +24,8 @@ from backend.services.tipster_service import get_leaderboard
 from backend.services.tipster_service import get_my_bankroll
 from backend.services.tipster_service import get_my_coupons
 from backend.services.tipster_service import get_my_performance
+from backend.services.tipster_service import get_my_result_calendar
+from backend.services.tipster_service import get_profile_result_calendar
 from backend.services.tipster_service import get_public_profile
 from backend.services.tipster_service import get_suggested_catalog_odds
 from backend.services.tipster_service import top_up
@@ -846,6 +849,114 @@ class TestThinReads(unittest.TestCase):
     def test_suggested_odds_reject_non_positive_ids(self) -> None:
         with self.assertRaises(TipsterUnprocessableError):
             get_suggested_catalog_odds(0, 1)
+
+
+class TestResultCalendarReads(unittest.TestCase):
+    """Calendar reads pick one lens and keep human coupons private."""
+
+    _ANCHOR = date(2023, 4, 15)
+    _SCALE = {"open_stake": 12.0, "unit_size": 5.0}
+
+    @patch(
+        f"{_REPO}.fetch_performance_scale",
+        return_value=_SCALE)
+    @patch(f"{_REPO}.fetch_single_result_facts", return_value=[])
+    @patch(f"{_REPO}.fetch_coupon_result_facts", return_value=[])
+    def test_coupon_lens_reads_coupon_facts(
+            self,
+            mock_coupons: MagicMock,
+            mock_singles: MagicMock,
+            mock_scale: MagicMock) -> None:
+        payload = get_my_result_calendar(
+            _USER, "coupon", "day", self._ANCHOR)
+        mock_coupons.assert_called_once_with(7, apply_tax=False)
+        mock_singles.assert_not_called()
+        mock_scale.assert_called_once_with(7)
+        self.assertEqual(payload["lens"], "coupon")
+        self.assertEqual(payload["grain"], "day")
+        self.assertEqual(payload["anchor"], self._ANCHOR)
+        self.assertEqual(payload["unit_size"], 5.0)
+        self.assertNotIn("open_stake", payload)
+
+    @patch(
+        f"{_REPO}.fetch_performance_scale",
+        return_value=_SCALE)
+    @patch(f"{_REPO}.fetch_single_result_facts", return_value=[])
+    @patch(f"{_REPO}.fetch_coupon_result_facts", return_value=[])
+    def test_single_lens_reads_leg_facts_with_tax(
+            self,
+            mock_coupons: MagicMock,
+            mock_singles: MagicMock,
+            _mock_scale: MagicMock) -> None:
+        payload = get_my_result_calendar(
+            _USER, "single", "week", self._ANCHOR, apply_tax=True)
+        mock_singles.assert_called_once_with(7, apply_tax=True)
+        mock_coupons.assert_not_called()
+        self.assertEqual(payload["lens"], "single")
+        self.assertEqual(payload["grain"], "week")
+
+    @patch(f"{_REPO}.fetch_performance_scale")
+    @patch(f"{_REPO}.fetch_single_result_facts")
+    @patch(f"{_REPO}.fetch_coupon_result_facts")
+    @patch(f"{_USERS}.fetch_user_by_username", return_value=_USER)
+    def test_stranger_cannot_read_a_human_calendar(
+            self,
+            mock_user: MagicMock,
+            mock_coupons: MagicMock,
+            mock_singles: MagicMock,
+            mock_scale: MagicMock) -> None:
+        with self.assertRaises(TipsterForbiddenError) as ctx:
+            get_profile_result_calendar(
+                "alice", _STRANGER, "coupon", "day", self._ANCHOR)
+        self.assertEqual(str(ctx.exception), "Coupons are not visible")
+        mock_user.assert_called_once_with("alice")
+        mock_coupons.assert_not_called()
+        mock_singles.assert_not_called()
+        mock_scale.assert_not_called()
+
+    @patch(
+        f"{_REPO}.fetch_performance_scale",
+        return_value=_SCALE)
+    @patch(f"{_REPO}.fetch_single_result_facts", return_value=[])
+    @patch(f"{_REPO}.fetch_coupon_result_facts", return_value=[])
+    @patch(
+        f"{_USERS}.fetch_user_by_username",
+        return_value=_SYSTEM_USER)
+    def test_system_profile_reads_facts(
+            self,
+            mock_user: MagicMock,
+            mock_coupons: MagicMock,
+            mock_singles: MagicMock,
+            mock_scale: MagicMock) -> None:
+        payload = get_profile_result_calendar(
+            "agent",
+            _STRANGER,
+            "coupon",
+            "month",
+            self._ANCHOR,
+            apply_tax=True)
+        mock_user.assert_called_once_with("agent")
+        mock_coupons.assert_called_once_with(9, apply_tax=True)
+        mock_singles.assert_not_called()
+        mock_scale.assert_called_once_with(9)
+        self.assertEqual(payload["lens"], "coupon")
+        self.assertEqual(payload["unit_size"], 5.0)
+
+    @patch(f"{_REPO}.fetch_coupon_result_facts")
+    @patch(f"{_REPO}.fetch_single_result_facts")
+    @patch(f"{_USERS}.fetch_user_by_username", return_value=None)
+    def test_unknown_profile_is_not_found(
+            self,
+            mock_user: MagicMock,
+            mock_singles: MagicMock,
+            mock_coupons: MagicMock) -> None:
+        with self.assertRaises(TipsterNotFoundError) as ctx:
+            get_profile_result_calendar(
+                "missing", _USER, "single", "year", self._ANCHOR)
+        self.assertEqual(str(ctx.exception), "User not found")
+        mock_user.assert_called_once_with("missing")
+        mock_coupons.assert_not_called()
+        mock_singles.assert_not_called()
 
 
 if __name__ == "__main__":

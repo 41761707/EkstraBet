@@ -6,6 +6,8 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { SignedLeagueProfitChart } from "@/components/stats/SignedLeagueProfitChart";
 import type { SignedProfitPoint } from "@/components/stats/SignedLeagueProfitChart";
 import { BetsPanel } from "@/components/tipsters/BetsPanel";
+import { ChoiceTabs } from "@/components/tipsters/ChoiceTabs";
+import { ResultCalendar } from "@/components/tipsters/ResultCalendar";
 import {
   formatTipsterAmount,
   formatTipsterProfit,
@@ -86,11 +88,15 @@ interface PerformanceGroups {
 interface PerformanceBreakdownProps {
   data: TipsterPerformance;
   currency: CurrencyCode;
+  applyTax: boolean;
+  username: string | null;
 }
 
 export function PerformanceBreakdown({
   data,
   currency,
+  applyTax,
+  username,
 }: PerformanceBreakdownProps) {
   const [lens, setLens] = useState<PerformanceLensId>("coupon");
   const [measure, setMeasure] = useState<PerformanceMeasure>("currency");
@@ -170,6 +176,11 @@ export function PerformanceBreakdown({
         dimension="country"
         lens={lens}
         amounts={amounts}
+      />
+      <ResultCalendar
+        username={username}
+        applyTax={applyTax}
+        currency={currency}
       />
     </BetsPanel>
   );
@@ -264,42 +275,6 @@ function PerformanceTotal({
       <p className="text-xs text-muted">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${valueClassName}`}>{value}</p>
       <p className="mt-1 text-xs leading-relaxed text-muted">{hint}</p>
-    </div>
-  );
-}
-
-function ChoiceTabs<T extends string>({
-  label,
-  tabs,
-  value,
-  onChange,
-}: {
-  label: string;
-  tabs: Array<{ id: T; label: string }>;
-  value: T;
-  onChange: (id: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label={label}>
-      {tabs.map((tab) => {
-        const isActive = tab.id === value;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(tab.id)}
-            className={`rounded-full px-3 py-1.5 text-sm transition ${
-              isActive
-                ? "bg-accent text-on-accent"
-                : "bg-surface text-muted hover:bg-surface-muted hover:text-text"
-            }`}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
     </div>
   );
 }

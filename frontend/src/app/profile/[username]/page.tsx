@@ -136,6 +136,7 @@ function PublicProfileView({
       <MyBetsSection
         isOwnProfile={false}
         isSystemProfile={profile.is_system}
+        username={profile.username}
         bankroll={profile.bankroll}
         coupons={profile.coupons}
         performance={profile.performance}

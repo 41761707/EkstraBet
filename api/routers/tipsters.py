@@ -22,6 +22,9 @@ from api.schemas.tipster import LeaderboardResponse
 from api.schemas.tipster import LeaderboardSortBy
 from api.schemas.tipster import LeaderboardSortOrder
 from api.schemas.tipster import PerformanceBreakdown
+from api.schemas.tipster import ResultCalendarGrain
+from api.schemas.tipster import ResultCalendarLens
+from api.schemas.tipster import ResultCalendarResponse
 from api.schemas.tipster import SettlementResult
 from api.schemas.tipster import SuggestedCatalogOdds
 from api.schemas.tipster import SuggestEventsRequest
@@ -225,6 +228,31 @@ async def get_my_performance(
     return PerformanceBreakdown.model_validate(payload)
 
 
+@router.get(
+    "/me/result-calendar",
+    response_model=ResultCalendarResponse)
+async def get_my_result_calendar(
+    user: Annotated[dict[str, Any], Depends(get_current_user)],
+    lens: ResultCalendarLens = Query(
+        ...,
+        description="coupon counts a coupon once; single counts a leg"),
+    grain: ResultCalendarGrain = Query(
+        ...,
+        description="Bucket size: day, week, month or year"),
+    anchor: date = Query(
+        ...,
+        description="Anchor date; year grain still requires it"),
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
+) -> ResultCalendarResponse:
+    """Return the caller's settled results for one lens and grain."""
+    payload = _invoke(
+        lambda: tipster_service.get_my_result_calendar(
+            user, lens, grain, anchor, apply_tax=apply_tax))
+    return ResultCalendarResponse.model_validate(payload)
+
+
 @router.get("/leaderboard", response_model=LeaderboardResponse)
 async def get_leaderboard(
     is_system: int | None = Query(
@@ -305,6 +333,38 @@ async def get_tipster_profile(
         lambda: tipster_service.get_public_profile(
             username, viewer, page, size, apply_tax=apply_tax))
     return TipsterProfileResponse.model_validate(payload)
+
+
+@router.get(
+    "/profile/{username}/result-calendar",
+    response_model=ResultCalendarResponse)
+async def get_profile_result_calendar(
+    username: str,
+    viewer: Annotated[
+        dict[str, Any] | None, Depends(require_auth)],
+    lens: ResultCalendarLens = Query(
+        ...,
+        description="coupon counts a coupon once; single counts a leg"),
+    grain: ResultCalendarGrain = Query(
+        ...,
+        description="Bucket size: day, week, month or year"),
+    anchor: date = Query(
+        ...,
+        description="Anchor date; year grain still requires it"),
+    apply_tax: bool = Query(
+        False,
+        description="Recompute settled profit with the 12% betting tax")
+) -> ResultCalendarResponse:
+    """Return a calendar when the viewer may see that user's coupons."""
+    payload = _invoke(
+        lambda: tipster_service.get_profile_result_calendar(
+            username,
+            viewer,
+            lens,
+            grain,
+            anchor,
+            apply_tax=apply_tax))
+    return ResultCalendarResponse.model_validate(payload)
 
 
 @router.get("/catalog/matches", response_model=CatalogMatchesResponse)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import date
 from datetime import datetime
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -98,6 +99,28 @@ _PERFORMANCE = {
     "worst_league": None,
     "best_country": None,
     "worst_country": None}
+
+_RESULT_CALENDAR = {
+    "lens": "coupon",
+    "grain": "day",
+    "anchor": date(2023, 4, 1),
+    "period_start": date(2023, 4, 1),
+    "period_end": date(2023, 4, 30),
+    "profit_total": 12.5,
+    "stake_total": 20.0,
+    "count": 2,
+    "unit_size": 5.0,
+    "buckets": [{
+        "start": date(2023, 4, 3),
+        "end": date(2023, 4, 3),
+        "profit": 12.5,
+        "stake": 20.0,
+        "count": 2}]}
+
+_CALENDAR_QUERY = {
+    "lens": "coupon",
+    "grain": "day",
+    "anchor": "2023-04-01"}
 
 _COUPON = {
     "id": 15,
@@ -624,6 +647,83 @@ class TestTipstersPerformanceRouter(TipstersRouterTestCase):
             "OTHER")
         mock_perf.assert_called_once()
         self.assertEqual(mock_perf.call_args.args[0]["id"], 7)
+
+
+class TestTipstersResultCalendarRouter(TipstersRouterTestCase):
+    """GET result-calendar maps query params onto the service."""
+
+    @patch(
+        f"{_SERVICE}.get_my_result_calendar",
+        return_value=_RESULT_CALENDAR)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_me_calendar_passes_anchor_without_tax(
+            self,
+            _mock_fetch: MagicMock,
+            mock_calendar: MagicMock) -> None:
+        response = self.client.get(
+            "/tipsters/me/result-calendar",
+            headers=self._auth_headers(),
+            params=_CALENDAR_QUERY)
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["lens"], "coupon")
+        self.assertEqual(payload["grain"], "day")
+        self.assertEqual(payload["anchor"], "2023-04-01")
+        self.assertEqual(payload["period_start"], "2023-04-01")
+        self.assertEqual(payload["period_end"], "2023-04-30")
+        self.assertEqual(payload["profit_total"], 12.5)
+        self.assertEqual(payload["stake_total"], 20.0)
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["unit_size"], 5.0)
+        self.assertEqual(payload["buckets"][0]["start"], "2023-04-03")
+        self.assertEqual(payload["buckets"][0]["end"], "2023-04-03")
+        self.assertEqual(payload["buckets"][0]["count"], 2)
+        mock_calendar.assert_called_once()
+        self.assertEqual(mock_calendar.call_args.args[0]["id"], 7)
+        self.assertEqual(mock_calendar.call_args.args[1], "coupon")
+        self.assertEqual(mock_calendar.call_args.args[2], "day")
+        self.assertEqual(
+            mock_calendar.call_args.args[3], date(2023, 4, 1))
+        self.assertFalse(mock_calendar.call_args.kwargs["apply_tax"])
+
+    @patch(
+        f"{_SERVICE}.get_my_result_calendar",
+        return_value=_RESULT_CALENDAR)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_me_calendar_forwards_apply_tax(
+            self,
+            _mock_fetch: MagicMock,
+            mock_calendar: MagicMock) -> None:
+        params = {**_CALENDAR_QUERY, "apply_tax": "true"}
+        response = self.client.get(
+            "/tipsters/me/result-calendar",
+            headers=self._auth_headers(),
+            params=params)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mock_calendar.call_args.kwargs["apply_tax"])
+
+    @patch(
+        f"{_SERVICE}.get_profile_result_calendar",
+        return_value=_RESULT_CALENDAR)
+    @patch(_FETCH_UUID, return_value=_TEST_USER)
+    def test_profile_calendar_calls_profile_reader(
+            self,
+            _mock_fetch: MagicMock,
+            mock_calendar: MagicMock) -> None:
+        response = self.client.get(
+            "/tipsters/profile/ada/result-calendar",
+            headers=self._auth_headers(),
+            params=_CALENDAR_QUERY)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["lens"], "coupon")
+        mock_calendar.assert_called_once()
+        self.assertEqual(mock_calendar.call_args.args[0], "ada")
+        self.assertEqual(mock_calendar.call_args.args[1]["id"], 7)
+        self.assertEqual(mock_calendar.call_args.args[2], "coupon")
+        self.assertEqual(mock_calendar.call_args.args[3], "day")
+        self.assertEqual(
+            mock_calendar.call_args.args[4], date(2023, 4, 1))
+        self.assertFalse(mock_calendar.call_args.kwargs["apply_tax"])
 
 
 class TestTipstersPublicRouter(TipstersRouterTestCase):

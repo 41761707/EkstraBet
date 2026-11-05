@@ -84,6 +84,7 @@ function MyBetsPageView({
         {...tipster}
         isOwnProfile
         isSystemProfile={false}
+        username={null}
         profilePath={MY_BETS_LINK.href}
         searchParams={query}
         draftStorageKey={couponDraftStorageKey(profilePath(username))}
