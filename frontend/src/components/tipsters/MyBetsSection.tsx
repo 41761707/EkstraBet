@@ -40,6 +40,7 @@ export const CATALOG_LOAD_ERROR_TITLE = "Nie udało się wczytać katalogu";
 interface MyBetsSectionProps {
   isOwnProfile: boolean;
   isSystemProfile: boolean;
+  username: string | null;
   bankroll: BankrollSettings | PublicBankroll | null;
   bankrollError?: string;
   coupons: CouponPage | null;
@@ -77,7 +78,7 @@ export function MyBetsContent(props: MyBetsSectionProps) {
       {props.isOwnProfile ? (
         <OwnBetsBody {...props} applyTax={applyTax} />
       ) : (
-        <PublicBetsBody {...props} />
+        <PublicBetsBody {...props} applyTax={applyTax} />
       )}
     </div>
   );
@@ -137,6 +138,8 @@ function OwnBetsBody(props: MyBetsSectionProps & { applyTax: boolean }) {
         currency={currency}
         isOwnProfile
         isSystemProfile={props.isSystemProfile}
+        applyTax={props.applyTax}
+        username={props.username}
       />
       {ownerBankroll ? (
         <OwnerCapitalActions
@@ -148,7 +151,7 @@ function OwnBetsBody(props: MyBetsSectionProps & { applyTax: boolean }) {
   );
 }
 
-function PublicBetsBody(props: MyBetsSectionProps) {
+function PublicBetsBody(props: MyBetsSectionProps & { applyTax: boolean }) {
   const currency = props.bankroll?.currency ?? "PLN";
   const showCouponHistory = isPublicCouponHistoryVisible(
     false,
@@ -168,6 +171,8 @@ function PublicBetsBody(props: MyBetsSectionProps) {
           currency={currency}
           isOwnProfile={false}
           isSystemProfile={props.isSystemProfile}
+          applyTax={props.applyTax}
+          username={props.username}
         />
       ) : null}
     </>
@@ -232,6 +237,8 @@ interface CouponsAndPerformanceProps {
   currency: CurrencyCode;
   isOwnProfile: boolean;
   isSystemProfile: boolean;
+  applyTax: boolean;
+  username: string | null;
 }
 
 function CouponsAndPerformance({
@@ -244,6 +251,8 @@ function CouponsAndPerformance({
   currency,
   isOwnProfile,
   isSystemProfile,
+  applyTax,
+  username,
 }: CouponsAndPerformanceProps) {
   return (
     <>
@@ -270,7 +279,12 @@ function CouponsAndPerformance({
           message={performanceError}
         />
       ) : performance ? (
-        <PerformanceBreakdown data={performance} currency={currency} />
+        <PerformanceBreakdown
+          data={performance}
+          currency={currency}
+          applyTax={applyTax}
+          username={username}
+        />
       ) : null}
     </>
   );
