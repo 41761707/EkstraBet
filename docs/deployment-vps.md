@@ -547,9 +547,12 @@ FLUSH PRIVILEGES;
 Lokalnie, gdy `DB_USER` z `.env` ma prawo DDL, wystarcza
 `python -m backend.db_migrate …` bez zmiennych `DB_MIGRATE_*`.
 
-Sync wierszy odpalaj dopiero po `apply` na produkcji. Nowa tabela, do
-której API ma pisać, dostaje `GRANT` w sekcji 9.3 w tym samym zadaniu.
-Runner grantów nie nadaje.
+Sync wierszy odpalaj dopiero po `apply` na produkcji. Pliki od `V002`
+opisuje [sql/migrations/README.md](../sql/migrations/README.md):
+sama struktura, kilka statementów DDL w jednym pliku, bez `INSERT`
+i bez innych wierszy. Wiersze idą backupem albo synciem lokal → produkcja.
+Nowa tabela, do której API ma pisać, dostaje `GRANT` w sekcji 9.3
+w tym samym zadaniu. Runner grantów nie nadaje.
 
 ## 10. Minimalna weryfikacja hosta (checklista SZP-70)
 
