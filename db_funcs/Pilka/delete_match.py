@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import sys
 import traceback
-import db_module
+from decimal import ROUND_HALF_UP
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
+
+import db_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -78,8 +81,14 @@ def collect_related_counts(
     placeholders = _placeholders(id_list)
     params = tuple(id_list)
     counts: dict[str, int] = {}
+    counts["tipster_coupon_leg_events"] = _count_leg_events(
+        cursor, placeholders, params)
     counts["tipster_coupon_legs"] = _count_by_match_id(
         cursor, "tipster_coupon_legs", placeholders, params)
+    counts["tipster_coupons_repriced"] = _count_coupons_to_reprice(
+        cursor, placeholders, params)
+    counts["betting_recommendations"] = _count_recommendations(
+        cursor, placeholders, params)
     final_sql = (
         "SELECT COUNT(*) FROM final_predictions fp "
         "INNER JOIN predictions p ON p.id = fp.predictions_id "
@@ -134,17 +143,143 @@ def _delete_empty_coupons(cursor: Any, coupon_ids: list[int]) -> None:
     _delete_join(cursor, sql, tuple(coupon_ids), "tipster_coupons")
 
 
+def _count_coupons_to_reprice(
+        cursor: Any,
+        placeholders: str,
+        params: tuple[int, ...]) -> int:
+    """Count coupons that keep a leg after this match is removed."""
+    sql = (
+        "SELECT COUNT(DISTINCT kept.coupon_id) "
+        "FROM tipster_coupon_legs kept "
+        "INNER JOIN tipster_coupon_legs removed "
+        "ON removed.coupon_id = kept.coupon_id "
+        f"WHERE removed.match_id IN ({placeholders}) "
+        f"AND kept.match_id NOT IN ({placeholders})")
+    return _scalar_count(cursor, sql, params + params)
+
+
+def _reprice_surviving_coupons(
+        cursor: Any,
+        coupon_ids: list[int]) -> None:
+    """Write the product of the legs that are still on the coupon."""
+    if not coupon_ids:
+        print("Repriced 0 tipster coupon(s)")
+        return
+    products = _remaining_odds_products(cursor, coupon_ids)
+    updated = 0
+    for coupon_id, combined in products.items():
+        updated += _write_coupon_odds(cursor, coupon_id, combined)
+    print(f"Repriced {updated} tipster coupon(s)")
+
+
+def _remaining_odds_products(
+        cursor: Any,
+        coupon_ids: list[int]) -> dict[int, Decimal]:
+    """Product of odds still stored on each of the given coupons."""
+    placeholders = _placeholders(coupon_ids)
+    sql = (
+        "SELECT l.coupon_id, l.odds FROM tipster_coupon_legs l "
+        f"WHERE l.coupon_id IN ({placeholders})")
+    cursor.execute(sql, tuple(coupon_ids))
+    grouped: dict[int, list[Any]] = {}
+    for row in cursor.fetchall():
+        grouped.setdefault(int(row[0]), []).append(row[1])
+    return {
+        coupon_id: _odds_product(values)
+        for coupon_id, values in grouped.items()}
+
+
+def _odds_product(values: list[Any]) -> Decimal:
+    """Product of leg odds, rounded to the coupon column scale."""
+    product = Decimal("1")
+    for value in values:
+        product *= Decimal(str(value))
+    return product.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def _write_coupon_odds(
+        cursor: Any,
+        coupon_id: int,
+        combined: Decimal) -> int:
+    """Store the new combined odds and the win profit that depends on it."""
+    sql = (
+        "UPDATE tipster_coupons "
+        "SET combined_odds = %s, "
+        "profit = IF(settled = 1 AND outcome = 1, "
+        "ROUND(stake_amount * (%s - 1), 2), profit) "
+        "WHERE id = %s")
+    odds = format(combined, "f")
+    cursor.execute(sql, (odds, odds, coupon_id))
+    return int(cursor.rowcount)
+
+
+def _count_leg_events(
+        cursor: Any,
+        placeholders: str,
+        params: tuple[int, ...]) -> int:
+    """Count catalog events on coupon legs of the given matches."""
+    sql = (
+        "SELECT COUNT(*) FROM tipster_coupon_leg_events e "
+        "INNER JOIN tipster_coupon_legs l ON l.id = e.leg_id "
+        f"WHERE l.match_id IN ({placeholders})")
+    return _scalar_count(cursor, sql, params)
+
+
+def _count_recommendations(
+        cursor: Any,
+        placeholders: str,
+        params: tuple[int, ...]) -> int:
+    """Count verdicts whose prediction or odds row belongs to the matches."""
+    sql = (
+        "SELECT COUNT(*) FROM betting_recommendations br "
+        "LEFT JOIN predictions p ON p.id = br.prediction_id "
+        "LEFT JOIN odds o ON o.id = br.odds_id "
+        f"WHERE p.match_id IN ({placeholders}) "
+        f"OR o.match_id IN ({placeholders})")
+    return _scalar_count(cursor, sql, params + params)
+
+
+def _delete_leg_events(
+        cursor: Any,
+        placeholders: str,
+        params: tuple[int, ...]) -> None:
+    """Remove catalog events before the coupon leg itself."""
+    sql = (
+        "DELETE e FROM tipster_coupon_leg_events e "
+        "INNER JOIN tipster_coupon_legs l ON l.id = e.leg_id "
+        f"WHERE l.match_id IN ({placeholders})")
+    _delete_join(cursor, sql, params, "tipster_coupon_leg_events")
+
+
+def _delete_recommendations(
+        cursor: Any,
+        placeholders: str,
+        params: tuple[int, ...]) -> None:
+    """Remove verdicts before predictions and odds, which they reference."""
+    sql = (
+        "DELETE br FROM betting_recommendations br "
+        "LEFT JOIN predictions p ON p.id = br.prediction_id "
+        "LEFT JOIN odds o ON o.id = br.odds_id "
+        f"WHERE p.match_id IN ({placeholders}) "
+        f"OR o.match_id IN ({placeholders})")
+    _delete_join(
+        cursor, sql, params + params, "betting_recommendations")
+
+
 def _delete_children(
         cursor: Any,
         placeholders: str,
         params: tuple[int, ...]) -> None:
     """Remove rows that reference bets, predictions or tipster legs."""
     coupon_ids = _affected_coupon_ids(cursor, placeholders, params)
+    _delete_leg_events(cursor, placeholders, params)
     legs_sql = (
         f"DELETE FROM tipster_coupon_legs "
         f"WHERE match_id IN ({placeholders})")
     _delete_join(cursor, legs_sql, params, "tipster_coupon_legs")
     _delete_empty_coupons(cursor, coupon_ids)
+    _reprice_surviving_coupons(cursor, coupon_ids)
+    _delete_recommendations(cursor, placeholders, params)
     final_sql = (
         "DELETE fp FROM final_predictions fp "
         "INNER JOIN predictions p ON p.id = fp.predictions_id "
@@ -264,7 +399,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Delete matches and all related match-level data "
-            "(odds, predictions, bets, stats, schedule link)."))
+            "(odds, predictions, bets, tipster coupons, "
+            "betting recommendations, stats, schedule link)."))
     parser.add_argument(
         "--ids",
         type=str,
