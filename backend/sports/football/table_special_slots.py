@@ -6,6 +6,15 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class FootballTableSpecialSlotsRecord:
+    """League slot thresholds for top places and relegation."""
+
+    league_id: int
+    top_slots: int
+    bot_slots: int
+
+
+@dataclass(frozen=True)
 class OutcomeProbabilities:
     """Marginal probabilities for champion, top slice and bottom slice."""
 

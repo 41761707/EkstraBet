@@ -12,11 +12,13 @@ from datetime import datetime
 
 from backend.repositories import league_repository
 from backend.repositories import season_projection_repository as repository
-from backend.repositories.football_table_special_slots_repository import (
-    FootballTableSpecialSlotsRecord,
-    fetch_special_slots)
+from backend.repositories.football_table_zones_repository import (
+    fetch_table_zones)
 from backend.repositories.season_projection_repository import (
     SeasonProjectionTeamRowRecord)
+from backend.sports.football.table_special_slots import (
+    FootballTableSpecialSlotsRecord)
+from backend.sports.football.table_zones import TableZoneSet
 from models.pipeline.data.schedule_repository import (
     fetch_season_simulation_input)
 from models.pipeline.simulation.config import FOOTBALL_SPORT_ID
@@ -103,8 +105,10 @@ def get_season_projection(
     if run is None:
         return None
     team_rows = repository.fetch_team_rows_for_run(run.id)
-    # progi ligi są poza cache'em runu; brak wiersza nie blokuje 200
-    special_slots = fetch_special_slots(league_id)
+    # progi są poza cache'em runu; brak stref nie blokuje odpowiedzi
+    special_slots = _special_slots_from_zone_set(
+        league_id,
+        fetch_table_zones(league_id, season_id, len(team_rows)))
     is_stale = _is_fingerprint_stale(
         league_id,
         season_id,
@@ -123,6 +127,25 @@ def get_season_projection(
         is_stale=is_stale,
         standings=team_rows,
         special_slots=special_slots)
+
+
+def _special_slots_from_zone_set(
+        league_id: int,
+        zone_set: TableZoneSet | None
+) -> FootballTableSpecialSlotsRecord | None:
+    """Return thresholds when either slot count is positive.
+
+    A missing zone set and a set with both counts at zero hide the
+    Top and relegation columns.
+    """
+    if zone_set is None:
+        return None
+    if zone_set.top_slots == 0 and zone_set.bot_slots == 0:
+        return None
+    return FootballTableSpecialSlotsRecord(
+        league_id=league_id,
+        top_slots=zone_set.top_slots,
+        bot_slots=zone_set.bot_slots)
 
 
 def _resolve_mode(mode: SimulationMode | str) -> SimulationMode:
