@@ -1,9 +1,22 @@
 """Business logic for league standings calculation."""
 
 from __future__ import annotations
-from typing import Any, Literal
+
+from typing import Any
+from typing import Literal
+
 import pandas as pd
-from backend.repositories import league_repository, standings_repository
+
+from backend.repositories import league_repository
+from backend.repositories import standings_repository
+from backend.repositories.football_point_adjustments_repository import (
+    PointAdjustment)
+from backend.repositories.football_point_adjustments_repository import (
+    fetch_point_adjustments)
+from backend.repositories.football_table_zones_repository import (
+    fetch_table_zones)
+from backend.sports.football.table_zones import TableZone
+from backend.sports.football.table_zones import TableZoneSet
 
 StandingScope = Literal["overall", "home", "away", "ou_btts"]
 
@@ -20,7 +33,11 @@ def _empty_stats_row(team_id: int, team_name: str) -> dict[str, Any]:
         "goals_for": 0,
         "goals_against": 0,
         "goal_difference": 0,
-        "points": 0
+        "points": 0,
+        "points_adjustment": 0,
+        "adjustment_reason": None,
+        "zone_kind": None,
+        "zone_stage": None
     }
 
 
@@ -179,6 +196,92 @@ def _build_ou_btts_standings(
     return standings
 
 
+def _apply_point_adjustments(
+    standings: list[dict[str, Any]],
+    adjustments: dict[int, PointAdjustment]) -> list[dict[str, Any]]:
+    """Add deltas, then rank by points and goal difference."""
+    for row in standings:
+        adjustment = adjustments.get(int(row["team_id"]))
+        if adjustment is None:
+            continue
+        row["points"] += adjustment.points_delta
+        row["points_adjustment"] = adjustment.points_delta
+        row["adjustment_reason"] = adjustment.reason
+    ranked = sorted(
+        standings,
+        key=lambda item: (item["points"], item["goal_difference"]),
+        reverse=True)
+    for position, row in enumerate(ranked, start=1):
+        row["position"] = position
+    return ranked
+
+
+def _assign_zone_kinds(
+    standings: list[dict[str, Any]],
+    zone_set: TableZoneSet | None) -> None:
+    """Set zone kind and stage from the validated set, or clear them.
+
+    One kind can cover two blocks, for example direct Champions League
+    places and a later qualification block. The stage tells them apart.
+    """
+    zones = () if zone_set is None else zone_set.zones
+    for row in standings:
+        zone = _zone_for_position(zones, int(row["position"]))
+        if zone is None:
+            row["zone_kind"] = None
+            row["zone_stage"] = None
+            continue
+        row["zone_kind"] = zone.zone_kind
+        row["zone_stage"] = zone.stage
+
+
+def _zone_for_position(
+    zones: tuple[TableZone, ...],
+    position: int) -> TableZone | None:
+    """Return the zone that covers this position."""
+    for zone in zones:
+        if zone.position_from <= position <= zone.position_to:
+            return zone
+    return None
+
+
+def _standing_zone(zone: TableZone) -> dict[str, Any]:
+    """Copy the fields the standings payload exposes for one zone."""
+    return {
+        "position_from": zone.position_from,
+        "position_to": zone.position_to,
+        "zone_kind": zone.zone_kind,
+        "stage": zone.stage,
+        "band": zone.band,
+        "label": zone.label,
+        "sort_order": zone.sort_order
+    }
+
+
+def _zone_payload(
+    zone_set: TableZoneSet | None) -> list[dict[str, Any]]:
+    """Map zones to the standing-zone contract, or an empty list."""
+    if zone_set is None:
+        return []
+    return [_standing_zone(zone) for zone in zone_set.zones]
+
+
+def _finish_overall_standings(
+    standings: list[dict[str, Any]],
+    league_id: int,
+    season_id: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Rank the overall table on official points and attach zones."""
+    adjusted = _apply_point_adjustments(
+        standings,
+        fetch_point_adjustments(league_id, season_id))
+    zone_set = fetch_table_zones(
+        league_id,
+        season_id,
+        len(adjusted))
+    _assign_zone_kinds(adjusted, zone_set)
+    return adjusted, _zone_payload(zone_set)
+
+
 def get_league_standings(
     league_id: int,
     season_id: int,
@@ -196,16 +299,25 @@ def get_league_standings(
 
     if scope == "ou_btts":
         standings = _build_ou_btts_standings(teams_frame, results_frame)
+        zones: list[dict[str, Any]] = []
     else:
         standings = _build_traditional_standings(
             teams_frame,
             results_frame,
             scope)
+        if scope == "overall":
+            standings, zones = _finish_overall_standings(
+                standings,
+                league_id,
+                season_id)
+        else:
+            zones = []
 
     return {
         "league_id": league_id,
         "season_id": season_id,
         "scope": scope,
         "standings": standings,
+        "zones": zones,
         "total_count": len(standings)
     }

@@ -17,8 +17,6 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
 os.environ.setdefault("AUTH_ENABLED", "false")
 
 from api.main import create_app
-from backend.repositories.football_table_special_slots_repository import (
-    FootballTableSpecialSlotsRecord)
 from backend.repositories.season_projection_repository import (
     SeasonProjectionRunRecord)
 from backend.repositories.season_projection_repository import (
@@ -26,6 +24,8 @@ from backend.repositories.season_projection_repository import (
 from backend.services.season_projection_service import NonFootballLeagueError
 from backend.services.season_projection_service import SeasonProjectionModeFlags
 from backend.services.season_projection_service import SeasonProjectionPayload
+from backend.sports.football.table_special_slots import (
+    FootballTableSpecialSlotsRecord)
 from models.pipeline.simulation.config import SeasonSimulationInput
 from models.pipeline.simulation.config import SimulationMode
 
@@ -273,7 +273,7 @@ class TestSeasonProjectionRouter(unittest.TestCase):
         mock_get.assert_called_once()
 
     @patch(
-        "backend.services.season_projection_service.fetch_special_slots",
+        "backend.services.season_projection_service.fetch_table_zones",
         return_value=None)
     @patch(
         "backend.services.season_projection_service"
@@ -304,7 +304,7 @@ class TestSeasonProjectionRouter(unittest.TestCase):
         self.assertTrue(response.json()["is_stale"])
 
     @patch(
-        "backend.services.season_projection_service.fetch_special_slots",
+        "backend.services.season_projection_service.fetch_table_zones",
         return_value=None)
     @patch(
         "backend.services.season_projection_service"

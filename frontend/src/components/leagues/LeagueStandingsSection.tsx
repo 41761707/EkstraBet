@@ -6,6 +6,7 @@ import { StandingsTable } from "@/components/StandingsTable";
 import type {
   OuBttsStandingRow,
   StandingScope,
+  StandingZone,
   TraditionalStandingRow,
 } from "@/types/api";
 
@@ -23,6 +24,7 @@ interface LeagueStandingsSectionProps {
   ouBtts: OuBttsStandingRow[];
   seasonId: number;
   leagueId: number;
+  zones: StandingZone[];
   embedded?: boolean;
 }
 
@@ -33,6 +35,7 @@ export function LeagueStandingsSection({
   ouBtts,
   seasonId,
   leagueId,
+  zones,
   embedded = false,
 }: LeagueStandingsSectionProps) {
   const [activeScope, setActiveScope] = useState<StandingScope>("overall");
@@ -84,6 +87,7 @@ export function LeagueStandingsSection({
           standings={traditionalByScope[activeScope]}
           seasonId={seasonId}
           leagueId={leagueId}
+          zones={activeScope === "overall" ? zones : undefined}
         />
       )}
     </section>

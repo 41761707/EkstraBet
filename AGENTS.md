@@ -50,8 +50,10 @@ i trzymaj się jego kształtu.
 - Importy: `api` może brać z `backend`. `backend` nie importuje `api` ani
   `frontend`. `frontend` nie importuje Pythona. `models` może użyć
   `backend.config` i `backend.database`, nie woła HTTP.
-- Schematu nie zmieniasz z poziomu agenta. Gdy trzeba, przygotuj skrypt SQL
-  do ręcznego odpalenia i zaktualizuj `db_documentation/db_documentation.md`
+- Schemat zmieniasz plikiem `sql/migrations/V###__….sql` według
+  `sql/migrations/README.md`: sam DDL, kilka statementów w jednym pliku,
+  bez wierszy. Nie uruchamiaj `apply`. Wiersze idą backupem albo synciem.
+  Gdy tabela jest już w bazie, zaktualizuj `db_documentation/db_documentation.md`
   (skill `db-documentation`). Odczyt bazy: skill `db-context`, tylko SELECT.
 - Sekrety (`.env`, hasła) nie wchodzą do gita.
 

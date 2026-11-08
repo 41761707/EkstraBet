@@ -26,6 +26,7 @@ from models.pipeline.prediction.future_events_predictor import (
 from models.pipeline.simulation.aggregation import BaselineStanding
 from models.pipeline.simulation.aggregation import TeamSeasonProjection
 from models.pipeline.simulation.aggregation import aggregate_projection
+from models.pipeline.simulation.aggregation import apply_point_adjustments
 from models.pipeline.simulation.aggregation import baseline_from_standings
 from models.pipeline.simulation.config import ResolvedFixture
 from models.pipeline.simulation.config import SeasonSimulationConfig
@@ -157,17 +158,28 @@ class DynamicSeasonSimulator:
             *,
             simulation_input: SeasonSimulationInput | None = None,
             base_state: ChronologicalFeatureState | None = None,
+            point_adjustments: dict[int, int] | None = None,
             round_progress: RoundProgress | None = None
     ) -> SeasonSimulationResult:
         """Simulate the season and aggregate end-of-season projections.
 
         Pass ``simulation_input`` / ``base_state`` in tests to avoid DB.
         Production leaves them ``None`` and loads schedule + warm-start.
+        ``point_adjustments`` maps team id to a points delta. A passed
+        dict, even empty, is used as-is. With ``simulation_input`` and
+        no dict, every delta is zero. Omit both to load the table.
         ``round_progress`` may wrap round numbers (e.g. tqdm) for CLI ETA.
         """
         from models.pipeline.data.schedule_repository import (
             validate_fixture_completeness)
 
+        # Argument, nie wczytany terminarz: test z simulation_input
+        # nie może przez przypadek otworzyć tabeli kar.
+        deltas = _resolve_point_adjustments(
+            config.league_id,
+            config.season_id,
+            simulation_input,
+            point_adjustments)
         loaded = simulation_input or self._input_loader(
             config.league_id, config.season_id, config.mode)
         _assert_input_matches_config(loaded, config)
@@ -182,7 +194,11 @@ class DynamicSeasonSimulator:
         else:
             state = self._build_default_state(config, loaded)
         return self._run_trials(
-            config, loaded, state, round_progress=round_progress)
+            config,
+            loaded,
+            state,
+            point_adjustments=deltas,
+            round_progress=round_progress)
 
     def _build_default_state(
             self,
@@ -208,6 +224,7 @@ class DynamicSeasonSimulator:
             simulation_input: SeasonSimulationInput,
             base_state: ChronologicalFeatureState,
             *,
+            point_adjustments: dict[int, int],
             round_progress: RoundProgress | None = None
     ) -> SeasonSimulationResult:
         fixtures = simulation_input.fixtures
@@ -246,8 +263,16 @@ class DynamicSeasonSimulator:
 
         _assert_each_schedule_row_once(fixtures, processed_ids)
         baseline = _build_baseline(
-            config.mode, fixtures, team_ids)
-        final_points = np.stack([row.points for row in standings])
+            config.mode, fixtures, team_ids, point_adjustments)
+        # Kara jest stała na każdy trial. Ranking i expected_points
+        # biorą punkty oficjalne, a TrialStandingState zostaje
+        # przy punktach meczowych.
+        match_points = np.stack([row.points for row in standings])
+        delta_vector = apply_point_adjustments(
+            np.zeros(len(team_ids), dtype=match_points.dtype),
+            team_ids,
+            point_adjustments)
+        final_points = match_points + delta_vector
         final_gd = np.stack([row.goal_difference for row in standings])
         projections = aggregate_projection(
             final_points, final_gd, team_ids, baseline)
@@ -406,7 +431,8 @@ def _assert_each_schedule_row_once(
 def _build_baseline(
         mode: SimulationMode,
         fixtures: list[ResolvedFixture],
-        team_ids: tuple[int, ...]
+        team_ids: tuple[int, ...],
+        point_adjustments: dict[int, int]
 ) -> list[BaselineStanding]:
     standings = TrialStandingState.empty(team_ids)
     if mode is SimulationMode.FROM_NOW:
@@ -422,5 +448,38 @@ def _build_baseline(
                 fixture.schedule.away_team_id,
                 fixture.home_goals,
                 fixture.away_goals)
+    points = apply_point_adjustments(
+        standings.points, team_ids, point_adjustments)
     return baseline_from_standings(
-        team_ids, standings.points, standings.goal_difference)
+        team_ids, points, standings.goal_difference)
+
+
+def _resolve_point_adjustments(
+        league_id: int,
+        season_id: int,
+        simulation_input: SeasonSimulationInput | None,
+        point_adjustments: dict[int, int] | None
+) -> dict[int, int]:
+    """Choose official point deltas for this run.
+
+    A caller-supplied dict wins, including ``{}``. Tests that pass
+    ``simulation_input`` and omit the dict stay off the database.
+    Production omits both and loads the season's adjustments.
+    """
+    if point_adjustments is not None:
+        return point_adjustments
+    if simulation_input is not None:
+        return {}
+    return _load_point_deltas(league_id, season_id)
+
+
+def _load_point_deltas(league_id: int, season_id: int) -> dict[int, int]:
+    """Read summed point deltas for one league season."""
+    # Import lokalny: test z simulation_input nie ładuje repozytorium.
+    from backend.repositories.football_point_adjustments_repository import (
+        fetch_point_adjustments)
+
+    loaded = fetch_point_adjustments(league_id, season_id)
+    return {
+        team_id: adjustment.points_delta
+        for team_id, adjustment in loaded.items()}

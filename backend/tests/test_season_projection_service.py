@@ -9,13 +9,12 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from backend.repositories.football_table_special_slots_repository import (
-    FootballTableSpecialSlotsRecord)
 from backend.repositories.season_projection_repository import (
     SeasonProjectionRunRecord)
 from backend.repositories.season_projection_repository import (
     SeasonProjectionTeamRowRecord)
 from backend.services import season_projection_service as service
+from backend.sports.football.table_zones import TableZoneSet
 from models.pipeline.simulation.config import SimulationMode
 from models.pipeline.simulation.config import SeasonSimulationInput
 
@@ -78,11 +77,11 @@ class TestSeasonProjectionService(unittest.TestCase):
     """Service contract for cached season projections."""
 
     def setUp(self) -> None:
-        # bez mocka testy wchodziłyby na prawdziwe SELECT-y slotów
+        # bez mocka testy wchodziłyby na prawdziwe SELECT-y stref
         patcher = patch(
-            "backend.services.season_projection_service.fetch_special_slots",
+            "backend.services.season_projection_service.fetch_table_zones",
             return_value=None)
-        self.mock_fetch_special_slots = patcher.start()
+        self.mock_fetch_table_zones = patcher.start()
         self.addCleanup(patcher.stop)
 
     @patch(
@@ -161,11 +160,10 @@ class TestSeasonProjectionService(unittest.TestCase):
             "sport_name": "Football",
             "active": 1,
             "last_update": None}])
-        self.mock_fetch_special_slots.return_value = (
-            FootballTableSpecialSlotsRecord(
-                league_id=1,
-                top_slots=4,
-                bot_slots=3))
+        self.mock_fetch_table_zones.return_value = TableZoneSet(
+            zones=(),
+            top_slots=4,
+            bot_slots=3)
         payload = service.get_season_projection(1, 13, "from_now")
         self.assertIsNotNone(payload)
         assert payload is not None
@@ -174,7 +172,7 @@ class TestSeasonProjectionService(unittest.TestCase):
         self.assertEqual(payload.special_slots.league_id, 1)
         self.assertEqual(payload.special_slots.top_slots, 4)
         self.assertEqual(payload.special_slots.bot_slots, 3)
-        self.mock_fetch_special_slots.assert_called_once_with(1)
+        self.mock_fetch_table_zones.assert_called_once_with(1, 13, 1)
         mock_run.assert_called_once()
         mock_rows.assert_called_once()
         mock_fingerprint.assert_called_once()
@@ -215,7 +213,48 @@ class TestSeasonProjectionService(unittest.TestCase):
         assert payload is not None
         self.assertIsNone(payload.special_slots)
         self.assertEqual(payload.standings[0].team_id, 10)
-        self.mock_fetch_special_slots.assert_called_once_with(1)
+        self.mock_fetch_table_zones.assert_called_once_with(1, 13, 1)
+
+    @patch(
+        "backend.services.season_projection_service"
+        ".fetch_season_simulation_input",
+        return_value=_input("fp-fresh"))
+    @patch(
+        "backend.services.season_projection_service.repository"
+        ".fetch_team_rows_for_run",
+        return_value=[_team_row()])
+    @patch(
+        "backend.services.season_projection_service.repository"
+        ".fetch_latest_succeeded_run",
+        return_value=_run(fingerprint="fp-fresh"))
+    @patch(
+        "backend.services.season_projection_service.league_repository"
+        ".fetch_league_by_id")
+    def test_special_slots_none_when_zone_counts_are_zero(
+            self,
+            mock_league: MagicMock,
+            _mock_run: MagicMock,
+            _mock_rows: MagicMock,
+            _mock_fingerprint: MagicMock) -> None:
+        mock_league.return_value = pd.DataFrame([{
+            "id": 1,
+            "name": "Ekstraklasa",
+            "sport_id": 1,
+            "country_id": 1,
+            "country_name": "Poland",
+            "country_emoji": None,
+            "sport_name": "Football",
+            "active": 1,
+            "last_update": None}])
+        self.mock_fetch_table_zones.return_value = TableZoneSet(
+            zones=(),
+            top_slots=0,
+            bot_slots=0)
+        payload = service.get_season_projection(1, 13, "from_now")
+        self.assertIsNotNone(payload)
+        assert payload is not None
+        self.assertIsNone(payload.special_slots)
+        self.mock_fetch_table_zones.assert_called_once_with(1, 13, 1)
 
     @patch(
         "backend.services.season_projection_service"

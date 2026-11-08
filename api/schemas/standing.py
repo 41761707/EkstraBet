@@ -21,6 +21,20 @@ class TraditionalStandingRow(BaseModel):
     goals_against: int = Field(..., description="Goals conceded")
     goal_difference: int = Field(..., description="Goal difference")
     points: int = Field(..., description="League points")
+    points_adjustment: int = Field(
+        ...,
+        description="Sum of point adjustments; 0 when the team has none")
+    adjustment_reason: str | None = Field(
+        ...,
+        description="Joined adjustment reasons, or null when there is none")
+    zone_kind: str | None = Field(
+        ...,
+        description="Zone covering this position, or null when it is neutral")
+    zone_stage: str | None = Field(
+        ...,
+        description=(
+            "qualification or playoff for this position, "
+            "or null when the place is direct or neutral"))
 
 
 class OuBttsStandingRow(BaseModel):
@@ -48,6 +62,20 @@ class OuBttsStandingRow(BaseModel):
         description="Over 3.5 goals percentage")
 
 
+class StandingZone(BaseModel):
+    """One coloured block of positions on the overall table."""
+
+    position_from: int = Field(..., description="First position in the zone")
+    position_to: int = Field(..., description="Last position in the zone")
+    zone_kind: str = Field(..., description="Zone kind key")
+    stage: str | None = Field(
+        ...,
+        description="qualification, playoff, or null for a direct place")
+    band: str = Field(..., description="top or bot")
+    label: str = Field(..., description="Polish legend label")
+    sort_order: int = Field(..., description="Legend order")
+
+
 class LeagueStandingsResponse(BaseModel):
     """Response model for GET /leagues/{league_id}/standings."""
 
@@ -57,4 +85,7 @@ class LeagueStandingsResponse(BaseModel):
     standings: list[TraditionalStandingRow | OuBttsStandingRow] = Field(
         ...,
         description="Standings rows for the requested scope")
+    zones: list[StandingZone] = Field(
+        ...,
+        description="Overall-table zones; empty outside overall or when unset")
     total_count: int = Field(..., description="Number of teams in table")

@@ -4,10 +4,13 @@ import {
   shouldShowTopColumn,
   sortStandingsByExpectedPosition,
 } from "@/components/leagues/projectedSeasonStandingsModel";
+import { zoneKindForPosition } from "@/components/standingsTableModel";
+import { ZonePositionBadge, ZoneTableFrame } from "@/components/zoneMarks";
 import { formatProbability } from "@/lib/format";
 import type {
   SeasonProjectionSpecialSlots,
   SeasonProjectionStandingRow,
+  StandingZone,
 } from "@/types/api";
 
 interface ProjectedSeasonOutcomesTableProps {
@@ -15,6 +18,7 @@ interface ProjectedSeasonOutcomesTableProps {
   specialSlots: SeasonProjectionSpecialSlots | null;
   seasonId: number;
   leagueId: number;
+  zones?: readonly StandingZone[];
 }
 
 function teamHref(
@@ -36,6 +40,7 @@ function OutcomeRow({
   leagueId,
   showTop,
   showBot,
+  zoneKind,
 }: {
   row: SeasonProjectionStandingRow;
   tablePosition: number;
@@ -43,10 +48,13 @@ function OutcomeRow({
   leagueId: number;
   showTop: boolean;
   showBot: boolean;
+  zoneKind: string | null;
 }) {
   return (
     <tr className="border-t border-border hover:bg-surface-muted">
-      <td className="px-3 py-2 text-muted">{tablePosition}</td>
+      <td className="px-3 py-2 text-muted">
+        <ZonePositionBadge position={tablePosition} zoneKind={zoneKind} />
+      </td>
       <td className="px-3 py-2 font-medium">
         <Link
           href={teamHref(row.team_id, seasonId, leagueId)}
@@ -77,6 +85,7 @@ export function ProjectedSeasonOutcomesTable({
   specialSlots,
   seasonId,
   leagueId,
+  zones = [],
 }: ProjectedSeasonOutcomesTableProps) {
   const sorted = sortStandingsByExpectedPosition(standings);
   const showTop = shouldShowTopColumn(specialSlots);
@@ -87,7 +96,7 @@ export function ProjectedSeasonOutcomesTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+    <ZoneTableFrame zones={zones}>
       <table className="min-w-full text-sm">
         <thead className="bg-surface-muted text-left text-muted">
           <tr>
@@ -107,19 +116,23 @@ export function ProjectedSeasonOutcomesTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, index) => (
-            <OutcomeRow
-              key={row.team_id}
-              row={row}
-              tablePosition={index + 1}
-              seasonId={seasonId}
-              leagueId={leagueId}
-              showTop={showTop}
-              showBot={showBot}
-            />
-          ))}
+          {sorted.map((row, index) => {
+            const tablePosition = index + 1;
+            return (
+              <OutcomeRow
+                key={row.team_id}
+                row={row}
+                tablePosition={tablePosition}
+                seasonId={seasonId}
+                leagueId={leagueId}
+                showTop={showTop}
+                showBot={showBot}
+                zoneKind={zoneKindForPosition(zones, tablePosition)}
+              />
+            );
+          })}
         </tbody>
       </table>
-    </div>
+    </ZoneTableFrame>
   );
 }

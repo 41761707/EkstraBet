@@ -57,6 +57,16 @@
   --chart-axis: #94a3b8;
   --chart-track: #152036;
   --skeleton: #152036;
+
+  /* LM niebieska, LE zielona, LK pomarańczowa — awanse nie siedzą obok siebie. */
+  --zone-cl: #1d4ed8;
+  --zone-el: #15803d;
+  --zone-ecl: #c2410c;
+  --zone-promotion: #047857;
+  --zone-playoff: #0f766e;
+  --zone-relegation: #dc2626;
+  --zone-relegation-playoff: #be123c;
+  --on-zone: #ffffff;
 }
 
 [data-theme="light"] {
@@ -110,6 +120,15 @@
   --chart-axis: #526174;
   --chart-track: #eaf0f6;
   --skeleton: #d7e0ea;
+
+  --zone-cl: #1d4ed8;
+  --zone-el: #15803d;
+  --zone-ecl: #c2410c;
+  --zone-promotion: #047857;
+  --zone-playoff: #0f766e;
+  --zone-relegation: #dc2626;
+  --zone-relegation-playoff: #be123c;
+  --on-zone: #ffffff;
 }
 
 @theme inline {
@@ -158,6 +177,15 @@
   --color-chart-axis: var(--chart-axis);
   --color-chart-track: var(--chart-track);
   --color-skeleton: var(--skeleton);
+
+  --color-zone-cl: var(--zone-cl);
+  --color-zone-el: var(--zone-el);
+  --color-zone-ecl: var(--zone-ecl);
+  --color-zone-promotion: var(--zone-promotion);
+  --color-zone-playoff: var(--zone-playoff);
+  --color-zone-relegation: var(--zone-relegation);
+  --color-zone-relegation-playoff: var(--zone-relegation-playoff);
+  --color-on-zone: var(--on-zone);
 }
 
 @layer base {

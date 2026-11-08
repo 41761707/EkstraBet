@@ -12,11 +12,18 @@ Wzorzec: `V` + trzy cyfry + `__` + `[a-z0-9_]+` + `.sql`.
 
 ## Od V002
 
-Jeden plik to jeden statement: jedna linia albo wiele linii domkniętych
-jednym średnikiem na końcu ostatniej linii.
+Jeden plik to jedna zmiana schematu. Może zawierać kilka statementów DDL.
+Każdy statement to jedna linia albo wiele linii domkniętych średnikiem
+na końcu ostatniej linii. Średnik w środku linii runner odrzuca.
 
-Dozwolone: kolumny, `NULL` / `NOT NULL`, `DEFAULT` potrzebny do zapisu,
-klucze i indeksy. Bez `CHECK` i bez `ENUM`.
+W pliku jest tylko struktura: `CREATE`, `ALTER`, `DROP`, kolumny,
+`NULL` / `NOT NULL`, `DEFAULT` potrzebny do zapisu, klucze i indeksy.
+Bez `CHECK` i bez `ENUM`.
+
+Bez wierszy. W migracji nie ma `INSERT`, `UPDATE`, `DELETE`, `REPLACE`
+ani innego DML. Dotyczy to też pierwszej ligi i każdego kolejnego sezonu.
+Wiersze wchodzą na bazę matkę poza runnerem, a na test i produkcję przez
+backup + restore albo `scripts/sync/sync_local_to_prod.py`.
 
 Kolumna dokładana do tabeli z danymi: najpierw `NULL` albo `NOT NULL`
 z `DEFAULT`.
@@ -38,6 +45,9 @@ sekcja 9.6.
 ## Po migracji
 
 Gdy API ma pisać do nowej tabeli, w tym samym zadaniu dopisz `GRANT`
-w sekcji 9.3 runbooku. Runner grantów nie nadaje.
+w sekcji 9.3 runbooku. Runner grantów nie nadaje. Sam `SELECT` na
+`ekstrabet.*` już obejmuje nową tabelę.
 
-Sync wierszy dopiero po `apply` na produkcji.
+Sync wierszy dopiero po `apply` na produkcji. Nowa tabela słownikowa
+dostaje `TableSpec` w `scripts/sync/sync_local_to_prod.py`, rodzic FK
+przed dzieckiem. Runner synca nie uruchamia.

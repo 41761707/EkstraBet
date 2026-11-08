@@ -297,6 +297,7 @@ export default async function LeaguePage({
               ouBtts={ouBtts}
               seasonId={selectedSeasonId}
               leagueId={league.id}
+              zones={overallStandings.zones ?? []}
               embedded
             />
           </ExpandableSection>
@@ -304,6 +305,7 @@ export default async function LeaguePage({
           <ProjectedSeasonStandingsSection
             leagueId={league.id}
             seasonId={selectedSeasonId}
+            zones={overallStandings.zones ?? []}
           />
 
           {characteristicsResult ? (

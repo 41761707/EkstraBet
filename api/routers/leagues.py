@@ -311,6 +311,7 @@ async def get_league_standings(
             season_id=payload["season_id"],
             scope=payload["scope"],
             standings=mapped,
+            zones=payload.get("zones", []),
             total_count=payload["total_count"])
     except HTTPException:
         raise
