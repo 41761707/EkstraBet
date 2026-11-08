@@ -108,6 +108,7 @@ class TestStandingsService(unittest.TestCase):
         self.assertEqual(standings[0]["points_adjustment"], 0)
         self.assertIsNone(standings[0]["adjustment_reason"])
         self.assertIsNone(standings[0]["zone_kind"])
+        self.assertIsNone(standings[0]["zone_stage"])
         self.assertEqual(payload["zones"], [])
 
     @patch(_FETCH_ZONES)
@@ -139,6 +140,7 @@ class TestStandingsService(unittest.TestCase):
         self.assertEqual(alpha["points_adjustment"], 0)
         self.assertIsNone(alpha["adjustment_reason"])
         self.assertIsNone(alpha["zone_kind"])
+        self.assertIsNone(alpha["zone_stage"])
         self.assertEqual(payload["zones"], [])
         mock_adjustments.assert_not_called()
         mock_zones.assert_not_called()
@@ -274,6 +276,7 @@ class TestOfficialPointsAndZones(unittest.TestCase):
         self.assertEqual(southampton["points_adjustment"], 0)
         self.assertIsNone(southampton["adjustment_reason"])
         self.assertIsNone(southampton["zone_kind"])
+        self.assertIsNone(southampton["zone_stage"])
         self.assertEqual(southampton["wins"], 6)
         self.assertEqual(southampton["draws"], 2)
         self.assertEqual(payload["zones"], [])
@@ -301,12 +304,15 @@ class TestOfficialPointsAndZones(unittest.TestCase):
         self.assertEqual(standings[0]["position"], 1)
         self.assertEqual(standings[0]["team_id"], 1)
         self.assertEqual(standings[0]["zone_kind"], "champions_league")
+        self.assertEqual(standings[0]["zone_stage"], "qualification")
         fifth = next(row for row in standings if row["position"] == 5)
         self.assertIsNone(fifth["zone_kind"])
+        self.assertIsNone(fifth["zone_stage"])
         self.assertEqual(payload["zones"], [{
             "position_from": 1,
             "position_to": 1,
             "zone_kind": "champions_league",
+            "stage": "qualification",
             "band": "top",
             "label": "Awans – Liga Mistrzów (Kwalifikacje)",
             "sort_order": 1,
@@ -335,6 +341,7 @@ class TestOfficialPointsAndZones(unittest.TestCase):
             if row["team_id"] == 73)
         self.assertEqual(southampton["points"], 16)
         self.assertIsNone(southampton["zone_kind"])
+        self.assertIsNone(southampton["zone_stage"])
         self.assertEqual(payload["zones"], [])
 
     @patch(_FETCH_ZONES, return_value=None)

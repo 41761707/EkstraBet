@@ -6,13 +6,19 @@ import {
   formatProjectionPoints,
   sortStandingsByExpectedPosition,
 } from "@/components/leagues/projectedSeasonStandingsModel";
+import { zoneKindForPosition } from "@/components/standingsTableModel";
+import { ZonePositionBadge, ZoneTableFrame } from "@/components/zoneMarks";
 import { formatProbability } from "@/lib/format";
-import type { SeasonProjectionStandingRow } from "@/types/api";
+import type {
+  SeasonProjectionStandingRow,
+  StandingZone,
+} from "@/types/api";
 
 interface ProjectedSeasonStandingsTableProps {
   standings: SeasonProjectionStandingRow[];
   seasonId: number;
   leagueId: number;
+  zones?: readonly StandingZone[];
 }
 
 function teamHref(
@@ -68,11 +74,13 @@ function ProjectionRow({
   tablePosition,
   seasonId,
   leagueId,
+  zoneKind,
 }: {
   row: SeasonProjectionStandingRow;
   tablePosition: number;
   seasonId: number;
   leagueId: number;
+  zoneKind: string | null;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -87,7 +95,10 @@ function ProjectionRow({
             aria-expanded={isExpanded}
           >
             <span aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
-            {tablePosition}
+            <ZonePositionBadge
+              position={tablePosition}
+              zoneKind={zoneKind}
+            />
           </button>
         </td>
         <td className="px-3 py-2 font-medium">
@@ -137,6 +148,7 @@ export function ProjectedSeasonStandingsTable({
   standings,
   seasonId,
   leagueId,
+  zones = [],
 }: ProjectedSeasonStandingsTableProps) {
   const sorted = sortStandingsByExpectedPosition(standings);
 
@@ -145,7 +157,7 @@ export function ProjectedSeasonStandingsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+    <ZoneTableFrame zones={zones}>
       <table className="min-w-full text-sm">
         <thead className="bg-surface-muted text-left text-muted">
           <tr>
@@ -159,17 +171,21 @@ export function ProjectedSeasonStandingsTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, index) => (
-            <ProjectionRow
-              key={row.team_id}
-              row={row}
-              tablePosition={index + 1}
-              seasonId={seasonId}
-              leagueId={leagueId}
-            />
-          ))}
+          {sorted.map((row, index) => {
+            const tablePosition = index + 1;
+            return (
+              <ProjectionRow
+                key={row.team_id}
+                row={row}
+                tablePosition={tablePosition}
+                seasonId={seasonId}
+                leagueId={leagueId}
+                zoneKind={zoneKindForPosition(zones, tablePosition)}
+              />
+            );
+          })}
         </tbody>
       </table>
-    </div>
+    </ZoneTableFrame>
   );
 }

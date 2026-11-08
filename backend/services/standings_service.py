@@ -36,7 +36,8 @@ def _empty_stats_row(team_id: int, team_name: str) -> dict[str, Any]:
         "points": 0,
         "points_adjustment": 0,
         "adjustment_reason": None,
-        "zone_kind": None
+        "zone_kind": None,
+        "zone_stage": None
     }
 
 
@@ -218,31 +219,39 @@ def _apply_point_adjustments(
 def _assign_zone_kinds(
     standings: list[dict[str, Any]],
     zone_set: TableZoneSet | None) -> None:
-    """Set ``zone_kind`` from the validated set, or clear it."""
+    """Set zone kind and stage from the validated set, or clear them.
+
+    One kind can cover two blocks, for example direct Champions League
+    places and a later qualification block. The stage tells them apart.
+    """
     zones = () if zone_set is None else zone_set.zones
     for row in standings:
-        row["zone_kind"] = _zone_kind_for_position(
-            zones,
-            int(row["position"]))
+        zone = _zone_for_position(zones, int(row["position"]))
+        if zone is None:
+            row["zone_kind"] = None
+            row["zone_stage"] = None
+            continue
+        row["zone_kind"] = zone.zone_kind
+        row["zone_stage"] = zone.stage
 
 
-def _zone_kind_for_position(
+def _zone_for_position(
     zones: tuple[TableZone, ...],
-    position: int) -> str | None:
-    """Return the kind of the zone that covers this position."""
+    position: int) -> TableZone | None:
+    """Return the zone that covers this position."""
     for zone in zones:
         if zone.position_from <= position <= zone.position_to:
-            return zone.zone_kind
+            return zone
     return None
 
 
 def _standing_zone(zone: TableZone) -> dict[str, Any]:
     """Copy the fields the standings payload exposes for one zone."""
-    # Kontrakt StandingZone nie niesie stage ani ligi docelowej.
     return {
         "position_from": zone.position_from,
         "position_to": zone.position_to,
         "zone_kind": zone.zone_kind,
+        "stage": zone.stage,
         "band": zone.band,
         "label": zone.label,
         "sort_order": zone.sort_order

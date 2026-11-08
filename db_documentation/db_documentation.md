@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 05.11.2026
+###### Ostatnia data modyfikacji: 08.11.2026
 
 ## Opis struktury bazy
 
@@ -30,8 +30,9 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [EVENTS](#events) (Typy zakładów)
 - [FINAL_PREDICTIONS](#final_predictions) (Wskaźniki predykcji ostatecznych)
 - [FOOTBALL_PLAYER_STATS](#football_player_stats) (Boxscore meczowy w piłce nożnej)
+- [FOOTBALL_POINT_ADJUSTMENTS](#football_point_adjustments) (Korekty punktowe drużyn w lidze i sezonie)
 - [FOOTBALL_SPECIAL_ROUND_ADD](#football_special_round_add) (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
-- [FOOTBALL_TABLE_SPECIAL_SLOTS](#football_table_special_slots) (Progi czołówki i spadku w tabeli ligowej)
+- [FOOTBALL_TABLE_ZONES](#football_table_zones) (Strefy miejsc w tabeli piłkarskiej)
 - [HOCKEY_MATCH_EVENTS](#hockey_match_events) (zdarzenia występujące w danym meczu hokejowym)
 - [HOCKEY_MATCH_PLAYER_STATS](#hockey_match_player_stats) (statystyki każdego gracza w danym meczu)
 - [HOCKEY_MATCH_ROSTERS](#hockey_match_rosters) (składy drużyn hokejowych w danym spotkaniu)
@@ -726,6 +727,35 @@ Dane do tabeli generowane są w ramach działania modułu **opta_scrapper.py**
 
 ---
 
+### FOOTBALL_POINT_ADJUSTMENTS
+
+(Korekty punktowe drużyn w lidze i sezonie, niezależne od wyników meczów)
+
+
+| POLE         | DOMENA       | ZAKRES | UWAGI                                                       | WARTOŚC DOMYŚLNA         |
+| ------------ | ------------ | ------ | ----------------------------------------------------------- | ------------------------ |
+| **ID**       | INT          | INT    | ID korekty                                                  | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*  | INT          | INT    | Klucz obcy, powiązanie z tabelą *leagues*                   | NULL                     |
+| *SEASON_ID*  | INT          | INT    | Klucz obcy, powiązanie z tabelą *seasons*                   | NULL                     |
+| *TEAM_ID*    | INT          | INT    | Klucz obcy, powiązanie z tabelą *teams*                     | NULL                     |
+| POINTS_DELTA | INT          | INT    | Liczba punktów doliczanych albo odejmowanych drużynie       | NULL                     |
+| REASON       | VARCHAR(255) | STRING | Powód korekty                                               | NULL                     |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `LEAGUE_ID` → `leagues(ID)`
+- Klucz obcy: `SEASON_ID` → `seasons(ID)`
+- Klucz obcy: `TEAM_ID` → `teams(ID)`
+- **Indeks:** `(LEAGUE_ID, SEASON_ID)` — odczyt korekt danej ligi i sezonu
+
+**Sposób generowania danych do tabeli:**
+
+Dane dodawane ręcznie.
+
+---
+
 ### FOOTBALL_SPECIAL_ROUND_ADD
 
 (rundy specjalne w piłce - dodatkowe informacje (głównie chodzi o puchary))
@@ -754,24 +784,33 @@ Dane do tabeli **BĘDĄ** (jeszcze aktualnie nie są) naliczane w ramach scrappe
 
 ---
 
-### FOOTBALL_TABLE_SPECIAL_SLOTS
+### FOOTBALL_TABLE_ZONES
 
-(Progi czołówki i spadku w tabeli ligowej)
+(Strefy miejsc w tabeli piłkarskiej dla ligi i sezonu)
 
 
-| POLE        | DOMENA | ZAKRES | UWAGI                                                       | WARTOŚC DOMYŚLNA         |
-| ----------- | ------ | ------ | ----------------------------------------------------------- | ------------------------ |
-| **ID**      | INT    | INT    | ID rekordu                                                  | AUTOMATYCZNIE GENEROWANY |
-| *LEAGUE_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *leagues*                   | NULL                     |
-| TOP_SLOTS   | INT    | INT    | Liczba miejsc od góry tabeli (puchary, awans albo czołówka) | NULL                     |
-| BOT_SLOTS   | INT    | INT    | Liczba miejsc od dołu tabeli (spadek)                       | NULL                     |
+| POLE               | DOMENA      | ZAKRES | UWAGI                                                          | WARTOŚC DOMYŚLNA         |
+| ------------------ | ----------- | ------ | -------------------------------------------------------------- | ------------------------ |
+| **ID**             | INT         | INT    | ID strefy                                                      | AUTOMATYCZNIE GENEROWANY |
+| *LEAGUE_ID*        | INT         | INT    | Klucz obcy, powiązanie z tabelą *leagues*                      | NULL                     |
+| *SEASON_ID*        | INT         | INT    | Klucz obcy, powiązanie z tabelą *seasons*                      | NULL                     |
+| POSITION_FROM      | INT         | INT    | Pierwsze miejsce tabeli objęte strefą                          | NULL                     |
+| POSITION_TO        | INT         | INT    | Ostatnie miejsce tabeli objęte strefą                          | NULL                     |
+| ZONE_KIND          | VARCHAR(32) | STRING | Rodzaj strefy miejsca (puchar, awans albo spadek)              | NULL                     |
+| BAND               | VARCHAR(16) | STRING | Pas tabeli, którego dotyczy strefa (góra albo dół)             | NULL                     |
+| STAGE              | VARCHAR(32) | STRING | Dodatkowy etap strefy; puste, gdy miejsce nie ma takiego etapu | NULL                     |
+| *TARGET_LEAGUE_ID* | INT         | INT    | Klucz obcy, liga docelowa strefy, powiązanie z tabelą *leagues* | NULL                     |
+| SORT_ORDER         | INT         | INT    | Kolejność strefy w zestawie ligi i sezonu                      | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
 - Klucz obcy: `LEAGUE_ID` → `leagues(ID)`
-- **Unikalny indeks:** `(LEAGUE_ID)` — jeden zestaw progów na ligę
+- Klucz obcy: `SEASON_ID` → `seasons(ID)`
+- Klucz obcy: `TARGET_LEAGUE_ID` → `leagues(ID)`
+- **Unikalny indeks:** `(LEAGUE_ID, SEASON_ID, POSITION_FROM)` — jedna strefa od danego miejsca w lidze i sezonie
+- **Indeks:** `(LEAGUE_ID, SEASON_ID)` — odczyt stref danej ligi i sezonu
 
 **Sposób generowania danych do tabeli:**
 

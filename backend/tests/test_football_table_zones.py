@@ -137,6 +137,45 @@ class TestAggregateZones(unittest.TestCase):
                 "Awans – Liga Konferencji (Kwalifikacje)",
                 "Spadek – Betclic 1 Liga"])
 
+    def test_direct_and_qualification_share_one_cup_prefix(self) -> None:
+        zones = [
+            _zone(
+                position_from=1,
+                position_to=2,
+                zone_kind="champions_league",
+                band="top",
+                target_league_name="Liga Mistrzów",
+                sort_order=1),
+            _zone(
+                position_from=3,
+                position_to=4,
+                zone_kind="champions_league",
+                band="top",
+                stage="qualification",
+                target_league_name="Liga Mistrzów",
+                sort_order=2),
+            _zone(
+                position_from=5,
+                position_to=5,
+                zone_kind="europa_league",
+                band="top",
+                target_league_name="Liga Europy",
+                sort_order=3)]
+        result = aggregate_zones(zones, 18)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result.top_slots, 5)
+        self.assertEqual(result.bot_slots, 0)
+        self.assertEqual(
+            [zone.stage for zone in result.zones],
+            [None, "qualification", None])
+        self.assertEqual(
+            [zone.label for zone in result.zones],
+            [
+                "Awans – Liga Mistrzów",
+                "Awans – Liga Mistrzów (Kwalifikacje)",
+                "Awans – Liga Europy"])
+
     def test_empty_list_yields_zero_slots(self) -> None:
         result = aggregate_zones([], 18)
         self.assertIsNotNone(result)

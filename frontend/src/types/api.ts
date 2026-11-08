@@ -161,6 +161,20 @@ export interface TraditionalStandingRow {
   goals_against: number;
   goal_difference: number;
   points: number;
+  points_adjustment: number;
+  adjustment_reason: string | null;
+  zone_kind: string | null;
+  zone_stage: string | null;
+}
+
+export interface StandingZone {
+  position_from: number;
+  position_to: number;
+  zone_kind: string;
+  stage: string | null;
+  band: string;
+  label: string;
+  sort_order: number;
 }
 
 export interface OuBttsStandingRow {
@@ -194,6 +208,7 @@ export interface LeagueStandingsResponse {
   season_id: number;
   scope: StandingScope;
   standings: TraditionalStandingRow[] | OuBttsStandingRow[];
+  zones: StandingZone[];
   total_count: number;
 }
 

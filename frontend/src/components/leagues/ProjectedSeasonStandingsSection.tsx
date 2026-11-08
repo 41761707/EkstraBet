@@ -26,11 +26,13 @@ import type {
   SeasonProjectionModeFlags,
   SeasonProjectionResponse,
   SeasonProjectionSpecialSlots,
+  StandingZone,
 } from "@/types/api";
 
 interface ProjectedSeasonStandingsSectionProps {
   leagueId: number;
   seasonId: number;
+  zones: readonly StandingZone[];
 }
 
 interface ProjectedSeasonStandingsContentProps {
@@ -48,6 +50,7 @@ interface ProjectedSeasonStandingsContentProps {
   onSelectMode: (mode: SeasonProjectionMode) => void;
   view?: ProjectionView;
   onSelectView?: (view: ProjectionView) => void;
+  zones: readonly StandingZone[];
 }
 
 const PROJECTION_VIEWS: ProjectionView[] = ["points", "outcomes"];
@@ -173,6 +176,7 @@ export function ProjectedSeasonStandingsContent({
   onSelectMode,
   view = "points",
   onSelectView,
+  zones,
 }: ProjectedSeasonStandingsContentProps) {
   return (
     <div className="space-y-4">
@@ -197,6 +201,7 @@ export function ProjectedSeasonStandingsContent({
         leagueId={leagueId}
         seasonId={seasonId}
         view={view}
+        zones={zones}
       />
     </div>
   );
@@ -210,6 +215,7 @@ function ProjectionBody({
   leagueId,
   seasonId,
   view,
+  zones,
 }: Omit<
   ProjectedSeasonStandingsContentProps,
   "modeFlags" | "selectedMode" | "onSelectMode" | "onSelectView"
@@ -262,6 +268,7 @@ function ProjectionBody({
             standings={data.standings}
             seasonId={seasonId}
             leagueId={leagueId}
+            zones={zones}
           />
         </>
       ) : (
@@ -272,6 +279,7 @@ function ProjectionBody({
             specialSlots={data.special_slots}
             seasonId={seasonId}
             leagueId={leagueId}
+            zones={zones}
           />
         </>
       )}
@@ -282,6 +290,7 @@ function ProjectionBody({
 export function ProjectedSeasonStandingsSection({
   leagueId,
   seasonId,
+  zones,
 }: ProjectedSeasonStandingsSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<ProjectionView>("points");
@@ -314,6 +323,7 @@ export function ProjectedSeasonStandingsSection({
           onSelectMode={projection.selectMode}
           view={view}
           onSelectView={setView}
+          zones={zones}
         />
       </div>
     </details>

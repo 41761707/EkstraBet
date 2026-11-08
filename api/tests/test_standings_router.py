@@ -57,12 +57,14 @@ class TestStandingsRouter(unittest.TestCase):
                 "points": 3,
                 "points_adjustment": -4,
                 "adjustment_reason": "Decyzja związku",
-                "zone_kind": "champions_league"
+                "zone_kind": "champions_league",
+                "zone_stage": "qualification"
             }],
             "zones": [{
                 "position_from": 1,
                 "position_to": 1,
                 "zone_kind": "champions_league",
+                "stage": "qualification",
                 "band": "top",
                 "label": "Awans – Liga Mistrzów (Kwalifikacje)",
                 "sort_order": 1
@@ -78,8 +80,10 @@ class TestStandingsRouter(unittest.TestCase):
         self.assertEqual(row["points_adjustment"], -4)
         self.assertEqual(row["adjustment_reason"], "Decyzja związku")
         self.assertEqual(row["zone_kind"], "champions_league")
+        self.assertEqual(row["zone_stage"], "qualification")
         self.assertEqual(len(payload["zones"]), 1)
         self.assertEqual(payload["zones"][0]["zone_kind"], "champions_league")
+        self.assertEqual(payload["zones"][0]["stage"], "qualification")
         self.assertEqual(
             payload["zones"][0]["label"],
             "Awans – Liga Mistrzów (Kwalifikacje)")
@@ -107,7 +111,8 @@ class TestStandingsRouter(unittest.TestCase):
                 "points": 10,
                 "points_adjustment": 0,
                 "adjustment_reason": None,
-                "zone_kind": None
+                "zone_kind": None,
+                "zone_stage": None
             }]
         }
         response = self.client.get(
@@ -120,6 +125,7 @@ class TestStandingsRouter(unittest.TestCase):
         self.assertEqual(row["points_adjustment"], 0)
         self.assertIsNone(row["adjustment_reason"])
         self.assertIsNone(row["zone_kind"])
+        self.assertIsNone(row["zone_stage"])
 
     @patch("api.routers.leagues.standings_service.get_league_standings")
     def test_league_standings_returns_ou_btts_rows(
