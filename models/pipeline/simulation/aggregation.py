@@ -126,6 +126,29 @@ def aggregate_projection(
     return projections
 
 
+def apply_point_adjustments(
+        points: np.ndarray,
+        team_ids: tuple[int, ...] | list[int],
+        deltas: dict[int, int]) -> np.ndarray:
+    """Return a copy of ``points`` with each team's delta added.
+
+    A team missing from ``deltas`` keeps its points. A team id that
+    is not in ``team_ids`` is ignored. Shape and dtype stay the same.
+    """
+    adjusted = np.array(points, copy=True)
+    ids = [int(team_id) for team_id in team_ids]
+    if adjusted.ndim != 1 or adjusted.shape[0] != len(ids):
+        raise ValueError("points length must match team_ids")
+    index_by_team = {
+        team_id: index for index, team_id in enumerate(ids)}
+    for team_id, delta in deltas.items():
+        index = index_by_team.get(int(team_id))
+        if index is None:
+            continue
+        adjusted[index] += delta
+    return adjusted
+
+
 def baseline_from_standings(
         team_ids: tuple[int, ...] | list[int],
         points: np.ndarray,
