@@ -15,24 +15,73 @@ export interface AppRelease {
 // patch_notes/<tag>.md (złączone kontynuacje punktów w jeden string).
 
 export const APP_RELEASE: AppRelease = {
-  version: "1.5.2",
-  heading: "EkstraBet 1.5.2 - Sezon 1",
-  releaseDate: "01.11.2026",
+  version: "1.6.0",
+  heading: "EkstraBet 1.6.0 - Sezon 1",
+  releaseDate: "08.11.2026",
   character:
-    "Wydanie funkcjonalne - infografika meczu piłkarskiego i " +
-    "poprawione liczenie analityki kuponów",
+    "Wydanie funkcjonalne - strefy i kary punktowe w tabeli ligowej " +
+    "oraz kalendarz wyników zakładów",
   changes: [
-    "[R-1] Infografika meczu piłkarskiego na `/matches/<match_id>/` " +
-      "w zakładce „Infografika meczowa”: prawdopodobieństwa wyniku, " +
-      "BTTS i over/under 2.5, najczęstsze wyniki, bezpośrednie " +
-      "spotkania i forma oraz pobranie PNG.",
-    "[FIX] Poprawka liczenia analityki na `/moje-zaklady` i " +
-      "`/profile/<username>/`: zysk rozliczonych kuponów (każdy " +
-      "kupon raz), stawka kuponów w obiegu oraz widok per zakład, " +
-      "w którym zdarzenie liczy się jak singiel za stawkę kuponu. " +
-      "Kwoty można pokazać w walucie albo w jednostce stawki. Na " +
-      "`/typers` doprecyzowane opisy średniego wyniku i średniego " +
-      "kursu.",
+    "[EB-34] Mechanizm migracji schematu MySQL: pliki w " +
+      "`sql/migrations/`, księga `schema_migrations` oraz komenda " +
+      "CLI `python -m backend.db_migrate` (status, apply, baseline, " +
+      "generate-baseline). Runbook w `docs/deployment-vps.md`.",
+    "[EB-36] Strefy tabeli i kary punktowe na " +
+      "`/leagues/<league_id>/`: kolor miejsca (awans, baraż, " +
+      "spadek), legenda z nazwą strefy oraz punkty po karze ze " +
+      "znacznikiem powodu. Projekcja końca sezonu bierze progi Top " +
+      "i Spadek ze stref sezonu, a symulacja dolicza tę samą karę.",
+    "[EB-39] Poprawki wyglądu i opisów kalendarza wyników na " +
+      "`/moje-zaklady` i `/profile/<username>/`: przełączniki dnia, " +
+      "tygodnia i miesiąca oraz objaśnienia dnia kuponu i dnia " +
+      "zakładu.",
+    "[SZP-330] Odczyt plików migracji: wersja i hash skryptu SQL.",
+    "[SZP-331] Podział skryptu SQL migracji na pojedyncze statementy.",
+    "[SZP-332] Połączenie z bazą i księga `schema_migrations` w " +
+      "mechanizmie migracji.",
+    "[SZP-333] Runner migracji: status, apply i baseline.",
+    "[SZP-334] Generator baseline schematu (polecenie " +
+      "`generate-baseline`).",
+    "[SZP-335] Komenda CLI mechanizmu migracji " +
+      "(`python -m backend.db_migrate`).",
+    "[SZP-336] Pierwsza migracja-matka: baseline schematu w " +
+      "`sql/migrations/V001__baseline.sql`.",
+    "[SZP-337] Runbook migracji, poprawki w obrazie API i " +
+      "dokumentacji deployu (`docs/deployment-vps.md`, " +
+      "`sql/migrations/README.md`).",
+    "[SZP-340] Odczyt wyniku meczu z datą do kalendarza zakładów.",
+    "[SZP-341] Grupowanie okresu (dzień, tydzień, miesiąc) w " +
+      "kalendarzu wyników typera.",
+    "[SZP-342] Serwis kalendarza wyników dla właściciela konta i " +
+      "profilu publicznego.",
+    "[SZP-343] Endpointy kalendarza wyników: " +
+      "`GET /tipsters/me/result-calendar` oraz " +
+      "`GET /tipsters/profile/{username}/result-calendar`.",
+    "[SZP-344] Typy i klient API kalendarza wyników na froncie.",
+    "[SZP-345] Model siatki kalendarza wyników (dzień, tydzień od " +
+      "poniedziałku, miesiąc).",
+    "[SZP-346] Panel „Zmiana osiągnięć w czasie - kalendarz” na " +
+      "`/moje-zaklady` i `/profile/<username>/`.",
+    "[SZP-347] Migracje stref tabeli i kar punktowych (`V002`, " +
+      "`V003`) oraz wycofanie odczytu `football_table_special_slots`.",
+    "[SZP-348] Agregacja stref ligi do progów Top i Spadek.",
+    "[SZP-349] Odczyt stref tabeli piłkarskiej dla ligi i sezonu.",
+    "[SZP-350] Odczyt kar punktowych w tabeli ligowej.",
+    "[SZP-351] Tabela ogólna sortowana po punktach oficjalnych, " +
+      "już po karze.",
+    "[SZP-352] Kontrakt API tabeli: strefy i korekta punktów na " +
+      "`GET /leagues/{league_id}/standings`.",
+    "[SZP-353] Projekcja sezonu czyta progi Top i Spadek ze stref " +
+      "sezonu, nie z osobnej tabeli slotów.",
+    "[SZP-354] Symulacja końca sezonu dolicza kary punktowe do " +
+      "punktów bieżących i do losowań.",
+    "[SZP-355] Kolory miejsc, legenda stref i znacznik kary na " +
+      "tabeli ogólnej oraz w projekcji na `/leagues/<league_id>/`.",
+    "[FIX] Kupony agentów oraz flaga decyzji komputera w sugestiach " +
+      "zdarzeń biorą tylko finał rodziny rynku (strona z najwyższym " +
+      "PPB), bez drugiej strony tego samego rynku.",
+    "[TECH] Usuwanie danych meczowych z zakładów, gdy mecz zostaje " +
+      "przełożony (`db_funcs/Pilka/delete_match.py`).",
   ],
 };
 
