@@ -12,8 +12,12 @@ from api.routers.utils import parse_id_list
 from api.schemas.bet import (
     BetRecommendationsResponse,
     MarketOpportunitiesResponse)
+from api.schemas.player_prop_bet import PlayerPropRecommendationsResponse
 from backend.config import get_settings
-from backend.services import bet_service
+from backend.services import bet_service, player_prop_bet_service
+from backend.sports.hockey.player_prop_history import (
+    DEFAULT_HISTORY_WINDOW,
+    HISTORY_WINDOWS)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +39,7 @@ async def bets_info() -> dict[str, object]:
         "description": "Read-only endpoints for bet recommendations and EV",
         "endpoints": [
             "GET /bets/recommendations - Filtered bet recommendations",
+            "GET /bets/player-recommendations - Player prop recommendations",
             "GET /bets/opportunities - Global market opportunities ranking",
         ],
     }
@@ -139,6 +144,104 @@ async def get_bet_recommendations(
         raise HTTPException(
             status_code=500,
             detail="Failed to fetch bet recommendations") from exc
+
+
+@router.get(
+    "/player-recommendations",
+    response_model=PlayerPropRecommendationsResponse)
+async def get_player_prop_recommendations(
+    league_ids: str | None = Query(
+        None,
+        description="Comma-separated league IDs"),
+    event_ids: str | None = Query(
+        None,
+        description="Comma-separated event IDs"),
+    model_ids: str | None = Query(
+        None,
+        description="Comma-separated model IDs"),
+    match_date: date | None = Query(
+        None,
+        description="Exact match date (YYYY-MM-DD)"),
+    date_from: date | None = Query(
+        None,
+        description="Inclusive start date"),
+    date_to: date | None = Query(
+        None,
+        description="Inclusive end date"),
+    from_now: bool = Query(
+        False,
+        description="Only matches starting from the current moment"),
+    min_odds: float | None = Query(
+        None,
+        ge=1.0,
+        description="Minimum decimal odds"),
+    positive_ev_only: bool = Query(
+        False,
+        description="Only bets with positive EV (after tax when enabled)"),
+    apply_tax: bool = Query(
+        False,
+        description="Compute ev_after_tax using 12% betting tax"),
+    settlement_status: SettlementFilter | None = Query(
+        None,
+        description="Filter by bet settlement status"),
+    sort_by: Literal["ev", "probability", "game_date"] = Query(
+        "ev",
+        description="Sort field"),
+    sort_order: Literal["asc", "desc"] = Query(
+        "desc",
+        description="Sort direction"),
+    history_window: int = Query(
+        DEFAULT_HISTORY_WINDOW,
+        description="Recent matches in the history strip, 5 or 10"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int | None = Query(
+        None,
+        ge=1,
+        description="Page size")) -> PlayerPropRecommendationsResponse:
+    """Return hockey player-prop recommendations with recent-match history."""
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(
+            status_code=422,
+            detail="date_from cannot be later than date_to")
+    if history_window not in HISTORY_WINDOWS:
+        raise HTTPException(
+            status_code=422,
+            detail="history_window must be 5 or 10")
+
+    settings = get_settings()
+    resolved_page_size = page_size or settings.default_page_size
+    if resolved_page_size > settings.max_page_size:
+        raise HTTPException(
+            status_code=422,
+            detail=f"page_size cannot exceed {settings.max_page_size}")
+
+    try:
+        payload = player_prop_bet_service.get_player_prop_recommendations(
+            league_ids=parse_id_list(league_ids),
+            event_ids=parse_id_list(event_ids),
+            model_ids=parse_id_list(model_ids),
+            match_date=match_date,
+            date_from=date_from,
+            date_to=date_to,
+            from_now=from_now,
+            min_odds=min_odds,
+            positive_ev_only=positive_ev_only,
+            apply_tax=apply_tax,
+            settlement_status=settlement_status,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            page=page,
+            page_size=resolved_page_size,
+            history_window=history_window)
+        return PlayerPropRecommendationsResponse(**payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch player prop recommendations: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch player prop recommendations") from exc
 
 
 @router.get("/opportunities", response_model=MarketOpportunitiesResponse)
