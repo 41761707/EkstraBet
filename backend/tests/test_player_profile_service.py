@@ -8,10 +8,13 @@ from unittest.mock import patch
 
 import pandas as pd
 
+from backend.repositories.player_profile_repository import (
+    fetch_hockey_event_facts)
 from backend.repositories.player_profile_repository import fetch_profile_slice
 from backend.sports.hockey.player_profile import HOCKEY_GOALIE_STAT_SQL
 from backend.sports.hockey.player_profile import HOCKEY_SKATER_STAT_SQL
 from backend.sports.hockey.player_profile import HockeyPlayerProfileSource
+from backend.sports.hockey.player_profile import INCLUDED_EVENT_IDS
 
 
 _UNSUPPORTED_TABLE = "Unsupported player profile stats table"
@@ -144,6 +147,49 @@ class TestHockeyProfileSlice(unittest.TestCase):
             50)
 
 
+class TestFetchHockeyEventFacts(unittest.TestCase):
+    """Hockey event facts stay on the player, the matches and six ids."""
+
+    def test_empty_match_list_skips_sql(self) -> None:
+        with patch(
+                "backend.repositories.player_profile_repository"
+                ".get_db_connection") as connection:
+            frame = fetch_hockey_event_facts(15, [])
+        connection.assert_not_called()
+        self.assertTrue(frame.empty)
+        self.assertEqual(
+            list(frame.columns),
+            ["match_id", "event_id", "period", "pp_flag", "en_flag"])
+
+    def test_query_keeps_included_event_ids(self) -> None:
+        query, params = _capture_event_facts(15, [10, 11])
+        self.assertIn("FROM hockey_match_events hme", query)
+        self.assertIn("hme.player_id = %s", query)
+        self.assertIn("hme.match_id IN (%s, %s)", query)
+        self.assertIn(
+            "hme.event_id IN (%s, %s, %s, %s, %s, %s)",
+            query)
+        for column in (
+                "match_id",
+                "event_id",
+                "period",
+                "pp_flag",
+                "en_flag"):
+            self.assertIn(f"hme.{column}", query)
+        self.assertNotIn("description", query)
+        self.assertNotIn(188, params)
+        self.assertEqual(params, (15, 10, 11, *INCLUDED_EVENT_IDS))
+
+    def test_source_returns_frame_for_empty_matches(self) -> None:
+        with patch(
+                "backend.repositories.player_profile_repository"
+                ".get_db_connection") as connection:
+            frame = HockeyPlayerProfileSource().fetch_event_facts(15, [])
+        connection.assert_not_called()
+        self.assertIsNotNone(frame)
+        self.assertTrue(frame.empty)
+
+
 def _capture_slice(
         stats_table: str,
         stat_select_sql: str,
@@ -171,6 +217,22 @@ def _capture_slice(
             own_team_id,
             teammate_id,
             limit)
+    query = read_sql.call_args[0][0]
+    params = read_sql.call_args[1]["params"]
+    return query, params
+
+
+def _capture_event_facts(
+        player_id: int,
+        match_ids: list[int]) -> tuple[str, tuple[object, ...]]:
+    with patch(
+            "backend.repositories.player_profile_repository"
+            ".get_db_connection") as connection, patch(
+            "backend.repositories.player_profile_repository.pd.read_sql"
+            ) as read_sql:
+        connection.return_value.__enter__.return_value = object()
+        read_sql.return_value = pd.DataFrame()
+        fetch_hockey_event_facts(player_id, match_ids)
     query = read_sql.call_args[0][0]
     params = read_sql.call_args[1]["params"]
     return query, params

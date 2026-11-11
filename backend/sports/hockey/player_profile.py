@@ -30,7 +30,7 @@ _HOCKEY_STATS_TABLE = "hockey_match_player_stats"
 
 
 class HockeyPlayerProfileSource:
-    """Hockey profile source. Event facts arrive in a later task."""
+    """Hockey profile source. Reads the slice and hockey event facts."""
 
     sport_id = HOCKEY_SPORT_ID
     stats_table = _HOCKEY_STATS_TABLE
@@ -64,3 +64,13 @@ class HockeyPlayerProfileSource:
             own_team_id,
             teammate_id,
             limit)
+
+    def fetch_event_facts(
+            self,
+            player_id: int,
+            match_ids: list[int]) -> pd.DataFrame:
+        """Return hockey event rows. This sport always has events."""
+        # Ten sam import lokalny co w fetch_slice: górny import zamyka cykl.
+        from backend.repositories import player_profile_repository as repo
+
+        return repo.fetch_hockey_event_facts(player_id, match_ids)

@@ -1,4 +1,4 @@
-"""SQL reads for the shared player profile slice."""
+"""SQL reads for the shared player profile."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from backend.database import get_db_connection
+from backend.sports.hockey.player_profile import INCLUDED_EVENT_IDS
 from backend.sports.player_profile import ALLOWED_PROFILE_STATS_TABLES
 
 
@@ -56,6 +57,13 @@ _SLICE_HEADER_SQL = """\
 _OPPONENT_SQL = (
     "((m.home_team = stat.team_id AND m.away_team = %s)"
     " OR (m.away_team = stat.team_id AND m.home_team = %s))")
+
+_HOCKEY_EVENT_COLUMNS = (
+    "match_id",
+    "event_id",
+    "period",
+    "pp_flag",
+    "en_flag")
 
 
 def fetch_player(player_id: int) -> dict[str, Any] | None:
@@ -151,6 +159,38 @@ def fetch_profile_slice(
     query = _slice_query(table, stat_select_sql, conditions)
     with get_db_connection() as conn:
         return pd.read_sql(query, conn, params=tuple(params))
+
+
+def fetch_hockey_event_facts(
+        player_id: int,
+        match_ids: list[int]) -> pd.DataFrame:
+    """Return hockey event rows for one player and the given matches.
+
+    An empty match list returns an empty frame and does not query MySQL.
+    Columns are ``match_id``, ``event_id``, ``period``, ``pp_flag``
+    and ``en_flag``.
+    """
+    # IN () jest błędem SQL, a pusta lista i tak nie ma wierszy.
+    if not match_ids:
+        return pd.DataFrame(columns=list(_HOCKEY_EVENT_COLUMNS))
+    match_placeholders = ", ".join(["%s"] * len(match_ids))
+    event_placeholders = ", ".join(["%s"] * len(INCLUDED_EVENT_IDS))
+    column_sql = ",\n            ".join(
+        f"hme.{name}" for name in _HOCKEY_EVENT_COLUMNS)
+    query = f"""
+        SELECT
+            {column_sql}
+        FROM hockey_match_events hme
+        WHERE hme.player_id = %s
+            AND hme.match_id IN ({match_placeholders})
+            AND hme.event_id IN ({event_placeholders})
+    """
+    params: tuple[object, ...] = (
+        player_id,
+        *match_ids,
+        *INCLUDED_EVENT_IDS)
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=params)
 
 
 def _require_stats_table(stats_table: str) -> str:
