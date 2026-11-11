@@ -1,8 +1,8 @@
-"""Read hockey player-prop lines joined to model predictions."""
+"""Read hockey player-prop lines, predictions and recent stats."""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 
@@ -25,6 +25,8 @@ _SORT_COLUMNS = {
     "ev": _EV_EXPR,
     "probability": "pp.probability",
     "game_date": "m.game_date"}
+# Identyfikator kolumny nie może być parametrem SQL.
+_ALLOWED_STAT_COLUMNS = frozenset({"sog", "points", "assists", "goals"})
 
 _SELECT_COLUMNS = f"""
     SELECT
@@ -257,3 +259,187 @@ def search_player_prop_recommendations(
             query, conn, params=tuple(params + [page_size, offset]))
     total = int(count_frame.iloc[0]["total"])
     return frame, total
+
+
+def fetch_recent_player_stats(
+        anchors: list[tuple[int, int, datetime, str]],
+        window: int) -> pd.DataFrame:
+    """Return at most ``window`` earlier values for each anchor.
+
+    An anchor is ``(player_id, match_id, game_date, column)``.
+    Rows are newest first inside one anchor. Anchors that share a
+    column share one query. An empty list does not open a connection.
+
+    The same player, match and column is queried once, so two models
+    do not repeat the series. ``stat_column`` separates shots from
+    goals of that match. Model identity stays on the recommendation.
+    """
+    if not anchors:
+        return pd.DataFrame()
+    grouped = _group_anchors_by_column(_unique_anchors(anchors))
+    frames: list[pd.DataFrame] = []
+    with get_db_connection() as conn:
+        for column, group in grouped:
+            frames.append(
+                _read_recent_column(conn, column, group, window))
+    if len(frames) == 1:
+        return frames[0]
+    return pd.concat(frames, ignore_index=True)
+
+
+def fetch_match_player_stats(
+        pairs: list[tuple[int, int]]) -> pd.DataFrame:
+    """Return one stats row for each player and match.
+
+    Columns are sog, points, assists and goals, plus the pair key.
+    A repeated pair is read once. An empty list does not open a
+    connection. A pair with no stats row is absent.
+    """
+    if not pairs:
+        return pd.DataFrame()
+    unique_pairs = _unique_pairs(pairs)
+    params: list[object] = []
+    for player_id, match_id in unique_pairs:
+        params.extend((player_id, match_id))
+    query = _match_stats_query(len(unique_pairs))
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=tuple(params))
+
+
+def _assert_stat_column(column: str) -> None:
+    """Reject a column that is not one of the four prop stats."""
+    if column in _ALLOWED_STAT_COLUMNS:
+        return
+    raise ValueError(f"Unknown player prop stat column: {column}")
+
+
+def _unique_anchors(
+        anchors: list[tuple[int, int, datetime, str]]
+        ) -> list[tuple[int, int, datetime, str]]:
+    """Keep the first anchor for each player, match and column."""
+    # Historia należy do zawodnika i meczu, nie do modelu.
+    # Druga kopia kotwicy powtórzyłaby te same mecze bez modelu.
+    seen: set[tuple[int, int, str]] = set()
+    unique: list[tuple[int, int, datetime, str]] = []
+    for player_id, match_id, game_date, column in anchors:
+        _assert_stat_column(column)
+        key = (player_id, match_id, column)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append((player_id, match_id, game_date, column))
+    return unique
+
+
+def _unique_pairs(
+        pairs: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Keep the first pair for each player and match."""
+    # Kilka zdarzeń i kilka modeli wskazują ten sam mecz.
+    seen: set[tuple[int, int]] = set()
+    unique: list[tuple[int, int]] = []
+    for pair in pairs:
+        if pair in seen:
+            continue
+        seen.add(pair)
+        unique.append(pair)
+    return unique
+
+
+def _group_anchors_by_column(
+        anchors: list[tuple[int, int, datetime, str]]
+        ) -> list[tuple[str, list[tuple[int, int, datetime]]]]:
+    """Group anchors by column, in the order columns first appear."""
+    grouped: dict[str, list[tuple[int, int, datetime]]] = {}
+    for player_id, match_id, game_date, column in anchors:
+        _assert_stat_column(column)
+        grouped.setdefault(column, []).append(
+            (player_id, match_id, game_date))
+    return list(grouped.items())
+
+
+def _read_recent_column(
+        conn: object,
+        column: str,
+        group: list[tuple[int, int, datetime]],
+        window: int) -> pd.DataFrame:
+    """Run one lateral query for every anchor of a single column."""
+    params: list[object] = []
+    for player_id, match_id, game_date in group:
+        params.extend((player_id, match_id, game_date))
+    params.append(window)
+    query = _history_query(column, len(group))
+    frame = pd.read_sql(query, conn, params=tuple(params))
+    # Ta sama para zawodnik-mecz ma osobną serię na każdą kolumnę.
+    frame["stat_column"] = column
+    return frame
+
+
+def _history_query(column: str, anchor_count: int) -> str:
+    """Build the lateral history query for one whitelisted column."""
+    _assert_stat_column(column)
+    union_sql = _anchor_union(anchor_count)
+    return f"""
+        SELECT
+            anchor.player_id,
+            anchor.match_id AS anchor_match_id,
+            hist.match_id,
+            hist.game_date,
+            hist.stat_value
+        FROM (
+            {union_sql}
+        ) anchor
+        JOIN LATERAL (
+            SELECT
+                s.match_id,
+                m.game_date,
+                s.{column} AS stat_value
+            FROM hockey_match_player_stats s
+            JOIN matches m ON m.id = s.match_id
+            WHERE s.player_id = anchor.player_id
+                AND m.game_date < anchor.before_ts
+                AND s.match_id <> anchor.match_id
+                AND s.{column} IS NOT NULL
+            ORDER BY m.game_date DESC, s.match_id DESC
+            LIMIT %s
+        ) hist ON TRUE
+    """
+
+
+def _anchor_union(anchor_count: int) -> str:
+    """Build the anchor derived table. The first row names columns."""
+    first = (
+        "SELECT %s AS player_id, %s AS match_id, "
+        "%s AS before_ts")
+    if anchor_count == 1:
+        return first
+    rest = "\n            UNION ALL\n            SELECT %s, %s, %s"
+    return first + rest * (anchor_count - 1)
+
+
+def _match_stats_query(pair_count: int) -> str:
+    """Build the stats lookup for pairs from the recommendation page."""
+    union_sql = _pair_union(pair_count)
+    return f"""
+        SELECT
+            s.player_id,
+            s.match_id,
+            s.sog,
+            s.points,
+            s.assists,
+            s.goals
+        FROM (
+            {union_sql}
+        ) wanted
+        JOIN hockey_match_player_stats s ON (
+            s.player_id = wanted.player_id
+            AND s.match_id = wanted.match_id)
+    """
+
+
+def _pair_union(pair_count: int) -> str:
+    """Build the pair derived table. The first row names columns."""
+    first = "SELECT %s AS player_id, %s AS match_id"
+    if pair_count == 1:
+        return first
+    rest = "\n            UNION ALL\n            SELECT %s, %s"
+    return first + rest * (pair_count - 1)
