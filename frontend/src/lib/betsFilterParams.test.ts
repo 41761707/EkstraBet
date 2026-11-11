@@ -10,6 +10,7 @@ import {
   type BetsFilterValues,
 } from "@/lib/betsFilterParams";
 import { todayIsoDate } from "@/lib/searchParams";
+import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
 
 function baseFilters(
   overrides: Partial<BetsFilterValues> = {},
@@ -68,6 +69,52 @@ describe("betsFilterPath", () => {
     expect(path).not.toContain("date_from");
     expect(path).not.toContain("all_dates");
   });
+
+  it("leaves subject and history_window off the default team URL", () => {
+    const path = betsFilterPath(createDefaultBetsFilterValues());
+    expect(path.startsWith("/bets")).toBe(true);
+    expect(path).not.toContain("subject");
+    expect(path).not.toContain("history_window");
+  });
+
+  it("writes hockey players as sport_id=2&subject=players", () => {
+    const path = betsFilterPath(
+      baseFilters({
+        sportId: HOCKEY_SPORT_ID,
+        subject: "players",
+      }),
+    );
+    expect(path).toContain("sport_id=2&subject=players");
+    expect(path).not.toContain("history_window");
+  });
+
+  it("writes history_window only for the short player window", () => {
+    const shortWindow = betsFilterPath(
+      baseFilters({
+        sportId: HOCKEY_SPORT_ID,
+        subject: "players",
+        historyWindow: 5,
+      }),
+    );
+    expect(shortWindow).toContain("history_window=5");
+
+    const defaultWindow = betsFilterPath(
+      baseFilters({
+        sportId: HOCKEY_SPORT_ID,
+        subject: "players",
+        historyWindow: 10,
+      }),
+    );
+    expect(defaultWindow).not.toContain("history_window");
+  });
+
+  it("omits history_window when the subject is still teams", () => {
+    const path = betsFilterPath(
+      baseFilters({ historyWindow: 5, subject: "teams" }),
+    );
+    expect(path).not.toContain("subject");
+    expect(path).not.toContain("history_window");
+  });
 });
 
 describe("parseBetsDateRange", () => {
@@ -110,6 +157,57 @@ describe("parseBetsFilterValues", () => {
     });
     expect(filters.dateFrom).toBe("2026-08-01");
     expect(filters.dateTo).toBe("2026-08-10");
+  });
+
+  it("defaults to teams and a window of 10", () => {
+    const filters = parseBetsFilterValues({});
+    expect(filters.subject).toBe("teams");
+    expect(filters.historyWindow).toBe(10);
+  });
+
+  it("keeps players only when the sport is hockey", () => {
+    const filters = parseBetsFilterValues({
+      sport_id: String(HOCKEY_SPORT_ID),
+      subject: "players",
+      history_window: "5",
+    });
+    expect(filters.subject).toBe("players");
+    expect(filters.historyWindow).toBe(5);
+    expect(filters.sportId).toBe(HOCKEY_SPORT_ID);
+  });
+
+  it("parses subject=players on football as teams", () => {
+    expect(
+      parseBetsFilterValues({
+        sport_id: String(FOOTBALL_SPORT_ID),
+        subject: "players",
+      }).subject,
+    ).toBe("teams");
+    expect(parseBetsFilterValues({ subject: "players" }).subject).toBe("teams");
+  });
+
+  it("treats any window other than 5 as 10", () => {
+    expect(
+      parseBetsFilterValues({
+        sport_id: String(HOCKEY_SPORT_ID),
+        history_window: "7",
+      }).historyWindow,
+    ).toBe(10);
+    expect(
+      parseBetsFilterValues({
+        sport_id: String(HOCKEY_SPORT_ID),
+        history_window: "10",
+      }).historyWindow,
+    ).toBe(10);
+  });
+
+  it("treats a subject other than players as teams", () => {
+    expect(
+      parseBetsFilterValues({
+        sport_id: String(HOCKEY_SPORT_ID),
+        subject: "teams",
+      }).subject,
+    ).toBe("teams");
   });
 });
 

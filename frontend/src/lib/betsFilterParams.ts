@@ -6,13 +6,23 @@ import {
 } from "@/lib/searchParams";
 import {
   FOOTBALL_SPORT_ID,
+  HOCKEY_SPORT_ID,
   type BetSortBy,
   type BetSortOrder,
   type SettlementStatus,
 } from "@/types/api";
 
+export type BetsSubject = "teams" | "players";
+
+export type BetsHistoryWindow = 5 | 10;
+
+const SHORT_HISTORY_WINDOW: BetsHistoryWindow = 5;
+const DEFAULT_HISTORY_WINDOW: BetsHistoryWindow = 10;
+
 export interface BetsFilterValues {
   sportId: number;
+  subject: BetsSubject;
+  historyWindow: BetsHistoryWindow;
   leagueIds: number[];
   eventIds: number[];
   modelIds: number[];
@@ -34,6 +44,8 @@ export function createDefaultBetsFilterValues(
   const today = todayIsoDate();
   return {
     sportId: FOOTBALL_SPORT_ID,
+    subject: "teams",
+    historyWindow: DEFAULT_HISTORY_WINDOW,
     leagueIds: [],
     eventIds: [],
     modelIds: [],
@@ -73,8 +85,11 @@ export function parseBetsDateRange(
 export function parseBetsFilterValues(
   params: Record<string, string | undefined>,
 ): BetsFilterValues {
+  const sportId = parsePositiveInt(params.sport_id) ?? FOOTBALL_SPORT_ID;
   return createDefaultBetsFilterValues({
-    sportId: parsePositiveInt(params.sport_id) ?? FOOTBALL_SPORT_ID,
+    sportId,
+    subject: parseBetsSubject(sportId, params.subject),
+    historyWindow: parseHistoryWindow(params.history_window),
     leagueIds: parseIdList(params.league_ids),
     eventIds: parseIdList(params.event_ids),
     modelIds: parseIdList(params.model_ids),
@@ -117,6 +132,7 @@ export function buildBetsFilterQuery(nextState: BetsFilterValues): string {
   if (nextState.sportId !== FOOTBALL_SPORT_ID) {
     params.set("sport_id", String(nextState.sportId));
   }
+  appendPlayerSubjectParams(params, nextState);
   if (nextState.leagueIds.length > 0) {
     params.set("league_ids", nextState.leagueIds.join(","));
   }
@@ -154,6 +170,36 @@ export function buildBetsFilterQuery(nextState: BetsFilterValues): string {
 export function betsFilterPath(nextState: BetsFilterValues): string {
   const query = buildBetsFilterQuery(nextState);
   return query ? `/bets?${query}` : "/bets";
+}
+
+function parseBetsSubject(
+  sportId: number,
+  rawSubject: string | undefined,
+): BetsSubject {
+  // Zawodnicy są tylko przy hokeju; inny sport w URL zostaje przy drużynach.
+  if (sportId !== HOCKEY_SPORT_ID) {
+    return "teams";
+  }
+  return rawSubject === "players" ? "players" : "teams";
+}
+
+function parseHistoryWindow(rawWindow: string | undefined): BetsHistoryWindow {
+  return rawWindow === String(SHORT_HISTORY_WINDOW)
+    ? SHORT_HISTORY_WINDOW
+    : DEFAULT_HISTORY_WINDOW;
+}
+
+function appendPlayerSubjectParams(
+  params: URLSearchParams,
+  nextState: BetsFilterValues,
+): void {
+  if (nextState.subject !== "players") {
+    return;
+  }
+  params.set("subject", "players");
+  if (nextState.historyWindow === SHORT_HISTORY_WINDOW) {
+    params.set("history_window", String(SHORT_HISTORY_WINDOW));
+  }
 }
 
 function appendBetsDateQueryParams(
