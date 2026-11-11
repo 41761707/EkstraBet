@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PlayerPropHistoryStrip } from "@/components/bets/PlayerPropHistoryStrip";
 import {
   formatEv,
   formatMatchDateTime,
@@ -42,6 +43,7 @@ export function PlayerBetRecommendationsTable({
             <th className="px-4 py-3 font-medium">Liga</th>
             <th className="px-4 py-3 font-medium">Mecz</th>
             <th className="px-4 py-3 font-medium">Zawodnik</th>
+            <th className="px-4 py-3 font-medium">Historia</th>
             <th className="px-4 py-3 font-medium">Zdarzenie</th>
             <th className="px-4 py-3 font-medium">Model</th>
             <th className="px-4 py-3 font-medium">Bukmacher</th>
@@ -93,6 +95,14 @@ function PlayerBetRow({
         </Link>
       </td>
       <td className="px-4 py-3 text-text">{bet.player_name}</td>
+      <td className="px-4 py-3">
+        <PlayerPropHistoryStrip
+          points={bet.history.points}
+          thresholdLine={bet.line}
+          hits={bet.history.hits}
+          played={bet.history.played}
+        />
+      </td>
       <td className="px-4 py-3 text-muted">{bet.event_name}</td>
       <td className="px-4 py-3 text-muted">{bet.model_name}</td>
       <td className="px-4 py-3 text-muted">{bet.bookmaker_name ?? "—"}</td>
