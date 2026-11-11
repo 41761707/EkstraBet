@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { BetRecommendationsTable } from "@/components/bets/BetRecommendationsTable";
 import { BetsFilters } from "@/components/bets/BetsFilters";
+import { PlayerBetsBody } from "@/components/bets/PlayerBetsBody";
 import { PaginationBar } from "@/components/PaginationBar";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
@@ -18,12 +20,16 @@ import {
   betsFilterPath,
   parseBetsFilterValues,
   type BetsFilterValues,
+  type BetsSubject,
 } from "@/lib/betsFilterParams";
+import { PLAYER_PROP_EVENT_OPTIONS } from "@/lib/playerPropEvents";
 import {
   FOOTBALL_SPORT_ID,
   HOCKEY_SPORT_ID,
   type BetRecommendationsResponse,
   type FilterOption,
+  type LeagueSummary,
+  type ModelSummary,
 } from "@/types/api";
 
 const PAGE_SIZE = 50;
@@ -34,14 +40,20 @@ interface BetsPageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
 
+interface LoadedBetsFilters {
+  leagues: FilterOption[];
+  events: EventFilterOption[];
+  models: FilterOption[];
+}
+
 export default async function BetsPage({ searchParams }: BetsPageProps) {
   const params = await searchParams;
   const parsedFilters = parseBetsFilterValues(params);
-  const sportId =
-    parsedFilters.sportId === HOCKEY_SPORT_ID
-      ? HOCKEY_SPORT_ID
-      : FOOTBALL_SPORT_ID;
-  const filterOptions = await loadBetsFilterOptions(sportId);
+  const sportId = resolveBetsSportId(parsedFilters.sportId);
+  const filterOptions = await loadBetsFilterOptions(
+    sportId,
+    parsedFilters.subject,
+  );
 
   if (!filterOptions.ok) {
     return (
@@ -53,26 +65,25 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
     );
   }
 
-  const filters = {
-    ...parsedFilters,
-    sportId,
-    leagueIds: parsedFilters.leagueIds.filter((id) =>
-      filterOptions.ok
-        ? filterOptions.leagues.some((league) => league.id === id)
-        : true,
-    ),
-    eventIds: parsedFilters.eventIds.filter((id) =>
-      filterOptions.ok
-        ? filterOptions.events.some((event) => event.id === id)
-        : true,
-    ),
-    modelIds: parsedFilters.modelIds.filter((id) =>
-      filterOptions.ok
-        ? filterOptions.models.some((model) => model.id === id)
-        : true,
-    ),
-  };
+  const filters = sanitizeBetsFilters(parsedFilters, sportId, filterOptions);
+  return (
+    <BetsPageLayout
+      filters={filters}
+      filterOptions={filterOptions}
+      searchParams={params}
+    />
+  );
+}
 
+function BetsPageLayout({
+  filters,
+  filterOptions,
+  searchParams,
+}: {
+  filters: BetsFilterValues;
+  filterOptions: LoadedBetsFilters;
+  searchParams: Record<string, string | undefined>;
+}) {
   const filtersSection = (
     <BetsFiltersSection
       filters={filters}
@@ -96,13 +107,49 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
     );
   }
 
+  if (isPlayerBetsView(filters)) {
+    return (
+      <div className="space-y-8">
+        <BetsPageHeader />
+        {filtersSection}
+        <PlayerBetsBody
+          filters={filters}
+          leagues={filterOptions.leagues}
+          pageSize={PAGE_SIZE}
+          searchParams={searchParams}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <TeamBetsLayout
+      filters={filters}
+      leagues={filterOptions.leagues}
+      filtersSection={filtersSection}
+      searchParams={searchParams}
+    />
+  );
+}
+
+async function TeamBetsLayout({
+  filters,
+  leagues,
+  filtersSection,
+  searchParams,
+}: {
+  filters: BetsFilterValues;
+  leagues: FilterOption[];
+  filtersSection: ReactNode;
+  searchParams: Record<string, string | undefined>;
+}) {
   try {
     const dateParams = betsDateQueryParams(filters);
     const response = await getBetRecommendations({
       leagueIds:
         filters.leagueIds.length > 0
           ? filters.leagueIds
-          : filterOptions.leagues.map((league) => league.id),
+          : leagues.map((league) => league.id),
       eventIds: filters.eventIds,
       modelIds: filters.modelIds,
       minOdds: filters.minOdds,
@@ -123,7 +170,7 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
         <BetsRecommendationsSection
           response={response}
           filters={filters}
-          searchParams={params}
+          searchParams={searchParams}
         />
       </div>
     );
@@ -142,33 +189,15 @@ export default async function BetsPage({ searchParams }: BetsPageProps) {
   }
 }
 
-async function loadBetsFilterOptions(sportId: number): Promise<
-  | {
-      ok: true;
-      leagues: FilterOption[];
-      events: EventFilterOption[];
-      models: FilterOption[];
-    }
-  | { ok: false; message: string }
-> {
+async function loadBetsFilterOptions(
+  sportId: number,
+  subject: BetsSubject,
+): Promise<({ ok: true } & LoadedBetsFilters) | { ok: false; message: string }> {
   try {
-    const [leaguesResponse, eventsResponse, modelsResponse] = await Promise.all([
-      getLeagues({ active: true, sportId }),
-      getAllEventOptions(sportId),
-      getModels(),
-    ]);
-    return {
-      ok: true,
-      leagues: leaguesResponse.leagues.map((league) => ({
-        id: league.id,
-        label: league.name,
-      })),
-      events: eventsResponse,
-      models: modelsResponse.models
-        .filter((model) => model.active === 1 && model.sport_id === sportId)
-        .map((model) => ({ id: model.id, label: model.name }))
-        .sort((left, right) => left.label.localeCompare(right.label, "pl")),
-    };
+    if (isPlayerBetsView({ sportId, subject })) {
+      return await loadPlayerFilterOptions(sportId);
+    }
+    return await loadTeamFilterOptions(sportId);
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -176,6 +205,86 @@ async function loadBetsFilterOptions(sportId: number): Promise<
         : "Nie udało się załadować filtrów bukmacherskich z API.";
     return { ok: false, message };
   }
+}
+
+async function loadTeamFilterOptions(
+  sportId: number,
+): Promise<{ ok: true } & LoadedBetsFilters> {
+  const [leaguesResponse, eventsResponse, modelsResponse] = await Promise.all([
+    getLeagues({ active: true, sportId }),
+    getAllEventOptions(sportId),
+    getModels(),
+  ]);
+  return {
+    ok: true,
+    leagues: toLeagueOptions(leaguesResponse.leagues),
+    events: eventsResponse,
+    models: toModelOptions(modelsResponse.models, sportId),
+  };
+}
+
+async function loadPlayerFilterOptions(
+  sportId: number,
+): Promise<{ ok: true } & LoadedBetsFilters> {
+  const [leaguesResponse, modelsResponse] = await Promise.all([
+    getLeagues({ active: true, sportId }),
+    getModels(),
+  ]);
+  return {
+    ok: true,
+    leagues: toLeagueOptions(leaguesResponse.leagues),
+    events: PLAYER_PROP_EVENT_OPTIONS.map((event) => ({
+      id: event.id,
+      label: event.label,
+      familyName: "PLAYER_PROP",
+    })),
+    models: toModelOptions(modelsResponse.models, sportId),
+  };
+}
+
+function sanitizeBetsFilters(
+  parsedFilters: BetsFilterValues,
+  sportId: number,
+  options: LoadedBetsFilters,
+): BetsFilterValues {
+  return {
+    ...parsedFilters,
+    sportId,
+    leagueIds: parsedFilters.leagueIds.filter((id) =>
+      options.leagues.some((league) => league.id === id),
+    ),
+    eventIds: parsedFilters.eventIds.filter((id) =>
+      options.events.some((event) => event.id === id),
+    ),
+    modelIds: parsedFilters.modelIds.filter((id) =>
+      options.models.some((model) => model.id === id),
+    ),
+  };
+}
+
+function resolveBetsSportId(sportId: number): number {
+  return sportId === HOCKEY_SPORT_ID ? HOCKEY_SPORT_ID : FOOTBALL_SPORT_ID;
+}
+
+function isPlayerBetsView(filters: {
+  sportId: number;
+  subject: BetsSubject;
+}): boolean {
+  return filters.subject === "players" && filters.sportId === HOCKEY_SPORT_ID;
+}
+
+function toLeagueOptions(leagues: LeagueSummary[]): FilterOption[] {
+  return leagues.map((league) => ({
+    id: league.id,
+    label: league.name,
+  }));
+}
+
+function toModelOptions(models: ModelSummary[], sportId: number): FilterOption[] {
+  return models
+    .filter((model) => model.active === 1 && model.sport_id === sportId)
+    .map((model) => ({ id: model.id, label: model.name }))
+    .sort((left, right) => left.label.localeCompare(right.label, "pl"));
 }
 
 function BetsPageHeader() {
