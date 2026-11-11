@@ -42,6 +42,7 @@ import type {
   BetRecommendationsResponse,
   BetSortBy,
   BetSortOrder,
+  PlayerPropRecommendationsResponse,
   CatalogMatchesResponse,
   CouponPage,
   DailyMatchesResponse,
@@ -475,6 +476,57 @@ export async function getBetRecommendations(options?: {
     page: options?.page,
     page_size: options?.pageSize,
   });
+}
+
+/** Hockey player-prop recommendations for the bookmaking corner. */
+export async function getPlayerBetRecommendations(options?: {
+  leagueIds?: number[];
+  eventIds?: number[];
+  modelIds?: number[];
+  matchDate?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  fromNow?: boolean;
+  minOdds?: number;
+  positiveEvOnly?: boolean;
+  applyTax?: boolean;
+  settlementStatus?: SettlementStatus;
+  sortBy?: BetSortBy;
+  sortOrder?: BetSortOrder;
+  historyWindow?: 5 | 10;
+  page?: number;
+  pageSize?: number;
+}): Promise<PlayerPropRecommendationsResponse> {
+  return fetchApi<PlayerPropRecommendationsResponse>(
+    "/bets/player-recommendations",
+    {
+      league_ids:
+        options?.leagueIds && options.leagueIds.length > 0
+          ? options.leagueIds.join(",")
+          : undefined,
+      event_ids:
+        options?.eventIds && options.eventIds.length > 0
+          ? options.eventIds.join(",")
+          : undefined,
+      model_ids:
+        options?.modelIds && options.modelIds.length > 0
+          ? options.modelIds.join(",")
+          : undefined,
+      match_date: options?.matchDate,
+      date_from: options?.dateFrom,
+      date_to: options?.dateTo,
+      from_now: options?.fromNow,
+      min_odds: options?.minOdds,
+      positive_ev_only: options?.positiveEvOnly,
+      apply_tax: options?.applyTax,
+      settlement_status: options?.settlementStatus,
+      sort_by: options?.sortBy,
+      sort_order: options?.sortOrder,
+      history_window: options?.historyWindow,
+      page: options?.page,
+      page_size: options?.pageSize,
+    },
+  );
 }
 
 export async function getModelAnalytics(options?: {

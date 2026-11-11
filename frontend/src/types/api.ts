@@ -1009,6 +1009,50 @@ export interface BetRecommendationsResponse {
   filters_applied: Record<string, unknown>;
 }
 
+export interface PlayerPropHistoryPoint {
+  value: number;
+}
+
+export interface PlayerPropHistory {
+  window: number;
+  played: number;
+  hits: number;
+  points: PlayerPropHistoryPoint[];
+}
+
+export interface PlayerPropRecommendation {
+  line_id: number;
+  player_id: number;
+  player_name: string;
+  line: number;
+  match_id: number;
+  league_id: number;
+  league_name: string;
+  season_id: number;
+  game_date: string;
+  home_team: TeamInMatch;
+  away_team: TeamInMatch;
+  event_id: number;
+  event_name: string;
+  odds: number;
+  probability: number;
+  probability_pct: number;
+  ev: number;
+  ev_after_tax: number | null;
+  bookmaker_id: number | null;
+  bookmaker_name: string | null;
+  model_id: number;
+  model_name: string;
+  settlement_status: SettlementStatus;
+  history: PlayerPropHistory;
+}
+
+export interface PlayerPropRecommendationsResponse {
+  recommendations: PlayerPropRecommendation[];
+  total_count: number;
+  filters_applied: Record<string, unknown>;
+}
+
 export type OpportunitySource = "bet" | "prediction";
 export type OpportunityRankingBasis = "ev_after_tax" | "ev" | "probability";
 
