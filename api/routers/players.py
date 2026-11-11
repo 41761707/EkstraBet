@@ -20,8 +20,17 @@ from api.schemas.player import (
     PlayerSportsListResponse,
     PlayerTeamOption,
     PlayerTeamsResponse)
+from api.schemas.player_profile import PlayerProfileResponse
+from api.schemas.player_profile import PlayerSearchResponse
+from backend.services import player_profile_service
 from backend.services import player_service
 from backend.services.hockey_rating_board import get_hockey_rating_board
+from backend.services.player_profile_service import (
+    PlayerProfileNotFoundError)
+from backend.services.player_profile_service import (
+    PlayerProfileUnavailableError)
+from backend.services.player_profile_service import (
+    PlayerProfileValidationError)
 
 logger = logging.getLogger(__name__)
 
@@ -311,3 +320,80 @@ async def get_player_match_stats(
             detail=f"No match stats for player {player_id}")
 
     return FootballPlayerMatchStatsResponse(**payload)
+
+
+_PROFILE_ERRORS = (
+    PlayerProfileNotFoundError,
+    PlayerProfileUnavailableError,
+    PlayerProfileValidationError)
+
+
+def _profile_http_error(
+        exc: (
+            PlayerProfileNotFoundError
+            | PlayerProfileUnavailableError
+            | PlayerProfileValidationError)) -> HTTPException:
+    """Map a profile domain error onto 404 or 422."""
+    if isinstance(exc, PlayerProfileNotFoundError):
+        return HTTPException(
+            status_code=404,
+            detail="Player not found")
+    if isinstance(exc, PlayerProfileUnavailableError):
+        return HTTPException(
+            status_code=404,
+            detail="Player profile is not available for this sport")
+    return HTTPException(status_code=422, detail=exc.message)
+
+
+@router.get(
+    "/{player_id}/profile",
+    response_model=PlayerProfileResponse)
+async def get_player_profile_endpoint(
+        player_id: int = Path(..., ge=1, description="Player ID"),
+        season_id: int | None = Query(
+            None,
+            ge=1,
+            description="Season ID"),
+        opponent_team_id: int | None = Query(
+            None,
+            ge=1,
+            description="Opponent team ID"),
+        own_team_id: int | None = Query(
+            None,
+            ge=1,
+            description="Own club ID"),
+        teammate_id: int | None = Query(
+            None,
+            ge=1,
+            description="Teammate player ID")
+) -> PlayerProfileResponse:
+    """Return the shared player profile for one slice."""
+    try:
+        payload = player_profile_service.get_player_profile(
+            player_id,
+            season_id,
+            opponent_team_id,
+            own_team_id,
+            teammate_id)
+    except _PROFILE_ERRORS as exc:
+        raise _profile_http_error(exc) from exc
+    return PlayerProfileResponse(**payload)
+
+
+@router.get(
+    "/{sport_id}/search",
+    response_model=PlayerSearchResponse)
+async def search_players_endpoint(
+        sport_id: int = Path(..., ge=1, description="Sport ID"),
+        search: str = Query(
+            ...,
+            min_length=1,
+            description="Player name fragment")
+) -> PlayerSearchResponse:
+    """Return players of a registered sport matching the name fragment."""
+    # Osobna ścieżka, żeby nie zlała się z GET /players/{sport_id}.
+    try:
+        payload = player_profile_service.search_players(sport_id, search)
+    except _PROFILE_ERRORS as exc:
+        raise _profile_http_error(exc) from exc
+    return PlayerSearchResponse(**payload)
