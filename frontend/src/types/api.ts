@@ -1424,6 +1424,78 @@ export interface HockeyPlayerMatchStatsResponse {
   matches: HockeyPlayerMatchStat[];
 }
 
+export interface PlayerProfileFilters {
+  player_id: number;
+  season_id: number | null;
+  opponent_team_id: number | null;
+  own_team_id: number | null;
+  teammate_id: number | null;
+}
+
+export interface HockeyPlayerEventSplit {
+  goals: number;
+  power_play_goals: number;
+  empty_net_goals: number;
+  goals_period_1: number;
+  goals_period_2: number;
+  goals_period_3: number;
+  goals_overtime: number;
+  shootout_goals: number;
+  minor_penalties: number;
+  major_penalties: number;
+  misconduct_penalties: number;
+  unsportsmanlike_penalties: number;
+  disallowed_goals: number;
+}
+
+export interface HockeyPlayerSliceMatch {
+  match_id: number;
+  game_date: string;
+  season_id: number;
+  season_years: string;
+  own_team_id: number;
+  own_team_name: string;
+  opponent_team_id: number;
+  opponent_name: string;
+  opponent_shortcut: string;
+  venue: "home" | "away";
+  home_goals: number | null;
+  away_goals: number | null;
+  result: string | null;
+  toi: string;
+  toi_minutes: number;
+  points: number | null;
+  goals: number | null;
+  assists: number | null;
+  plus_minus: number | null;
+  penalty_minutes: number | null;
+  sog: number | null;
+  shots_against: number | null;
+  shots_saved: number | null;
+  saves_acc: number | null;
+  power_play_goals: number;
+  empty_net_goals: number;
+}
+
+export interface HockeyPlayerProfileBody {
+  sport_id: typeof HOCKEY_SPORT_ID;
+  player_role: "skater" | "goalie";
+  summary: HockeyPlayerStatsSummary;
+  event_split: HockeyPlayerEventSplit;
+  matches: HockeyPlayerSliceMatch[];
+}
+
+export interface PlayerProfileResponse {
+  player_id: number;
+  player_name: string;
+  sport_id: number;
+  filters: PlayerProfileFilters;
+  match_count: number;
+  truncated: boolean;
+  // Kolejny sport zamienia to pole na unię rozróżnianą po sport_id.
+  body: HockeyPlayerProfileBody;
+}
+
 export interface HockeyRatingAverage {
   player_id: number;
   player_name: string;

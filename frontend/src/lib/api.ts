@@ -27,6 +27,7 @@ import {
   loadModelsGroupedByFamily,
   type ModelsByFamily,
 } from "@/lib/modelsByFamily";
+import type { PlayerProfileQuery } from "@/lib/playerProfileParams";
 import { getApiBaseUrl } from "@/lib/runtimeConfig";
 import { FOOTBALL_SPORT_ID } from "@/types/api";
 import type {
@@ -79,6 +80,7 @@ import type {
   PlayerSeasonsResponse,
   FootballPlayersListResponse,
   PlayerMatchStatsResponse,
+  PlayerProfileResponse,
   PredictionPreviewRequest,
   PredictionPreviewResponse,
   RatingMetric,
@@ -705,6 +707,18 @@ export async function getPlayerMatchStats(
       limit: options.limit ?? 50,
     },
   );
+}
+
+export async function getPlayerProfile(
+  playerId: number,
+  params: PlayerProfileQuery,
+): Promise<PlayerProfileResponse> {
+  return fetchApi<PlayerProfileResponse>(`/players/${playerId}/profile`, {
+    season_id: params.seasonId,
+    opponent_team_id: params.opponentTeamId,
+    own_team_id: params.ownTeamId,
+    teammate_id: params.teammateId,
+  });
 }
 
 export async function getTyperDashboard(
