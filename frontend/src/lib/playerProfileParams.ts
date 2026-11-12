@@ -57,6 +57,14 @@ export function buildPlayerProfileHref(
   return `/players/${playerId}?${query}`;
 }
 
+/** A teammate must be a different player than the profile subject. */
+export function canSelectTeammate(
+  playerId: number,
+  teammateId: number,
+): boolean {
+  return teammateId !== playerId;
+}
+
 function appendId(
   search: URLSearchParams,
   key: string,

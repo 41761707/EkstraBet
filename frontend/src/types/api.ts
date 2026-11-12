@@ -1496,6 +1496,18 @@ export interface PlayerProfileResponse {
   body: HockeyPlayerProfileBody;
 }
 
+export interface PlayerSearchHit {
+  player_id: number;
+  player_name: string;
+  position: string | null;
+  current_team_name: string | null;
+}
+
+export interface PlayerSearchResponse {
+  players: PlayerSearchHit[];
+  total_count: number;
+}
+
 export interface HockeyRatingAverage {
   player_id: number;
   player_name: string;

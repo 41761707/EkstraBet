@@ -2,11 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { PlayerProfileFilters } from "@/components/players/PlayerProfileFilters";
 import {
   loadPlayerProfilePage,
   type PlayerProfilePageResult,
 } from "@/app/players/[playerId]/loadPlayerProfilePage";
-import { parsePlayerProfileParams } from "@/lib/playerProfileParams";
+import {
+  buildPlayerProfileQuery,
+  parsePlayerProfileParams,
+} from "@/lib/playerProfileParams";
 import { parsePositiveInt } from "@/lib/searchParams";
 import { HOCKEY_SPORT_ID, type PlayerProfileResponse } from "@/types/api";
 
@@ -30,19 +34,26 @@ export default async function PlayerProfilePage({
     notFound();
   }
 
-  const loaded = await loadPlayerProfilePage(
-    playerId,
-    parsePlayerProfileParams(query),
-  );
+  const profileParams = parsePlayerProfileParams(query);
+  const loaded = await loadPlayerProfilePage(playerId, profileParams);
   if (loaded.kind === "notFound") {
     notFound();
   }
 
   const playerName = loaded.kind === "ready" ? loaded.profile.player_name : null;
+  const sportId = loaded.kind === "ready" ? loaded.profile.sport_id : null;
 
   return (
     <div className="space-y-6">
       <PlayerProfileHeader playerName={playerName} />
+      <PlayerProfileFilters
+        key={buildPlayerProfileQuery(profileParams)}
+        playerId={playerId}
+        sportId={sportId}
+        seasons={loaded.kind === "ready" ? loaded.seasons : []}
+        teams={loaded.kind === "ready" ? loaded.teams : []}
+        values={profileParams}
+      />
       {loaded.kind === "error" ? (
         <StatusMessage
           variant="error"

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPlayerProfileHref,
   buildPlayerProfileQuery,
+  canSelectTeammate,
   parsePlayerProfileParams,
   type PlayerProfileParams,
 } from "@/lib/playerProfileParams";
@@ -58,6 +59,13 @@ describe("buildPlayerProfileQuery", () => {
         teammateLabel: "Jan Kowalski",
       }),
     ).toBe("season_id=7&teammate_id=3&teammate_label=Jan+Kowalski");
+  });
+});
+
+describe("canSelectTeammate", () => {
+  it("rejects the same id", () => {
+    expect(canSelectTeammate(15, 15)).toBe(false);
+    expect(canSelectTeammate(15, 3)).toBe(true);
   });
 });
 
