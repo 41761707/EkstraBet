@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { HockeyPlayerProfileBody } from "@/components/players/HockeyPlayerProfileBody";
 import { PlayerProfileFilters } from "@/components/players/PlayerProfileFilters";
 import {
   loadPlayerProfilePage,
@@ -123,8 +124,7 @@ function PlayerProfileSportBody({
   profile: PlayerProfileResponse;
 }) {
   if (profile.body.sport_id === HOCKEY_SPORT_ID) {
-    // Kafelki, zdarzenia i log dochodzą w SZP-367.
-    return null;
+    return <HockeyPlayerProfileBody body={profile.body} />;
   }
   return (
     <StatusMessage
