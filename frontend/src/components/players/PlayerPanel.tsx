@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { VerticalStatChart } from "@/components/charts/VerticalStatChart";
 import { RATING_BASELINE } from "@/components/matches/hockeyGameRatingModel";
@@ -14,6 +15,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatusMessage } from "@/components/StatusMessage";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { getPlayerMatchStats } from "@/lib/apiClient";
+import { playerProfilePanelHref } from "@/lib/playerProfileParams";
 import type { TeamNameDisplayPreference } from "@/lib/preferences";
 import { formatTeamName } from "@/lib/teamNameDisplay";
 import {
@@ -75,9 +77,7 @@ export function PlayerPanel({
   const { preferences } = usePreferences();
   const teamNameDisplay = preferences.teamNameDisplay;
   const [isOpen, setIsOpen] = useState(false);
-  const [data, setData] = useState<PlayerMatchStatsResponse | null>(
-    null,
-  );
+  const [data, setData] = useState<PlayerMatchStatsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,6 +133,11 @@ export function PlayerPanel({
     >
       <PlayerPanelSummary playerName={playerName} />
       <div className="space-y-6 border-t border-border px-5 py-4">
+        <PlayerProfileLink
+          sportId={sportId}
+          playerId={playerId}
+          seasonId={seasonId}
+        />
         {loading ? (
           <LoadingSpinner label="Ładowanie statystyk zawodnika..." />
         ) : null}
@@ -156,6 +161,30 @@ export function PlayerPanel({
         ) : null}
       </div>
     </details>
+  );
+}
+
+function PlayerProfileLink({
+  sportId,
+  playerId,
+  seasonId,
+}: {
+  sportId: number;
+  playerId: number;
+  seasonId: number;
+}) {
+  const href = playerProfilePanelHref(sportId, playerId, seasonId);
+  if (href == null) {
+    return null;
+  }
+
+  return (
+    <Link
+      href={href}
+      className="inline-block text-sm font-semibold text-accent-text transition hover:text-accent-text-hover"
+    >
+      Profil zawodnika
+    </Link>
   );
 }
 

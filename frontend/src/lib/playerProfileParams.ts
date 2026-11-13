@@ -1,3 +1,4 @@
+import { PLAYER_PROFILE_SPORT_IDS } from "@/lib/playerProfileSports";
 import { parsePositiveInt } from "@/lib/searchParams";
 
 export interface PlayerProfileQuery {
@@ -55,6 +56,18 @@ export function buildPlayerProfileHref(
     return `/players/${playerId}`;
   }
   return `/players/${playerId}?${query}`;
+}
+
+/** Expander link for a sport that has a profile. Other sports return null. */
+export function playerProfilePanelHref(
+  sportId: number,
+  playerId: number,
+  seasonId: number,
+): string | null {
+  if (!PLAYER_PROFILE_SPORT_IDS.has(sportId)) {
+    return null;
+  }
+  return buildPlayerProfileHref(playerId, seasonId);
 }
 
 /** A teammate must be a different player than the profile subject. */

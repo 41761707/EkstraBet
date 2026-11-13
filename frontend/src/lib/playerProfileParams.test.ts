@@ -5,8 +5,10 @@ import {
   buildPlayerProfileQuery,
   canSelectTeammate,
   parsePlayerProfileParams,
+  playerProfilePanelHref,
   type PlayerProfileParams,
 } from "@/lib/playerProfileParams";
+import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
 
 const EMPTY: PlayerProfileParams = {
   seasonId: null,
@@ -66,6 +68,18 @@ describe("canSelectTeammate", () => {
   it("rejects the same id", () => {
     expect(canSelectTeammate(15, 15)).toBe(false);
     expect(canSelectTeammate(15, 3)).toBe(true);
+  });
+});
+
+describe("playerProfilePanelHref", () => {
+  it("links a hockey player to the profile with the list season", () => {
+    expect(playerProfilePanelHref(HOCKEY_SPORT_ID, 15, 7)).toBe(
+      "/players/15?season_id=7",
+    );
+  });
+
+  it("returns no link for football", () => {
+    expect(playerProfilePanelHref(FOOTBALL_SPORT_ID, 15, 7)).toBeNull();
   });
 });
 
