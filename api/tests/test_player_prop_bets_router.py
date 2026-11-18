@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 import os
 import unittest
 from datetime import datetime
@@ -15,7 +14,6 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
 os.environ.setdefault("AUTH_ENABLED", "false")
 
 from api.main import create_app
-from api.routers.bets import get_bet_recommendations
 
 
 def _recommendation() -> dict[str, object]:
@@ -107,10 +105,6 @@ class TestPlayerPropBetsRouter(unittest.TestCase):
         self.assertNotIn(
             "season_id",
             mock_get_recommendations.call_args.kwargs)
-
-    def test_team_recommendations_have_no_history_window(self) -> None:
-        signature = inspect.signature(get_bet_recommendations)
-        self.assertNotIn("history_window", signature.parameters)
 
     def test_bets_info_lists_player_recommendations(self) -> None:
         response = self.client.get("/bets/")

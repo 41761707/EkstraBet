@@ -291,3 +291,45 @@ class TestPlayerPropBetService(unittest.TestCase):
         self.assertEqual(
             payload["recommendations"][0]["player_name"], "Player A")
         self.assertEqual(len(mock_recent.call_args.args[0]), 1)
+
+    @patch(_MATCH)
+    @patch(_RECENT)
+    @patch(_SEARCH)
+    def test_history_sort_pages_the_higher_rate_first(
+            self,
+            mock_search: MagicMock,
+            mock_recent: MagicMock,
+            mock_match: MagicMock) -> None:
+        cold = _page_row(line_id=1, player_id=7, match_id=100)
+        hot = _page_row(line_id=2, player_id=8, match_id=200)
+        _wire(
+            mock_search,
+            mock_recent,
+            mock_match,
+            [cold, hot],
+            2,
+            history=pd.DataFrame([
+                _stat(7, 100, 90, 4, datetime(2026, 11, 4, 18, 0)),
+                _stat(7, 100, 80, 1, datetime(2026, 11, 3, 18, 0)),
+                _stat(8, 200, 70, 4, datetime(2026, 11, 4, 18, 0))]))
+        payload = get_player_prop_recommendations(
+            sort_by="history", sort_order="desc", page=1, page_size=1)
+        self.assertEqual(payload["recommendations"][0]["line_id"], 2)
+        self.assertEqual(payload["total_count"], 2)
+        self.assertTrue(mock_search.call_args.kwargs["unbounded"])
+
+
+def _stat(
+        player_id: int,
+        anchor_match_id: int,
+        match_id: int,
+        stat_value: int,
+        game_date: datetime) -> dict[str, object]:
+    """One past shot total for a player anchor."""
+    return {
+        "player_id": player_id,
+        "anchor_match_id": anchor_match_id,
+        "match_id": match_id,
+        "game_date": game_date,
+        "stat_value": stat_value,
+        "stat_column": "sog"}

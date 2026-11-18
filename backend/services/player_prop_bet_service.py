@@ -13,9 +13,11 @@ from backend.services.bet_service import (
     _compute_ev,
     _compute_ev_after_tax)
 from backend.services.probability_service import to_unit_probability
-from backend.sports.hockey.player_prop_history import (
+from backend.sports.history_window import (
     DEFAULT_HISTORY_WINDOW,
     HISTORY_WINDOWS,
+    page_by_history_rate)
+from backend.sports.hockey.player_prop_history import (
     PropSide,
     format_prop_event_name,
     is_prop_hit,
@@ -25,7 +27,7 @@ from backend.sports.hockey.player_prop_history import (
 
 HistoryIndex = dict[tuple[int, int, str], list[int]]
 StatsIndex = dict[tuple[int, int], dict[str, int | None]]
-SortBy = Literal["ev", "probability", "game_date"]
+SortBy = Literal["ev", "probability", "game_date", "history"]
 SortOrder = Literal["asc", "desc"]
 
 
@@ -52,6 +54,7 @@ def get_player_prop_recommendations(
     other values. This function raises ``ValueError`` if one arrives.
     """
     _require_history_window(history_window)
+    by_history = sort_by == "history"
     search = player_prop_bet_repository.search_player_prop_recommendations
     frame, total = search(
         league_ids=league_ids,
@@ -66,10 +69,11 @@ def get_player_prop_recommendations(
         apply_tax=apply_tax,
         tax_rate=BETTING_TAX_RATE,
         settlement_status=settlement_status,
-        sort_by=sort_by,
+        sort_by="ev" if by_history else sort_by,
         sort_order=sort_order,
-        page=page,
-        page_size=page_size)
+        page=1 if by_history else page,
+        page_size=page_size,
+        unbounded=by_history)
     page_frame = _first_line_per_model(frame)
     history = _history_index(
         player_prop_bet_repository.fetch_recent_player_stats(
@@ -80,6 +84,9 @@ def get_player_prop_recommendations(
     recommendations = [
         _map_row(row, apply_tax, history_window, history, stats)
         for _, row in page_frame.iterrows()]
+    if by_history:
+        recommendations = page_by_history_rate(
+            recommendations, sort_order, page, page_size, "line_id")
     return {
         "recommendations": recommendations,
         "total_count": total,

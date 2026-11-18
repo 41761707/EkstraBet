@@ -1,11 +1,19 @@
 import Link from "next/link";
+
+import { PlayerPropHistoryStrip } from "@/components/bets/PlayerPropHistoryStrip";
+import { chartScale } from "@/components/charts/VerticalStatChart";
 import {
   formatEv,
   formatMatchDateTime,
   formatOdds,
   formatPercent,
 } from "@/lib/format";
-import type { BetRecommendation, SettlementStatus } from "@/types/api";
+import type {
+  BetRecommendation,
+  SettlementStatus,
+  TeamBetHistory,
+  TeamBetHistorySeries,
+} from "@/types/api";
 
 interface BetRecommendationsTableProps {
   recommendations: BetRecommendation[];
@@ -40,8 +48,8 @@ export function BetRecommendationsTable({
             <th className="px-4 py-3 font-medium">Data</th>
             <th className="px-4 py-3 font-medium">Liga</th>
             <th className="px-4 py-3 font-medium">Mecz</th>
+            <th className="px-4 py-3 font-medium">Historia</th>
             <th className="px-4 py-3 font-medium">Zdarzenie</th>
-            <th className="px-4 py-3 font-medium">Model</th>
             <th className="px-4 py-3 font-medium">Bukmacher</th>
             <th className="px-4 py-3 text-right font-medium">Kurs</th>
             <th className="px-4 py-3 text-right font-medium">Prawd.</th>
@@ -81,8 +89,10 @@ export function BetRecommendationsTable({
                     {bet.home_team.name} – {bet.away_team.name}
                   </Link>
                 </td>
+                <td className="px-4 py-3">
+                  <TeamHistoryCell history={bet.history} />
+                </td>
                 <td className="px-4 py-3 text-muted">{bet.event_name}</td>
-                <td className="px-4 py-3 text-muted">{bet.model_name}</td>
                 <td className="px-4 py-3 text-muted">
                   {bet.bookmaker_name ?? "—"}
                 </td>
@@ -108,4 +118,83 @@ export function BetRecommendationsTable({
       </table>
     </div>
   );
+}
+
+function TeamHistoryCell({ history }: { history: TeamBetHistory | null }) {
+  if (!history || history.series.length === 0) {
+    return <span className="text-muted">—</span>;
+  }
+  if (history.series.length === 1) {
+    return (
+      <SingleTeamHistory history={history} series={history.series[0]} />
+    );
+  }
+  return <MatchTeamHistories history={history} />;
+}
+
+function SingleTeamHistory({
+  history,
+  series,
+}: {
+  history: TeamBetHistory;
+  series: TeamBetHistorySeries;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      {series.subject_name ? (
+        <span
+          className="max-w-32 truncate text-xs text-muted"
+          title={series.subject_name}
+        >
+          {series.subject_name}
+        </span>
+      ) : null}
+      <PlayerPropHistoryStrip
+        points={series.points}
+        thresholdLine={history.line}
+        hits={series.hits}
+        played={series.played}
+        side={history.side}
+      />
+    </div>
+  );
+}
+
+function MatchTeamHistories({ history }: { history: TeamBetHistory }) {
+  const scale = chartScale(
+    history.series.flatMap((series) =>
+      series.points.map((point) => point.value),
+    ),
+    history.line,
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      {history.series.map((series) => (
+        <div key={series.sample} className="flex items-center gap-2">
+          <span
+            className="w-12 shrink-0 truncate text-xs text-muted"
+            title={series.subject_name ?? undefined}
+          >
+            {seriesLabel(series)}
+          </span>
+          <PlayerPropHistoryStrip
+            compact
+            scale={scale}
+            points={series.points}
+            thresholdLine={history.line}
+            hits={series.hits}
+            played={series.played}
+            side={history.side}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function seriesLabel(series: TeamBetHistorySeries): string {
+  if (series.subject_shortcut) {
+    return series.subject_shortcut;
+  }
+  return series.subject_name ?? "";
 }

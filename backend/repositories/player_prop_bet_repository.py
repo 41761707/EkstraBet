@@ -211,11 +211,14 @@ def search_player_prop_recommendations(
         sort_by: str = "ev",
         sort_order: str = "desc",
         page: int = 1,
-        page_size: int = 50) -> tuple[pd.DataFrame, int]:
-    """Return one page of prop lines paired with predictions.
+        page_size: int = 50,
+        unbounded: bool = False) -> tuple[pd.DataFrame, int]:
+    """Return prop lines paired with predictions, plus the total.
 
     The settlement CASE is both a column and, when requested, a
     WHERE predicate, so LIMIT does not run before that filter.
+    ``unbounded`` skips LIMIT so the caller can sort by history
+    and slice the page itself.
     """
     narrowed_event_ids = _narrow_event_ids(event_ids)
     # IN () jest niepoprawne, a same identyfikatory spoza katalogu
@@ -245,18 +248,28 @@ def search_player_prop_recommendations(
         {_BASE_FROM}
         {where_clause}
     """
-    query = f"""
-        {_SELECT_COLUMNS}
-        {_BASE_FROM}
-        {where_clause}
-        ORDER BY {sort_column} {order}, ppl.id ASC, pp.model_id ASC
-        LIMIT %s OFFSET %s
-    """
+    if unbounded:
+        query = f"""
+            {_SELECT_COLUMNS}
+            {_BASE_FROM}
+            {where_clause}
+            ORDER BY ppl.id ASC, pp.model_id ASC
+        """
+        query_params = list(params)
+    else:
+        query = f"""
+            {_SELECT_COLUMNS}
+            {_BASE_FROM}
+            {where_clause}
+            ORDER BY {sort_column} {order}, ppl.id ASC, pp.model_id ASC
+            LIMIT %s OFFSET %s
+        """
+        query_params = params + [page_size, offset]
     with get_db_connection() as conn:
         count_frame = pd.read_sql(
             count_query, conn, params=tuple(params))
         frame = pd.read_sql(
-            query, conn, params=tuple(params + [page_size, offset]))
+            query, conn, params=tuple(query_params))
     total = int(count_frame.iloc[0]["total"])
     return frame, total
 

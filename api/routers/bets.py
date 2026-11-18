@@ -15,7 +15,7 @@ from api.schemas.bet import (
 from api.schemas.player_prop_bet import PlayerPropRecommendationsResponse
 from backend.config import get_settings
 from backend.services import bet_service, player_prop_bet_service
-from backend.sports.hockey.player_prop_history import (
+from backend.sports.history_window import (
     DEFAULT_HISTORY_WINDOW,
     HISTORY_WINDOWS)
 
@@ -92,12 +92,15 @@ async def get_bet_recommendations(
     settlement_status: SettlementFilter | None = Query(
         None,
         description="Filter by bet settlement status"),
-    sort_by: Literal["ev", "probability", "game_date"] = Query(
+    sort_by: Literal["ev", "probability", "game_date", "history"] = Query(
         "ev",
         description="Sort field"),
     sort_order: Literal["asc", "desc"] = Query(
         "desc",
         description="Sort direction"),
+    history_window: int = Query(
+        DEFAULT_HISTORY_WINDOW,
+        description="Recent matches in the history strip, 5 or 10"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int | None = Query(
         None,
@@ -108,6 +111,10 @@ async def get_bet_recommendations(
         raise HTTPException(
             status_code=422,
             detail="date_from cannot be later than date_to")
+    if history_window not in HISTORY_WINDOWS:
+        raise HTTPException(
+            status_code=422,
+            detail="history_window must be 5 or 10")
 
     settings = get_settings()
     resolved_page_size = page_size or settings.default_page_size
@@ -135,7 +142,8 @@ async def get_bet_recommendations(
             sort_by=sort_by,
             sort_order=sort_order,
             page=page,
-            page_size=resolved_page_size)
+            page_size=resolved_page_size,
+            history_window=history_window)
         return BetRecommendationsResponse(**payload)
     except HTTPException:
         raise
@@ -184,7 +192,7 @@ async def get_player_prop_recommendations(
     settlement_status: SettlementFilter | None = Query(
         None,
         description="Filter by bet settlement status"),
-    sort_by: Literal["ev", "probability", "game_date"] = Query(
+    sort_by: Literal["ev", "probability", "game_date", "history"] = Query(
         "ev",
         description="Sort field"),
     sort_order: Literal["asc", "desc"] = Query(

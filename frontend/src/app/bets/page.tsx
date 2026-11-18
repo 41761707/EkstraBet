@@ -160,6 +160,7 @@ async function TeamBetsLayout({
       sortOrder: filters.sortOrder,
       page: filters.page,
       pageSize: PAGE_SIZE,
+      historyWindow: filters.historyWindow,
       ...dateParams,
     });
 

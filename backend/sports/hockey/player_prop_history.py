@@ -9,8 +9,6 @@ PropStatColumn = Literal["sog", "points", "assists", "goals"]
 PropSide = Literal["over", "under"]
 SettlementStatus = Literal["pending", "won", "lost"]
 
-HISTORY_WINDOWS = (5, 10)
-DEFAULT_HISTORY_WINDOW = 10
 LINE_MATCH_EPSILON = 0.001
 
 _LINE_TOKEN = " X "

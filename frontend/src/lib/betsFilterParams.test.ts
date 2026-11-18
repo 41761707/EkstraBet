@@ -108,12 +108,20 @@ describe("betsFilterPath", () => {
     expect(defaultWindow).not.toContain("history_window");
   });
 
-  it("omits history_window when the subject is still teams", () => {
+  it("writes history_window for a short team window", () => {
     const path = betsFilterPath(
       baseFilters({ historyWindow: 5, subject: "teams" }),
     );
     expect(path).not.toContain("subject");
-    expect(path).not.toContain("history_window");
+    expect(path).toContain("history_window=5");
+  });
+
+  it("writes sort_by when the list is ordered by history", () => {
+    const path = betsFilterPath(baseFilters({ sortBy: "history" }));
+    expect(path).toContain("sort_by=history");
+    expect(
+      parseBetsFilterValues({ sort_by: "history" }).sortBy,
+    ).toBe("history");
   });
 });
 

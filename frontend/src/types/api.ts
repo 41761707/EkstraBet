@@ -975,7 +975,7 @@ export interface MatchDetails {
 }
 
 export type SettlementStatus = "pending" | "won" | "lost";
-export type BetSortBy = "ev" | "probability" | "game_date";
+export type BetSortBy = "ev" | "probability" | "game_date" | "history";
 export type BetSortOrder = "asc" | "desc";
 
 export interface BetRecommendation {
@@ -1001,6 +1001,27 @@ export interface BetRecommendation {
   model_name: string;
   settlement_status: SettlementStatus;
   custom_bet: boolean;
+  history: TeamBetHistory | null;
+}
+
+export interface TeamBetHistoryPoint {
+  value: number;
+}
+
+export interface TeamBetHistorySeries {
+  sample: "home" | "away";
+  played: number;
+  hits: number;
+  points: TeamBetHistoryPoint[];
+  subject_name: string | null;
+  subject_shortcut: string | null;
+}
+
+export interface TeamBetHistory {
+  window: number;
+  line: number;
+  side: "over" | "under";
+  series: TeamBetHistorySeries[];
 }
 
 export interface BetRecommendationsResponse {

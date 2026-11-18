@@ -15,10 +15,18 @@ interface PlayerPropHistoryStripProps {
   thresholdLine: number;
   hits: number;
   played: number;
+  side?: "over" | "under";
+  compact?: boolean;
+  scale?: ChartScale;
 }
 
-function barColor(value: number, thresholdLine: number): string {
-  if (value > thresholdLine) {
+function barColor(
+  value: number,
+  thresholdLine: number,
+  side: "over" | "under",
+): string {
+  const hit = side === "under" ? value < thresholdLine : value > thresholdLine;
+  if (hit) {
     return CHART_COLOR_POSITIVE;
   }
   return CHART_COLOR_NEGATIVE;
@@ -32,23 +40,34 @@ function thresholdBottomPercent(thresholdLine: number, scale: ChartScale): numbe
   return ((thresholdLine - scale.min) / span) * 100;
 }
 
-/** Narrow recent-match bars for one player prop line. */
+/** Narrow recent-match bars. Compact rows share one scale across teams. */
 export function PlayerPropHistoryStrip({
   points,
   thresholdLine,
   hits,
   played,
+  side = "over",
+  compact = false,
+  scale: scaleOverride,
 }: PlayerPropHistoryStripProps) {
   const countLabel = formatPropHistoryCount(hits, played);
   if (played === 0) {
     return <span className="text-muted">{countLabel}</span>;
   }
 
-  const scale = chartScale(
-    points.map((point) => point.value),
-    thresholdLine,
-  );
+  const scale =
+    scaleOverride ??
+    chartScale(
+      points.map((point) => point.value),
+      thresholdLine,
+    );
   const thresholdBottom = thresholdBottomPercent(thresholdLine, scale);
+  const trackClassName = compact
+    ? "relative h-4 w-1.5 shrink-0 rounded-md bg-chart-track"
+    : "relative h-8 w-1.5 shrink-0 rounded-md bg-chart-track";
+  const countClassName = compact
+    ? "whitespace-nowrap text-xs text-text"
+    : "whitespace-nowrap text-text";
 
   return (
     <div className="flex items-center gap-2">
@@ -58,14 +77,14 @@ export function PlayerPropHistoryStrip({
           return (
             <div
               key={`${index}-${point.value}`}
-              className="relative h-8 w-1.5 shrink-0 rounded-md bg-chart-track"
+              className={trackClassName}
             >
               <div
                 className="absolute inset-x-0 rounded-md"
                 style={{
                   height: `${box.height}%`,
                   bottom: `${box.bottom}%`,
-                  backgroundColor: barColor(point.value, thresholdLine),
+                  backgroundColor: barColor(point.value, thresholdLine, side),
                 }}
               />
               <div
@@ -76,7 +95,7 @@ export function PlayerPropHistoryStrip({
           );
         })}
       </div>
-      <span className="whitespace-nowrap text-text">{countLabel}</span>
+      <span className={countClassName}>{countLabel}</span>
     </div>
   );
 }

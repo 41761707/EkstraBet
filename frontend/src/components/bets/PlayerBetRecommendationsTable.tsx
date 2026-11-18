@@ -45,7 +45,6 @@ export function PlayerBetRecommendationsTable({
             <th className="px-4 py-3 font-medium">Zawodnik</th>
             <th className="px-4 py-3 font-medium">Historia</th>
             <th className="px-4 py-3 font-medium">Zdarzenie</th>
-            <th className="px-4 py-3 font-medium">Model</th>
             <th className="px-4 py-3 font-medium">Bukmacher</th>
             <th className="px-4 py-3 text-right font-medium">Kurs</th>
             <th className="px-4 py-3 text-right font-medium">Prawd.</th>
@@ -104,7 +103,6 @@ function PlayerBetRow({
         />
       </td>
       <td className="px-4 py-3 text-muted">{bet.event_name}</td>
-      <td className="px-4 py-3 text-muted">{bet.model_name}</td>
       <td className="px-4 py-3 text-muted">{bet.bookmaker_name ?? "—"}</td>
       <td className="px-4 py-3 text-right text-text">{formatOdds(bet.odds)}</td>
       <td className="px-4 py-3 text-right text-text">

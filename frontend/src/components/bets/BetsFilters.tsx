@@ -256,27 +256,25 @@ function BetsDateSortFields({ state, onChange }: BetsFilterFieldsProps) {
           ariaLabel="Data do"
         />
       </div>
-      {state.subject === "players" ? (
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-text">Ostatnie mecze</span>
-          <select
-            value={state.historyWindow}
-            onChange={(event) =>
-              onChange((current) => ({
-                ...current,
-                historyWindow: event.target.value === "5" ? 5 : 10,
-              }))
-            }
-            className={FILTER_INPUT_CLASS_NAME}
-          >
-            {HISTORY_WINDOW_OPTIONS.map((windowSize) => (
-              <option key={windowSize} value={windowSize}>
-                {windowSize}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
+      <label className="space-y-2 text-sm">
+        <span className="font-medium text-text">Ostatnie mecze</span>
+        <select
+          value={state.historyWindow}
+          onChange={(event) =>
+            onChange((current) => ({
+              ...current,
+              historyWindow: event.target.value === "5" ? 5 : 10,
+            }))
+          }
+          className={FILTER_INPUT_CLASS_NAME}
+        >
+          {HISTORY_WINDOW_OPTIONS.map((windowSize) => (
+            <option key={windowSize} value={windowSize}>
+              {windowSize}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="space-y-2 text-sm">
         <span className="font-medium text-text">Min. kurs</span>
         <input
@@ -309,6 +307,7 @@ function BetsDateSortFields({ state, onChange }: BetsFilterFieldsProps) {
           <option value="ev">EV</option>
           <option value="probability">Prawdopodobieństwo</option>
           <option value="game_date">Data meczu</option>
+          <option value="history">Historia</option>
         </select>
       </label>
       <label className="space-y-2 text-sm">

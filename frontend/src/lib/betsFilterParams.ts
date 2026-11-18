@@ -133,6 +133,7 @@ export function buildBetsFilterQuery(nextState: BetsFilterValues): string {
     params.set("sport_id", String(nextState.sportId));
   }
   appendPlayerSubjectParams(params, nextState);
+  appendHistoryWindow(params, nextState);
   if (nextState.leagueIds.length > 0) {
     params.set("league_ids", nextState.leagueIds.join(","));
   }
@@ -197,6 +198,12 @@ function appendPlayerSubjectParams(
     return;
   }
   params.set("subject", "players");
+}
+
+function appendHistoryWindow(
+  params: URLSearchParams,
+  nextState: BetsFilterValues,
+): void {
   if (nextState.historyWindow === SHORT_HISTORY_WINDOW) {
     params.set("history_window", String(SHORT_HISTORY_WINDOW));
   }

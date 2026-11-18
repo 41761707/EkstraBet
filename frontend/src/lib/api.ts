@@ -444,6 +444,7 @@ export async function getBetRecommendations(options?: {
   sortOrder?: BetSortOrder;
   page?: number;
   pageSize?: number;
+  historyWindow?: number;
 }): Promise<BetRecommendationsResponse> {
   return fetchApi<BetRecommendationsResponse>("/bets/recommendations", {
     league_ids:
@@ -475,6 +476,7 @@ export async function getBetRecommendations(options?: {
     sort_order: options?.sortOrder,
     page: options?.page,
     page_size: options?.pageSize,
+    history_window: options?.historyWindow,
   });
 }
 
