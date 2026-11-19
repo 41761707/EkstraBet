@@ -181,9 +181,12 @@ function PlayerProfileLink({
   return (
     <Link
       href={href}
-      className="inline-block text-sm font-semibold text-accent-text transition hover:text-accent-text-hover"
+      className={
+        "inline-flex w-fit items-center rounded-lg bg-accent px-4 py-2 " +
+        "text-sm font-medium text-on-accent transition hover:bg-accent-hover"
+      }
     >
-      Profil zawodnika
+      Pełen profil zawodnika
     </Link>
   );
 }

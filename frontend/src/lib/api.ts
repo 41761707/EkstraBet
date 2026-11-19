@@ -716,8 +716,8 @@ export async function getPlayerProfile(
   return fetchApi<PlayerProfileResponse>(`/players/${playerId}/profile`, {
     season_id: params.seasonId,
     opponent_team_id: params.opponentTeamId,
-    own_team_id: params.ownTeamId,
     teammate_id: params.teammateId,
+    match_limit: params.matchLimit,
   });
 }
 

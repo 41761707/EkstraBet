@@ -1,4 +1,5 @@
 import { HockeyPlayerEventSplitTiles } from "@/components/players/HockeyPlayerEventSplitTiles";
+import { HockeyPlayerProfileCharts } from "@/components/players/HockeyPlayerProfileCharts";
 import { HockeyPlayerSliceTable } from "@/components/players/HockeyPlayerSliceTable";
 import { PlayerSummaryTiles } from "@/components/players/PlayerSummaryTiles";
 import {
@@ -8,10 +9,12 @@ import {
 } from "@/types/api";
 
 interface HockeyPlayerProfileBodyProps {
+  playerName: string;
   body: HockeyPlayerProfileData;
 }
 
 export function HockeyPlayerProfileBody({
+  playerName,
   body,
 }: HockeyPlayerProfileBodyProps) {
   if (body.matches.length === 0) {
@@ -28,6 +31,11 @@ export function HockeyPlayerProfileBody({
           sportId={HOCKEY_SPORT_ID}
           playerRole={body.player_role}
           summary={body.summary}
+        />
+        <HockeyPlayerProfileCharts
+          playerName={playerName}
+          playerRole={body.player_role}
+          matches={body.matches}
         />
       </section>
       {eventSplit === null ? null : (

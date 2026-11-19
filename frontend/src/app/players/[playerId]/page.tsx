@@ -78,7 +78,7 @@ function PlayerProfileHeader({ playerName }: { playerName: string | null }) {
         Wróć do zawodników
       </Link>
       <h1 className="text-3xl font-bold text-text">
-        {playerName ?? "Profil zawodnika"}
+        {playerName ?? "Pełen profil zawodnika"}
       </h1>
     </header>
   );
@@ -124,7 +124,12 @@ function PlayerProfileSportBody({
   profile: PlayerProfileResponse;
 }) {
   if (profile.body.sport_id === HOCKEY_SPORT_ID) {
-    return <HockeyPlayerProfileBody body={profile.body} />;
+    return (
+      <HockeyPlayerProfileBody
+        playerName={profile.player_name}
+        body={profile.body}
+      />
+    );
   }
   return (
     <StatusMessage

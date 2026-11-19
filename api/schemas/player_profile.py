@@ -85,6 +85,7 @@ class HockeyPlayerSliceMatch(BaseModel):
     saves_acc: float | None = Field(None, description="Save percentage")
     power_play_goals: int = Field(..., description="Power-play goals")
     empty_net_goals: int = Field(..., description="Empty-net goals")
+    rating: float | None = Field(None, description="Stored game rating")
 
 
 class HockeyPlayerProfileBody(BaseModel):

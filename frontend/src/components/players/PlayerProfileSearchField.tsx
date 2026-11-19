@@ -7,6 +7,10 @@ import { ApiError, searchProfilePlayers } from "@/lib/apiClient";
 import { canSelectTeammate } from "@/lib/playerProfileParams";
 import type { PlayerSearchHit } from "@/types/api";
 
+const FIELD_CLASS_NAME =
+  `h-10 w-full appearance-none rounded-lg text-sm ${INPUT_CLASS_NAME} ` +
+  "[&::-webkit-search-cancel-button]:appearance-none";
+
 const SEARCH_MIN_LENGTH = 2;
 const SEARCH_DELAY_MS = 250;
 const SEARCH_ERROR = "Nie udało się wyszukać zawodnika.";
@@ -77,54 +81,91 @@ export function PlayerProfileSearchField({
   const message = samePlayerMessage ?? search.error;
 
   return (
-    <div className="space-y-2 text-sm text-muted">
-      <div className="flex items-center justify-between gap-2">
-        <label htmlFor={`${listId}-input`} className="font-medium text-text">
-          Partner
-        </label>
-        {teammateId != null ? (
-          <button
-            type="button"
-            className="text-accent-text transition hover:text-accent-text-hover"
-            onClick={clearSelection}
-          >
-            Wyczyść
-          </button>
-        ) : null}
-      </div>
-      <div className="relative">
-        <input
-          id={`${listId}-input`}
-          type="search"
-          className={
-            `w-full rounded-lg text-sm disabled:cursor-not-allowed ` +
-            `disabled:opacity-60 ${INPUT_CLASS_NAME}`
-          }
-          value={term}
-          placeholder={
-            searchEnabled
-              ? "Wpisz co najmniej 2 znaki"
-              : "Wyszukiwarka niedostępna"
-          }
-          disabled={!searchEnabled}
-          autoComplete="off"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={showList}
-          aria-controls={listId}
-          onChange={(event) => updateTerm(event.target.value)}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => setIsOpen(false)}
+    <div className="text-sm text-muted">
+      <label htmlFor={`${listId}-input`} className="block space-y-2">
+        <span className="block font-medium text-text">Partner</span>
+        <PartnerInput
+          listId={listId}
+          term={term}
+          searchEnabled={searchEnabled}
+          showList={showList}
+          teammateSelected={teammateId != null}
+          hits={search.hits}
+          onTerm={updateTerm}
+          onOpen={() => setIsOpen(true)}
+          onClose={() => setIsOpen(false)}
+          onClear={clearSelection}
+          onSelect={selectHit}
         />
-        {showList ? (
-          <ProfileSearchHits
-            listId={listId}
-            hits={search.hits}
-            onSelect={selectHit}
-          />
-        ) : null}
-      </div>
-      {message ? <p className="text-danger-text">{message}</p> : null}
+      </label>
+      {message ? <p className="mt-2 text-danger-text">{message}</p> : null}
+    </div>
+  );
+}
+
+function PartnerInput({
+  listId,
+  term,
+  searchEnabled,
+  showList,
+  teammateSelected,
+  hits,
+  onTerm,
+  onOpen,
+  onClose,
+  onClear,
+  onSelect,
+}: {
+  listId: string;
+  term: string;
+  searchEnabled: boolean;
+  showList: boolean;
+  teammateSelected: boolean;
+  hits: PlayerSearchHit[];
+  onTerm: (value: string) => void;
+  onOpen: () => void;
+  onClose: () => void;
+  onClear: () => void;
+  onSelect: (hit: PlayerSearchHit) => void;
+}) {
+  return (
+    <div className="relative">
+      <input
+        id={`${listId}-input`}
+        type="search"
+        className={
+          `${FIELD_CLASS_NAME} disabled:cursor-not-allowed disabled:opacity-60 ` +
+          (teammateSelected ? "pr-20" : "")
+        }
+        value={term}
+        placeholder={
+          searchEnabled ? "Nazwisko partnera z drużyny" : "Wyszukiwarka niedostępna"
+        }
+        disabled={!searchEnabled}
+        autoComplete="off"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={showList}
+        aria-controls={listId}
+        onChange={(event) => onTerm(event.target.value)}
+        onFocus={onOpen}
+        onBlur={onClose}
+      />
+      {teammateSelected ? (
+        <button
+          type="button"
+          className={
+            "absolute top-1/2 right-2 -translate-y-1/2 text-sm " +
+            "text-accent-text transition hover:text-accent-text-hover"
+          }
+          onClick={onClear}
+        >
+          Wyczyść
+        </button>
+      ) : null}
+      {showList ? (
+        <ProfileSearchHits listId={listId} hits={hits} onSelect={onSelect} />
+      ) : null}
     </div>
   );
 }

@@ -193,6 +193,30 @@ def fetch_hockey_event_facts(
         return pd.read_sql(query, conn, params=params)
 
 
+def fetch_hockey_ratings(
+        player_id: int,
+        match_ids: list[int]) -> pd.DataFrame:
+    """Return stored game ratings for one player and the given matches.
+
+    An empty match list returns an empty frame and does not query MySQL.
+    Columns are ``match_id`` and ``rating``.
+    """
+    if not match_ids:
+        return pd.DataFrame(columns=["match_id", "rating"])
+    placeholders = ", ".join(["%s"] * len(match_ids))
+    query = f"""
+        SELECT
+            game_rating.match_id AS match_id,
+            game_rating.total AS rating
+        FROM hockey_player_game_ratings game_rating
+        WHERE game_rating.player_id = %s
+            AND game_rating.match_id IN ({placeholders})
+    """
+    params: tuple[object, ...] = (player_id, *match_ids)
+    with get_db_connection() as conn:
+        return pd.read_sql(query, conn, params=params)
+
+
 def _require_stats_table(stats_table: str) -> str:
     """Reject a stats table that is not on the profile whitelist."""
     if stats_table not in ALLOWED_PROFILE_STATS_TABLES:

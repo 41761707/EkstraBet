@@ -12,6 +12,7 @@ from backend.sports.hockey.player_profile import HockeyPlayerProfileSource
 
 
 SLICE_MATCH_LIMIT = 1000
+PROFILE_WINDOW_LIMITS = frozenset({5, 10, 15})
 PLAYER_SEARCH_MIN_LENGTH = 2
 PLAYER_SEARCH_LIMIT = 20
 

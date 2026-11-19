@@ -365,7 +365,10 @@ async def get_player_profile_endpoint(
         teammate_id: int | None = Query(
             None,
             ge=1,
-            description="Teammate player ID")
+            description="Teammate player ID"),
+        match_limit: int | None = Query(
+            None,
+            description="Last 5, 10 or 15 matches")
 ) -> PlayerProfileResponse:
     """Return the shared player profile for one slice."""
     try:
@@ -374,7 +377,8 @@ async def get_player_profile_endpoint(
             season_id,
             opponent_team_id,
             own_team_id,
-            teammate_id)
+            teammate_id,
+            match_limit)
     except _PROFILE_ERRORS as exc:
         raise _profile_http_error(exc) from exc
     return PlayerProfileResponse(**payload)

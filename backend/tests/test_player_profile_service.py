@@ -204,6 +204,26 @@ class TestFetchHockeyEventFacts(unittest.TestCase):
         self.assertNotIn(188, params)
         self.assertEqual(params, (15, 10, 11, *INCLUDED_EVENT_IDS))
 
+    @patch(
+        "backend.repositories.player_profile_repository.fetch_hockey_ratings")
+    @patch(
+        "backend.repositories.player_profile_repository.fetch_profile_slice")
+    @patch(
+        "backend.repositories.player_profile_repository.fetch_player",
+        return_value={"position": "C"})
+    def test_slice_attaches_a_stored_rating(
+            self,
+            _fetch_player: MagicMock,
+            fetch_slice: MagicMock,
+            fetch_ratings: MagicMock) -> None:
+        fetch_slice.return_value = pd.DataFrame([{"match_id": 10}])
+        fetch_ratings.return_value = pd.DataFrame(
+            [{"match_id": 10, "rating": 1.25}])
+        frame = HockeyPlayerProfileSource().fetch_slice(
+            15, None, None, None, None, 10)
+        self.assertEqual(float(frame.iloc[0]["rating"]), 1.25)
+        fetch_ratings.assert_called_once_with(15, [10])
+
     def test_source_returns_frame_for_empty_matches(self) -> None:
         with patch(
                 "backend.repositories.player_profile_repository"
@@ -559,6 +579,26 @@ class TestPlayerProfileService(unittest.TestCase):
             mocks["slice"].call_args[0][-1],
             SLICE_MATCH_LIMIT)
 
+    def test_short_window_limits_the_slice(self) -> None:
+        frame = pd.DataFrame([
+            _skater_row(match_id)
+            for match_id in range(1, 6)])
+        with _repo(_person(), frame=frame) as mocks:
+            result = get_player_profile(
+                15, None, None, None, None, 5)
+        self.assertFalse(result["truncated"])
+        self.assertEqual(result["match_count"], 5)
+        self.assertEqual(mocks["slice"].call_args[0][-1], 5)
+
+    def test_unknown_window_is_rejected(self) -> None:
+        with _repo(_person()) as mocks:
+            with self.assertRaises(PlayerProfileValidationError) as caught:
+                get_player_profile(15, None, None, None, None, 4)
+        self.assertEqual(
+            caught.exception.message,
+            "match_limit must be 5, 10 or 15")
+        mocks["slice"].assert_not_called()
+
     def test_short_search_is_rejected(self) -> None:
         for term in (" a ", None, "", " "):
             with self.subTest(term=term):
@@ -699,6 +739,9 @@ def _repo(
             f"{_REPO}.fetch_profile_slice"))
         events_mock = stack.enter_context(patch(
             f"{_REPO}.fetch_hockey_event_facts"))
+        stack.enter_context(patch(
+            f"{_REPO}.fetch_hockey_ratings",
+            return_value=pd.DataFrame()))
         stack.enter_context(patch(
             f"{_REPO}.season_exists",
             return_value=season_ok))

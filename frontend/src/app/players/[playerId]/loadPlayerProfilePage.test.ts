@@ -23,8 +23,8 @@ const getPlayerTeamsMock = vi.mocked(getPlayerTeams);
 const QUERY: PlayerProfileQuery = {
   seasonId: 7,
   opponentTeamId: null,
-  ownTeamId: null,
   teammateId: null,
+  matchLimit: null,
 };
 
 function sampleProfile(): PlayerProfileResponse {

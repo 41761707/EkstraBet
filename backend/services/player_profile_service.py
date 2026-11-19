@@ -11,6 +11,7 @@ from backend.sports.player_profile import (
     PLAYER_SEARCH_LIMIT,
     PLAYER_SEARCH_MIN_LENGTH,
     PROFILE_SOURCES,
+    PROFILE_WINDOW_LIMITS,
     SLICE_MATCH_LIMIT)
 
 
@@ -53,7 +54,8 @@ def get_player_profile(
         season_id: int | None,
         opponent_team_id: int | None,
         own_team_id: int | None,
-        teammate_id: int | None) -> dict[str, Any]:
+        teammate_id: int | None,
+        match_limit: int | None = None) -> dict[str, Any]:
     """Return the profile envelope for one player slice."""
     player = repo.fetch_player(player_id)
     if player is None:
@@ -68,6 +70,7 @@ def get_player_profile(
         opponent_team_id,
         own_team_id,
         teammate_id)
+    limit = _slice_limit(match_limit)
     source = PROFILE_SOURCES[sport_id]
     frame = source.fetch_slice(
         player_id,
@@ -75,8 +78,11 @@ def get_player_profile(
         opponent_team_id,
         own_team_id,
         teammate_id,
-        SLICE_MATCH_LIMIT)
-    truncated = len(frame.index) == SLICE_MATCH_LIMIT
+        limit)
+    # Krótkie okno jest wyborem użytkownika. Ostrzeżenie zostaje przy limicie.
+    truncated = (
+        match_limit is None
+        and len(frame.index) == SLICE_MATCH_LIMIT)
     event_frame = source.fetch_event_facts(
         player_id,
         _match_ids(frame))
@@ -126,6 +132,16 @@ def _validate_filters(
     _require_team(opponent_team_id, sport_id)
     _require_team(own_team_id, sport_id)
     _require_teammate(teammate_id, sport_id)
+
+
+def _slice_limit(match_limit: int | None) -> int:
+    """Return the safety cap, or one of the short match windows."""
+    if match_limit is None:
+        return SLICE_MATCH_LIMIT
+    if match_limit not in PROFILE_WINDOW_LIMITS:
+        raise PlayerProfileValidationError(
+            "match_limit must be 5, 10 or 15")
+    return match_limit
 
 
 def _require_team(team_id: int | None, sport_id: int) -> None:

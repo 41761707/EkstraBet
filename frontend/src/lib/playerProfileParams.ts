@@ -1,11 +1,13 @@
 import { PLAYER_PROFILE_SPORT_IDS } from "@/lib/playerProfileSports";
 import { parsePositiveInt } from "@/lib/searchParams";
 
+export const PROFILE_MATCH_WINDOWS = [5, 10, 15] as const;
+
 export interface PlayerProfileQuery {
   seasonId: number | null;
   opponentTeamId: number | null;
-  ownTeamId: number | null;
   teammateId: number | null;
+  matchLimit: number | null;
 }
 
 export interface PlayerProfileParams extends PlayerProfileQuery {
@@ -20,8 +22,8 @@ export function parsePlayerProfileParams(
   return {
     seasonId: parsePositiveInt(searchParams.season_id),
     opponentTeamId: parsePositiveInt(searchParams.opponent_team_id),
-    ownTeamId: parsePositiveInt(searchParams.own_team_id),
     teammateId: parsePositiveInt(searchParams.teammate_id),
+    matchLimit: parseProfileMatchLimit(searchParams.match_limit),
     teammateLabel: label || null,
   };
 }
@@ -31,8 +33,8 @@ export function buildPlayerProfileQuery(params: PlayerProfileParams): string {
   const search = new URLSearchParams();
   appendId(search, "season_id", params.seasonId);
   appendId(search, "opponent_team_id", params.opponentTeamId);
-  appendId(search, "own_team_id", params.ownTeamId);
   appendId(search, "teammate_id", params.teammateId);
+  appendId(search, "match_limit", params.matchLimit);
   const label = params.teammateLabel?.trim();
   if (label) {
     search.set("teammate_label", label);
@@ -48,8 +50,8 @@ export function buildPlayerProfileHref(
   const query = buildPlayerProfileQuery({
     seasonId,
     opponentTeamId: null,
-    ownTeamId: null,
     teammateId: null,
+    matchLimit: null,
     teammateLabel: null,
   });
   if (!query) {
@@ -76,6 +78,16 @@ export function canSelectTeammate(
   teammateId: number,
 ): boolean {
   return teammateId !== playerId;
+}
+
+function parseProfileMatchLimit(value: string | undefined): number | null {
+  const parsed = parsePositiveInt(value);
+  for (const windowLimit of PROFILE_MATCH_WINDOWS) {
+    if (parsed === windowLimit) {
+      return windowLimit;
+    }
+  }
+  return null;
 }
 
 function appendId(

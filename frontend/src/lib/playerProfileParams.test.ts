@@ -13,8 +13,8 @@ import { FOOTBALL_SPORT_ID, HOCKEY_SPORT_ID } from "@/types/api";
 const EMPTY: PlayerProfileParams = {
   seasonId: null,
   opponentTeamId: null,
-  ownTeamId: null,
   teammateId: null,
+  matchLimit: null,
   teammateLabel: null,
 };
 
@@ -24,15 +24,15 @@ describe("parsePlayerProfileParams", () => {
       parsePlayerProfileParams({
         season_id: "7",
         opponent_team_id: "4",
-        own_team_id: "9",
         teammate_id: "3",
         teammate_label: "  Jan Kowalski  ",
+        match_limit: "10",
       }),
     ).toEqual({
       seasonId: 7,
       opponentTeamId: 4,
-      ownTeamId: 9,
       teammateId: 3,
+      matchLimit: 10,
       teammateLabel: "Jan Kowalski",
     });
   });
@@ -42,9 +42,9 @@ describe("parsePlayerProfileParams", () => {
       parsePlayerProfileParams({
         season_id: "abc",
         opponent_team_id: "1.5",
-        own_team_id: "0",
         teammate_id: "-3",
         teammate_label: "   ",
+        match_limit: "20",
       }),
     ).toEqual(EMPTY);
   });
@@ -58,9 +58,12 @@ describe("buildPlayerProfileQuery", () => {
         ...EMPTY,
         seasonId: 7,
         teammateId: 3,
+        matchLimit: 5,
         teammateLabel: "Jan Kowalski",
       }),
-    ).toBe("season_id=7&teammate_id=3&teammate_label=Jan+Kowalski");
+    ).toBe(
+      "season_id=7&teammate_id=3&match_limit=5&teammate_label=Jan+Kowalski",
+    );
   });
 });
 

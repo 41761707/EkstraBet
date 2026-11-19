@@ -1475,6 +1475,7 @@ export interface HockeyPlayerSliceMatch {
   saves_acc: number | null;
   power_play_goals: number;
   empty_net_goals: number;
+  rating: number | null;
 }
 
 export interface HockeyPlayerProfileBody {

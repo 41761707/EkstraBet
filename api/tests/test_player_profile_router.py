@@ -89,7 +89,15 @@ class TestPlayerProfileRouter(unittest.TestCase):
         self.assertEqual(payload["sport_id"], 2)
         self.assertEqual(payload["match_count"], 0)
         self.assertEqual(payload["filters"], _empty_profile()["filters"])
-        mock_profile.assert_called_once_with(15, 7, 3, 4, 8)
+        mock_profile.assert_called_once_with(15, 7, 3, 4, 8, None)
+
+    @patch(_PROFILE, return_value=_empty_profile())
+    def test_match_window_is_forwarded(
+            self,
+            mock_profile: unittest.mock.MagicMock) -> None:
+        response = self.client.get("/players/15/profile?match_limit=10")
+        self.assertEqual(response.status_code, 200)
+        mock_profile.assert_called_once_with(15, None, None, None, None, 10)
 
     @patch(_PROFILE, side_effect=PlayerProfileNotFoundError())
     def test_missing_player_returns_404(

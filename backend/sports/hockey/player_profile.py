@@ -60,7 +60,7 @@ class HockeyPlayerProfileSource:
             HOCKEY_GOALIE_STAT_SQL
             if position == "G"
             else HOCKEY_SKATER_STAT_SQL)
-        return repo.fetch_profile_slice(
+        frame = repo.fetch_profile_slice(
             self.stats_table,
             stat_sql,
             player_id,
@@ -70,6 +70,7 @@ class HockeyPlayerProfileSource:
             own_team_id,
             teammate_id,
             limit)
+        return _attach_ratings(player_id, frame)
 
     def fetch_event_facts(
             self,
@@ -254,13 +255,42 @@ def _slice_match(
         "toi": toi,
         "toi_minutes": round(_toi_to_minutes(toi), 2),
         "power_play_goals": power_play_goals,
-        "empty_net_goals": empty_net_goals}
+        "empty_net_goals": empty_net_goals,
+        "rating": _optional_rating(row)}
     for column in _SKATER_INT_COLUMNS:
         match[column] = _stat_int(row, column)
     for column in _GOALIE_INT_COLUMNS:
         match[column] = _stat_int(row, column)
     match["saves_acc"] = _stat_float(row, "saves_acc")
     return match
+
+
+def _attach_ratings(player_id: int, frame: pd.DataFrame) -> pd.DataFrame:
+    """Add stored ratings. A match without a row stays empty, not zero."""
+    if frame.empty or "match_id" not in frame.columns:
+        return frame
+    # Ten sam import lokalny co w źródle: górny import zamyka cykl.
+    from backend.repositories import player_profile_repository as repo
+
+    match_ids = [int(match_id) for match_id in frame["match_id"].tolist()]
+    ratings = repo.fetch_hockey_ratings(player_id, match_ids)
+    if ratings.empty:
+        if "rating" in frame.columns:
+            return frame
+        attached = frame.copy()
+        attached["rating"] = None
+        return attached
+    return frame.merge(ratings, on="match_id", how="left")
+
+
+def _optional_rating(row: pd.Series) -> float | None:
+    """Return a stored total, or None when the match was not filled."""
+    if "rating" not in row.index:
+        return None
+    value = row["rating"]
+    if _is_na(value):
+        return None
+    return float(value)
 
 
 def _stat_int(row: pd.Series, column: str) -> int | None:

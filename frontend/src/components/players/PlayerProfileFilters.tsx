@@ -8,6 +8,7 @@ import { PlayerProfileSearchField } from "@/components/players/PlayerProfileSear
 import { navigateSearch } from "@/lib/clientNavigation";
 import {
   buildPlayerProfileQuery,
+  PROFILE_MATCH_WINDOWS,
   type PlayerProfileParams,
 } from "@/lib/playerProfileParams";
 import { parsePositiveInt } from "@/lib/searchParams";
@@ -26,8 +27,12 @@ interface FilterOption {
   label: string;
 }
 
-const FIELD_CLASS_NAME = `w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
-const SAME_CLUB_MESSAGE = "Rywal i klub muszą być różnymi drużynami.";
+const FIELD_CLASS_NAME = `h-10 w-full rounded-lg text-sm ${INPUT_CLASS_NAME}`;
+const WINDOW_LABELS: Record<(typeof PROFILE_MATCH_WINDOWS)[number], string> = {
+  5: "Ostatnie 5 meczów",
+  10: "Ostatnie 10 meczów",
+  15: "Ostatnie 15 meczów",
+};
 
 export function PlayerProfileFilters({
   playerId,
@@ -38,15 +43,9 @@ export function PlayerProfileFilters({
 }: PlayerProfileFiltersProps) {
   const router = useRouter();
   const [state, setState] = useState(values);
-  const [formError, setFormError] = useState<string | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (state.opponentTeamId != null && state.opponentTeamId === state.ownTeamId) {
-      setFormError(SAME_CLUB_MESSAGE);
-      return;
-    }
-    setFormError(null);
     const next: PlayerProfileParams = {
       ...state,
       teammateLabel: state.teammateId == null ? null : state.teammateLabel,
@@ -56,22 +55,12 @@ export function PlayerProfileFilters({
     navigateSearch(path, router);
   }
 
-  function selectOpponent(opponentTeamId: number | null) {
-    setFormError(null);
-    setState((current) => ({ ...current, opponentTeamId }));
-  }
-
-  function selectOwnTeam(ownTeamId: number | null) {
-    setFormError(null);
-    setState((current) => ({ ...current, ownTeamId }));
-  }
-
   return (
     <form
       onSubmit={handleSubmit}
       className="space-y-4 rounded-xl border border-border bg-surface p-5"
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
         <FilterSelect
           label="Sezon"
           value={state.seasonId}
@@ -85,18 +74,25 @@ export function PlayerProfileFilters({
           }
         />
         <FilterSelect
+          label="Liczba meczów"
+          value={state.matchLimit}
+          emptyLabel="Cały sezon"
+          options={PROFILE_MATCH_WINDOWS.map((limit) => ({
+            id: limit,
+            label: WINDOW_LABELS[limit],
+          }))}
+          onChange={(matchLimit) =>
+            setState((current) => ({ ...current, matchLimit }))
+          }
+        />
+        <FilterSelect
           label="Rywal"
           value={state.opponentTeamId}
           emptyLabel="Każdy rywal"
           options={teams.map((team) => ({ id: team.id, label: team.name }))}
-          onChange={selectOpponent}
-        />
-        <FilterSelect
-          label="Klub"
-          value={state.ownTeamId}
-          emptyLabel="Każdy klub"
-          options={teams.map((team) => ({ id: team.id, label: team.name }))}
-          onChange={selectOwnTeam}
+          onChange={(opponentTeamId) =>
+            setState((current) => ({ ...current, opponentTeamId }))
+          }
         />
         <PlayerProfileSearchField
           playerId={playerId}
@@ -108,7 +104,6 @@ export function PlayerProfileFilters({
           }
         />
       </div>
-      {formError ? <p className="text-sm text-danger-text">{formError}</p> : null}
       <button
         type="submit"
         className={
@@ -136,8 +131,8 @@ function FilterSelect({
   onChange: (value: number | null) => void;
 }) {
   return (
-    <label className="space-y-2 text-sm text-muted">
-      <span className="font-medium text-text">{label}</span>
+    <label className="block space-y-2 text-sm text-muted">
+      <span className="block font-medium text-text">{label}</span>
       <select
         className={FIELD_CLASS_NAME}
         value={value ?? ""}
