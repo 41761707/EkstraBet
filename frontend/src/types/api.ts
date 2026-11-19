@@ -975,7 +975,7 @@ export interface MatchDetails {
 }
 
 export type SettlementStatus = "pending" | "won" | "lost";
-export type BetSortBy = "ev" | "probability" | "game_date";
+export type BetSortBy = "ev" | "probability" | "game_date" | "history";
 export type BetSortOrder = "asc" | "desc";
 
 export interface BetRecommendation {
@@ -1001,10 +1001,75 @@ export interface BetRecommendation {
   model_name: string;
   settlement_status: SettlementStatus;
   custom_bet: boolean;
+  history: TeamBetHistory | null;
+}
+
+export interface TeamBetHistoryPoint {
+  value: number;
+}
+
+export interface TeamBetHistorySeries {
+  sample: "home" | "away";
+  played: number;
+  hits: number;
+  points: TeamBetHistoryPoint[];
+  subject_name: string | null;
+  subject_shortcut: string | null;
+}
+
+export interface TeamBetHistory {
+  window: number;
+  line: number;
+  side: "over" | "under";
+  series: TeamBetHistorySeries[];
 }
 
 export interface BetRecommendationsResponse {
   recommendations: BetRecommendation[];
+  total_count: number;
+  filters_applied: Record<string, unknown>;
+}
+
+export interface PlayerPropHistoryPoint {
+  value: number;
+}
+
+export interface PlayerPropHistory {
+  window: number;
+  played: number;
+  hits: number;
+  points: PlayerPropHistoryPoint[];
+}
+
+export interface PlayerPropRecommendation {
+  line_id: number;
+  player_id: number;
+  player_name: string;
+  line: number;
+  match_id: number;
+  league_id: number;
+  league_name: string;
+  season_id: number;
+  game_date: string;
+  home_team: TeamInMatch;
+  away_team: TeamInMatch;
+  event_id: number;
+  event_name: string;
+  odds: number;
+  probability: number;
+  probability_pct: number;
+  ev: number;
+  ev_after_tax: number | null;
+  bookmaker_id: number | null;
+  bookmaker_name: string | null;
+  model_id: number;
+  model_name: string;
+  settlement_status: SettlementStatus;
+  history: PlayerPropHistory;
+}
+
+export interface PlayerPropRecommendationsResponse {
+  recommendations: PlayerPropRecommendation[];
   total_count: number;
   filters_applied: Record<string, unknown>;
 }

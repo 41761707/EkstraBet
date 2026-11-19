@@ -402,6 +402,7 @@ function makeBet(overrides?: Partial<BetRecommendation>): BetRecommendation {
     model_name: "OU Model",
     settlement_status: "pending",
     custom_bet: false,
+    history: null,
     ...overrides,
   };
 }

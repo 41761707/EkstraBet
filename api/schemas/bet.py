@@ -11,10 +11,58 @@ from api.schemas.match import TeamInMatch
 from api.schemas.prediction import EventFamilyRef
 
 SettlementStatus = Literal["pending", "won", "lost"]
-BetSortBy = Literal["ev", "probability", "game_date"]
+HistorySide = Literal["over", "under"]
+HistorySample = Literal["home", "away"]
+BetSortBy = Literal["ev", "probability", "game_date", "history"]
 BetSortOrder = Literal["asc", "desc"]
 OpportunitySource = Literal["bet", "prediction"]
 RankingBasis = Literal["ev_after_tax", "ev", "probability"]
+
+
+class TeamBetHistoryPoint(BaseModel):
+    """One past-match stat shown on the team history strip."""
+
+    value: float = Field(..., description="Stat value for one past match")
+
+
+class TeamBetHistorySeries(BaseModel):
+    """One team's recent-match bars for a bet."""
+
+    sample: HistorySample = Field(
+        ...,
+        description="Home or away side of the recommended match")
+    played: int = Field(
+        ...,
+        description="Matches included in the denominator")
+    hits: int = Field(
+        ...,
+        description="Matches where this bet would have won")
+    points: list[TeamBetHistoryPoint] = Field(
+        ...,
+        description="Stat values from oldest to newest")
+    subject_name: str | None = Field(
+        None,
+        description="Team name. Set when the event does not name the side")
+    subject_shortcut: str | None = Field(
+        None,
+        description="Short team label drawn beside the strip")
+
+
+class TeamBetHistory(BaseModel):
+    """Line, side and one strip per sampled team."""
+
+    window: int = Field(
+        ...,
+        description="Requested history window, 5 or 10")
+    line: float = Field(..., description="Threshold drawn on the strip")
+    side: HistorySide = Field(
+        ...,
+        description="Green bar when the value is over or under the line")
+    series: list[TeamBetHistorySeries] = Field(
+        ...,
+        description=(
+            "Home then away for a match-level event. "
+            "One entry when the event names a side"))
 
 
 class BetRecommendation(BaseModel):
@@ -60,6 +108,9 @@ class BetRecommendation(BaseModel):
     custom_bet: bool = Field(
         ...,
         description="Whether the bet was added manually")
+    history: TeamBetHistory | None = Field(
+        None,
+        description="Recent-match strip for this bet, when the event has one")
 
 
 class BetRecommendationsResponse(BaseModel):

@@ -144,8 +144,117 @@ class TestBetService(unittest.TestCase):
             0.55 * 2.0 * (1 - BETTING_TAX_RATE) - 1)
         self.assertEqual(payload["total_count"], 1)
         self.assertEqual(payload["filters_applied"]["match_id"], 100)
+        self.assertIsNone(recommendation["history"])
         mock_search.assert_called_once()
         self.assertEqual(mock_search.call_args.kwargs["match_id"], 100)
+
+    @patch(
+        "backend.services.bet_service.fetch_team_recent_matches")
+    @patch(
+        "backend.services.bet_service.bet_repository.search_bet_recommendations")
+    def test_history_is_oldest_first_for_an_under_market(
+        self,
+        mock_search: MagicMock,
+        mock_history: MagicMock) -> None:
+        mock_search.return_value = (pd.DataFrame([{
+            "bet_id": 10,
+            "match_id": 100,
+            "event_id": 12,
+            "odds": 2.4,
+            "ev": 0.1,
+            "bet_outcome": 0,
+            "custom_bet": 0,
+            "bookmaker_id": 4,
+            "bookmaker_name": "STS",
+            "prediction_id": 50,
+            "probability": 62.0,
+            "model_id": 2,
+            "model_name": "Model A",
+            "game_date": datetime(2026, 11, 8, 1, 30),
+            "sport_id": 1,
+            "league_id": 1,
+            "league_name": "Serie B Brasil",
+            "season_id": 5,
+            "home_team_id": 11,
+            "home_team_name": "Nautico",
+            "home_team_shortcut": "NAU",
+            "away_team_id": 12,
+            "away_team_name": "CRB",
+            "away_team_shortcut": "CRB",
+            "event_name": "Poniżej 2.5 gola",
+            "event_family_id": 3,
+            "event_family_name": "OU",
+        }]), 1)
+        mock_history.return_value = pd.DataFrame([
+            _history_row(
+                match_id=90,
+                game_date=datetime(2026, 11, 1, 20, 0),
+                home_team_id=11,
+                away_team_id=30,
+                home_goals=3,
+                away_goals=2,
+                result="1"),
+            _history_row(
+                match_id=80,
+                game_date=datetime(2026, 10, 20, 20, 0),
+                home_team_id=40,
+                away_team_id=11,
+                home_goals=0,
+                away_goals=1,
+                result="2"),
+        ])
+        payload = get_bet_recommendations(history_window=10)
+        history = payload["recommendations"][0]["history"]
+        self.assertEqual(history["line"], 2.5)
+        self.assertEqual(history["side"], "under")
+        home, away = history["series"]
+        self.assertEqual(home["sample"], "home")
+        self.assertEqual(home["played"], 2)
+        self.assertEqual(home["hits"], 1)
+        self.assertEqual(
+            home["points"],
+            [{"value": 1.0}, {"value": 5.0}])
+        self.assertEqual(home["subject_name"], "Nautico")
+        self.assertEqual(home["subject_shortcut"], "NAU")
+        self.assertEqual(away["sample"], "away")
+        self.assertEqual(away["played"], 0)
+        self.assertEqual(away["hits"], 0)
+        self.assertEqual(away["points"], [])
+        self.assertEqual(away["subject_name"], "CRB")
+        self.assertEqual(away["subject_shortcut"], "CRB")
+        anchors = mock_history.call_args.args[0]
+        self.assertEqual([anchor[0] for anchor in anchors], [11, 12])
+        self.assertEqual(anchors[0][1], 100)
+        self.assertEqual(anchors[0][4], "goals")
+        self.assertEqual(anchors[1][4], "goals")
+
+    @patch(
+        "backend.services.bet_service.fetch_team_recent_matches")
+    @patch(
+        "backend.services.bet_service.bet_repository.search_bet_recommendations")
+    def test_history_sort_uses_both_teams_then_slices_the_page(
+        self,
+        mock_search: MagicMock,
+        mock_history: MagicMock) -> None:
+        mock_search.return_value = (pd.DataFrame([
+            _under_row(bet_id=1, match_id=100, home_team_id=11, away_team_id=12),
+            _under_row(bet_id=2, match_id=200, home_team_id=21, away_team_id=22),
+        ]), 2)
+        mock_history.return_value = pd.DataFrame([
+            _counted_match(11, 100, 90, 1, 0),
+            _counted_match(12, 100, 91, 3, 3),
+            _counted_match(21, 200, 80, 0, 0),
+            _counted_match(22, 200, 81, 1, 0),
+        ])
+        payload = get_bet_recommendations(
+            sort_by="history", sort_order="desc", page=1, page_size=1)
+        self.assertEqual(
+            payload["recommendations"][0]["bet_id"], 2)
+        self.assertEqual(len(payload["recommendations"]), 1)
+        self.assertEqual(payload["total_count"], 2)
+        self.assertTrue(mock_search.call_args.kwargs["unbounded"])
+        self.assertEqual(mock_search.call_args.kwargs["sort_by"], "ev")
+        self.assertEqual(mock_search.call_args.kwargs["page"], 1)
 
     @patch(
         "backend.services.bet_service.bet_repository"
@@ -215,6 +324,96 @@ class TestBetService(unittest.TestCase):
         mock_search.assert_called_once()
         self.assertEqual(mock_search.call_args.kwargs["sport_id"], 1)
         self.assertTrue(mock_search.call_args.kwargs["one_per_match"])
+
+
+def _history_row(
+        *,
+        match_id: int,
+        game_date: datetime,
+        home_team_id: int,
+        away_team_id: int,
+        home_goals: int,
+        away_goals: int,
+        result: str) -> dict[str, object]:
+    """One raw history query row for the home team of fixture 100."""
+    return {
+        "team_id": 11,
+        "anchor_match_id": 100,
+        "match_id": match_id,
+        "game_date": game_date,
+        "home_team_id": home_team_id,
+        "away_team_id": away_team_id,
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "result": result,
+        "home_corners": None,
+        "away_corners": None,
+        "home_fouls": None,
+        "away_fouls": None,
+        "home_yellows": None,
+        "away_yellows": None,
+        "home_offsides": None,
+        "away_offsides": None,
+        "ot_winner": None,
+        "so_winner": None,
+        "stat_filter": "goals"}
+
+
+def _under_row(
+        *,
+        bet_id: int,
+        match_id: int,
+        home_team_id: int,
+        away_team_id: int) -> dict[str, object]:
+    """One under-2.5 recommendation. History is filled by the mock."""
+    return {
+        "bet_id": bet_id,
+        "match_id": match_id,
+        "event_id": 12,
+        "odds": 2.4,
+        "ev": 0.1,
+        "bet_outcome": None,
+        "custom_bet": 0,
+        "bookmaker_id": 4,
+        "bookmaker_name": "STS",
+        "prediction_id": 50,
+        "probability": 62.0,
+        "model_id": 2,
+        "model_name": "Model A",
+        "game_date": datetime(2026, 11, 8, 1, 30),
+        "sport_id": 1,
+        "league_id": 1,
+        "league_name": "Serie B Brasil",
+        "season_id": 5,
+        "home_team_id": home_team_id,
+        "home_team_name": "Home",
+        "home_team_shortcut": "HOM",
+        "away_team_id": away_team_id,
+        "away_team_name": "Away",
+        "away_team_shortcut": "AWY",
+        "event_name": "Poniżej 2.5 gola",
+        "event_family_id": 3,
+        "event_family_name": "OU"}
+
+
+def _counted_match(
+        team_id: int,
+        anchor_match_id: int,
+        match_id: int,
+        home_goals: int,
+        away_goals: int) -> dict[str, object]:
+    """One past match already attributed to a team anchor."""
+    row = _history_row(
+        match_id=match_id,
+        game_date=datetime(2026, 10, 1, 20, 0),
+        home_team_id=team_id,
+        away_team_id=99,
+        home_goals=home_goals,
+        away_goals=away_goals,
+        result="1")
+    row["team_id"] = team_id
+    row["anchor_match_id"] = anchor_match_id
+    return row
 
 
 if __name__ == "__main__":

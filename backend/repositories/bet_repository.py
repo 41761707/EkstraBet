@@ -52,6 +52,7 @@ _SELECT_COLUMNS = """
         p.model_id,
         ml.name AS model_name,
         m.game_date,
+        m.sport_id AS sport_id,
         m.league AS league_id,
         l.name AS league_name,
         m.season AS season_id,
@@ -181,8 +182,13 @@ def search_bet_recommendations(
     sort_by: str = "ev",
     sort_order: str = "desc",
     page: int = 1,
-    page_size: int = 50) -> tuple[pd.DataFrame, int]:
-    """Return paginated bet recommendations and total count."""
+    page_size: int = 50,
+    unbounded: bool = False) -> tuple[pd.DataFrame, int]:
+    """Return bet recommendations and the total count.
+
+    ``unbounded`` skips LIMIT. The caller sorts by a value that is
+    not a SQL column, then slices the page itself.
+    """
     conditions, params = _build_filters(
         league_ids=league_ids,
         season_id=season_id,
@@ -213,14 +219,23 @@ def search_bet_recommendations(
         {_BASE_FROM}
         {where_clause}
     """
-    query = f"""
-        {_SELECT_COLUMNS}
-        {_BASE_FROM}
-        {where_clause}
-        ORDER BY {sort_column} {order}, b.id ASC
-        LIMIT %s OFFSET %s
-    """
-    query_params = params + [page_size, offset]
+    if unbounded:
+        query = f"""
+            {_SELECT_COLUMNS}
+            {_BASE_FROM}
+            {where_clause}
+            ORDER BY b.id ASC
+        """
+        query_params = list(params)
+    else:
+        query = f"""
+            {_SELECT_COLUMNS}
+            {_BASE_FROM}
+            {where_clause}
+            ORDER BY {sort_column} {order}, b.id ASC
+            LIMIT %s OFFSET %s
+        """
+        query_params = params + [page_size, offset]
 
     with get_db_connection() as conn:
         count_frame = pd.read_sql(count_query, conn, params=tuple(params))

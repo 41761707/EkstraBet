@@ -31,6 +31,12 @@ class TestBetsRouter(unittest.TestCase):
             })
         self.assertEqual(response.status_code, 422)
 
+    def test_get_recommendations_rejects_history_window(self) -> None:
+        response = self.client.get(
+            "/bets/recommendations",
+            params={"history_window": 7})
+        self.assertEqual(response.status_code, 422)
+
     def test_get_recommendations_rejects_invalid_id_list(self) -> None:
         response = self.client.get(
             "/bets/recommendations",
