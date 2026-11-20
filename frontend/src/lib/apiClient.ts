@@ -39,6 +39,7 @@ import {
   type SuggestedCatalogOdds,
   type HockeyRatingBoard,
   type PlayerMatchStatsResponse,
+  type PlayerSearchResponse,
   type PredictionPreviewRequest,
   type PredictionPreviewResponse,
   type PublishTyperMatchesResponse,
@@ -183,6 +184,16 @@ export async function getPlayerMatchStats(
       limit: options.limit ?? 50,
     },
   );
+}
+
+/** Teammate search for the player profile. `sportId` comes from the envelope. */
+export async function searchProfilePlayers(
+  sportId: number,
+  term: string,
+): Promise<PlayerSearchResponse> {
+  return fetchViaBff<PlayerSearchResponse>(`/players/${sportId}/search`, {
+    search: term,
+  });
 }
 
 /** Stored hockey ratings: window 5, 10, or 0 for the whole season. */
