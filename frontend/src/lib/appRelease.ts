@@ -15,73 +15,55 @@ export interface AppRelease {
 // patch_notes/<tag>.md (złączone kontynuacje punktów w jeden string).
 
 export const APP_RELEASE: AppRelease = {
-  version: "1.6.0",
-  heading: "EkstraBet 1.6.0 - Sezon 1",
-  releaseDate: "08.11.2026",
+  version: "1.7.0",
+  heading: "EkstraBet 1.7.0 - Sezon 1",
+  releaseDate: "20.11.2026",
   character:
-    "Wydanie funkcjonalne - strefy i kary punktowe w tabeli ligowej " +
-    "oraz kalendarz wyników zakładów",
+    "Wydanie funkcjonalne - profil zawodnika hokejowego, zakłady na " +
+    "zawodników i historia meczów przy rekomendacjach drużyn",
   changes: [
-    "[EB-34] Mechanizm migracji schematu MySQL: pliki w " +
-      "`sql/migrations/`, księga `schema_migrations` oraz komenda " +
-      "CLI `python -m backend.db_migrate` (status, apply, baseline, " +
-      "generate-baseline). Runbook w `docs/deployment-vps.md`.",
-    "[EB-36] Strefy tabeli i kary punktowe na " +
-      "`/leagues/<league_id>/`: kolor miejsca (awans, baraż, " +
-      "spadek), legenda z nazwą strefy oraz punkty po karze ze " +
-      "znacznikiem powodu. Projekcja końca sezonu bierze progi Top " +
-      "i Spadek ze stref sezonu, a symulacja dolicza tę samą karę.",
-    "[EB-39] Poprawki wyglądu i opisów kalendarza wyników na " +
-      "`/moje-zaklady` i `/profile/<username>/`: przełączniki dnia, " +
-      "tygodnia i miesiąca oraz objaśnienia dnia kuponu i dnia " +
-      "zakładu.",
-    "[SZP-330] Odczyt plików migracji: wersja i hash skryptu SQL.",
-    "[SZP-331] Podział skryptu SQL migracji na pojedyncze statementy.",
-    "[SZP-332] Połączenie z bazą i księga `schema_migrations` w " +
-      "mechanizmie migracji.",
-    "[SZP-333] Runner migracji: status, apply i baseline.",
-    "[SZP-334] Generator baseline schematu (polecenie " +
-      "`generate-baseline`).",
-    "[SZP-335] Komenda CLI mechanizmu migracji " +
-      "(`python -m backend.db_migrate`).",
-    "[SZP-336] Pierwsza migracja-matka: baseline schematu w " +
-      "`sql/migrations/V001__baseline.sql`.",
-    "[SZP-337] Runbook migracji, poprawki w obrazie API i " +
-      "dokumentacji deployu (`docs/deployment-vps.md`, " +
-      "`sql/migrations/README.md`).",
-    "[SZP-340] Odczyt wyniku meczu z datą do kalendarza zakładów.",
-    "[SZP-341] Grupowanie okresu (dzień, tydzień, miesiąc) w " +
-      "kalendarzu wyników typera.",
-    "[SZP-342] Serwis kalendarza wyników dla właściciela konta i " +
-      "profilu publicznego.",
-    "[SZP-343] Endpointy kalendarza wyników: " +
-      "`GET /tipsters/me/result-calendar` oraz " +
-      "`GET /tipsters/profile/{username}/result-calendar`.",
-    "[SZP-344] Typy i klient API kalendarza wyników na froncie.",
-    "[SZP-345] Model siatki kalendarza wyników (dzień, tydzień od " +
-      "poniedziałku, miesiąc).",
-    "[SZP-346] Panel „Zmiana osiągnięć w czasie - kalendarz” na " +
-      "`/moje-zaklady` i `/profile/<username>/`.",
-    "[SZP-347] Migracje stref tabeli i kar punktowych (`V002`, " +
-      "`V003`) oraz wycofanie odczytu `football_table_special_slots`.",
-    "[SZP-348] Agregacja stref ligi do progów Top i Spadek.",
-    "[SZP-349] Odczyt stref tabeli piłkarskiej dla ligi i sezonu.",
-    "[SZP-350] Odczyt kar punktowych w tabeli ligowej.",
-    "[SZP-351] Tabela ogólna sortowana po punktach oficjalnych, " +
-      "już po karze.",
-    "[SZP-352] Kontrakt API tabeli: strefy i korekta punktów na " +
-      "`GET /leagues/{league_id}/standings`.",
-    "[SZP-353] Projekcja sezonu czyta progi Top i Spadek ze stref " +
-      "sezonu, nie z osobnej tabeli slotów.",
-    "[SZP-354] Symulacja końca sezonu dolicza kary punktowe do " +
-      "punktów bieżących i do losowań.",
-    "[SZP-355] Kolory miejsc, legenda stref i znacznik kary na " +
-      "tabeli ogólnej oraz w projekcji na `/leagues/<league_id>/`.",
-    "[FIX] Kupony agentów oraz flaga decyzji komputera w sugestiach " +
-      "zdarzeń biorą tylko finał rodziny rynku (strona z najwyższym " +
-      "PPB), bez drugiej strony tego samego rynku.",
-    "[TECH] Usuwanie danych meczowych z zakładów, gdy mecz zostaje " +
-      "przełożony (`db_funcs/Pilka/delete_match.py`).",
+    "[EB-35] Profil zawodnika hokejowego na `/players/<player_id>/`: " +
+      "sezon, liczba meczów, rywal i partner, protokół z wykresami, " +
+      "rozbicie zdarzeń oraz log meczów. Wejście z linku „Profil " +
+      "zawodnika” w ekspanderze na `/players`.",
+    "[EB-41] Pasek historii ostatnich meczów przy rekomendacjach " +
+      "drużyn na `/bets` (okno 5 lub 10 i sortowanie po historii). " +
+      "Słupki obu drużyn mają wspólną skalę. Z tabeli zakładów " +
+      "zawodników znika kolumna modelu.",
+    "[SZP-360] Koperta profilu zawodnika, rejestr źródeł po sporcie " +
+      "i błędy domenowe.",
+    "[SZP-361] Wspólny odczyt przekroju statystyk hokeja pod profil " +
+      "zawodnika.",
+    "[SZP-362] Odczyt rozbicia zdarzeń hokejowych na profilu " +
+      "zawodnika.",
+    "[SZP-363] Serwis profilu zawodnika z dyspozycją po `sport_id` " +
+      "(źródło hokeja).",
+    "[SZP-364] Endpoint profilu `GET /players/{player_id}/profile`.",
+    "[SZP-365] Strona profilu `/players/<player_id>/` oraz parametry " +
+      "filtrów w adresie.",
+    "[SZP-366] Filtry przekroju na profilu zawodnika: sezon, rywal i " +
+      "wyszukiwarka partnera.",
+    "[SZP-367] Widok hokejowy profilu: kafelki protokołu, rozbicie " +
+      "zdarzeń i log meczów na `/players/<player_id>/`.",
+    "[SZP-368] Link „Profil zawodnika” w ekspanderze listy na " +
+      "`/players`.",
+    "[SZP-450] Reguła trafienia i rozliczenia propsów hokejowych " +
+      "(strzały, punkty, asysty, gole).",
+    "[SZP-451] Zapytanie strony rekomendacji zakładów na " +
+      "zawodników.",
+    "[SZP-452] Odczyt ostatnich meczów zawodnika pod pasek historii " +
+      "propsu.",
+    "[SZP-453] Serwis rekomendacji zakładów na zawodników.",
+    "[SZP-454] Endpoint rekomendacji zawodników " +
+      "`GET /bets/player-recommendations`.",
+    "[SZP-455] Typy i klient HTTP rekomendacji zawodników na " +
+      "froncie.",
+    "[SZP-456] Parametry filtrów zakładów zawodników w adresie " +
+      "`/bets`.",
+    "[SZP-457] Gałąź „Zawodnicy” na `/bets` (hokej): filtry i tabela " +
+      "rekomendacji propsów.",
+    "[SZP-458] Pasek historii w tabeli rekomendacji zawodników na " +
+      "`/bets`.",
   ],
 };
 
