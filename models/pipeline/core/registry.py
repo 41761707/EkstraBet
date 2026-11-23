@@ -117,6 +117,26 @@ def resolve_model_id(model_name: str) -> int:
     return int(frame.iloc[0]["id"])
 
 
+def resolve_registered_model_id(model_name: str) -> int:
+    """Resolve model_id by name without requiring active = 1.
+
+    Challengers stay inactive until promotion, so the active filter
+    used by resolve_model_id would hide them.
+    """
+    query = """
+        SELECT id
+        FROM models
+        WHERE name = %s
+        LIMIT 1
+    """
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn, params=(model_name,))
+    if frame.empty:
+        raise RegistryError(
+            f"Model '{model_name}' is missing in models table")
+    return int(frame.iloc[0]["id"])
+
+
 def validate_events(config: ModelRunConfig) -> None:
     """Validate optional event mappings when a model declares them."""
     if not config.events:
