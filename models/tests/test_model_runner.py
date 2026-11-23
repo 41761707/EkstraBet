@@ -10,7 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
+from models.pipeline.core.cli import build_parser
 from models.pipeline.core.cli import main
+from models.pipeline.core.cli import run_predict_batch
+from models.pipeline.core.cli import run_predict_pair
 from models.pipeline.core.registry import RegistryError
 from models.pipeline.core.config import (
     EvaluationReport,
@@ -1341,3 +1344,232 @@ def test_cli_predict_hockey_requires_an_active_model(
 def test_cli_predict_hockey_requires_league_id() -> None:
     with pytest.raises(SystemExit):
         main(["predict-hockey"])
+
+
+def test_parser_auto_models_rejects_explicit_batch_config() -> None:
+    with pytest.raises(SystemExit) as caught:
+        build_parser().parse_args([
+            "predict-batch",
+            "--auto-models",
+            "--result-config",
+            "football_result_v2.json"])
+    assert caught.value.code == 2
+
+
+def test_parser_auto_models_rejects_explicit_pair_config() -> None:
+    with pytest.raises(SystemExit) as caught:
+        build_parser().parse_args([
+            "predict-pair",
+            "--auto-models",
+            "--home",
+            "10",
+            "--away",
+            "20",
+            "--as-of",
+            "2026-07-23",
+            "--btts-config",
+            "football_btts_v2.json"])
+    assert caught.value.code == 2
+
+
+def test_parser_without_auto_models_keeps_explicit_configs() -> None:
+    args = build_parser().parse_args([
+        "predict-batch",
+        "--result-config",
+        "football_result_v2.json",
+        "--goals-config",
+        "football_goals_poisson_v1.json"])
+    assert args.auto_models is False
+    assert args.result_config == Path("football_result_v2.json")
+    assert args.btts_config is None
+    assert args.goals_config == Path("football_goals_poisson_v1.json")
+
+
+def test_parser_auto_models_allows_missing_family_configs() -> None:
+    args = build_parser().parse_args([
+        "predict-pair",
+        "--auto-models",
+        "--home",
+        "10",
+        "--away",
+        "20",
+        "--as-of",
+        "2026-07-23"])
+    assert args.auto_models is True
+    assert args.result_config is None
+    assert args.btts_config is None
+    assert args.goals_config is None
+
+
+def _lineup_entry():
+    from models.pipeline.core.config import FutureEventsRunConfig
+    from models.pipeline.core.model_lineup import LineupEntry
+
+    config = FutureEventsRunConfig.model_validate({
+        "model_name": "FOOTBALL_RESULT_V2",
+        "sport_id": 1,
+        "task_type": "result",
+        "artifact_dir": "models/artifacts/unused",
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "unused",
+        "trainer": "unused",
+        "output_columns": ["p_home"],
+        "feature_config": {},
+        "events": {
+            "result_home": 1,
+            "result_draw": 2,
+            "result_away": 3},
+        "ratings": {"elo": True}})
+    return LineupEntry(
+        model_name="FOOTBALL_RESULT_V2",
+        model_id=8,
+        config_path=Path("football_result_v2.json"),
+        config=config,
+        family_statuses={1: "champion"})
+
+
+def test_predict_pair_without_auto_models_uses_explicit_configs() -> None:
+    predictor = MagicMock()
+    predictor.btts_config = None
+    predictor.goals_config = None
+    predictor.predict_pair.return_value = {"result": {"p_home": 0.5}}
+    args = build_parser().parse_args([
+        "predict-pair",
+        "--result-config",
+        "football_result_v2.json",
+        "--home",
+        "10",
+        "--away",
+        "20",
+        "--as-of",
+        "2026-07-23",
+        "--league-id",
+        "1"])
+    with patch(
+            "models.pipeline.core.cli.FutureEventsPredictor.from_config_paths",
+            return_value=predictor) as factory, patch(
+            "models.pipeline.core.cli.build_shared_history_context",
+            return_value=MagicMock()):
+        payload = run_predict_pair(args)
+    factory.assert_called_once()
+    assert factory.call_args.args[0] == Path("football_result_v2.json")
+    assert payload["written"] == 0
+    assert payload["predictions"]["result"]["p_home"] == 0.5
+
+
+def test_auto_models_predict_pair_returns_per_model_counts() -> None:
+    from models.pipeline.core.model_lineup import ModelLineup
+    from models.pipeline.core.model_roles import ModelRoles
+
+    entry = _lineup_entry()
+    predictor = MagicMock()
+    predictor.predict_pair.return_value = {"result": {"p_home": 0.6}}
+    lineup = ModelLineup(entries=(entry,))
+    roles = ModelRoles(roles=(), active_by_model={8: 1})
+    args = build_parser().parse_args([
+        "predict-pair",
+        "--auto-models",
+        "--home",
+        "10",
+        "--away",
+        "20",
+        "--as-of",
+        "2026-07-23",
+        "--league-id",
+        "1",
+        "--match-id",
+        "5",
+        "--write-db",
+        "--select-finals"])
+    with patch(
+            "models.pipeline.core.cli.resolve_lineup",
+            return_value=lineup), patch(
+            "models.pipeline.core.cli.build_lineup_predictors",
+            return_value=[(entry, predictor)]), patch(
+            "models.pipeline.core.cli.fetch_model_roles",
+            return_value=roles), patch(
+            "models.pipeline.core.cli.lineup_event_families",
+            return_value={1: 1, 2: 1, 3: 1}), patch(
+            "models.pipeline.core.cli.build_shared_history_context",
+            return_value=MagicMock()), patch(
+            "models.pipeline.core.cli.persist_lineup_prediction",
+            return_value={"published": 3, "shadow": 1}) as persist:
+        payload = run_predict_pair(args)
+    home = payload["predictions"]["FOOTBALL_RESULT_V2"]["result"]["p_home"]
+    assert home == 0.6
+    assert payload["written"] == {"published": 3, "shadow": 1}
+    persist.assert_called_once()
+    assert persist.call_args.args[4] is True
+    assert persist.call_args.kwargs["event_families"] == {1: 1, 2: 1, 3: 1}
+    assert predictor.predict_pair.call_args.kwargs["feature_cache"] == {}
+
+
+def test_auto_models_batch_skips_failed_match_and_shares_cache(
+        tmp_path: Path) -> None:
+    from models.pipeline.core.model_lineup import ModelLineup
+    from models.pipeline.core.model_roles import ModelRoles
+
+    pairs_path = tmp_path / "pairs.json"
+    pairs_path.write_text(json.dumps([
+        {
+            "home_team_id": 1,
+            "away_team_id": 2,
+            "as_of_date": "2026-07-23",
+            "league_id": 1,
+            "match_id": 10},
+        {
+            "home_team_id": 3,
+            "away_team_id": 4,
+            "as_of_date": "2026-07-23",
+            "league_id": 1,
+            "match_id": 11}]), encoding="utf-8")
+    entry = _lineup_entry()
+    lineup = ModelLineup(entries=(entry,))
+    roles = ModelRoles(roles=(), active_by_model={8: 1})
+    caches: list[object] = []
+
+    def _predict(
+            matchup: object,
+            predictors: object,
+            *,
+            context: object,
+            feature_cache: dict[str, object]) -> dict[str, object]:
+        del predictors, context
+        caches.append(feature_cache)
+        if getattr(matchup, "match_id") == 10:
+            raise RuntimeError("no features")
+        return {"FOOTBALL_RESULT_V2": {"result": {"p_home": 0.4}}}
+
+    args = build_parser().parse_args([
+        "predict-batch",
+        "--auto-models",
+        "--pairs-file",
+        str(pairs_path),
+        "--write-db",
+        "--select-finals"])
+    with patch(
+            "models.pipeline.core.cli.resolve_lineup",
+            return_value=lineup), patch(
+            "models.pipeline.core.cli.build_lineup_predictors",
+            return_value=[(entry, MagicMock())]), patch(
+            "models.pipeline.core.cli.fetch_model_roles",
+            return_value=roles), patch(
+            "models.pipeline.core.cli.lineup_event_families",
+            return_value={1: 1}), patch(
+            "models.pipeline.core.cli.build_shared_history_context",
+            return_value=MagicMock()), patch(
+            "models.pipeline.core.cli.predict_lineup_pair",
+            side_effect=_predict), patch(
+            "models.pipeline.core.cli.persist_lineup_prediction",
+            return_value={"published": 2, "shadow": 1}) as persist:
+        payload = run_predict_batch(args)
+    assert payload["processed"] == 2
+    assert payload["predicted"] == 1
+    assert payload["skipped"] == 1
+    assert payload["results"][0]["skipped"] is True
+    assert payload["results"][0]["written"] == {"published": 0, "shadow": 0}
+    assert payload["results"][0]["error"] == "no features"
+    assert payload["results"][1]["skipped"] is False
+    assert payload["results"][1]["written"] == {"published": 2, "shadow": 1}
+    assert caches[0] is caches[1]
+    persist.assert_called_once()
