@@ -28,12 +28,15 @@ class FamilyRole:
     """Effective role of one model inside one event family.
 
     ``status`` is already resolved by ``effective_status``.
+    ``raw_status`` is the database column before that resolution.
+    None means NULL, which lineup building treats as implicit.
     """
 
     model_id: int
     model_name: str
     event_family_id: int
     status: str
+    raw_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -101,12 +104,14 @@ def fetch_model_roles(sport_id: int) -> ModelRoles:
         model_id = int(row["model_id"])
         active = _active_flag(row["active"])
         active_by_model[model_id] = active
+        # Skład odróżnia jawny status od NULL + active = 1.
+        raw_status = _optional_text(row["status"])
         roles.append(FamilyRole(
             model_id=model_id,
             model_name=str(row["model_name"]),
             event_family_id=int(row["event_family_id"]),
-            status=effective_status(
-                _optional_text(row["status"]), active)))
+            status=effective_status(raw_status, active),
+            raw_status=raw_status))
     return ModelRoles(
         roles=tuple(roles),
         active_by_model=active_by_model)

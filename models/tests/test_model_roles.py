@@ -101,6 +101,8 @@ def test_fetch_model_roles_applies_effective_status() -> None:
     assert loaded.status_of(2, 10) == MODEL_STATUS_RETIRED
     assert loaded.status_of(3, 12) == MODEL_STATUS_RETIRED
     assert [role.model_id for role in loaded.champions_of(10)] == [1]
+    assert [role.raw_status for role in loaded.roles] == [
+        None, "challenger", "retired", None]
 
 
 def test_fetch_model_roles_rejects_unknown_status() -> None:
