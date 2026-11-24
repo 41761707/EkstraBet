@@ -22,6 +22,7 @@ def _matches(count: int = 9) -> pd.DataFrame:
         rows.append({
             "id": index + 1,
             "league": 1,
+            "season": 15,
             "home_team": 10 if index % 2 == 0 else 20 + index,
             "away_team": 20 + index if index % 2 == 0 else 10,
             "game_date": start + timedelta(days=index),
@@ -141,3 +142,15 @@ def test_training_batch_uses_chronological_state_without_public_scans(
         np.arange(10, dtype=float) + 1202.0)
     assert batch.X_static[:, -1].tolist() == [3.0] * 10
     assert context_calls == 1
+    labels = result["labels"]
+    assert len(result["match_ids"]) == len(labels)
+    assert len(result["league_ids"]) == len(labels)
+    assert len(result["season_ids"]) == len(labels)
+    assert len(result["home_goals"]) == len(labels)
+    assert len(result["away_goals"]) == len(labels)
+    assert result["dates"].shape[0] == len(labels)
+    assert result["match_ids"].tolist() == list(range(3, 13))
+    assert result["league_ids"].tolist() == [1] * 10
+    assert result["season_ids"].tolist() == [15] * 10
+    assert result["home_goals"].tolist() == [2] * 10
+    assert result["away_goals"].tolist() == [1] * 10

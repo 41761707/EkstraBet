@@ -144,6 +144,13 @@ class EvaluationReport(BaseModel):
     skipped_matches: int = 0
 
 
+class ChronoSplit(BaseModel):
+    """Date boundaries for train, validation and calibration windows."""
+
+    validation_from: date | None = None
+    calibration_from: date | None = None
+
+
 class FutureEventsRunConfig(ModelRunConfig):
     """Configuration for result, BTTS, or Poisson future-event runs."""
 
@@ -154,6 +161,8 @@ class FutureEventsRunConfig(ModelRunConfig):
     sequence_feature_columns: list[str] = Field(default_factory=list)
     static_feature_columns: list[str] = Field(default_factory=list)
     date_to: date | None = None
+    split: ChronoSplit | None = None
+    fixed_epochs: int | None = Field(default=None, ge=1)
     batch_size: int = Field(default=64, ge=1)
     epochs: int = Field(default=50, ge=1)
     patience: int = Field(default=7, ge=1)
@@ -162,6 +171,25 @@ class FutureEventsRunConfig(ModelRunConfig):
     dense_units: int = Field(default=32, ge=1)
     top_exact_scores: int = Field(default=5, ge=1)
     max_goals: int = Field(default=5, ge=1)
+
+    @model_validator(mode="after")
+    def _validate_chrono_split(self) -> FutureEventsRunConfig:
+        if self.split is None:
+            return self
+        if self.date_to is None:
+            raise ValueError("date_to is required when split is set")
+        if self.split.validation_from is None and self.fixed_epochs is None:
+            raise ValueError(
+                "fixed_epochs is required when validation_from is omitted")
+        validation_from = self.split.validation_from
+        calibration_from = self.split.calibration_from
+        if validation_from is None or calibration_from is None:
+            return self
+        if not validation_from < calibration_from < self.date_to:
+            raise ValueError(
+                "validation_from must be before calibration_from "
+                "and calibration_from must be before date_to")
+        return self
 
 
 class MatchupInput(BaseModel):

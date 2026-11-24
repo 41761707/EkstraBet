@@ -14,10 +14,15 @@ from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import register_trainer
+from models.pipeline.training.lstm_trainer import _best_epoch
+from models.pipeline.training.lstm_trainer import _fit_chronological_model
+from models.pipeline.training.lstm_trainer import _holdout_split
 from models.pipeline.training.lstm_trainer import _keras
 from models.pipeline.training.lstm_trainer import _model_inputs
 from models.pipeline.training.lstm_trainer import _prepare_training_data
-from models.pipeline.training.lstm_trainer import _scale_static
+from models.pipeline.training.lstm_trainer import _scale_holdout
+from models.pipeline.training.lstm_trainer import _score_validation
+from models.pipeline.training.lstm_trainer import _split_meta
 from models.pipeline.training.lstm_trainer import chronological_split
 from models.pipeline.training.trainer import Trainer
 
@@ -112,34 +117,27 @@ class PoissonTrainer(Trainer):
             raise ValueError(
                 "Poisson trainer requires task_type='goals_poisson'")
         batch, labels, dates = _prepare_training_data(config)
-        validation_size = (
-            config.training_config.validation_size
-            if config.training_config else 0.15)
-        train_batch, val_batch, y_train, y_val = chronological_split(
-            batch, labels, dates, validation_size)
-        train_batch, val_batch, scaler = _scale_static(
-            train_batch, val_batch)
+        holdout = _holdout_split(batch, labels, dates, config)
+        train_batch, val_batch, scaler = _scale_holdout(
+            holdout.train_batch, holdout.validation_batch)
         model = build_poisson_model(
             train_batch.X_home.shape[1:],
             train_batch.X_static.shape[1],
             config)
-        keras = _keras()
-        model.fit(
-            _model_inputs(train_batch),
-            y_train,
-            validation_data=(_model_inputs(val_batch), y_val),
-            epochs=config.epochs,
-            batch_size=config.batch_size,
-            shuffle=False,
-            callbacks=[keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                patience=config.patience,
-                restore_best_weights=True)],
-            verbose=0)
-        rates = np.asarray(model.predict(
-            _model_inputs(val_batch), verbose=0))
-        metrics = _poisson_metrics(y_val, rates)
-        _save_artifacts(config, model, scaler, metrics)
+        history = _fit_chronological_model(
+            model,
+            train_batch,
+            holdout.train_labels,
+            val_batch,
+            holdout.validation_labels,
+            config)
+        metrics, n_test = _score_validation(
+            model,
+            val_batch,
+            holdout.validation_labels,
+            _poisson_metrics)
+        best_epoch = _best_epoch(history, config)
+        _save_artifacts(config, model, scaler, metrics, best_epoch)
         return TrainingReport(
             model_name=config.model_name,
             model_version=config.model_version,
@@ -148,8 +146,8 @@ class PoissonTrainer(Trainer):
             feature_columns=(
                 config.sequence_feature_columns
                 + config.static_feature_columns),
-            n_train=len(y_train),
-            n_test=len(y_val))
+            n_train=len(holdout.train_labels),
+            n_test=n_test)
 
     def evaluate(self, config: FutureEventsRunConfig) -> EvaluationReport:
         """Evaluate saved Poisson rates on the newest holdout."""
@@ -180,11 +178,12 @@ def _save_artifacts(
         config: FutureEventsRunConfig,
         model: Any,
         scaler: Any,
-        metrics: dict[str, float]) -> None:
+        metrics: dict[str, float],
+        best_epoch: int | None = None) -> None:
     artifacts.save_keras_model_artifact(config.artifact_dir, model)
     artifacts.save_scaler_artifact(config.artifact_dir, scaler)
     artifacts.save_metrics(config.artifact_dir, metrics)
-    artifacts.save_meta(config.artifact_dir, {
+    meta = {
         "model_name": config.model_name,
         "model_version": config.model_version,
         "task_type": config.task_type,
@@ -193,7 +192,9 @@ def _save_artifacts(
         "static_feature_columns": config.static_feature_columns,
         "output": ["lambda_home", "lambda_away"],
         "loss": "independent_poisson_nll"
-    })
+    }
+    meta.update(_split_meta(config, best_epoch))
+    artifacts.save_meta(config.artifact_dir, meta)
 
 
 def train_poisson_model(
