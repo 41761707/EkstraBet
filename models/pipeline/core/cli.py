@@ -56,6 +56,7 @@ from models.pipeline.data.match_history_repository import (
 from models.pipeline.core.model_lineup import LineupEntry
 from models.pipeline.core.model_lineup import ModelLineup
 from models.pipeline.core.model_lineup import resolve_lineup
+from models.pipeline.evaluation.commands import run_compare_models
 from models.pipeline.core.model_roles import ModelRoles
 from models.pipeline.core.model_roles import fetch_model_roles
 from models.pipeline.core.registry import resolve_event_map
@@ -507,6 +508,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable debug logging")
     _add_betting_parsers(subparsers)
     _add_coupon_agent_parser(subparsers)
+    _add_compare_models_parser(subparsers)
     return parser
 
 
@@ -608,6 +610,19 @@ def _parse_coupon_as_of(value: str) -> datetime:
         raise argparse.ArgumentTypeError(
             "as-of must be an ISO date or datetime") from exc
     return parsed
+
+
+def _add_compare_models_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register the offline champion and challenger report."""
+    parser = subparsers.add_parser(
+        "compare-models",
+        help="Write an offline comparison report for a frozen test")
+    parser.add_argument(
+        "--spec",
+        required=True,
+        type=Path,
+        help="Path to the offline gate JSON spec")
 
 
 def _add_coupon_agent_parser(
@@ -2175,6 +2190,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "publish-coupon-agent":
             payload = run_publish_coupon_agent(args)
             exit_code = _coupon_agent_exit_code(payload)
+        elif args.command == "compare-models":
+            payload = run_compare_models(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:
