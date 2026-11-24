@@ -22,6 +22,21 @@ _LEAGUE_NAMES_QUERY = """
     WHERE id IN ({placeholders})
 """
 
+# Paczka 500 id mieści się w limicie placeholderów zapytania.
+_ODDS_ID_BATCH = 500
+_ODDS_COLUMNS = ("match_id", "bookmaker_id", "event_id", "odds")
+_ODDS_QUERY = """
+    SELECT
+        match_id,
+        bookmaker AS bookmaker_id,
+        event AS event_id,
+        odds
+    FROM odds
+    WHERE match_id IN ({match_placeholders})
+        AND event IN ({event_placeholders})
+        AND odds > 1
+"""
+
 
 def fetch_season_years(season_ids: Sequence[int]) -> dict[int, str]:
     """Return ``seasons.years`` keyed by season id.
@@ -38,6 +53,53 @@ def fetch_league_names(league_ids: Sequence[int]) -> dict[int, str]:
     A null name is omitted.
     """
     return _labels_by_id(league_ids, _LEAGUE_NAMES_QUERY)
+
+
+def fetch_match_odds(
+        match_ids: Sequence[int],
+        event_ids: Sequence[int]) -> pd.DataFrame:
+    """Return prices above 1 for the given matches and events.
+
+    Match ids are queried in batches of 500. ``bookmaker`` and
+    ``event`` come back as ``bookmaker_id`` and ``event_id``.
+    An empty id list does not open a connection.
+    """
+    matches = _unique_ids(match_ids)
+    events = _unique_ids(event_ids)
+    if not matches or not events:
+        return _empty_odds()
+    frames: list[pd.DataFrame] = []
+    with get_db_connection() as connection:
+        for offset in range(0, len(matches), _ODDS_ID_BATCH):
+            batch = matches[offset:offset + _ODDS_ID_BATCH]
+            frames.append(_read_odds(connection, batch, events))
+    return _stack_odds(frames)
+
+
+def _read_odds(
+        connection: object,
+        match_ids: list[int],
+        event_ids: list[int]) -> pd.DataFrame:
+    """Read one batch of prices for the given matches."""
+    query = _ODDS_QUERY.format(
+        match_placeholders=", ".join(["%s"] * len(match_ids)),
+        event_placeholders=", ".join(["%s"] * len(event_ids)))
+    params = tuple(match_ids) + tuple(event_ids)
+    return pd.read_sql(query, connection, params=params)
+
+
+def _stack_odds(frames: list[pd.DataFrame]) -> pd.DataFrame:
+    """Concatenate batch frames into the public column order."""
+    usable = [frame for frame in frames if not frame.empty]
+    if not usable:
+        return _empty_odds()
+    stacked = pd.concat(usable, ignore_index=True)
+    return stacked.loc[:, list(_ODDS_COLUMNS)]
+
+
+def _empty_odds() -> pd.DataFrame:
+    """Return an empty odds frame with the public columns."""
+    return pd.DataFrame(columns=list(_ODDS_COLUMNS))
 
 
 def _labels_by_id(
