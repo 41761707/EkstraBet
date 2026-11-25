@@ -57,6 +57,7 @@ from models.pipeline.core.model_lineup import LineupEntry
 from models.pipeline.core.model_lineup import ModelLineup
 from models.pipeline.core.model_lineup import resolve_lineup
 from models.pipeline.evaluation.commands import run_compare_models
+from models.pipeline.evaluation.commands import run_shadow_report
 from models.pipeline.core.model_roles import ModelRoles
 from models.pipeline.core.model_roles import fetch_model_roles
 from models.pipeline.core.registry import resolve_event_map
@@ -509,6 +510,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_betting_parsers(subparsers)
     _add_coupon_agent_parser(subparsers)
     _add_compare_models_parser(subparsers)
+    _add_shadow_report_parser(subparsers)
     return parser
 
 
@@ -623,6 +625,42 @@ def _add_compare_models_parser(
         required=True,
         type=Path,
         help="Path to the offline gate JSON spec")
+
+
+def _add_shadow_report_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register the live challenger check against the champion."""
+    parser = subparsers.add_parser(
+        "shadow-report",
+        help="Score a challenger on finished matches in a date window")
+    parser.add_argument(
+        "--family",
+        required=True,
+        choices=("result", "btts", "over_25"),
+        help="Market family: result, btts or over_25")
+    parser.add_argument(
+        "--champion-model",
+        required=True,
+        help="Champion model name in the football registry")
+    parser.add_argument(
+        "--challenger-model",
+        required=True,
+        help="Challenger model name in the football registry")
+    parser.add_argument(
+        "--date-from",
+        required=True,
+        type=date.fromisoformat,
+        help="First kickoff date, inclusive")
+    parser.add_argument(
+        "--date-to",
+        required=True,
+        type=date.fromisoformat,
+        help="Kickoff date exclusive upper bound")
+    parser.add_argument(
+        "--output",
+        required=True,
+        type=Path,
+        help="Path of the JSON report to write")
 
 
 def _add_coupon_agent_parser(
@@ -2192,6 +2230,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             exit_code = _coupon_agent_exit_code(payload)
         elif args.command == "compare-models":
             payload = run_compare_models(args)
+        elif args.command == "shadow-report":
+            payload = run_shadow_report(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

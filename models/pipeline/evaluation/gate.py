@@ -1,7 +1,8 @@
-"""Offline promotion gate for one challenger on the frozen test.
+"""Promotion checks for the frozen test and the live shadow window.
 
-The checks are pure. Season labels come from the caller, so this
-module does not open a database connection and does not load a model.
+The checks are pure. Season labels and league ids come from the
+caller, so this module does not open a database connection and
+does not load a model.
 """
 
 from __future__ import annotations
@@ -129,6 +130,52 @@ def recommend(decisions: list[dict[str, Any]]) -> dict[str, str | None]:
         passing = [row for row in rows if row.get("passed") is True]
         chosen[family] = _best_label(passing)
     return chosen
+
+
+def shadow_decision(
+        family: str,
+        champion_p: np.ndarray,
+        challenger_p: np.ndarray,
+        outcomes: np.ndarray,
+        missing_rate: float,
+        thresholds: GateThresholds,
+        *,
+        league_ids: np.ndarray | None = None) -> dict[str, Any]:
+    """Return the live-shadow checks for one family.
+
+    ``champion_p`` and ``challenger_p`` are probabilities on the
+    same compared matches. Result rows have three columns in order
+    home, draw, away. Binary rows are the probability of yes or
+    over. ``missing_rate`` is the share of champion matches with no
+    challenger prediction. BTTS also needs ``league_ids`` in that
+    same order. Over 2.5 has no goal-mean check: the shadow table
+    stores probabilities, not expected goals.
+    """
+    _require_family(family)
+    _require_thresholds(thresholds)
+    rate = _unit_rate(missing_rate)
+    champion, challenger, observed = _shadow_rows(
+        family, champion_p, challenger_p, outcomes)
+    checks: dict[str, dict[str, Any]] = {
+        "matches": _shadow_matches(len(observed), thresholds),
+        "log_loss": _shadow_log_loss(
+            family, champion, challenger, observed, thresholds),
+        "ece": _shadow_ece(
+            family, champion, challenger, observed, thresholds),
+        "missing_rate": _shadow_missing(rate, thresholds)}
+    checks.update(_shadow_family_check(
+        family,
+        champion,
+        challenger,
+        observed,
+        league_ids,
+        thresholds))
+    passed = all(item["passed"] for item in checks.values())
+    return {
+        "family": family,
+        "log_loss": _optional_loss(family, challenger, observed),
+        "passed": passed,
+        "checks": checks}
 
 
 def _vs_champion(
@@ -486,3 +533,221 @@ def _decision_loss(row: dict[str, Any]) -> float:
 
 def _check(value: Any, passed: bool) -> dict[str, Any]:
     return {"value": value, "passed": bool(passed)}
+
+
+def _require_thresholds(thresholds: object) -> None:
+    if not isinstance(thresholds, GateThresholds):
+        raise ValueError("thresholds must be GateThresholds")
+
+
+def _unit_rate(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(
+            value, (int, float, np.floating)):
+        raise ValueError("missing_rate must be between 0 and 1")
+    rate = float(value)
+    if not math.isfinite(rate) or rate < 0.0 or rate > 1.0:
+        raise ValueError("missing_rate must be between 0 and 1")
+    return rate
+
+
+def _shadow_rows(
+        family: str,
+        champion_p: np.ndarray,
+        challenger_p: np.ndarray,
+        outcomes: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    champion = _shadow_probabilities(family, champion_p, "champion_p")
+    challenger = _shadow_probabilities(
+        family, challenger_p, "challenger_p")
+    if champion.shape != challenger.shape:
+        raise ValueError(
+            "champion_p and challenger_p must have the same shape")
+    observed = np.asarray(outcomes)
+    if observed.ndim != 1 or len(observed) != champion.shape[0]:
+        raise ValueError("outcomes must have one label per match")
+    return champion, challenger, observed
+
+
+def _shadow_probabilities(
+        family: str,
+        values: np.ndarray,
+        name: str) -> np.ndarray:
+    array = np.asarray(values, dtype=float)
+    if family == FAMILY_RESULT:
+        if array.ndim != 2 or array.shape[1] != 3:
+            raise ValueError(
+                f"{name} must have three probabilities per match")
+    elif array.ndim != 1:
+        raise ValueError(
+            f"{name} must be the positive-class probability")
+    if array.size == 0:
+        return array
+    if not np.isfinite(array).all():
+        raise ValueError(f"{name} must be finite")
+    if np.any(array < 0.0) or np.any(array > 1.0):
+        raise ValueError(f"{name} must be between 0 and 1")
+    return array
+
+
+def _shadow_matches(count: int, thresholds: GateThresholds) -> dict[str, Any]:
+    value = {
+        "n": count,
+        "min_matches": thresholds.shadow_min_matches}
+    return _check(value, count >= thresholds.shadow_min_matches)
+
+
+def _shadow_log_loss(
+        family: str,
+        champion: np.ndarray,
+        challenger: np.ndarray,
+        outcomes: np.ndarray,
+        thresholds: GateThresholds) -> dict[str, Any]:
+    if len(outcomes) == 0:
+        return _check({"error": "no comparable matches"}, False)
+    challenger_loss = _array_loss(family, challenger, outcomes)
+    champion_loss = _array_loss(family, champion, outcomes)
+    # Różnica punktowa, nie bootstrap: remis wewnątrz limitu przechodzi.
+    diff = challenger_loss - champion_loss
+    limit = thresholds.shadow_max_log_loss_increase
+    value = {
+        "challenger": challenger_loss,
+        "champion": champion_loss,
+        "diff": diff,
+        "limit": limit}
+    return _check(value, diff <= limit)
+
+
+def _shadow_ece(
+        family: str,
+        champion: np.ndarray,
+        challenger: np.ndarray,
+        outcomes: np.ndarray,
+        thresholds: GateThresholds) -> dict[str, Any]:
+    if len(outcomes) == 0:
+        return _check({"error": "no comparable matches"}, False)
+    challenger_ece = expected_calibration_error(challenger, outcomes)
+    champion_ece = expected_calibration_error(champion, outcomes)
+    limit = champion_ece + thresholds.shadow_max_ece_increase
+    value = {
+        "challenger": challenger_ece,
+        "champion": champion_ece,
+        "limit": limit}
+    return _check(value, challenger_ece <= limit)
+
+
+def _shadow_missing(rate: float, thresholds: GateThresholds) -> dict[str, Any]:
+    limit = thresholds.shadow_max_missing_rate
+    value = {"missing_rate": rate, "max_missing_rate": limit}
+    return _check(value, rate <= limit)
+
+
+def _shadow_family_check(
+        family: str,
+        champion: np.ndarray,
+        challenger: np.ndarray,
+        outcomes: np.ndarray,
+        league_ids: np.ndarray | None,
+        thresholds: GateThresholds) -> dict[str, dict[str, Any]]:
+    if family == FAMILY_RESULT:
+        return {
+            "result_finals": _shadow_result_finals(
+                challenger, outcomes, thresholds)}
+    if family == FAMILY_BTTS:
+        return {
+            "btts_leagues": _shadow_btts(
+                champion,
+                challenger,
+                outcomes,
+                league_ids,
+                thresholds)}
+    # Cień nie trzyma oczekiwanych bramek, więc Over nie ma średniej.
+    return {}
+
+
+def _shadow_result_finals(
+        challenger: np.ndarray,
+        outcomes: np.ndarray,
+        thresholds: GateThresholds) -> dict[str, Any]:
+    if len(outcomes) == 0:
+        return _check({"error": "no comparable matches"}, False)
+    shares = final_shares(np.argmax(challenger, axis=1).astype(int), 3)
+    home_share = shares[0]
+    draw_share = shares[1]
+    actual_draw = float(np.mean(outcomes == 1))
+    value = {
+        "home_share": home_share,
+        "max_home_share": thresholds.max_home_final_share,
+        "draw_share": draw_share,
+        "actual_draw_share": actual_draw}
+    passed = (
+        home_share <= thresholds.max_home_final_share
+        and draw_share <= actual_draw)
+    return _check(value, passed)
+
+
+def _shadow_btts(
+        champion: np.ndarray,
+        challenger: np.ndarray,
+        outcomes: np.ndarray,
+        league_ids: np.ndarray | None,
+        thresholds: GateThresholds) -> dict[str, Any]:
+    if league_ids is None:
+        raise ValueError("btts shadow check needs league_ids")
+    ids = np.asarray(league_ids)
+    if ids.ndim != 1 or len(ids) != len(outcomes):
+        raise ValueError("league_ids must match the matches")
+    if len(outcomes) == 0:
+        return _check({"error": "no comparable matches"}, False)
+    challenger_table = _probability_table(ids, challenger, outcomes)
+    champion_table = _probability_table(ids, champion, outcomes)
+    return _btts_level_check(
+        challenger_table, champion_table, thresholds)
+
+
+def _probability_table(
+        league_ids: np.ndarray,
+        probabilities: np.ndarray,
+        outcomes: np.ndarray) -> list[dict[str, int | float | str]]:
+    # Remis 0.5 zostaje przy „nie”, tak jak argmax dwóch kolumn.
+    yes = (np.asarray(probabilities, dtype=float) > 0.5).astype(int)
+    return league_table(league_ids, probabilities, outcomes, yes, {})
+
+
+def _btts_level_check(
+        challenger_table: list[dict[str, int | float | str]],
+        champion_table: list[dict[str, int | float | str]],
+        thresholds: GateThresholds) -> dict[str, Any]:
+    try:
+        level = weighted_level_error(challenger_table)
+        champion_level = weighted_level_error(champion_table)
+    except ValueError as exc:
+        return _check({"error": str(exc)}, False)
+    spread, error = _within_league_std(challenger_table)
+    value: dict[str, Any] = {
+        "within_league_std": spread,
+        "min_within_league_std": thresholds.min_btts_within_league_std,
+        "level_error": level,
+        "champion_level_error": champion_level}
+    if error is not None:
+        value["error"] = error
+    spread_ok = (
+        spread is not None
+        and spread >= thresholds.min_btts_within_league_std)
+    return _check(value, spread_ok and level <= champion_level)
+
+
+def _optional_loss(
+        family: str,
+        probabilities: np.ndarray,
+        outcomes: np.ndarray) -> float | None:
+    if len(outcomes) == 0:
+        return None
+    return _array_loss(family, probabilities, outcomes)
+
+
+def _array_loss(
+        family: str,
+        probabilities: np.ndarray,
+        outcomes: np.ndarray) -> float:
+    if family == FAMILY_RESULT:
+        return multiclass_log_loss(probabilities, outcomes)
+    return binary_log_loss(probabilities, outcomes)

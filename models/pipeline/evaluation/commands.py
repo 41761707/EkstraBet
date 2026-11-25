@@ -1,8 +1,9 @@
-"""Offline comparison of champion, control and challenger models."""
+"""Offline comparison and the live shadow report."""
 
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
@@ -18,9 +19,14 @@ from backend.betting_tax import BETTING_TAX_RATE
 from backend.config import REPO_ROOT
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import load_model_config
+from models.pipeline.core.model_lineup import load_model_registry
+from models.pipeline.core.registry import resolve_registered_model_id
+from models.pipeline.data.evaluation_repository import fetch_finished_results
 from models.pipeline.data.evaluation_repository import fetch_league_names
 from models.pipeline.data.evaluation_repository import fetch_match_odds
+from models.pipeline.data.evaluation_repository import fetch_published_values
 from models.pipeline.data.evaluation_repository import fetch_season_years
+from models.pipeline.data.evaluation_repository import fetch_shadow_values
 from models.pipeline.evaluation.candidates import CANDIDATE_ROLES
 from models.pipeline.evaluation.candidates import FAMILY_BTTS
 from models.pipeline.evaluation.candidates import FAMILY_OVER_25
@@ -32,6 +38,7 @@ from models.pipeline.evaluation.candidates import load_candidate_output
 from models.pipeline.evaluation.gate import GateThresholds
 from models.pipeline.evaluation.gate import offline_decision
 from models.pipeline.evaluation.gate import recommend
+from models.pipeline.evaluation.gate import shadow_decision
 from models.pipeline.evaluation.market import consensus_fair_probabilities
 from models.pipeline.evaluation.market import flat_stake_roi
 from models.pipeline.evaluation.market import market_event_families
@@ -63,6 +70,21 @@ _SPEC_KEYS = (
 _FAMILY_ORDER = (FAMILY_RESULT, FAMILY_BTTS, FAMILY_OVER_25)
 _NO_MARKET = "no complete market"
 _NO_PRICE = "no priced selections"
+_NO_COMPARED = "no comparable matches"
+_SHADOW_SPORT_ID = 1
+_FAMILY_EVENT_KEYS = {
+    FAMILY_RESULT: ("result_home", "result_draw", "result_away"),
+    FAMILY_BTTS: ("btts_yes", "btts_no"),
+    FAMILY_OVER_25: ("over_25", "under_25")}
+_FINISHED_COLUMNS = (
+    "id",
+    "league",
+    "season",
+    "game_date",
+    "home_team_goals",
+    "away_team_goals",
+    "result")
+_VALUE_COLUMNS = ("match_id", "event_id", "value")
 
 
 @dataclass(frozen=True)
@@ -85,6 +107,46 @@ def run_compare_models(args: object) -> dict[str, Any]:
     loaded = _load_candidates(spec)
     report = _build_report(spec, loaded)
     _write_report(report, _repo_path(spec["output_path"]))
+    return report
+
+
+def run_shadow_report(args: object) -> dict[str, Any]:
+    """Write one family's shadow check and return the report.
+
+    The window is ``[date-from, date-to)``. The champion is read
+    from ``predictions`` and the challenger from
+    ``model_shadow_predictions``. Thresholds are the defaults on
+    ``GateThresholds``.
+    """
+    request = _shadow_request(args)
+    event_ids = _registry_event_ids(
+        request["family"],
+        request["champion_model"],
+        request["challenger_model"])
+    champion_id = resolve_registered_model_id(request["champion_model"])
+    challenger_id = resolve_registered_model_id(
+        request["challenger_model"])
+    finished = fetch_finished_results(
+        request["date_from"],
+        request["date_to"],
+        _SHADOW_SPORT_ID)
+    match_ids = _finished_ids(finished)
+    published = fetch_published_values(
+        champion_id, event_ids, match_ids)
+    shadow = fetch_shadow_values(challenger_id, event_ids, match_ids)
+    compared = _compared_matches(
+        request["family"], finished, published, shadow, event_ids)
+    decision = shadow_decision(
+        request["family"],
+        compared["champion_p"],
+        compared["challenger_p"],
+        compared["outcomes"],
+        compared["missing_rate"],
+        GateThresholds(),
+        league_ids=compared["league_ids"])
+    report = _shadow_document(
+        request, champion_id, challenger_id, compared, decision)
+    _write_report(report, Path(request["output"]))
     return report
 
 
@@ -581,3 +643,334 @@ def _plain_int(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{name} must be an integer")
     return value
+
+
+def _shadow_request(args: object) -> dict[str, Any]:
+    family = getattr(args, "family")
+    if family not in _FAMILY_ORDER:
+        raise ValueError(f"Unknown evaluation family {family!r}")
+    date_from = _coerce_date(getattr(args, "date_from"), "date-from")
+    date_to = _coerce_date(getattr(args, "date_to"), "date-to")
+    if date_from >= date_to:
+        raise ValueError("date-from must be before date-to")
+    output = getattr(args, "output")
+    if not isinstance(output, (str, Path)) or not str(output).strip():
+        raise ValueError("output must be a path")
+    return {
+        "family": family,
+        "champion_model": _model_name(
+            getattr(args, "champion_model"), "champion-model"),
+        "challenger_model": _model_name(
+            getattr(args, "challenger_model"), "challenger-model"),
+        "date_from": date_from,
+        "date_to": date_to,
+        "output": str(output)}
+
+
+def _model_name(value: object, flag: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{flag} must be a model name")
+    return value
+
+
+def _coerce_date(value: object, name: str) -> date:
+    if type(value) is date:
+        return value
+    if isinstance(value, str):
+        return _parse_date(value, name)
+    raise ValueError(f"{name} must be an ISO date")
+
+
+def _registry_event_ids(
+        family: str,
+        champion_model: str,
+        challenger_model: str) -> tuple[int, ...]:
+    """Read one family's event ids from the two named configs.
+
+    Ids come only from those configs. A key that is missing, not an
+    integer, or that disagrees between the two models is an error.
+    """
+    keys = _FAMILY_EVENT_KEYS[family]
+    registry = load_model_registry()
+    found: dict[str, int] = {}
+    for model_name in (champion_model, challenger_model):
+        events = _registry_events(registry, model_name)
+        _collect_family_ids(keys, events, model_name, found)
+    return tuple(found[key] for key in keys)
+
+
+def _registry_events(
+        registry: dict[str, Path],
+        model_name: str) -> dict[str, int | str]:
+    if model_name not in registry:
+        raise ValueError(
+            f"Model {model_name} is not in the model registry")
+    return load_model_config(registry[model_name]).events
+
+
+def _collect_family_ids(
+        keys: tuple[str, ...],
+        events: dict[str, int | str],
+        model_name: str,
+        found: dict[str, int]) -> None:
+    for key in keys:
+        if key not in events:
+            raise ValueError(
+                f"Model {model_name} config has no event {key}")
+        event_id = _configured_event_id(key, events[key], model_name)
+        previous = found.get(key)
+        if previous is not None and previous != event_id:
+            raise ValueError(
+                f"Event {key} has ids {previous} and {event_id}")
+        found[key] = event_id
+
+
+def _configured_event_id(
+        key: str,
+        reference: object,
+        model_name: str) -> int:
+    if isinstance(reference, bool) or not isinstance(reference, int):
+        raise ValueError(
+            f"Event {key} in {model_name} must be an integer id")
+    return reference
+
+
+def _finished_ids(finished: pd.DataFrame) -> list[int]:
+    _require_frame(finished, _FINISHED_COLUMNS, "finished results")
+    return [int(value) for value in finished["id"].tolist()]
+
+
+def _compared_matches(
+        family: str,
+        finished: pd.DataFrame,
+        published: pd.DataFrame,
+        shadow: pd.DataFrame,
+        event_ids: tuple[int, ...]) -> dict[str, Any]:
+    match_ids = _finished_ids(finished)
+    champion = _ready_rows(published, match_ids, event_ids)
+    challenger = _ready_rows(shadow, match_ids, event_ids)
+    covered = [
+        match_id for match_id in match_ids if match_id in champion]
+    compared = [
+        match_id for match_id in covered if match_id in challenger]
+    return {
+        "n_finished": len(match_ids),
+        "n_champion": len(covered),
+        "n_compared": len(compared),
+        "missing_rate": _missing_rate(covered, compared),
+        "champion_p": _stack_ready(family, champion, compared),
+        "challenger_p": _stack_ready(family, challenger, compared),
+        "outcomes": _compared_outcomes(family, finished, compared),
+        "league_ids": _compared_column(finished, compared, "league")}
+
+
+def _missing_rate(covered: list[int], compared: list[int]) -> float:
+    # Brak wiersza mistrza nie jest luką cienia: nie ma czego porównać.
+    if not covered:
+        return 1.0
+    return (len(covered) - len(compared)) / len(covered)
+
+
+def _ready_rows(
+        values: pd.DataFrame,
+        match_ids: list[int],
+        event_ids: tuple[int, ...]) -> dict[int, np.ndarray]:
+    lookup = _value_lookup(values)
+    ready: dict[int, np.ndarray] = {}
+    for match_id in match_ids:
+        distribution = _match_distribution(lookup, match_id, event_ids)
+        if distribution is None:
+            continue
+        ready[match_id] = distribution
+    return ready
+
+
+def _value_lookup(frame: pd.DataFrame) -> dict[tuple[int, int], float]:
+    _require_frame(frame, _VALUE_COLUMNS, "predictions")
+    lookup: dict[tuple[int, int], float] = {}
+    rows = zip(
+        frame["match_id"].tolist(),
+        frame["event_id"].tolist(),
+        frame["value"].tolist())
+    for match_id, event_id, value in rows:
+        key = (int(match_id), int(event_id))
+        if key in lookup:
+            raise ValueError(
+                f"Duplicate prediction for match {key[0]} "
+                f"event {key[1]}")
+        number = _stored_percent(key, value)
+        lookup[key] = number
+    return lookup
+
+
+def _stored_percent(key: tuple[int, int], value: object) -> float:
+    if isinstance(value, bool) or not isinstance(
+            value, (int, float, np.floating)):
+        raise ValueError(
+            f"Prediction value for match {key[0]} event {key[1]} "
+            "must be between 0 and 100")
+    number = float(value)
+    if not math.isfinite(number) or number < 0.0 or number > 100.0:
+        raise ValueError(
+            f"Prediction value for match {key[0]} event {key[1]} "
+            "must be between 0 and 100")
+    return number
+
+
+def _match_distribution(
+        lookup: dict[tuple[int, int], float],
+        match_id: int,
+        event_ids: tuple[int, ...]) -> np.ndarray | None:
+    values: list[float] = []
+    for event_id in event_ids:
+        found = lookup.get((match_id, event_id))
+        if found is None:
+            return None
+        values.append(found)
+    total = float(sum(values))
+    if total <= 0.0:
+        raise ValueError(
+            f"Prediction values for match {match_id} "
+            "must sum to more than 0")
+    # Suma, nie /100: wiersz procentowy i ułamkowy dają ten sam rozkład.
+    return np.asarray(values, dtype=float) / total
+
+
+def _stack_ready(
+        family: str,
+        ready: dict[int, np.ndarray],
+        match_ids: list[int]) -> np.ndarray:
+    if not match_ids:
+        if family == FAMILY_RESULT:
+            return np.zeros((0, 3), dtype=float)
+        return np.zeros((0,), dtype=float)
+    stacked = np.vstack([ready[match_id] for match_id in match_ids])
+    if family == FAMILY_RESULT:
+        return stacked
+    return stacked[:, 0]
+
+
+def _compared_outcomes(
+        family: str,
+        finished: pd.DataFrame,
+        match_ids: list[int]) -> np.ndarray:
+    if not match_ids:
+        return np.zeros((0,), dtype=int)
+    home = _compared_column(finished, match_ids, "home_team_goals")
+    away = _compared_column(finished, match_ids, "away_team_goals")
+    if family == FAMILY_RESULT:
+        return _result_outcomes(home, away)
+    return _binary_outcomes(family, home, away)
+
+
+def _compared_column(
+        finished: pd.DataFrame,
+        match_ids: list[int],
+        column: str) -> np.ndarray:
+    if not match_ids:
+        return np.zeros((0,), dtype=int)
+    lookup = {
+        int(match_id): value
+        for match_id, value in zip(
+            finished["id"].tolist(),
+            finished[column].tolist())}
+    return np.asarray(
+        [int(lookup[match_id]) for match_id in match_ids],
+        dtype=int)
+
+
+def _shadow_document(
+        request: dict[str, Any],
+        champion_id: int,
+        challenger_id: int,
+        compared: dict[str, Any],
+        decision: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "champion_model": request["champion_model"],
+        "challenger_model": request["challenger_model"],
+        "champion_model_id": champion_id,
+        "challenger_model_id": challenger_id,
+        "date_from": request["date_from"].isoformat(),
+        "date_to": request["date_to"].isoformat(),
+        "sport_id": _SHADOW_SPORT_ID,
+        "n_finished": compared["n_finished"],
+        "n_champion": compared["n_champion"],
+        "n_compared": compared["n_compared"],
+        "missing_rate": compared["missing_rate"],
+        "metrics": _shadow_metrics(request["family"], compared),
+        "family": decision["family"],
+        "log_loss": decision["log_loss"],
+        "passed": decision["passed"],
+        "checks": decision["checks"]}
+
+
+def _shadow_metrics(
+        family: str,
+        compared: dict[str, Any]) -> dict[str, Any]:
+    outcomes = compared["outcomes"]
+    if len(outcomes) == 0:
+        skipped = {"skipped": _NO_COMPARED}
+        return {"champion": skipped, "challenger": skipped}
+    return {
+        "champion": _family_scores(
+            family, compared["champion_p"], outcomes),
+        "challenger": _family_scores(
+            family, compared["challenger_p"], outcomes)}
+
+
+def _family_scores(
+        family: str,
+        probabilities: np.ndarray,
+        outcomes: np.ndarray) -> dict[str, Any]:
+    if family == FAMILY_RESULT:
+        return _result_scores(probabilities, outcomes)
+    return _binary_scores(family, probabilities, outcomes)
+
+
+def _result_scores(
+        probabilities: np.ndarray,
+        outcomes: np.ndarray) -> dict[str, Any]:
+    shares = final_shares(
+        np.argmax(probabilities, axis=1).astype(int), 3)
+    return {
+        "n": int(len(outcomes)),
+        "log_loss": multiclass_log_loss(probabilities, outcomes),
+        "brier": multiclass_brier(probabilities, outcomes),
+        "ece": expected_calibration_error(probabilities, outcomes),
+        "mean_p": {
+            "h": float(np.mean(probabilities[:, 0])),
+            "d": float(np.mean(probabilities[:, 1])),
+            "a": float(np.mean(probabilities[:, 2]))},
+        "final_shares": {
+            "h": shares[0],
+            "d": shares[1],
+            "a": shares[2]}}
+
+
+def _binary_scores(
+        family: str,
+        probabilities: np.ndarray,
+        outcomes: np.ndarray) -> dict[str, Any]:
+    vector = np.asarray(probabilities, dtype=float)
+    yes = (vector > 0.5).astype(int)
+    shares = final_shares(yes, 2)
+    return {
+        "n": int(len(outcomes)),
+        "log_loss": binary_log_loss(vector, outcomes),
+        "brier": binary_brier(vector, outcomes),
+        "ece": expected_calibration_error(vector, outcomes),
+        "mean_p": float(np.mean(vector)),
+        "final_shares": _binary_shares(family, shares)}
+
+
+def _require_frame(
+        frame: object,
+        columns: tuple[str, ...],
+        label: str) -> None:
+    if not isinstance(frame, pd.DataFrame):
+        raise ValueError(f"{label} must be a DataFrame")
+    missing = [name for name in columns if name not in frame.columns]
+    if missing:
+        raise ValueError(
+            f"{label} are missing " + ", ".join(missing))

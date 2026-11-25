@@ -15,6 +15,7 @@ from models.pipeline.evaluation.candidates import EvaluationFrame
 from models.pipeline.evaluation.gate import GateThresholds
 from models.pipeline.evaluation.gate import offline_decision
 from models.pipeline.evaluation.gate import recommend
+from models.pipeline.evaluation.gate import shadow_decision
 
 
 _RESULT_LABELS = [0, 0, 0, 0, 0, 1, 1, 2, 2, 2]
@@ -427,6 +428,234 @@ def _goal_decision(expected: np.ndarray) -> dict[str, Any]:
             np.full(count, 0.4),
             goals,
             expected=np.full(count, 3.0)))
+
+
+def test_shadow_decision_passes_when_the_challenger_holds() -> None:
+    labels = [0, 1, 2, 0]
+    probabilities = _confident(labels)
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        probabilities,
+        probabilities,
+        np.asarray(labels),
+        0.0,
+        _shadow_limits(4))
+    assert decision["passed"] is True
+    assert decision["log_loss"] == pytest.approx(float(-np.log(0.9)))
+    assert set(decision["checks"]) == {
+        "matches",
+        "log_loss",
+        "ece",
+        "missing_rate",
+        "result_finals"}
+    for check in decision["checks"].values():
+        assert check["passed"] is True
+
+
+def test_shadow_decision_fails_when_there_are_too_few_matches() -> None:
+    labels = [0, 1, 2, 0]
+    probabilities = _confident(labels)
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        probabilities,
+        probabilities,
+        np.asarray(labels),
+        0.0,
+        GateThresholds())
+    check = decision["checks"]["matches"]
+    assert check["value"]["n"] == 4
+    assert check["value"]["min_matches"] == 300
+    assert check["passed"] is False
+    assert decision["checks"]["log_loss"]["passed"] is True
+    assert decision["passed"] is False
+
+
+def test_shadow_decision_fails_when_the_missing_rate_is_high() -> None:
+    labels = [0, 1, 2, 0]
+    probabilities = _confident(labels)
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        probabilities,
+        probabilities,
+        np.asarray(labels),
+        0.05,
+        _shadow_limits(4))
+    check = decision["checks"]["missing_rate"]
+    assert check["value"]["missing_rate"] == pytest.approx(0.05)
+    assert check["value"]["max_missing_rate"] == pytest.approx(0.02)
+    assert check["passed"] is False
+    assert decision["passed"] is False
+
+
+def test_shadow_missing_rate_passes_at_the_limit() -> None:
+    labels = [0, 1, 2, 0]
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        _confident(labels),
+        _confident(labels),
+        np.asarray(labels),
+        0.02,
+        _shadow_limits(4))
+    assert decision["checks"]["missing_rate"]["passed"] is True
+
+
+def test_shadow_log_loss_fails_when_the_point_gap_exceeds_the_limit() -> None:
+    labels = [0, 1, 2, 0]
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        _confident(labels),
+        _uniform(len(labels)),
+        np.asarray(labels),
+        0.0,
+        _shadow_limits(4, shadow_max_log_loss_increase=0.005))
+    check = decision["checks"]["log_loss"]
+    assert check["value"]["diff"] > check["value"]["limit"]
+    assert check["passed"] is False
+
+
+def test_shadow_log_loss_allows_a_tie_inside_the_limit() -> None:
+    labels = [0, 1, 2, 0]
+    probabilities = _confident(labels)
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        probabilities,
+        probabilities,
+        np.asarray(labels),
+        0.0,
+        _shadow_limits(4))
+    check = decision["checks"]["log_loss"]
+    assert check["value"]["diff"] == pytest.approx(0.0)
+    assert check["passed"] is True
+
+
+def test_shadow_ece_uses_the_shadow_allowance() -> None:
+    labels = [0, 1, 2, 0]
+    probabilities = _confident(labels)
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        probabilities,
+        probabilities,
+        np.asarray(labels),
+        0.0,
+        _shadow_limits(4, shadow_max_ece_increase=-0.01))
+    check = decision["checks"]["ece"]
+    assert check["value"]["limit"] == pytest.approx(
+        check["value"]["champion"] - 0.01)
+    assert check["passed"] is False
+
+
+def test_shadow_result_finals_fail_when_home_share_is_too_high() -> None:
+    labels = [0, 0, 0, 0]
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        _confident(labels),
+        _confident(labels),
+        np.asarray(labels),
+        0.0,
+        _shadow_limits(4))
+    check = decision["checks"]["result_finals"]
+    assert check["value"]["home_share"] == pytest.approx(1.0)
+    assert check["passed"] is False
+
+
+def test_shadow_over_has_no_goal_mean_check() -> None:
+    probabilities = np.array([0.7, 0.4])
+    decision = shadow_decision(
+        FAMILY_OVER_25,
+        probabilities,
+        probabilities,
+        np.array([1, 0]),
+        0.0,
+        _shadow_limits(2))
+    assert set(decision["checks"]) == {
+        "matches",
+        "log_loss",
+        "ece",
+        "missing_rate"}
+    assert decision["passed"] is True
+
+
+def test_shadow_btts_needs_league_ids() -> None:
+    with pytest.raises(ValueError, match="league_ids"):
+        shadow_decision(
+            FAMILY_BTTS,
+            np.array([0.6, 0.4]),
+            np.array([0.6, 0.4]),
+            np.array([1, 0]),
+            0.0,
+            _shadow_limits(2))
+
+
+def test_shadow_btts_passes_when_leagues_separate_and_level_holds() -> None:
+    count = 30
+    probabilities = np.tile(np.array([0.2, 0.8]), count // 2)
+    outcomes = np.tile(np.array([0, 1]), count // 2)
+    decision = shadow_decision(
+        FAMILY_BTTS,
+        np.full(count, 0.9),
+        probabilities,
+        outcomes,
+        0.0,
+        _shadow_limits(count),
+        league_ids=np.ones(count, dtype=int))
+    check = decision["checks"]["btts_leagues"]
+    assert check["value"]["within_league_std"] >= 0.05
+    assert check["value"]["level_error"] <= check["value"][
+        "champion_level_error"]
+    assert check["passed"] is True
+
+
+def test_shadow_btts_fails_when_no_league_is_large_enough() -> None:
+    decision = shadow_decision(
+        FAMILY_BTTS,
+        np.array([0.2, 0.8]),
+        np.array([0.2, 0.8]),
+        np.array([0, 1]),
+        0.0,
+        _shadow_limits(2),
+        league_ids=np.array([1, 1]))
+    check = decision["checks"]["btts_leagues"]
+    assert check["passed"] is False
+    assert "error" in check["value"]
+
+
+def test_shadow_decision_keeps_checks_when_nothing_is_comparable() -> None:
+    decision = shadow_decision(
+        FAMILY_RESULT,
+        np.zeros((0, 3)),
+        np.zeros((0, 3)),
+        np.zeros((0,), dtype=int),
+        1.0,
+        GateThresholds())
+    assert decision["log_loss"] is None
+    assert decision["passed"] is False
+    assert decision["checks"]["log_loss"]["value"]["error"] == (
+        "no comparable matches")
+    assert decision["checks"]["missing_rate"]["passed"] is False
+
+
+def test_shadow_decision_rejects_a_rate_above_one() -> None:
+    with pytest.raises(ValueError, match="missing_rate"):
+        shadow_decision(
+            FAMILY_OVER_25,
+            np.array([0.5]),
+            np.array([0.5]),
+            np.array([1]),
+            1.2,
+            GateThresholds())
+
+
+def _shadow_limits(min_matches: int, **overrides: float) -> GateThresholds:
+    values: dict[str, float] = {"shadow_min_matches": min_matches}
+    values.update(overrides)
+    return GateThresholds.model_validate(values)
+
+
+def _confident(labels: list[int], confidence: float = 0.9) -> np.ndarray:
+    rows = np.full((len(labels), 3), (1.0 - confidence) / 2.0)
+    for index, label in enumerate(labels):
+        rows[index, label] = confidence
+    return rows
 
 
 def _result(
