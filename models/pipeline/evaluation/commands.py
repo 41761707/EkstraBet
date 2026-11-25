@@ -1,4 +1,4 @@
-"""Offline comparison and the live shadow report."""
+"""Offline comparison, the live shadow report and promotion."""
 
 from __future__ import annotations
 
@@ -17,9 +17,21 @@ from pydantic import ValidationError
 
 from backend.betting_tax import BETTING_TAX_RATE
 from backend.config import REPO_ROOT
+from backend.database import get_db_connection
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import load_model_config
+from models.pipeline.core.model_lineup import LineupEntry
+from models.pipeline.core.model_lineup import build_lineup
 from models.pipeline.core.model_lineup import load_model_registry
+from models.pipeline.core.model_lineup import resolve_lineup
+from models.pipeline.core.model_roles import MODEL_STATUS_CHALLENGER
+from models.pipeline.core.model_roles import MODEL_STATUS_CHAMPION
+from models.pipeline.core.model_roles import MODEL_STATUS_RETIRED
+from models.pipeline.core.model_roles import FamilyRole
+from models.pipeline.core.model_roles import ModelRoles
+from models.pipeline.core.model_roles import effective_status
+from models.pipeline.core.model_roles import fetch_model_roles
+from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_registered_model_id
 from models.pipeline.data.evaluation_repository import fetch_finished_results
 from models.pipeline.data.evaluation_repository import fetch_league_names
@@ -85,6 +97,39 @@ _FINISHED_COLUMNS = (
     "away_team_goals",
     "result")
 _VALUE_COLUMNS = ("match_id", "event_id", "value")
+_FOOTBALL_SPORT_ID = 1
+_PROMOTABLE_STATUSES = frozenset({
+    MODEL_STATUS_CHALLENGER,
+    MODEL_STATUS_RETIRED})
+_REPORT_ANCHORS = {
+    "result_home": FAMILY_RESULT,
+    "btts_yes": FAMILY_BTTS,
+    "over_25": FAMILY_OVER_25}
+_OU_KEY_PREFIXES = ("goals_", "exact:")
+_RETIRE_SQL = (
+    "UPDATE event_model_families emf "
+    "INNER JOIN models m ON m.id = emf.model_id "
+    "SET emf.status = 'retired', "
+    "emf.status_changed_at = CURRENT_TIMESTAMP "
+    "WHERE (emf.model_id, emf.event_family_id) IN ({pairs}) "
+    "AND (emf.status = 'champion' "
+    "OR (emf.status IS NULL AND m.active = 1))")
+_CHAMPION_SQL = (
+    "UPDATE event_model_families "
+    "SET status = 'champion', "
+    "status_changed_at = CURRENT_TIMESTAMP "
+    "WHERE model_id = %s AND event_family_id IN ({ids})")
+_ACTIVE_SQL = "UPDATE models SET active = %s WHERE id = %s"
+
+
+@dataclass(frozen=True)
+class _NamedFamily:
+    """One event family selected for promotion, with its report key."""
+
+    family_id: int
+    name: str
+    event_ids: tuple[int, ...]
+    report_family: str
 
 
 @dataclass(frozen=True)
@@ -148,6 +193,62 @@ def run_shadow_report(args: object) -> dict[str, Any]:
         request, champion_id, challenger_id, compared, decision)
     _write_report(report, Path(request["output"]))
     return report
+
+
+def run_model_lineup(_args: object) -> dict[str, Any]:
+    """Return the champion and challenger lineup.
+
+    Each entry has the model, its config path and one row per
+    event family (id, name, status). ``LineupError`` propagates
+    when the registry or the roles are invalid.
+    """
+    lineup = resolve_lineup()
+    family_ids = [
+        family_id
+        for entry in lineup.entries
+        for family_id in entry.family_statuses]
+    names = _family_names(family_ids)
+    return {
+        "entries": [
+            _lineup_entry(entry, names) for entry in lineup.entries]}
+
+
+def run_promote_model(args: object) -> dict[str, Any]:
+    """Promote a challenger or restore a retired model.
+
+    Without ``--force`` the first event family must have passed
+    both reports. ``--dry-run`` returns the SQL plan and does not
+    write. The lineup that the change would produce is checked
+    before any write, then again from the database after commit.
+    """
+    request = _promotion_request(args)
+    events = _resolved_config_events(request["model_name"])
+    families = _load_named_families(request["families"], events)
+    evidence = request["evidence"]
+    if evidence is not None:
+        _require_promotion_evidence(
+            request["model_name"],
+            families[0].report_family,
+            evidence[0],
+            evidence[1])
+    model_id = resolve_registered_model_id(request["model_name"])
+    roles = fetch_model_roles(_FOOTBALL_SPORT_ID)
+    _require_promotable_roles(
+        roles, model_id, request["model_name"], families)
+    updates = _status_updates(roles, model_id, families)
+    active = _active_map(roles, updates)
+    _ensure_promoted_lineup(
+        roles, updates, active, load_model_registry())
+    statements, active_rows = _promotion_statements(
+        roles, model_id, families, active)
+    plan = _promotion_document(
+        request, model_id, families, statements, active_rows)
+    if request["dry_run"]:
+        return plan
+    _execute_promotion(statements)
+    resolve_lineup()
+    plan["applied"] = True
+    return plan
 
 
 def _read_spec(path: Path) -> dict[str, Any]:
@@ -974,3 +1075,509 @@ def _require_frame(
     if missing:
         raise ValueError(
             f"{label} are missing " + ", ".join(missing))
+
+
+def _promotion_request(args: object) -> dict[str, Any]:
+    model_name = _model_name(getattr(args, "model_name"), "model-name")
+    force = bool(getattr(args, "force", False))
+    evidence = None if force else _evidence_paths(args)
+    return {
+        "model_name": model_name,
+        "families": _requested_families(
+            getattr(args, "event_family", None)),
+        "dry_run": bool(getattr(args, "dry_run", False)),
+        "evidence": evidence}
+
+
+def _requested_families(raw: object) -> list[str]:
+    if isinstance(raw, str) or not isinstance(raw, list) or not raw:
+        raise ValueError("At least one event family is required")
+    names: list[str] = []
+    for name in raw:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Event family name must be non-empty")
+        if name in names:
+            raise ValueError(f"Event family {name} is repeated")
+        names.append(name)
+    return names
+
+
+def _evidence_paths(args: object) -> tuple[Path, Path]:
+    return (
+        _report_path(getattr(args, "offline_report", None), "offline"),
+        _report_path(getattr(args, "shadow_report", None), "shadow"))
+
+
+def _report_path(value: object, control: str) -> Path:
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        raise ValueError(f"Missing promotion evidence: {control}")
+    return Path(value)
+
+
+def _resolved_config_events(model_name: str) -> dict[str, int]:
+    registry = load_model_registry()
+    if model_name not in registry:
+        raise ValueError(
+            f"Model {model_name} is not in the model registry")
+    loaded = load_model_config(registry[model_name])
+    if not isinstance(loaded, FutureEventsRunConfig):
+        raise ValueError(
+            f"Model {model_name} is not a future-events model")
+    return resolve_event_map(loaded.events)
+
+
+def _load_named_families(
+        names: list[str],
+        events: dict[str, int]) -> list[_NamedFamily]:
+    found = _fetch_named_families(names)
+    loaded: list[_NamedFamily] = []
+    for name in names:
+        row = found.get(name)
+        if row is None:
+            raise ValueError(f"Unknown event family: {name}")
+        event_ids = {int(event_id) for event_id in row["event_ids"]}
+        loaded.append(_NamedFamily(
+            family_id=int(row["id"]),
+            name=name,
+            event_ids=tuple(sorted(event_ids)),
+            report_family=_report_family(name, events, event_ids)))
+    return loaded
+
+
+def _report_family(
+        name: str,
+        events: dict[str, int],
+        event_ids: set[int]) -> str:
+    # Kubełki goli i dokładny wynik nie mają własnego raportu.
+    anchored: list[str] = []
+    follows_ou = False
+    for key, event_id in events.items():
+        if event_id not in event_ids:
+            continue
+        anchor = _REPORT_ANCHORS.get(key)
+        if anchor is not None:
+            if anchor not in anchored:
+                anchored.append(anchor)
+            continue
+        if key.startswith(_OU_KEY_PREFIXES):
+            follows_ou = True
+    if len(anchored) == 1:
+        return anchored[0]
+    if len(anchored) > 1:
+        listed = ", ".join(anchored)
+        raise ValueError(f"Event family {name} maps to {listed}")
+    if follows_ou:
+        return FAMILY_OVER_25
+    raise ValueError(
+        f"Event family {name} is not covered by the model config")
+
+
+def _require_promotion_evidence(
+        model_name: str,
+        family: str,
+        offline_path: Path,
+        shadow_path: Path) -> None:
+    offline = _promotion_report(offline_path, "offline")
+    if not _offline_passed(offline, model_name, family):
+        raise ValueError(
+            "Missing promotion evidence: offline "
+            f"for {model_name} on {family}")
+    shadow = _promotion_report(shadow_path, "shadow")
+    if not _shadow_passed(shadow, model_name, family):
+        raise ValueError(
+            "Missing promotion evidence: shadow "
+            f"for {model_name} on {family}")
+
+
+def _promotion_report(path: Path, control: str) -> dict[str, Any]:
+    """Read one report, naming the control when the file is unusable."""
+    try:
+        return _read_json_object(path)
+    except (FileNotFoundError, ValueError) as exc:
+        raise ValueError(
+            f"Missing promotion evidence: {control} ({exc})") from exc
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    source = _report_file(path)
+    try:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Report is not valid JSON: {source}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"Report must be a JSON object: {source}")
+    return raw
+
+
+def _report_file(value: Path) -> Path:
+    if value.is_file():
+        return value
+    repo = REPO_ROOT / value
+    if repo.is_file():
+        return repo
+    raise FileNotFoundError(f"Report file not found: {value}")
+
+
+def _offline_passed(
+        report: dict[str, Any],
+        model_name: str,
+        family: str) -> bool:
+    decisions = report.get("decisions")
+    spec = report.get("spec")
+    if not isinstance(decisions, list) or not isinstance(spec, dict):
+        return False
+    labels = _labels_for_model(spec, model_name)
+    if not labels:
+        return False
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        if decision.get("family") != family:
+            continue
+        if decision.get("label") not in labels:
+            continue
+        if decision.get("passed") is True:
+            return True
+    return False
+
+
+def _labels_for_model(spec: dict[str, Any], model_name: str) -> set[str]:
+    candidates = spec.get("candidates")
+    if not isinstance(candidates, list):
+        return set()
+    labels: set[str] = set()
+    for row in candidates:
+        if not isinstance(row, dict):
+            continue
+        label = row.get("label")
+        config = row.get("config")
+        if not isinstance(label, str) or not isinstance(config, str):
+            continue
+        if _config_model_name(config) == model_name:
+            labels.add(label)
+    return labels
+
+
+def _config_model_name(relative: str) -> str:
+    try:
+        loaded = load_model_config(_repo_path(relative))
+    except FileNotFoundError as exc:
+        raise ValueError(
+            "Missing promotion evidence: offline "
+            f"({exc})") from exc
+    return loaded.model_name
+
+
+def _shadow_passed(
+        report: dict[str, Any],
+        model_name: str,
+        family: str) -> bool:
+    return (
+        report.get("challenger_model") == model_name
+        and report.get("family") == family
+        and report.get("passed") is True)
+
+
+def _require_promotable_roles(
+        roles: ModelRoles,
+        model_id: int,
+        model_name: str,
+        families: list[_NamedFamily]) -> None:
+    for family in families:
+        match = _role_for(roles, model_id, family.family_id)
+        if match is None:
+            raise ValueError(
+                f"Model {model_name} has no role for "
+                f"event family {family.name}")
+        if match.raw_status not in _PROMOTABLE_STATUSES:
+            raise ValueError(
+                f"Model {model_name} status for {family.name} "
+                f"is {match.raw_status!r}; expected challenger "
+                "or retired")
+
+
+def _role_for(
+        roles: ModelRoles,
+        model_id: int,
+        family_id: int) -> FamilyRole | None:
+    for role in roles.roles:
+        if role.model_id != model_id:
+            continue
+        if role.event_family_id != family_id:
+            continue
+        return role
+    return None
+
+
+def _status_updates(
+        roles: ModelRoles,
+        model_id: int,
+        families: list[_NamedFamily]) -> dict[tuple[int, int], str]:
+    updates: dict[tuple[int, int], str] = {}
+    for family in families:
+        for role in roles.champions_of(family.family_id):
+            if role.model_id == model_id:
+                continue
+            updates[(role.model_id, family.family_id)] = (
+                MODEL_STATUS_RETIRED)
+    for family in families:
+        updates[(model_id, family.family_id)] = MODEL_STATUS_CHAMPION
+    return updates
+
+
+def _ensure_promoted_lineup(
+        roles: ModelRoles,
+        updates: dict[tuple[int, int], str],
+        active: dict[int, int],
+        registry: dict[str, Path]) -> None:
+    # Po UPDATE models odczyt liczy NULL nowym active. Wiersz spoza
+    # planu, który przez to zmienia status, blokuje zapis.
+    _reject_status_drift(roles, updates, active)
+    build_lineup(_roles_after(roles, updates, active), registry)
+
+
+def _reject_status_drift(
+        roles: ModelRoles,
+        updates: dict[tuple[int, int], str],
+        active: dict[int, int]) -> None:
+    drifted: list[str] = []
+    ordered = sorted(
+        roles.roles,
+        key=lambda role: (role.model_name, role.event_family_id))
+    for role in ordered:
+        key = (role.model_id, role.event_family_id)
+        if key in updates:
+            continue
+        previous = roles.active_by_model.get(role.model_id, 0)
+        updated = active.get(role.model_id, previous)
+        before = effective_status(role.raw_status, previous)
+        after = effective_status(role.raw_status, updated)
+        if before == after:
+            continue
+        drifted.append(
+            f"{role.model_name} event family {role.event_family_id}")
+    if not drifted:
+        return
+    listed = ", ".join(drifted)
+    raise ValueError(
+        "Promotion would change a family outside the plan: "
+        f"{listed}")
+
+
+def _roles_after(
+        roles: ModelRoles,
+        updates: dict[tuple[int, int], str],
+        active: dict[int, int]) -> ModelRoles:
+    copied: list[FamilyRole] = []
+    for role in roles.roles:
+        key = (role.model_id, role.event_family_id)
+        raw = updates.get(key, role.raw_status)
+        flag = active.get(
+            role.model_id,
+            roles.active_by_model.get(role.model_id, 0))
+        copied.append(FamilyRole(
+            model_id=role.model_id,
+            model_name=role.model_name,
+            event_family_id=role.event_family_id,
+            status=effective_status(raw, flag),
+            raw_status=raw))
+    return ModelRoles(
+        roles=tuple(copied),
+        active_by_model=dict(active))
+
+
+def _promotion_statements(
+        roles: ModelRoles,
+        model_id: int,
+        families: list[_NamedFamily],
+        active: dict[int, int]
+        ) -> tuple[list[dict[str, Any]], list[dict[str, int]]]:
+    statements: list[dict[str, Any]] = []
+    retire = _retire_pairs(roles, model_id, families)
+    if retire:
+        statements.append(_retire_statement(retire))
+    family_ids = [family.family_id for family in families]
+    statements.append(_champion_statement(model_id, family_ids))
+    active_rows: list[dict[str, int]] = []
+    changed = sorted(_rewritten_model_ids(roles, model_id, families))
+    for changed_id in changed:
+        flag = active[changed_id]
+        statements.append({
+            "sql": _ACTIVE_SQL,
+            "params": [flag, changed_id]})
+        active_rows.append({
+            "model_id": changed_id,
+            "active": flag})
+    return statements, active_rows
+
+
+def _rewritten_model_ids(
+        roles: ModelRoles,
+        model_id: int,
+        families: list[_NamedFamily]) -> set[int]:
+    owners = {model_id}
+    for family in families:
+        for role in roles.champions_of(family.family_id):
+            if role.model_id != model_id:
+                owners.add(role.model_id)
+    return owners
+
+
+def _active_map(
+        roles: ModelRoles,
+        updates: dict[tuple[int, int], str]) -> dict[int, int]:
+    merged = dict(roles.active_by_model)
+    for model_id in {pair[0] for pair in updates}:
+        merged[model_id] = _next_active(roles, model_id, updates)
+    return merged
+
+
+def _retire_pairs(
+        roles: ModelRoles,
+        model_id: int,
+        families: list[_NamedFamily]) -> list[tuple[int, int]]:
+    pairs: list[tuple[int, int]] = []
+    for family in families:
+        owners = sorted({
+            role.model_id
+            for role in roles.champions_of(family.family_id)
+            if role.model_id != model_id})
+        for owner in owners:
+            pairs.append((owner, family.family_id))
+    return pairs
+
+
+def _next_active(
+        roles: ModelRoles,
+        model_id: int,
+        updates: dict[tuple[int, int], str]) -> int:
+    # NULL jest mistrzem tylko przy dotychczasowym active.
+    # Nowe active wynika z tego rozstrzygnięcia, nie z samego siebie.
+    current = roles.active_by_model.get(model_id, 0)
+    for role in roles.roles:
+        if role.model_id != model_id:
+            continue
+        raw = updates.get(
+            (model_id, role.event_family_id), role.raw_status)
+        if effective_status(raw, current) == MODEL_STATUS_CHAMPION:
+            return 1
+    return 0
+
+
+def _retire_statement(pairs: list[tuple[int, int]]) -> dict[str, Any]:
+    slots = ", ".join(["(%s, %s)"] * len(pairs))
+    params: list[int] = []
+    for model_id, family_id in pairs:
+        params.extend((model_id, family_id))
+    return {
+        "sql": _RETIRE_SQL.format(pairs=slots),
+        "params": params}
+
+
+def _champion_statement(
+        model_id: int,
+        family_ids: list[int]) -> dict[str, Any]:
+    slots = ", ".join(["%s"] * len(family_ids))
+    return {
+        "sql": _CHAMPION_SQL.format(ids=slots),
+        "params": [model_id, *family_ids]}
+
+
+def _promotion_document(
+        request: dict[str, Any],
+        model_id: int,
+        families: list[_NamedFamily],
+        statements: list[dict[str, Any]],
+        active_rows: list[dict[str, int]]) -> dict[str, Any]:
+    return {
+        "dry_run": request["dry_run"],
+        "applied": False,
+        "model_name": request["model_name"],
+        "model_id": model_id,
+        "evidence_family": families[0].report_family,
+        "event_families": [
+            {
+                "name": family.name,
+                "id": family.family_id,
+                "report_family": family.report_family}
+            for family in families],
+        "statements": statements,
+        "active": active_rows}
+
+
+def _execute_promotion(statements: list[dict[str, Any]]) -> None:
+    with get_db_connection() as connection:
+        cursor = connection.cursor()
+        try:
+            for statement in statements:
+                cursor.execute(
+                    statement["sql"], tuple(statement["params"]))
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+
+def _lineup_entry(
+        entry: LineupEntry,
+        names: dict[int, str]) -> dict[str, Any]:
+    families = []
+    for family_id in sorted(entry.family_statuses):
+        families.append({
+            "event_family_id": family_id,
+            "name": names.get(family_id),
+            "status": entry.family_statuses[family_id]})
+    return {
+        "model": entry.model_name,
+        "model_id": entry.model_id,
+        "config": str(entry.config_path),
+        "families": families}
+
+
+def _family_names(family_ids: list[int]) -> dict[int, str]:
+    unique = list(dict.fromkeys(family_ids))
+    if not unique:
+        return {}
+    placeholders = ", ".join(["%s"] * len(unique))
+    query = (
+        "SELECT id, name FROM event_families WHERE id IN ("
+        + placeholders
+        + ")")
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn, params=tuple(unique))
+    return {
+        int(row["id"]): str(row["name"])
+        for _, row in frame.iterrows()}
+
+
+def _fetch_named_families(names: list[str]) -> dict[str, dict[str, Any]]:
+    placeholders = ", ".join(["%s"] * len(names))
+    query = (
+        "SELECT ef.id, ef.name, efm.event_id "
+        "FROM event_families ef "
+        "LEFT JOIN event_family_mappings efm "
+        "ON efm.event_family_id = ef.id "
+        "WHERE ef.sport_id = %s AND ef.name IN ("
+        + placeholders
+        + ")")
+    params = (_FOOTBALL_SPORT_ID, *names)
+    with get_db_connection() as conn:
+        frame = pd.read_sql(query, conn, params=params)
+    grouped: dict[str, dict[str, Any]] = {}
+    for _, row in frame.iterrows():
+        name = str(row["name"])
+        bucket = grouped.setdefault(
+            name, {"id": int(row["id"]), "event_ids": set()})
+        if _missing_cell(row["event_id"]):
+            continue
+        bucket["event_ids"].add(int(row["event_id"]))
+    return grouped
+
+
+def _missing_cell(value: object) -> bool:
+    if value is None:
+        return True
+    return bool(pd.isna(value))

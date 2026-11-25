@@ -1,4 +1,4 @@
-"""Offline compare-models and shadow-report without TensorFlow."""
+"""Offline compare-models, shadow-report and promotion without TensorFlow."""
 
 from __future__ import annotations
 
@@ -17,6 +17,13 @@ import pytest
 from backend.betting_tax import BETTING_TAX_RATE
 from backend.config import REPO_ROOT
 from models.pipeline.core.cli import build_parser
+from models.pipeline.core.model_lineup import LineupError
+from models.pipeline.core.model_lineup import build_lineup
+from models.pipeline.core.model_roles import MODEL_STATUS_CHALLENGER
+from models.pipeline.core.model_roles import MODEL_STATUS_CHAMPION
+from models.pipeline.core.model_roles import MODEL_STATUS_RETIRED
+from models.pipeline.core.model_roles import FamilyRole
+from models.pipeline.core.model_roles import ModelRoles
 from models.pipeline.evaluation import commands as command_module
 from models.pipeline.evaluation.candidates import FAMILY_BTTS
 from models.pipeline.evaluation.candidates import FAMILY_RESULT
@@ -29,6 +36,8 @@ from models.pipeline.data.evaluation_repository import fetch_finished_results
 from models.pipeline.data.evaluation_repository import fetch_published_values
 from models.pipeline.data.evaluation_repository import fetch_shadow_values
 from models.pipeline.evaluation.commands import run_compare_models
+from models.pipeline.evaluation.commands import run_model_lineup
+from models.pipeline.evaluation.commands import run_promote_model
 from models.pipeline.evaluation.commands import run_shadow_report
 from models.pipeline.evaluation.market import flat_stake_roi
 from models.pipeline.evaluation.market import market_event_families
@@ -839,3 +848,733 @@ def _quote(match_id: int, event_id: int, odds: float) -> dict[str, object]:
         "bookmaker_id": 1,
         "event_id": event_id,
         "odds": odds}
+
+
+_RESULT_CONFIG = (
+    REPO_ROOT / "models" / "configs" / "prediction"
+    / "football_result_v2.json")
+_CHAMPION_NAME = "FOOTBALL_RESULT_V2"
+_CHALLENGER_NAME = "FOOTBALL_RESULT_NEXT"
+
+
+def test_parser_model_lineup_and_promote_model() -> None:
+    lineup = build_parser().parse_args(["model-lineup"])
+    assert lineup.command == "model-lineup"
+    args = build_parser().parse_args([
+        "promote-model",
+        "--model-name",
+        _CHALLENGER_NAME,
+        "--event-family",
+        "REZULTAT",
+        "--event-family",
+        "OU",
+        "--offline-report",
+        "offline.json",
+        "--shadow-report",
+        "shadow.json",
+        "--dry-run"])
+    assert args.command == "promote-model"
+    assert args.model_name == _CHALLENGER_NAME
+    assert args.event_family == ["REZULTAT", "OU"]
+    assert args.offline_report == Path("offline.json")
+    assert args.shadow_report == Path("shadow.json")
+    assert args.dry_run is True
+    assert args.force is False
+    with pytest.raises(SystemExit):
+        build_parser().parse_args([
+            "promote-model",
+            "--model-name",
+            _CHALLENGER_NAME])
+
+
+def test_model_lineup_lists_model_family_status_and_config(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    roles = ModelRoles(
+        roles=(_family_role(
+            8, _CHAMPION_NAME, 2,
+            MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),),
+        active_by_model={8: 1})
+    lineup = build_lineup(roles, {_CHAMPION_NAME: _RESULT_CONFIG})
+    monkeypatch.setattr(
+        command_module, "resolve_lineup", lambda *_args, **_kwargs: lineup)
+    monkeypatch.setattr(
+        command_module, "_family_names", lambda _ids: {2: "REZULTAT"})
+    report = run_model_lineup(SimpleNamespace())
+    entry = report["entries"][0]
+    assert entry["model"] == _CHAMPION_NAME
+    assert entry["model_id"] == 8
+    assert entry["config"].endswith("football_result_v2.json")
+    assert entry["families"] == [{
+        "event_family_id": 2,
+        "name": "REZULTAT",
+        "status": "champion"}]
+
+
+def test_model_lineup_propagates_lineup_error(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fail(*_args: object, **_kwargs: object) -> None:
+        raise LineupError(
+            "Event family 2 has multiple champions: A, B")
+
+    monkeypatch.setattr(command_module, "resolve_lineup", _fail)
+    with pytest.raises(LineupError, match="multiple champions"):
+        run_model_lineup(SimpleNamespace())
+
+
+def test_promote_model_dry_run_plans_sql_and_clears_active(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {
+        "result_home": 1,
+        "result_draw": 2,
+        "result_away": 3})
+    offline, shadow = _passing_reports(tmp_path, config, "result")
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1, 2, 3])),
+        config)
+    with patch(
+            "models.pipeline.evaluation.commands.get_db_connection"
+            ) as connect:
+        plan = run_promote_model(_promote_args(
+            ["REZULTAT"], offline=offline, shadow=shadow))
+    connect.assert_not_called()
+    assert plan["dry_run"] is True
+    assert plan["applied"] is False
+    assert plan["model_id"] == 11
+    assert plan["evidence_family"] == "result"
+    sql = [item["sql"] for item in plan["statements"]]
+    assert "status = 'retired'" in sql[0]
+    assert "status IS NULL" in sql[0]
+    assert "CURRENT_TIMESTAMP" in sql[0]
+    assert "status = 'champion'" in sql[1]
+    assert "CURRENT_TIMESTAMP" in sql[1]
+    assert "SET active" in sql[2]
+    assert "SET active" in sql[3]
+    assert plan["statements"][0]["params"] == [8, 2]
+    assert plan["statements"][1]["params"] == [11, 2]
+    assert plan["active"] == [
+        {"model_id": 8, "active": 0},
+        {"model_id": 11, "active": 1}]
+
+
+def test_promote_model_keeps_active_when_another_family_stays(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    roles = ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, 2,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                8, _CHAMPION_NAME, 4,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                11, _CHALLENGER_NAME, 2,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER)),
+        active_by_model={8: 1, 11: 0})
+    _install_promotion(
+        monkeypatch,
+        roles,
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    plan = run_promote_model(_promote_args(["REZULTAT"], force=True))
+    assert plan["statements"][0]["params"] == [8, 2]
+    assert plan["active"] == [
+        {"model_id": 8, "active": 1},
+        {"model_id": 11, "active": 1}]
+
+
+def test_promote_model_retires_null_champion(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(None),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    plan = run_promote_model(_promote_args(["REZULTAT"], force=True))
+    assert "status IS NULL" in plan["statements"][0]["sql"]
+    assert plan["statements"][0]["params"] == [8, 2]
+    assert plan["active"][0] == {"model_id": 8, "active": 0}
+
+
+def test_promote_model_omits_retire_when_nobody_is_champion(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    roles = ModelRoles(
+        roles=(_family_role(
+            11, _CHALLENGER_NAME, 2,
+            MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER),),
+        active_by_model={11: 0})
+    _install_promotion(
+        monkeypatch,
+        roles,
+        _named_families(("REZULTAT", 2, [1])),
+        config,
+        registry={_CHALLENGER_NAME: config})
+    plan = run_promote_model(_promote_args(["REZULTAT"], force=True))
+    assert "retired" not in plan["statements"][0]["sql"]
+    assert plan["statements"][0]["params"] == [11, 2]
+    assert plan["active"] == [{"model_id": 11, "active": 1}]
+
+
+def test_promote_model_refuses_failed_offline_evidence(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    offline, shadow = _passing_reports(tmp_path, config, "result")
+    _mark_passed(offline, False)
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    with patch(
+            "models.pipeline.evaluation.commands.get_db_connection"
+            ) as connect:
+        with pytest.raises(ValueError, match="offline"):
+            run_promote_model(_promote_args(
+                ["REZULTAT"], offline=offline, shadow=shadow))
+    connect.assert_not_called()
+
+
+def test_promote_model_refuses_failed_shadow_evidence(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    offline, shadow = _passing_reports(tmp_path, config, "result")
+    payload = json.loads(shadow.read_text(encoding="utf-8"))
+    payload["passed"] = False
+    shadow.write_text(json.dumps(payload), encoding="utf-8")
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    with pytest.raises(ValueError, match="shadow"):
+        run_promote_model(_promote_args(
+            ["REZULTAT"], offline=offline, shadow=shadow))
+
+
+def test_promote_model_refuses_when_the_offline_report_is_missing() -> None:
+    with pytest.raises(ValueError, match="offline"):
+        run_promote_model(_promote_args(["REZULTAT"]))
+
+
+def test_promote_model_names_a_missing_or_broken_report(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    offline, shadow = _passing_reports(tmp_path, config, "result")
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    with pytest.raises(
+            ValueError,
+            match="Missing promotion evidence: offline") as missing:
+        run_promote_model(_promote_args(
+            ["REZULTAT"],
+            offline=tmp_path / "gone.json",
+            shadow=shadow))
+    assert "Report file not found" in str(missing.value)
+    shadow.write_text("{", encoding="utf-8")
+    with pytest.raises(
+            ValueError, match="Missing promotion evidence: shadow"):
+        run_promote_model(_promote_args(
+            ["REZULTAT"], offline=offline, shadow=shadow))
+    offline.write_text("[]", encoding="utf-8")
+    shadow.write_text(json.dumps({
+        "challenger_model": _CHALLENGER_NAME,
+        "family": "result",
+        "passed": True}), encoding="utf-8")
+    with pytest.raises(
+            ValueError, match="Missing promotion evidence: offline"):
+        run_promote_model(_promote_args(
+            ["REZULTAT"], offline=offline, shadow=shadow))
+
+
+def test_promote_model_force_restores_retired_without_reports(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    roles = ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, 2,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                11, _CHALLENGER_NAME, 2,
+                MODEL_STATUS_RETIRED, MODEL_STATUS_RETIRED)),
+        active_by_model={8: 1, 11: 0})
+    _install_promotion(
+        monkeypatch,
+        roles,
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    plan = run_promote_model(_promote_args(
+        ["REZULTAT"],
+        force=True,
+        offline=tmp_path / "missing-offline.json",
+        shadow=tmp_path / "missing-shadow.json"))
+    assert plan["applied"] is False
+    assert plan["active"] == [
+        {"model_id": 8, "active": 0},
+        {"model_id": 11, "active": 1}]
+
+
+def test_promote_model_checks_only_the_first_family(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {
+        "result_home": 1,
+        "goals_0": 174})
+    offline, shadow = _passing_reports(tmp_path, config, "result")
+    roles = ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, 2,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                8, _CHAMPION_NAME, 5,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                11, _CHALLENGER_NAME, 2,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER),
+            _family_role(
+                11, _CHALLENGER_NAME, 5,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER)),
+        active_by_model={8: 1, 11: 0})
+    _install_promotion(
+        monkeypatch,
+        roles,
+        _named_families(
+            ("REZULTAT", 2, [1]),
+            ("GOALS", 5, [174])),
+        config)
+    plan = run_promote_model(_promote_args(
+        ["REZULTAT", "GOALS"], offline=offline, shadow=shadow))
+    assert plan["evidence_family"] == "result"
+    assert plan["statements"][1]["params"] == [11, 2, 5]
+    assert [row["report_family"] for row in plan["event_families"]] == [
+        "result",
+        "over_25"]
+
+
+def test_promote_model_maps_goal_buckets_and_exact_scores_to_over(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(
+        tmp_path,
+        {"goals_0": 174, "exact:0:0": "0:0"},
+        task_type="goals_poisson")
+
+    def _resolve(
+            events: dict[str, int | str],
+            connection: object = None) -> dict[str, int]:
+        del connection
+        resolved: dict[str, int] = {}
+        for key, value in events.items():
+            resolved[key] = 198 if value == "0:0" else int(value)
+        return resolved
+
+    monkeypatch.setattr(command_module, "resolve_event_map", _resolve)
+    _install_promotion(
+        monkeypatch,
+        _roles_on_family(5),
+        _named_families(("GOALS", 5, [174])),
+        config)
+    goals = run_promote_model(_promote_args(["GOALS"], force=True))
+    assert goals["evidence_family"] == "over_25"
+    _install_promotion(
+        monkeypatch,
+        _roles_on_family(1),
+        _named_families(("EXACT", 1, [198])),
+        config)
+    exact = run_promote_model(_promote_args(["EXACT"], force=True))
+    assert exact["evidence_family"] == "over_25"
+
+
+def test_promote_model_rejects_an_unknown_or_uncovered_family(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        {},
+        config)
+    with pytest.raises(ValueError, match="Unknown event family: NOPE"):
+        run_promote_model(_promote_args(["NOPE"], force=True))
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [99])),
+        config)
+    with pytest.raises(ValueError, match="not covered"):
+        run_promote_model(_promote_args(["REZULTAT"], force=True))
+
+
+def test_promote_model_rejects_a_missing_or_champion_role(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    only_champion = ModelRoles(
+        roles=(_family_role(
+            8, _CHAMPION_NAME, 2,
+            MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),),
+        active_by_model={8: 1})
+    _install_promotion(
+        monkeypatch,
+        only_champion,
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    with pytest.raises(ValueError, match="no role"):
+        run_promote_model(_promote_args(["REZULTAT"], force=True))
+    already = ModelRoles(
+        roles=(_family_role(
+            11, _CHALLENGER_NAME, 2,
+            MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),),
+        active_by_model={11: 1})
+    _install_promotion(
+        monkeypatch,
+        already,
+        _named_families(("REZULTAT", 2, [1])),
+        config,
+        registry={_CHALLENGER_NAME: config})
+    with pytest.raises(ValueError, match="challenger or retired"):
+        run_promote_model(_promote_args(["REZULTAT"], force=True))
+
+
+def test_promote_model_rejects_a_repeated_family() -> None:
+    with pytest.raises(ValueError, match="repeated"):
+        run_promote_model(_promote_args(["OU", "OU"], force=True))
+
+
+def test_promote_model_rejects_a_null_family_outside_the_plan(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    roles = ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, 2,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                11, _CHALLENGER_NAME, 2,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER),
+            _family_role(
+                11, _CHALLENGER_NAME, 6,
+                MODEL_STATUS_RETIRED, None)),
+        active_by_model={8: 1, 11: 0})
+    _install_promotion(
+        monkeypatch,
+        roles,
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    with patch(
+            "models.pipeline.evaluation.commands.get_db_connection"
+            ) as connect:
+        with pytest.raises(ValueError, match=(
+                "outside the plan: "
+                f"{_CHALLENGER_NAME} event family 6")):
+            run_promote_model(_promote_args(["REZULTAT"], force=True))
+    connect.assert_not_called()
+
+
+def test_promote_model_accepts_an_explicit_status_on_another_family(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    retired = ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, 2,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                11, _CHALLENGER_NAME, 2,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER),
+            _family_role(
+                11, _CHALLENGER_NAME, 6,
+                MODEL_STATUS_RETIRED, MODEL_STATUS_RETIRED)),
+        active_by_model={8: 1, 11: 0})
+    _install_promotion(
+        monkeypatch,
+        retired,
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    retired_plan = run_promote_model(_promote_args(
+        ["REZULTAT"], force=True))
+    assert retired_plan["statements"][1]["params"] == [11, 2]
+    assert {"model_id": 11, "active": 1} in retired_plan["active"]
+    challenger = ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, 2,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                8, _CHAMPION_NAME, 6,
+                MODEL_STATUS_CHAMPION, MODEL_STATUS_CHAMPION),
+            _family_role(
+                11, _CHALLENGER_NAME, 2,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER),
+            _family_role(
+                11, _CHALLENGER_NAME, 6,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER)),
+        active_by_model={8: 1, 11: 0})
+    _install_promotion(
+        monkeypatch,
+        challenger,
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    plan = run_promote_model(_promote_args(["REZULTAT"], force=True))
+    assert plan["active"] == [
+        {"model_id": 8, "active": 1},
+        {"model_id": 11, "active": 1}]
+
+
+def test_promote_model_does_not_write_an_illegal_lineup(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1}, "OTHER")
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    with patch(
+            "models.pipeline.evaluation.commands.get_db_connection"
+            ) as connect:
+        with pytest.raises(LineupError, match="does not match"):
+            run_promote_model(_promote_args(["REZULTAT"], force=True))
+    connect.assert_not_called()
+
+
+def test_promote_model_writes_in_statement_order_then_reloads_lineup(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    manager, connection, cursor = _owned_connection()
+    calls: list[str] = []
+
+    def _record(*_args: object, **_kwargs: object) -> None:
+        calls.append("lineup")
+
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    monkeypatch.setattr(command_module, "resolve_lineup", _record)
+    monkeypatch.setattr(
+        command_module, "get_db_connection", lambda: manager)
+    plan = run_promote_model(_promote_args(
+        ["REZULTAT"], dry_run=False, force=True))
+    executed = [call.args[0] for call in cursor.execute.call_args_list]
+    assert executed == [item["sql"] for item in plan["statements"]]
+    assert [list(call.args[1]) for call in cursor.execute.call_args_list] == [
+        item["params"] for item in plan["statements"]]
+    connection.commit.assert_called_once()
+    connection.rollback.assert_not_called()
+    assert calls == ["lineup"]
+    assert plan["applied"] is True
+
+
+def test_promote_model_rolls_back_when_a_statement_fails(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _challenger_config(tmp_path, {"result_home": 1})
+    manager, connection, cursor = _owned_connection()
+
+    def _execute(sql: str, _params: object = None) -> None:
+        if "SET active" in sql:
+            raise RuntimeError("active failed")
+
+    cursor.execute.side_effect = _execute
+    _install_promotion(
+        monkeypatch,
+        _pair_roles(MODEL_STATUS_CHAMPION),
+        _named_families(("REZULTAT", 2, [1])),
+        config)
+    monkeypatch.setattr(
+        command_module, "get_db_connection", lambda: manager)
+    with pytest.raises(RuntimeError, match="active failed"):
+        run_promote_model(_promote_args(
+            ["REZULTAT"], dry_run=False, force=True))
+    connection.rollback.assert_called_once()
+    connection.commit.assert_not_called()
+
+
+def test_fetch_named_families_filters_by_sport_and_name() -> None:
+    captured: list[tuple[str, tuple[object, ...]]] = []
+    frame = pd.DataFrame({
+        "id": [2, 2],
+        "name": ["REZULTAT", "REZULTAT"],
+        "event_id": [1, None]})
+
+    def _read_sql(
+            query: str,
+            _connection: object,
+            params: tuple[object, ...] = ()) -> pd.DataFrame:
+        captured.append((query, params))
+        return frame
+
+    with patch(
+            "models.pipeline.evaluation.commands.get_db_connection",
+            return_value=_db_context()), patch(
+            "models.pipeline.evaluation.commands.pd.read_sql",
+            side_effect=_read_sql):
+        found = command_module._fetch_named_families(["REZULTAT"])
+    query, params = captured[0]
+    assert "FROM event_families" in query
+    assert "sport_id = %s" in query
+    assert params == (1, "REZULTAT")
+    assert found["REZULTAT"]["id"] == 2
+    assert found["REZULTAT"]["event_ids"] == {1}
+
+
+def _family_role(
+        model_id: int,
+        model_name: str,
+        event_family_id: int,
+        status: str,
+        raw_status: str | None) -> FamilyRole:
+    return FamilyRole(
+        model_id=model_id,
+        model_name=model_name,
+        event_family_id=event_family_id,
+        status=status,
+        raw_status=raw_status)
+
+
+def _pair_roles(champion_raw: str | None) -> ModelRoles:
+    return _roles_on_family(2, champion_raw)
+
+
+def _roles_on_family(
+        family_id: int,
+        champion_raw: str | None = MODEL_STATUS_CHAMPION) -> ModelRoles:
+    return ModelRoles(
+        roles=(
+            _family_role(
+                8, _CHAMPION_NAME, family_id,
+                MODEL_STATUS_CHAMPION, champion_raw),
+            _family_role(
+                11, _CHALLENGER_NAME, family_id,
+                MODEL_STATUS_CHALLENGER, MODEL_STATUS_CHALLENGER)),
+        active_by_model={8: 1, 11: 0})
+
+
+def _challenger_config(
+        tmp_path: Path,
+        events: dict[str, int | str],
+        model_name: str = _CHALLENGER_NAME,
+        task_type: str = "result") -> Path:
+    path = tmp_path / f"{model_name}.json"
+    path.write_text(json.dumps({
+        "model_name": model_name,
+        "sport_id": 1,
+        "task_type": task_type,
+        "artifact_dir": "models/artifacts/unused",
+        "feature_builder": "FutureEventsFeatureBuilder",
+        "labeler": "FootballResultLabeler",
+        "trainer": "LstmTrainer",
+        "output_columns": ["p_home"],
+        "events": events,
+        "feature_config": {}}), encoding="utf-8")
+    return path
+
+
+def _named_families(
+        *rows: tuple[str, int, list[int]]) -> dict[str, dict[str, object]]:
+    return {
+        name: {"id": family_id, "event_ids": set(event_ids)}
+        for name, family_id, event_ids in rows}
+
+
+def _install_promotion(
+        monkeypatch: pytest.MonkeyPatch,
+        roles: ModelRoles,
+        families: dict[str, dict[str, object]],
+        config: Path,
+        registry: dict[str, Path] | None = None) -> None:
+    loaded = registry or {
+        _CHAMPION_NAME: _RESULT_CONFIG,
+        _CHALLENGER_NAME: config}
+
+    def _unexpected(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("lineup should not be read back")
+
+    monkeypatch.setattr(
+        command_module, "fetch_model_roles", lambda _sport: roles)
+    model_ids = {_CHALLENGER_NAME: 11, _CHAMPION_NAME: 8}
+    monkeypatch.setattr(
+        command_module,
+        "resolve_registered_model_id",
+        lambda name: model_ids[name])
+    monkeypatch.setattr(
+        command_module, "_fetch_named_families", lambda _names: families)
+    monkeypatch.setattr(
+        command_module, "load_model_registry", lambda _path=None: loaded)
+    monkeypatch.setattr(command_module, "resolve_lineup", _unexpected)
+
+
+def _promote_args(
+        families: list[str],
+        *,
+        dry_run: bool = True,
+        force: bool = False,
+        offline: Path | None = None,
+        shadow: Path | None = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        model_name=_CHALLENGER_NAME,
+        event_family=families,
+        dry_run=dry_run,
+        force=force,
+        offline_report=offline,
+        shadow_report=shadow)
+
+
+def _passing_reports(
+        tmp_path: Path,
+        config: Path,
+        family: str) -> tuple[Path, Path]:
+    offline = tmp_path / "offline.json"
+    shadow = tmp_path / "shadow.json"
+    offline.write_text(json.dumps({
+        "spec": {"candidates": [{
+            "label": "next",
+            "role": "challenger",
+            "families": [family],
+            "config": str(config)}]},
+        "decisions": [{
+            "family": family,
+            "label": "next",
+            "passed": True}]}), encoding="utf-8")
+    shadow.write_text(json.dumps({
+        "challenger_model": _CHALLENGER_NAME,
+        "family": family,
+        "passed": True}), encoding="utf-8")
+    return offline, shadow
+
+
+def _mark_passed(path: Path, passed: bool) -> None:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["decisions"][0]["passed"] = passed
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _owned_connection() -> tuple[MagicMock, MagicMock, MagicMock]:
+    connection = MagicMock()
+    cursor = MagicMock()
+    connection.cursor.return_value = cursor
+    manager = MagicMock()
+    manager.__enter__.return_value = connection
+    manager.__exit__.return_value = False
+    return manager, connection, cursor

@@ -57,6 +57,8 @@ from models.pipeline.core.model_lineup import LineupEntry
 from models.pipeline.core.model_lineup import ModelLineup
 from models.pipeline.core.model_lineup import resolve_lineup
 from models.pipeline.evaluation.commands import run_compare_models
+from models.pipeline.evaluation.commands import run_model_lineup
+from models.pipeline.evaluation.commands import run_promote_model
 from models.pipeline.evaluation.commands import run_shadow_report
 from models.pipeline.core.model_roles import ModelRoles
 from models.pipeline.core.model_roles import fetch_model_roles
@@ -511,6 +513,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_coupon_agent_parser(subparsers)
     _add_compare_models_parser(subparsers)
     _add_shadow_report_parser(subparsers)
+    _add_model_lineup_parser(subparsers)
+    _add_promote_model_parser(subparsers)
     return parser
 
 
@@ -661,6 +665,49 @@ def _add_shadow_report_parser(
         required=True,
         type=Path,
         help="Path of the JSON report to write")
+
+
+def _add_model_lineup_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register the champion and challenger lineup printout."""
+    subparsers.add_parser(
+        "model-lineup",
+        help="Print champion and challenger models by event family")
+
+
+def _add_promote_model_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register promotion and rollback of one football model."""
+    parser = subparsers.add_parser(
+        "promote-model",
+        help="Promote a challenger or restore a retired model")
+    parser.add_argument(
+        "--model-name",
+        required=True,
+        help="Model name in the football registry and models table")
+    parser.add_argument(
+        "--event-family",
+        action="append",
+        required=True,
+        help=(
+            "Event family name for sport 1. "
+            "Repeat for goal buckets and exact scores"))
+    parser.add_argument(
+        "--offline-report",
+        type=Path,
+        help="compare-models JSON. Required without --force")
+    parser.add_argument(
+        "--shadow-report",
+        type=Path,
+        help="shadow-report JSON. Required without --force")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip offline and shadow evidence. Used for rollback")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the SQL plan and do not write")
 
 
 def _add_coupon_agent_parser(
@@ -2232,6 +2279,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = run_compare_models(args)
         elif args.command == "shadow-report":
             payload = run_shadow_report(args)
+        elif args.command == "model-lineup":
+            payload = run_model_lineup(args)
+        elif args.command == "promote-model":
+            payload = run_promote_model(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:
