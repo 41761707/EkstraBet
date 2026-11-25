@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from pydantic import ValidationError
 
 from backend.betting_tax import BETTING_TAX_RATE
 from backend.config import REPO_ROOT
@@ -28,6 +29,9 @@ from models.pipeline.evaluation.candidates import CandidateOutput
 from models.pipeline.evaluation.candidates import align_outputs
 from models.pipeline.evaluation.candidates import family_of_task
 from models.pipeline.evaluation.candidates import load_candidate_output
+from models.pipeline.evaluation.gate import GateThresholds
+from models.pipeline.evaluation.gate import offline_decision
+from models.pipeline.evaluation.gate import recommend
 from models.pipeline.evaluation.market import consensus_fair_probabilities
 from models.pipeline.evaluation.market import flat_stake_roi
 from models.pipeline.evaluation.market import market_event_families
@@ -73,8 +77,9 @@ class _Prices:
 def run_compare_models(args: object) -> dict[str, Any]:
     """Write the offline report described by ``--spec`` and return it.
 
-    Gate decisions are added by the offline gate. This report stores
-    the scores those checks read.
+    Each challenger in a family gets a gate decision. ``recommended``
+    names the passing challenger with the lowest log loss, or null
+    when nobody in that family passes.
     """
     spec = _read_spec(Path(getattr(args, "spec")))
     loaded = _load_candidates(spec)
@@ -129,7 +134,8 @@ def _checked_spec(raw: dict[str, Any]) -> dict[str, Any]:
         "seed": _plain_int(raw["bootstrap_seed"], "bootstrap_seed"),
         "edges": edges,
         "candidates": _candidate_rows(raw["candidates"]),
-        "output_path": output_path}
+        "output_path": output_path,
+        "thresholds": _gate_thresholds(raw.get("thresholds", {}))}
 
 
 def _candidate_rows(raw: object) -> list[dict[str, Any]]:
@@ -225,21 +231,37 @@ def _checked_config(
     return loaded
 
 
+def _gate_thresholds(raw: object) -> GateThresholds:
+    if not isinstance(raw, dict):
+        raise ValueError("thresholds must be an object")
+    try:
+        return GateThresholds.model_validate(raw)
+    except ValidationError as exc:
+        raise ValueError(f"Invalid thresholds: {exc}") from exc
+
+
 def _build_report(
         spec: dict[str, Any],
         loaded: list[CandidateOutput]) -> dict[str, Any]:
     events = _event_ids_by_family()
     families: dict[str, Any] = {}
+    decisions: list[dict[str, Any]] = []
     for family in _FAMILY_ORDER:
         group = [item for item in loaded if family in item.families]
         if not group:
             continue
-        families[family] = _family_section(
+        section, family_decisions = _family_section(
             family, group, events[family], spec)
+        families[family] = section
+        decisions.extend(family_decisions)
+    picked = recommend(decisions)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "spec": spec["raw"],
-        "families": families}
+        "families": families,
+        "decisions": decisions,
+        "recommended": {
+            family: picked.get(family) for family in families}}
 
 
 def _event_ids_by_family() -> dict[str, tuple[int, ...]]:
@@ -254,7 +276,7 @@ def _family_section(
         family: str,
         group: list[CandidateOutput],
         event_ids: tuple[int, ...],
-        spec: dict[str, Any]) -> dict[str, Any]:
+        spec: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     before = {item.label: len(item.frame.match_ids) for item in group}
     aligned = align_outputs(group)
     dropped = {
@@ -270,12 +292,40 @@ def _family_section(
         consensus_fair_probabilities(odds),
         frame.match_ids,
         event_ids)
-    return {
+    section = {
         "n": int(len(frame.match_ids)),
         "dropped": dropped,
         "candidates": [
             _candidate_metrics(family, item, years, names, prices, spec)
             for item in aligned]}
+    # Ten sam słownik sezonów co metryki, żeby bramka cięła tak samo.
+    return section, _challenger_decisions(family, aligned, years, spec)
+
+
+def _challenger_decisions(
+        family: str,
+        aligned: list[CandidateOutput],
+        years: dict[int, str],
+        spec: dict[str, Any]) -> list[dict[str, Any]]:
+    champions = [item for item in aligned if item.role == "champion"]
+    if len(champions) != 1:
+        found = ", ".join(item.label for item in champions) or "none"
+        raise ValueError(
+            f"Family {family} must have exactly one champion, "
+            f"found {found}")
+    controls = [item for item in aligned if item.role == "control"]
+    return [
+        offline_decision(
+            family,
+            item,
+            champions[0],
+            controls,
+            spec["thresholds"],
+            spec["samples"],
+            spec["seed"],
+            years_by_season=years)
+        for item in aligned
+        if item.role == "challenger"]
 
 
 def _candidate_metrics(

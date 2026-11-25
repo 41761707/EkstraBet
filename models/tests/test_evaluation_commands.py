@@ -119,8 +119,29 @@ def test_compare_models_writes_aligned_result_metrics(
     written = json.loads(output_path.read_text(encoding="utf-8"))
     assert written == report
     assert "T" in report["generated_at"]
-    assert "decisions" not in report
     assert report["spec"]["test_from"] == "2026-09-01"
+    decision = report["decisions"][0]
+    assert decision["family"] == "result"
+    assert decision["label"] == "result_v3_challenger"
+    assert set(decision["checks"]) == {
+        "vs_champion",
+        "vs_control",
+        "ece",
+        "segments",
+        "result_finals"}
+    for check in decision["checks"].values():
+        assert set(check) == {"value", "passed"}
+    assert decision["checks"]["result_finals"]["value"][
+        "max_home_share"] == pytest.approx(0.7)
+    assert [
+        row["segment"]
+        for row in decision["checks"]["segments"]["value"]
+    ] == ["split_year"]
+    if decision["passed"]:
+        assert report["recommended"] == {
+            "result": "result_v3_challenger"}
+    else:
+        assert report["recommended"] == {"result": None}
     family = report["families"]["result"]
     assert family["n"] == 2
     assert family["dropped"] == {
@@ -184,6 +205,8 @@ def test_compare_models_scores_btts_market_and_roi(
     assert candidate["leagues"][0]["league_name"] == "Alpha"
     assert candidate["segments"][0]["segment"] == "calendar_year"
     assert candidate["final_shares"]["yes"] == pytest.approx(0.5)
+    assert report["decisions"] == []
+    assert report["recommended"] == {"btts": None}
 
 
 def test_align_outputs_keeps_shared_matches_in_first_order() -> None:
@@ -254,6 +277,48 @@ def test_parser_compare_models_requires_spec() -> None:
         build_parser().parse_args(["compare-models"])
 
 
+def test_compare_models_applies_spec_thresholds(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    probabilities = np.array([[0.7, 0.2, 0.1], [0.2, 0.6, 0.2]])
+    goals = [(2, 0), (1, 1)]
+    outputs = {
+        "result_v2_champion": _result_output(
+            "result_v2_champion",
+            "champion",
+            [1, 2],
+            probabilities,
+            goals),
+        "result_v3_challenger": _result_output(
+            "result_v3_challenger",
+            "challenger",
+            [1, 2],
+            probabilities,
+            goals)}
+    spec_path = _write_spec(
+        tmp_path,
+        [
+            _candidate("result_v2_champion", "champion"),
+            _candidate("result_v3_challenger", "challenger")],
+        thresholds={"max_home_final_share": 0.0})
+    _patch_sources(monkeypatch, outputs)
+    report = run_compare_models(SimpleNamespace(spec=spec_path))
+    check = report["decisions"][0]["checks"]["result_finals"]
+    assert check["passed"] is False
+    assert check["value"]["max_home_share"] == 0.0
+    assert report["recommended"]["result"] is None
+
+
+def test_compare_models_rejects_an_unknown_threshold(
+        tmp_path: Path) -> None:
+    spec_path = _write_spec(
+        tmp_path,
+        [_candidate("result_v2_champion", "champion")],
+        thresholds={"max_ece_increse": 0.2})
+    with pytest.raises(ValueError, match="thresholds"):
+        run_compare_models(SimpleNamespace(spec=spec_path))
+
+
 def test_offline_gate_spec_lists_three_champions() -> None:
     path = (
         REPO_ROOT / "models" / "configs" / "evaluation"
@@ -274,7 +339,8 @@ def _write_spec(
         candidates: list[dict[str, object]],
         output_path: Path | None = None,
         samples: int = 20,
-        seed: int = 1) -> Path:
+        seed: int = 1,
+        thresholds: dict[str, object] | None = None) -> Path:
     target = output_path or (tmp_path / "report.json")
     payload = {
         "sport_id": 1,
@@ -284,7 +350,7 @@ def _write_spec(
         "bootstrap_seed": seed,
         "reliability_edges": [0, 0.5, 1],
         "candidates": candidates,
-        "thresholds": {},
+        "thresholds": {} if thresholds is None else thresholds,
         "output_path": str(target)}
     path = tmp_path / "spec.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
