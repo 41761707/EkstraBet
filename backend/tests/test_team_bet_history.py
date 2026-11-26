@@ -58,6 +58,8 @@ class TestTeamBetHistoryRules(unittest.TestCase):
         rule = history_rule(1, 1, "Zwycięstwo gospodarza")
         self.assertIsNotNone(rule)
         assert rule is not None
+        self.assertEqual(rule.stat, "margin")
+        self.assertEqual(rule.line, 0.0)
         self.assertEqual(sample_team_id(rule, 11, 12), 11)
         away_win = _match(
             home_team_id=20,
@@ -71,10 +73,18 @@ class TestTeamBetHistoryRules(unittest.TestCase):
             home_goals=1,
             away_goals=1,
             result="X")
-        self.assertEqual(stat_value(rule, 11, away_win), 1.0)
+        home_loss = _match(
+            home_team_id=11,
+            away_team_id=21,
+            home_goals=1,
+            away_goals=4,
+            result="2")
+        self.assertEqual(stat_value(rule, 11, away_win), 2.0)
         self.assertEqual(stat_value(rule, 11, home_draw), 0.0)
-        self.assertTrue(is_history_hit(1.0, rule.line, rule.comparator))
+        self.assertEqual(stat_value(rule, 11, home_loss), -3.0)
+        self.assertTrue(is_history_hit(2.0, rule.line, rule.comparator))
         self.assertFalse(is_history_hit(0.0, rule.line, rule.comparator))
+        self.assertFalse(is_history_hit(-3.0, rule.line, rule.comparator))
 
     def test_under_totals_sample_home_then_away(self) -> None:
         rule = history_rule(1, 12, "Poniżej 2.5 gola")
@@ -94,6 +104,9 @@ class TestTeamBetHistoryRules(unittest.TestCase):
         self.assertIsNotNone(away)
         assert home is not None
         assert away is not None
+        self.assertEqual(home.stat, "margin")
+        self.assertEqual(away.stat, "margin")
+        self.assertEqual(away.line, 0.0)
         self.assertEqual(sampled_teams(home, 11, 12), [("home", 11)])
         self.assertEqual(sampled_teams(away, 11, 12), [("away", 12)])
 

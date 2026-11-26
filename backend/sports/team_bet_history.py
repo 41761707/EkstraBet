@@ -6,9 +6,10 @@ strips: the home team's recent games, then the away team's. Each
 strip has one subject. Exact score is a 0/1 flag read from that
 team's side: 1:0 is a hit when they scored one and conceded none,
 including away. Team markets follow the named side only, and each
-past match is read from that team's point of view. Hockey bars use
-the settled score: a regulation tie adds one goal for the overtime
-or shootout winner.
+past match is read from that team's point of view. Home and away
+wins are that side's goal margin above zero. Double chance and the
+draw stay 0/1 flags. Hockey bars use the settled score: a regulation
+tie adds one goal for the overtime or shootout winner.
 """
 
 from __future__ import annotations
@@ -36,7 +37,6 @@ StatKind = Literal[
     "goals_for",
     "total_goals",
     "margin",
-    "win",
     "draw",
     "not_loss",
     "btts",
@@ -171,7 +171,7 @@ def stat_value(
         return _flag_value(rule, settled)
     if rule.stat == "exact_score":
         return _exact_score_value(rule, team_id, settled)
-    if rule.stat in {"win", "not_loss", "margin", "goals_for"}:
+    if rule.stat in {"not_loss", "margin", "goals_for"}:
         return _team_result_value(rule.stat, team_id, settled)
     if rule.stat in {"draw", "btts", "total_goals"}:
         return _match_result_value(rule.stat, settled)
@@ -322,9 +322,6 @@ def _team_result_value(
         return float(scored)
     if stat == "margin":
         return float(scored - conceded)
-    won = _won(side, match.result)
-    if stat == "win":
-        return 1.0 if won else 0.0
     lost = _lost(side, match.result)
     return 0.0 if lost else 1.0
 
@@ -387,13 +384,6 @@ def _goal_pair(side: TeamSide, match: PastMatch) -> tuple[int, int]:
     return match.away_goals, match.home_goals
 
 
-def _won(side: TeamSide, result: str) -> bool:
-    """Return whether that side won the match."""
-    if side == "home":
-        return result == "1"
-    return result == "2"
-
-
 def _lost(side: TeamSide, result: str) -> bool:
     """Return whether that side lost the match."""
     if side == "home":
@@ -405,7 +395,6 @@ _GOAL_STATS = frozenset({
     "goals_for",
     "total_goals",
     "margin",
-    "win",
     "draw",
     "not_loss",
     "btts",
@@ -424,9 +413,9 @@ _MATCH_SAMPLE_STATS = frozenset({
     "offsides_total"})
 
 _EXPLICIT_FOOTBALL: dict[int, TeamHistoryRule] = {
-    1: TeamHistoryRule("home", "win", 0.5, "over"),
+    1: TeamHistoryRule("home", "margin", 0.0, "over"),
     2: TeamHistoryRule("home", "draw", 0.5, "over"),
-    3: TeamHistoryRule("away", "win", 0.5, "over"),
+    3: TeamHistoryRule("away", "margin", 0.0, "over"),
     4: TeamHistoryRule("home", "not_loss", 0.5, "over"),
     5: TeamHistoryRule("away", "not_loss", 0.5, "over"),
     6: TeamHistoryRule("home", "btts", 0.5, "over"),
