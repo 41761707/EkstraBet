@@ -191,6 +191,8 @@ def _perspective_row(row: pd.Series, team_id: int) -> dict[str, float]:
         "result_points": won * 3.0 + drawn,
         "goals_for": goals_for,
         "goals_against": goals_against,
+        "clean_sheet": float(goals_against == 0),
+        "failed_to_score": float(goals_for == 0),
         "xg_for": xg_for,
         "xg_against": xg_against,
         "xg_for_masked": _xg_or_goals(xg_for, goals_for),
@@ -203,6 +205,8 @@ def _perspective_row(row: pd.Series, team_id: int) -> dict[str, float]:
             row, f"{opponent}_team_sog"),
         "possession_for": _numeric_value(row, f"{own}_team_bp"),
         "elo": _numeric_value(row, f"{own}_elo", 1500.0),
+        "opponent_elo_before": _numeric_value(
+            row, f"{opponent}_elo", 1500.0),
         "gap_att": _numeric_value(row, f"{own}_gap_att", 1.0),
         "gap_def": _numeric_value(row, f"{own}_gap_def", 1.0),
         "is_home": float(is_home),

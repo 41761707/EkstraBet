@@ -102,6 +102,36 @@ def test_perspective_row_masks_missing_xg_with_goals() -> None:
     assert home["xg_available"] == 0.0
 
 
+def test_perspective_row_reads_opponent_elo_for_both_sides() -> None:
+    row = _perspective_match(home_elo=1610.0, away_elo=1420.0)
+    home = _perspective_row(row, 10)
+    away = _perspective_row(row, 20)
+    assert home["elo"] == 1610.0
+    assert away["elo"] == 1420.0
+    assert home["opponent_elo_before"] == away["elo"]
+    assert away["opponent_elo_before"] == home["elo"]
+
+
+def test_perspective_row_flags_clean_sheet_and_failed_to_score() -> None:
+    row = _perspective_match(home_team_goals=2.0, away_team_goals=0.0)
+    home = _perspective_row(row, 10)
+    away = _perspective_row(row, 20)
+    assert home["clean_sheet"] == 1.0
+    assert home["failed_to_score"] == 0.0
+    assert away["clean_sheet"] == 0.0
+    assert away["failed_to_score"] == 1.0
+
+
+def test_perspective_row_defaults_missing_opponent_elo() -> None:
+    row = _perspective_match()
+    home = _perspective_row(row, 10)
+    away = _perspective_row(row, 20)
+    assert home["opponent_elo_before"] == 1500.0
+    assert away["opponent_elo_before"] == 1500.0
+    assert home["elo"] == 1500.0
+    assert away["elo"] == 1500.0
+
+
 def test_build_team_sequence_uses_strictly_earlier_matches() -> None:
     matches = _matches()
     sequence = build_team_sequence(
