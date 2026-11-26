@@ -17,6 +17,8 @@ from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import load_model_config
 from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.data.match_history_repository import (
+    CHAMPIONS_LEAGUE_ID)
+from models.pipeline.data.match_history_repository import (
     fetch_finished_matches)
 from models.pipeline.prediction.score_matrix import derive_goal_markets
 from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
@@ -74,8 +76,9 @@ def load_candidate_output(
 
     ``test_to`` is exclusive because finished-match history uses
     ``game_date < date_to``. Features still come only from earlier
-    matches. A missing artifact names ``label`` and is reported
-    before any database read.
+    matches, including Champions League. Those matches are not
+    scored: daily prediction refuses league 42. A missing artifact
+    names ``label`` and is reported before any database read.
     """
     if role not in CANDIDATE_ROLES:
         raise ValueError(f"Unknown candidate role {role!r}")
@@ -88,7 +91,7 @@ def load_candidate_output(
     config = loaded.model_copy(update={"date_to": test_to})
     _require_saved_model(config.artifact_dir, label)
     payload = _training_payload(config)
-    positions = _test_positions(payload.get("dates"), test_from, label)
+    positions = _score_positions(payload, test_from, label)
     batch = _require_batch(payload, positions)
     values = _predict_rows(config, batch, positions, label)
     families, finals, expected = _families_from_task(
@@ -169,6 +172,30 @@ def _training_payload(config: FutureEventsRunConfig) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise TypeError("Feature builder must return a training payload")
     return payload
+
+
+def _score_positions(
+        payload: dict[str, object],
+        test_from: date,
+        label: str) -> np.ndarray:
+    """Return test-window rows that daily prediction would publish."""
+    positions = _test_positions(payload.get("dates"), test_from, label)
+    return _drop_champions_league(payload, positions, label)
+
+
+def _drop_champions_league(
+        payload: dict[str, object],
+        positions: np.ndarray,
+        label: str) -> np.ndarray:
+    """Drop league 42 from the scored rows, not from the history."""
+    # Historia zostaje: predykcja lig ligowych też widzi mecze LM.
+    leagues = _payload_column(payload, "league_ids", positions)
+    kept = positions[np.asarray(leagues) != CHAMPIONS_LEAGUE_ID]
+    if kept.size == 0:
+        raise ValueError(
+            f"Candidate {label} has no scored matches after "
+            "excluding Champions League")
+    return kept
 
 
 def _test_positions(
