@@ -160,6 +160,20 @@ def _numeric_value(row: pd.Series, column: str, default: float = np.nan) -> floa
     return float(numeric) if pd.notna(numeric) else float(default)
 
 
+def _xg_or_goals(xg: float, goals: float) -> float:
+    """Use positive finite xG, otherwise the goal count."""
+    if np.isfinite(xg) and xg > 0.0:
+        return xg
+    return goals
+
+
+def _xg_available(xg_for: float, xg_against: float) -> float:
+    """Return 1 when both xG values are positive, otherwise 0."""
+    if xg_for > 0.0 and xg_against > 0.0:
+        return 1.0
+    return 0.0
+
+
 def _perspective_row(row: pd.Series, team_id: int) -> dict[str, float]:
     is_home = int(row["home_team"]) == team_id
     own = "home" if is_home else "away"
@@ -167,6 +181,9 @@ def _perspective_row(row: pd.Series, team_id: int) -> dict[str, float]:
     goals_for = _numeric_value(row, f"{own}_team_goals", 0.0)
     goals_against = _numeric_value(row, f"{opponent}_team_goals", 0.0)
     won, drawn, lost = _team_result(str(row["result"]), is_home)
+    xg_for = _numeric_value(row, f"{own}_team_xg")
+    xg_against = _numeric_value(row, f"{opponent}_team_xg")
+    # Zero xG w bazie oznacza brak pomiaru, a nie zero okazji.
     values = {
         "won": won,
         "drawn": drawn,
@@ -174,8 +191,11 @@ def _perspective_row(row: pd.Series, team_id: int) -> dict[str, float]:
         "result_points": won * 3.0 + drawn,
         "goals_for": goals_for,
         "goals_against": goals_against,
-        "xg_for": _numeric_value(row, f"{own}_team_xg"),
-        "xg_against": _numeric_value(row, f"{opponent}_team_xg"),
+        "xg_for": xg_for,
+        "xg_against": xg_against,
+        "xg_for_masked": _xg_or_goals(xg_for, goals_for),
+        "xg_against_masked": _xg_or_goals(xg_against, goals_against),
+        "xg_available": _xg_available(xg_for, xg_against),
         "shots_for": _numeric_value(row, f"{own}_team_sc"),
         "shots_against": _numeric_value(row, f"{opponent}_team_sc"),
         "shots_on_goal_for": _numeric_value(row, f"{own}_team_sog"),

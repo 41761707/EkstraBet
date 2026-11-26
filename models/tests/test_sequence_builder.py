@@ -12,6 +12,7 @@ from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.features import sequence_builder
 from models.pipeline.features.ratings import compute_ratings_timeline
 from models.pipeline.features.sequence_builder import FutureEventsFeatureBuilder
+from models.pipeline.features.sequence_builder import _perspective_row
 from models.pipeline.features.sequence_builder import build_team_sequence
 
 
@@ -33,6 +34,72 @@ def _matches(count: int = 9) -> pd.DataFrame:
             "away_team_xg": 0.8
         })
     return pd.DataFrame(rows)
+
+
+def _perspective_match(**overrides: object) -> pd.Series:
+    row: dict[str, object] = {
+        "home_team": 10,
+        "away_team": 20,
+        "result": "1",
+        "home_team_goals": 2.0,
+        "away_team_goals": 1.0,
+        "home_team_xg": 1.4,
+        "away_team_xg": 0.8
+    }
+    row.update(overrides)
+    return pd.Series(row)
+
+
+def test_perspective_row_masks_zero_xg_with_goals() -> None:
+    row = _perspective_match(home_team_xg=0.0, away_team_xg=0.0)
+    home = _perspective_row(row, 10)
+    away = _perspective_row(row, 20)
+    assert home["xg_for"] == 0.0
+    assert home["xg_against"] == 0.0
+    assert home["xg_for_masked"] == 2.0
+    assert home["xg_against_masked"] == 1.0
+    assert home["xg_available"] == 0.0
+    assert away["xg_for"] == 0.0
+    assert away["xg_against"] == 0.0
+    assert away["xg_for_masked"] == 1.0
+    assert away["xg_against_masked"] == 2.0
+    assert away["xg_available"] == 0.0
+
+
+def test_perspective_row_keeps_positive_xg() -> None:
+    row = _perspective_match()
+    home = _perspective_row(row, 10)
+    away = _perspective_row(row, 20)
+    assert home["xg_for"] == 1.4
+    assert home["xg_against"] == 0.8
+    assert home["xg_for_masked"] == 1.4
+    assert home["xg_against_masked"] == 0.8
+    assert home["xg_available"] == 1.0
+    assert away["xg_for_masked"] == 0.8
+    assert away["xg_against_masked"] == 1.4
+    assert away["xg_for"] == 0.8
+    assert away["xg_against"] == 1.4
+    assert away["xg_available"] == 1.0
+
+
+def test_perspective_row_masks_a_one_sided_xg_gap() -> None:
+    row = _perspective_match(away_team_xg=0.0)
+    home = _perspective_row(row, 10)
+    assert home["xg_for"] == 1.4
+    assert home["xg_against"] == 0.0
+    assert home["xg_for_masked"] == 1.4
+    assert home["xg_against_masked"] == 1.0
+    assert home["xg_available"] == 0.0
+
+
+def test_perspective_row_masks_missing_xg_with_goals() -> None:
+    row = _perspective_match(home_team_xg=None, away_team_xg=None)
+    home = _perspective_row(row, 10)
+    assert np.isnan(home["xg_for"])
+    assert np.isnan(home["xg_against"])
+    assert home["xg_for_masked"] == 2.0
+    assert home["xg_against_masked"] == 1.0
+    assert home["xg_available"] == 0.0
 
 
 def test_build_team_sequence_uses_strictly_earlier_matches() -> None:
