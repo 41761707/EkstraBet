@@ -14,6 +14,7 @@ from models.pipeline.core.config import load_model_config
 from models.pipeline.training.model_inputs import build_league_vocab
 from models.pipeline.training.model_inputs import league_indexes
 from models.pipeline.training.model_inputs import model_inputs
+from models.pipeline.training.model_inputs import sequence_normalization_layer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESULT_V2 = (
@@ -159,6 +160,31 @@ def test_context_columns_require_context_params() -> None:
     assert configured.context_params.team_shrink_matches == 6.0
     assert configured.context_params.league_prior_days == 730
     assert configured.context_params.fatigue_days == 14
+
+
+def test_sequence_normalization_adapts_to_every_training_step() -> None:
+    pytest.importorskip("tensorflow")
+    home = np.array([
+        [[0.0, 10.0], [4.0, 30.0]],
+        [[8.0, 50.0], [12.0, 70.0]]], dtype=np.float32)
+    away = home + np.array([1.0, -1.0], dtype=np.float32)
+    stacked = np.concatenate([home, away], axis=0)
+    layer = sequence_normalization_layer(stacked)
+    flat = stacked.reshape(-1, stacked.shape[-1])
+    assert layer.name == "sequence_normalization"
+    axis = layer.axis
+    if isinstance(axis, int):
+        axis = (axis,)
+    assert tuple(axis) == (-1,)
+    assert np.allclose(
+        np.asarray(layer.mean).reshape(-1), flat.mean(axis=0))
+    assert np.allclose(
+        np.asarray(layer.variance).reshape(-1), flat.var(axis=0))
+
+
+def test_sequence_normalization_rejects_a_vector() -> None:
+    with pytest.raises(ValueError, match="feature axis"):
+        sequence_normalization_layer(np.array([1.0, 2.0]))
 
 
 def test_context_and_recency_bounds_are_rejected() -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from models.pipeline.core.config import FutureEventsRunConfig
@@ -53,3 +55,27 @@ def league_indexes(
     for row, league_id in enumerate(raw):
         mapped[row] = positions.get(int(league_id), 0)
     return mapped.reshape(-1, 1)
+
+
+def sequence_normalization_layer(train_sequences: np.ndarray) -> Any:
+    """Fit one feature-wise normalization layer on training steps.
+
+    ``train_sequences`` is ``concatenate([X_home, X_away])`` from the
+    training window. Every timestep of both branches is one sample, so
+    the two LSTMs share a single feature mean and variance. The layer
+    is Keras ``Normalization``, which loads without custom objects.
+    """
+    sequences = np.asarray(train_sequences)
+    if sequences.ndim < 2:
+        raise ValueError("train_sequences must include a feature axis")
+    try:
+        from tensorflow import keras
+    except ImportError as exc:
+        raise RuntimeError(
+            "TensorFlow is required for sequence normalization") from exc
+    # Oś cech jest ostatnia; kroki czasu obu gałęzi wchodzą do adapt.
+    samples = sequences.reshape(-1, sequences.shape[-1])
+    layer = keras.layers.Normalization(
+        axis=-1, name="sequence_normalization")
+    layer.adapt(samples)
+    return layer

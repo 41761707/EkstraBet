@@ -14,6 +14,7 @@ from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import register_trainer
+from models.pipeline.training.lstm_trainer import _apply_sequence_normalization
 from models.pipeline.training.lstm_trainer import _best_epoch
 from models.pipeline.training.lstm_trainer import _fit_chronological_model
 from models.pipeline.training.lstm_trainer import _holdout_split
@@ -22,6 +23,7 @@ from models.pipeline.training.lstm_trainer import _prepare_training_data
 from models.pipeline.training.lstm_trainer import _scale_holdout
 from models.pipeline.training.lstm_trainer import _score_validation
 from models.pipeline.training.lstm_trainer import _split_meta
+from models.pipeline.training.lstm_trainer import _training_normalization_layer
 from models.pipeline.training.lstm_trainer import chronological_split
 from models.pipeline.training.model_inputs import model_inputs
 from models.pipeline.training.trainer import Trainer
@@ -47,17 +49,24 @@ def poisson_nll(y_true: Any, lambdas: Any) -> Any:
 def build_poisson_model(
         sequence_shape: tuple[int, int],
         static_features: int,
-        config: FutureEventsRunConfig) -> Any:
-    """Build dual LSTMs with two positive home/away Poisson rates."""
+        config: FutureEventsRunConfig,
+        normalization_layer: Any | None = None) -> Any:
+    """Build dual LSTMs with two positive home/away Poisson rates.
+
+    When ``normalization_layer`` is set, both sequences pass through
+    that one layer before the LSTMs.
+    """
     keras = _keras()
     home_input = keras.Input(shape=sequence_shape, name="home_sequence")
     away_input = keras.Input(shape=sequence_shape, name="away_sequence")
     static_input = keras.Input(
         shape=(static_features,), name="static_features")
+    home_sequence, away_sequence = _apply_sequence_normalization(
+        home_input, away_input, normalization_layer)
     home_branch = keras.layers.LSTM(
-        config.lstm_units, name="home_lstm")(home_input)
+        config.lstm_units, name="home_lstm")(home_sequence)
     away_branch = keras.layers.LSTM(
-        config.lstm_units, name="away_lstm")(away_input)
+        config.lstm_units, name="away_lstm")(away_sequence)
     static_branch = keras.layers.Dense(
         config.dense_units,
         activation="relu",
@@ -120,10 +129,13 @@ class PoissonTrainer(Trainer):
         holdout = _holdout_split(batch, labels, dates, config)
         train_batch, val_batch, scaler = _scale_holdout(
             holdout.train_batch, holdout.validation_batch)
+        normalization_layer = _training_normalization_layer(
+            config, train_batch)
         model = build_poisson_model(
             train_batch.X_home.shape[1:],
             train_batch.X_static.shape[1],
-            config)
+            config,
+            normalization_layer)
         history = _fit_chronological_model(
             model,
             train_batch,

@@ -21,6 +21,7 @@ from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.core.registry import register_trainer
 from models.pipeline.training.model_inputs import model_inputs
+from models.pipeline.training.model_inputs import sequence_normalization_layer
 from models.pipeline.training.splits import split_by_dates
 from models.pipeline.training.trainer import Trainer
 
@@ -34,21 +35,52 @@ def _keras() -> Any:
     return keras
 
 
+def _apply_sequence_normalization(
+        home_input: Any,
+        away_input: Any,
+        normalization_layer: Any | None) -> tuple[Any, Any]:
+    """Route both sequence inputs through one shared layer."""
+    if normalization_layer is None:
+        return home_input, away_input
+    # Ta sama instancja, więc obie gałęzie mają jedną średnią i wariancję.
+    return (
+        normalization_layer(home_input),
+        normalization_layer(away_input))
+
+
+def _training_normalization_layer(
+        config: FutureEventsRunConfig,
+        train_batch: SequenceBatch) -> Any | None:
+    """Fit sequence normalization on the training window only."""
+    if not config.normalize_sequences:
+        return None
+    sequences = np.concatenate(
+        [train_batch.X_home, train_batch.X_away], axis=0)
+    return sequence_normalization_layer(sequences)
+
+
 def build_dual_lstm_classifier(
         sequence_shape: tuple[int, int],
         static_features: int,
         classes: int,
-        config: FutureEventsRunConfig) -> Any:
-    """Build dual home/away LSTMs plus a dense static branch."""
+        config: FutureEventsRunConfig,
+        normalization_layer: Any | None = None) -> Any:
+    """Build dual home/away LSTMs plus a dense static branch.
+
+    When ``normalization_layer`` is set, both sequences pass through
+    that one layer before the LSTMs.
+    """
     keras = _keras()
     home_input = keras.Input(shape=sequence_shape, name="home_sequence")
     away_input = keras.Input(shape=sequence_shape, name="away_sequence")
     static_input = keras.Input(
         shape=(static_features,), name="static_features")
+    home_sequence, away_sequence = _apply_sequence_normalization(
+        home_input, away_input, normalization_layer)
     home_branch = keras.layers.LSTM(
-        config.lstm_units, name="home_lstm")(home_input)
+        config.lstm_units, name="home_lstm")(home_sequence)
     away_branch = keras.layers.LSTM(
-        config.lstm_units, name="away_lstm")(away_input)
+        config.lstm_units, name="away_lstm")(away_sequence)
     static_branch = keras.layers.Dense(
         config.dense_units,
         activation="relu",
@@ -347,11 +379,14 @@ class LstmTrainer(Trainer):
         train_batch, val_batch, scaler = _scale_holdout(
             holdout.train_batch, holdout.validation_batch)
         classes = 3 if config.task_type == "result" else 2
+        normalization_layer = _training_normalization_layer(
+            config, train_batch)
         model = build_dual_lstm_classifier(
             train_batch.X_home.shape[1:],
             train_batch.X_static.shape[1],
             classes,
-            config)
+            config,
+            normalization_layer)
         history = _fit_chronological_model(
             model,
             train_batch,
