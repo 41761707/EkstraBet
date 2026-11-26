@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from contextlib import nullcontext
+from dataclasses import dataclass
+from dataclasses import replace
 from typing import Any
 from typing import Iterable
 
@@ -12,6 +15,11 @@ from models.pipeline.core.config import BttsPrediction
 from models.pipeline.core.config import GoalsPoissonPrediction
 from models.pipeline.core.config import PredictionWriteRow
 from models.pipeline.core.config import ResultPrediction
+from models.pipeline.core.model_roles import MODEL_STATUS_CHALLENGER
+from models.pipeline.core.model_roles import MODEL_STATUS_CHAMPION
+from models.pipeline.core.model_roles import MODEL_STATUS_RETIRED
+from models.pipeline.core.model_roles import ModelRoleError
+from models.pipeline.core.model_roles import ModelRoles
 from models.pipeline.prediction.hockey_markets import HockeyScoreChart
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_FAMILIES
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
@@ -50,6 +58,23 @@ WHERE p.match_id = %s
   AND p.model_id = %s
   AND p.event_id IN ({placeholders})
 """
+
+_SHADOW_UPSERT_SQL = """
+INSERT INTO model_shadow_predictions (match_id, event_id, model_id, value)
+VALUES (%s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE value = VALUES(value)
+"""
+
+
+@dataclass(frozen=True)
+class RoutedRows:
+    """Prediction rows split between publication and the shadow table.
+
+    Shadow rows always have ``is_final`` set to False.
+    """
+
+    published: list[PredictionWriteRow]
+    shadow: list[PredictionWriteRow]
 
 
 def _db_percentage(
@@ -203,6 +228,145 @@ def write_predictions(
         finally:
             cursor.close()
     return len(prepared_rows)
+
+
+def route_prediction_rows(
+        rows: Sequence[PredictionWriteRow],
+        roles: ModelRoles,
+        event_families: dict[int, int]) -> RoutedRows:
+    """Split rows into published champion rows and shadow rows.
+
+    A challenger row is copied with ``is_final`` cleared. A retired
+    model, or an inactive model without a family role, raises
+    ``ModelRoleError`` and nothing is returned.
+    """
+    published: list[PredictionWriteRow] = []
+    shadow: list[PredictionWriteRow] = []
+    for row in rows:
+        destination = _row_destination(row, roles, event_families)
+        if destination == MODEL_STATUS_CHALLENGER:
+            # Finał pretendenta nie może trafić do final_predictions.
+            shadow.append(replace(row, is_final=False))
+            continue
+        published.append(row)
+    return RoutedRows(published=published, shadow=shadow)
+
+
+def _row_destination(
+        row: PredictionWriteRow,
+        roles: ModelRoles,
+        event_families: dict[int, int]) -> str:
+    family_id = _event_family_id(row.event_id, event_families)
+    status = roles.status_of(row.model_id, family_id)
+    if status is None:
+        return _unregistered_destination(row, roles, family_id)
+    if status == MODEL_STATUS_CHAMPION:
+        return MODEL_STATUS_CHAMPION
+    if status == MODEL_STATUS_CHALLENGER:
+        return MODEL_STATUS_CHALLENGER
+    if status == MODEL_STATUS_RETIRED:
+        raise ModelRoleError(
+            "Retired model cannot write predictions "
+            f"(model_id={row.model_id}, "
+            f"event_family_id={family_id})")
+    raise ModelRoleError(f"Unknown model status: {status!r}")
+
+
+def _event_family_id(
+        event_id: int,
+        event_families: dict[int, int]) -> int:
+    family_id = event_families.get(event_id)
+    if family_id is None:
+        raise ModelRoleError(
+            "Event family mapping is missing for event id: "
+            f"{event_id}")
+    return family_id
+
+
+def _unregistered_destination(
+        row: PredictionWriteRow,
+        roles: ModelRoles,
+        family_id: int) -> str:
+    # Brak wiersza roli: aktywny model zostaje mistrzem, jak przed statusami.
+    active = roles.active_by_model.get(row.model_id, 0)
+    if active == 1:
+        return MODEL_STATUS_CHAMPION
+    raise ModelRoleError(
+        "model is not registered for family "
+        f"{family_id} (model_id={row.model_id})")
+
+
+def write_shadow_predictions(
+        rows: Iterable[PredictionWriteRow],
+        conn: Any | None = None) -> int:
+    """Upsert challenger probabilities into the shadow table.
+
+    A row marked as final is rejected. A supplied connection is left
+    uncommitted for the caller.
+    """
+    prepared_rows = list(rows)
+    if not prepared_rows:
+        return 0
+    _reject_shadow_finals(prepared_rows)
+    owns_connection = conn is None
+    connection_context = (
+        nullcontext(conn) if conn is not None else get_db_connection())
+    with connection_context as connection:
+        cursor = connection.cursor()
+        try:
+            for row in prepared_rows:
+                cursor.execute(_SHADOW_UPSERT_SQL, (
+                    row.match_id,
+                    row.event_id,
+                    row.model_id,
+                    _db_percentage(row.value)))
+            if owns_connection:
+                connection.commit()
+        except Exception:
+            if owns_connection:
+                connection.rollback()
+            raise
+        finally:
+            cursor.close()
+    return len(prepared_rows)
+
+
+def _reject_shadow_finals(rows: list[PredictionWriteRow]) -> None:
+    for row in rows:
+        if row.is_final:
+            raise ValueError(
+                "Shadow predictions cannot be marked as final")
+
+
+def persist_routed_rows(
+        rows: Sequence[PredictionWriteRow],
+        roles: ModelRoles,
+        event_families: dict[int, int],
+        conn: Any | None = None) -> tuple[int, int]:
+    """Publish and shadow rows in one transaction.
+
+    Returns ``(published_count, shadow_count)``. A connection supplied
+    by the caller is left uncommitted. When this function opens the
+    connection, both writes commit together and both roll back if
+    either write fails.
+    """
+    routed = route_prediction_rows(rows, roles, event_families)
+    if not routed.published and not routed.shadow:
+        return 0, 0
+    owns_connection = conn is None
+    connection_context = (
+        nullcontext(conn) if conn is not None else get_db_connection())
+    with connection_context as connection:
+        try:
+            published = write_predictions(routed.published, connection)
+            shadow = write_shadow_predictions(routed.shadow, connection)
+            if owns_connection:
+                connection.commit()
+        except Exception:
+            if owns_connection:
+                connection.rollback()
+            raise
+    return published, shadow
 
 
 def _event_row(

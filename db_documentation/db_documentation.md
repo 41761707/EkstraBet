@@ -1,6 +1,6 @@
 # OFICJALNA DOKUMENTACJA BAZODANOWA
 
-###### Ostatnia data modyfikacji: 08.11.2026
+###### Ostatnia data modyfikacji: 25.11.2026
 
 ## Opis struktury bazy
 
@@ -45,6 +45,7 @@ Diagram relacji: [`db_erd.mermaid`](db_erd.mermaid).
 - [MATCHES](#matches) (wszystkie analizowane mecze)
 - [MATCH_MODEL_ASSESSMENTS](#match_model_assessments) (oceny meczów po fakcie z modeli assessment)
 - [MODELS](#models) (lista stworzonych modeli predykcyjnych)
+- [MODEL_SHADOW_PREDICTIONS](#model_shadow_predictions) (Predykcje modeli poza publikacją)
 - [MODEL_TRAINING_RUNS](#model_training_runs) (audyt przebiegów trenowania / ewaluacji modeli)
 - [ODDS](#odds) (pobrane kursy dla danego meczu dla danego zdrarzenia)
 - [PLAYER_NAME_MAPPINGS](#player_name_mappings) (mapowania nazw zawodników dla różnych bukmacherów)
@@ -619,19 +620,24 @@ Aktualne dane do tabeli zostały dodane **ręcznie** w ramach jednorazowego wgra
 (Powiązania modeli z rodzinami zdarzeń)
 
 
-| POLE              | DOMENA | ZAKRES | UWAGI                                            | WARTOŚC DOMYŚLNA         |
-| ----------------- | ------ | ------ | ------------------------------------------------ | ------------------------ |
-| **ID**            | INT    | INT    | ID powiązania                                    | AUTOMATYCZNIE GENEROWANY |
-| *MODEL_ID*        | INT    | INT    | Klucz obcy, powiązanie z tabelą *models*         | NULL                     |
-| *EVENT_FAMILY_ID* | INT    | INT    | Klucz obcy, powiązanie z tabelą *event_families* | NULL                     |
+| POLE              | DOMENA      | ZAKRES                                | UWAGI                                            | WARTOŚC DOMYŚLNA         |
+| ----------------- | ----------- | ------------------------------------- | ------------------------------------------------ | ------------------------ |
+| **ID**            | INT         | INT                                   | ID powiązania                                    | AUTOMATYCZNIE GENEROWANY |
+| *MODEL_ID*        | INT         | INT                                   | Klucz obcy, powiązanie z tabelą *models*         | NULL                     |
+| *EVENT_FAMILY_ID* | INT         | INT                                   | Klucz obcy, powiązanie z tabelą *event_families* | NULL                     |
+| STATUS            | VARCHAR(16) | {champion, challenger, retired, NULL} | Rola modelu w tej rodzinie zdarzeń               | NULL                     |
+| STATUS_CHANGED_AT | TIMESTAMP   | TIMESTAMP                             | Moment ostatniej zmiany roli                     | NULL                     |
 
 
 **Ograniczenia/Indeksy:**
 
 - Klucz główny: `ID`
-- Klucz obcy: `MODEL_ID` → `models(ID)`
-- Klucz obcy: `EVENT_FAMILY_ID` → `event_families(ID)`
-- **Unikalny indeks**: `MODEL_ID`, `EVENT_FAMILY_ID` (zapobiega duplikatom powiązań tego samego modelu z tą samą rodziną zdarzeń)
+- Indeks unikalny: `id_UNIQUE` (`ID`)
+- Klucz obcy: `MODEL_ID` → `models(ID)` (ograniczenie `EMF_MODEL`)
+- Klucz obcy: `EVENT_FAMILY_ID` → `event_families(ID)` (ograniczenie `EMF_EVENT_FAMILY`)
+- Indeks: `EMF_MODEL_idx` (`MODEL_ID`)
+- Indeks: `EMF_EVENT_FAMILY_idx` (`EVENT_FAMILY_ID`)
+- Indeks: `EMF_UNIQUE` (`EVENT_FAMILY_ID`, `MODEL_ID`)
 
 **Sposób generowania danych do tabeli**:
 
@@ -1251,6 +1257,38 @@ Dane wyliczane przez pipeline ML i zapisywane do bazy.
 **Sposób generowania danych do tabeli**:
 
 Dane dodawane ręcznie przy konfiguracji nowych modeli.
+
+---
+
+### MODEL_SHADOW_PREDICTIONS
+
+(Predykcje modeli poza publikacją)
+
+
+| POLE         | DOMENA    | ZAKRES   | UWAGI                                     | WARTOŚC DOMYŚLNA         |
+| ------------ | --------- | -------- | ----------------------------------------- | ------------------------ |
+| **ID**       | INT       | INT>0    | ID predykcji                              | AUTOMATYCZNIE GENEROWANY |
+| *MATCH_ID*   | INT       | INT>0    | Klucz obcy, powiązanie z tabelą *matches* | brak                     |
+| *EVENT_ID*   | INT       | INT>0    | Klucz obcy, powiązanie z tabelą *events*  | brak                     |
+| *MODEL_ID*   | INT       | INT>0    | Klucz obcy, powiązanie z tabelą *models*  | brak                     |
+| VALUE        | FLOAT     | [0, 100] | Prawdopodobieństwo zdarzenia w procentach | brak                     |
+| CREATED_AT   | TIMESTAMP | TIMESTAMP | Czas utworzenia wiersza                  | CURRENT_TIMESTAMP        |
+| UPDATED_AT   | TIMESTAMP | TIMESTAMP | Czas ostatniej zmiany wiersza            | CURRENT_TIMESTAMP        |
+
+
+**Ograniczenia/Indeksy:**
+
+- Klucz główny: `ID`
+- Klucz obcy: `MATCH_ID` → `matches(ID)` (ograniczenie `fk_msp_match`)
+- Klucz obcy: `EVENT_ID` → `events(ID)` (ograniczenie `fk_msp_event`)
+- Klucz obcy: `MODEL_ID` → `models(ID)` (ograniczenie `fk_msp_model`)
+- **Unikalny indeks:** `uq_model_shadow_predictions` (`MATCH_ID`, `EVENT_ID`, `MODEL_ID`) — jedna predykcja modelu dla zdarzenia w meczu
+- Indeks: `idx_model_shadow_predictions_model` (`MODEL_ID`)
+- Indeks: `fk_msp_event` (`EVENT_ID`)
+
+**Sposób generowania danych do tabeli:**
+
+Dane wyliczane przez pipeline predykcji.
 
 ---
 

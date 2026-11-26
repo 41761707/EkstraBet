@@ -53,6 +53,15 @@ from models.pipeline.data.match_history_repository import (
     ensure_predictions_allowed)
 from models.pipeline.data.match_history_repository import (
     fetch_match_league_ids)
+from models.pipeline.core.model_lineup import LineupEntry
+from models.pipeline.core.model_lineup import ModelLineup
+from models.pipeline.core.model_lineup import resolve_lineup
+from models.pipeline.evaluation.commands import run_compare_models
+from models.pipeline.evaluation.commands import run_model_lineup
+from models.pipeline.evaluation.commands import run_promote_model
+from models.pipeline.evaluation.commands import run_shadow_report
+from models.pipeline.core.model_roles import ModelRoles
+from models.pipeline.core.model_roles import fetch_model_roles
 from models.pipeline.core.registry import resolve_event_map
 from models.pipeline.core.registry import resolve_model_id
 from models.pipeline.core.registry import validate_events
@@ -100,6 +109,11 @@ from models.pipeline.prediction.future_events_predictor import (
     FeatureCache)
 from models.pipeline.prediction.future_events_predictor import (
     FutureEventsPredictor)
+from models.pipeline.prediction.lineup_runner import build_lineup_predictors
+from models.pipeline.prediction.lineup_runner import lineup_event_families
+from models.pipeline.prediction.lineup_runner import lineup_rating_params
+from models.pipeline.prediction.lineup_runner import persist_lineup_prediction
+from models.pipeline.prediction.lineup_runner import predict_lineup_pair
 from models.pipeline.prediction.hockey_markets import EXACT_SCORE_BASE_ID
 from models.pipeline.prediction.hockey_markets import EXACT_SCORE_LAST_ID
 from models.pipeline.prediction.hockey_markets import HOCKEY_MARKET_KEYS
@@ -165,6 +179,37 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
         help="Enable debug logging")
 
 
+class _FutureEventsParser(argparse.ArgumentParser):
+    """Reject explicit family configs when ``--auto-models`` is set."""
+
+    def parse_known_args(
+            self,
+            args: Sequence[str] | None = None,
+            namespace: argparse.Namespace | None = None
+            ) -> tuple[argparse.Namespace, list[str]]:
+        parsed, extras = super().parse_known_args(args, namespace)
+        _reject_explicit_configs_with_auto_models(self, parsed)
+        return parsed, extras
+
+
+def _reject_explicit_configs_with_auto_models(
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace) -> None:
+    """parser.error when --auto-models carries a family config."""
+    if not getattr(namespace, "auto_models", False):
+        return
+    explicit = [
+        flag for flag, value in (
+            ("--result-config", getattr(namespace, "result_config", None)),
+            ("--btts-config", getattr(namespace, "btts_config", None)),
+            ("--goals-config", getattr(namespace, "goals_config", None)))
+        if value is not None]
+    if not explicit:
+        return
+    listed = ", ".join(explicit)
+    parser.error(f"--auto-models cannot be combined with {listed}")
+
+
 def _add_future_config_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--result-config",
@@ -188,6 +233,12 @@ def _add_future_config_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Optional goals-family config path")
     parser.add_argument(
+        "--auto-models",
+        action="store_true",
+        help=(
+            "Use the champion and challenger lineup from the "
+            "database instead of explicit family configs"))
+    parser.add_argument(
         "--write-db",
         action="store_true",
         help="Persist predictions for inputs carrying match_id")
@@ -206,7 +257,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="model_runner",
         description="EkstraBet shared ML pipeline runner")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+        parser_class=_FutureEventsParser)
 
     train_parser = subparsers.add_parser("train", help="Train a model")
     _add_shared_args(train_parser)
@@ -241,8 +295,8 @@ def build_parser() -> argparse.ArgumentParser:
     pair_parser = subparsers.add_parser(
         "predict-pair",
         help=(
-            "Predict configured future-event families for one pair "
-            "(pass any non-empty subset of family configs)"))
+            "Predict future-event families for one pair "
+            "(family configs, or --auto-models)"))
     _add_future_config_args(pair_parser)
     pair_parser.add_argument("--home", required=True, type=int)
     pair_parser.add_argument("--away", required=True, type=int)
@@ -255,9 +309,9 @@ def build_parser() -> argparse.ArgumentParser:
     future_batch_parser = subparsers.add_parser(
         "predict-batch",
         help=(
-            "Predict configured future-event families from a JSON pair list "
+            "Predict future-event families from a JSON pair list "
             "or upcoming DB matches with result='0' "
-            "(pass any non-empty subset of family configs)"))
+            "(family configs, or --auto-models)"))
     _add_future_config_args(future_batch_parser)
     future_batch_parser.add_argument(
         "--pairs-file",
@@ -457,6 +511,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable debug logging")
     _add_betting_parsers(subparsers)
     _add_coupon_agent_parser(subparsers)
+    _add_compare_models_parser(subparsers)
+    _add_shadow_report_parser(subparsers)
+    _add_model_lineup_parser(subparsers)
+    _add_promote_model_parser(subparsers)
     return parser
 
 
@@ -558,6 +616,98 @@ def _parse_coupon_as_of(value: str) -> datetime:
         raise argparse.ArgumentTypeError(
             "as-of must be an ISO date or datetime") from exc
     return parsed
+
+
+def _add_compare_models_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register the offline champion and challenger report."""
+    parser = subparsers.add_parser(
+        "compare-models",
+        help="Write an offline comparison report for a frozen test")
+    parser.add_argument(
+        "--spec",
+        required=True,
+        type=Path,
+        help="Path to the offline gate JSON spec")
+
+
+def _add_shadow_report_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register the live challenger check against the champion."""
+    parser = subparsers.add_parser(
+        "shadow-report",
+        help="Score a challenger on finished matches in a date window")
+    parser.add_argument(
+        "--family",
+        required=True,
+        choices=("result", "btts", "over_25"),
+        help="Market family: result, btts or over_25")
+    parser.add_argument(
+        "--champion-model",
+        required=True,
+        help="Champion model name in the football registry")
+    parser.add_argument(
+        "--challenger-model",
+        required=True,
+        help="Challenger model name in the football registry")
+    parser.add_argument(
+        "--date-from",
+        required=True,
+        type=date.fromisoformat,
+        help="First kickoff date, inclusive")
+    parser.add_argument(
+        "--date-to",
+        required=True,
+        type=date.fromisoformat,
+        help="Kickoff date exclusive upper bound")
+    parser.add_argument(
+        "--output",
+        required=True,
+        type=Path,
+        help="Path of the JSON report to write")
+
+
+def _add_model_lineup_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register the champion and challenger lineup printout."""
+    subparsers.add_parser(
+        "model-lineup",
+        help="Print champion and challenger models by event family")
+
+
+def _add_promote_model_parser(
+        subparsers: argparse._SubParsersAction) -> None:
+    """Register promotion and rollback of one football model."""
+    parser = subparsers.add_parser(
+        "promote-model",
+        help="Promote a challenger or restore a retired model")
+    parser.add_argument(
+        "--model-name",
+        required=True,
+        help="Model name in the football registry and models table")
+    parser.add_argument(
+        "--event-family",
+        action="append",
+        required=True,
+        help=(
+            "Event family name for sport 1. "
+            "Repeat for goal buckets and exact scores"))
+    parser.add_argument(
+        "--offline-report",
+        type=Path,
+        help="compare-models JSON. Required without --force")
+    parser.add_argument(
+        "--shadow-report",
+        type=Path,
+        help="shadow-report JSON. Required without --force")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip offline and shadow evidence. Used for rollback")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the SQL plan and do not write")
 
 
 def _add_coupon_agent_parser(
@@ -783,15 +933,168 @@ def _persist_future_prediction(
     return write_predictions(rows)
 
 
-def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
-    """Run configured future-event artifacts for one matchup."""
-    matchup = MatchupInput(
+class _AutoModelRun(NamedTuple):
+    """Lineup, roles and history loaded before the first match."""
+
+    lineup: ModelLineup
+    predictors: list[tuple[LineupEntry, FutureEventsPredictor]]
+    roles: ModelRoles
+    event_families: dict[int, int]
+    context: SharedHistoryContext | None
+
+
+def _empty_lineup_written() -> dict[str, int]:
+    return {"published": 0, "shadow": 0}
+
+
+def _lineup_sport_id(lineup: ModelLineup) -> int:
+    if not lineup.entries:
+        return 1
+    return lineup.entries[0].config.sport_id
+
+
+def _prepare_lineup_prediction(
+        matchups: Sequence[MatchupInput]) -> _AutoModelRun:
+    """Load the lineup and event families once for the whole run."""
+    lineup = resolve_lineup()
+    predictors = build_lineup_predictors(lineup)
+    sport_id = _lineup_sport_id(lineup)
+    roles = fetch_model_roles(sport_id)
+    # Rodziny zdarzeń są wspólne dla wszystkich meczów batcha.
+    event_families = lineup_event_families(predictors)
+    context = _build_lineup_history_context(lineup, matchups, sport_id)
+    return _AutoModelRun(
+        lineup,
+        predictors,
+        roles,
+        event_families,
+        context)
+
+
+def _build_lineup_history_context(
+        lineup: ModelLineup,
+        matchups: Sequence[MatchupInput],
+        sport_id: int) -> SharedHistoryContext | None:
+    """Fetch finished matches once for every lineup rating set."""
+    if not matchups:
+        return None
+    max_as_of = max(item.as_of_date for item in matchups)
+    logger.info("Building shared history...")
+    context = build_shared_history_context(
+        sport_id,
+        max_as_of,
+        lineup_rating_params(lineup))
+    logger.info(
+        "History ready (%s finished, %s rating timelines)",
+        len(context.finished_matches),
+        len(context.ratings_by_key or {}))
+    return context
+
+
+def _matchup_from_pair_args(args: argparse.Namespace) -> MatchupInput:
+    return MatchupInput(
         home_team_id=args.home,
         away_team_id=args.away,
         league_id=args.league_id,
         season_id=args.season_id,
         as_of_date=args.as_of,
         match_id=args.match_id)
+
+
+def _run_auto_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
+    """Predict one matchup with the champion and challenger lineup."""
+    matchup = _matchup_from_pair_args(args)
+    _guard_prediction_leagues([matchup])
+    prepared = _prepare_lineup_prediction([matchup])
+    prediction = predict_lineup_pair(
+        matchup,
+        prepared.predictors,
+        context=prepared.context,
+        feature_cache={})
+    written = _empty_lineup_written()
+    if args.write_db:
+        written = persist_lineup_prediction(
+            matchup,
+            prepared.predictors,
+            prediction,
+            prepared.roles,
+            args.select_finals,
+            event_families=prepared.event_families)
+    return {
+        "matchup": matchup.model_dump(),
+        "predictions": _json_value(prediction),
+        "written": written}
+
+
+def _append_skipped_lineup_result(
+        results: list[dict[str, Any]],
+        matchup: MatchupInput,
+        exc: Exception) -> None:
+    logger.error(
+        "Skipping match_id=%s home=%s away=%s: %s",
+        matchup.match_id,
+        matchup.home_team_id,
+        matchup.away_team_id,
+        exc)
+    results.append({
+        "matchup": matchup.model_dump(),
+        "predictions": None,
+        "written": _empty_lineup_written(),
+        "skipped": True,
+        "error": str(exc)})
+
+
+def _run_auto_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
+    """Predict upcoming matches with the lineup; skip a failed match."""
+    from tqdm.contrib.logging import logging_redirect_tqdm
+
+    raw_matchups = _load_batch_matchups(args)
+    matchups = [MatchupInput.model_validate(item) for item in raw_matchups]
+    _guard_prediction_leagues(matchups)
+    prepared = _prepare_lineup_prediction(matchups)
+    feature_cache: FeatureCache = {}
+    results: list[dict[str, Any]] = []
+    skipped = 0
+    progress = _predict_batch_progress(matchups)
+    # skipi na stderr nie mogą nadpisać paska — tqdm.write czyści i odrysowuje
+    with logging_redirect_tqdm():
+        for matchup in progress:
+            try:
+                prediction = predict_lineup_pair(
+                    matchup,
+                    prepared.predictors,
+                    context=prepared.context,
+                    feature_cache=feature_cache)
+            except Exception as exc:
+                skipped += 1
+                _append_skipped_lineup_result(results, matchup, exc)
+                continue
+            written = _empty_lineup_written()
+            if args.write_db:
+                written = persist_lineup_prediction(
+                    matchup,
+                    prepared.predictors,
+                    prediction,
+                    prepared.roles,
+                    args.select_finals,
+                    event_families=prepared.event_families)
+            results.append({
+                "matchup": matchup.model_dump(),
+                "predictions": _json_value(prediction),
+                "written": written,
+                "skipped": False})
+    return {
+        "processed": len(matchups),
+        "predicted": len(matchups) - skipped,
+        "skipped": skipped,
+        "results": results}
+
+
+def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
+    """Run configured future-event artifacts for one matchup."""
+    if getattr(args, "auto_models", False):
+        return _run_auto_predict_pair(args)
+    matchup = _matchup_from_pair_args(args)
     _guard_prediction_leagues([matchup])
     predictor = _future_predictor(args)
     context = _build_predict_history_context(predictor, [matchup])
@@ -809,6 +1112,8 @@ def run_predict_pair(args: argparse.Namespace) -> dict[str, Any]:
 
 def run_predict_batch(args: argparse.Namespace) -> dict[str, Any]:
     """Run future-event artifacts; skip matchups that cannot be predicted."""
+    if getattr(args, "auto_models", False):
+        return _run_auto_predict_batch(args)
     from tqdm.contrib.logging import logging_redirect_tqdm
 
     raw_matchups = _load_batch_matchups(args)
@@ -1199,6 +1504,9 @@ def _active_hockey_configs() -> list[tuple[ModelRunConfig, int]]:
                 "because it is a betting strategy",
                 path.name)
             continue
+        if task_type is None and _json_without_task_type(path):
+            # Rejestr składu nie jest configiem modelu drużyny.
+            continue
         if task_type in _HOCKEY_TASKS_WITHOUT_TEAM_MARKETS:
             continue
         config = load_model_config(path)
@@ -1227,6 +1535,21 @@ def _is_betting_strategy_config(path: Path) -> bool:
     except (OSError, UnicodeError, json.JSONDecodeError, ValidationError):
         return False
     return True
+
+
+def _json_without_task_type(path: Path) -> bool:
+    """True when the file is JSON and does not declare task_type.
+
+    Invalid JSON returns False so the caller still aborts on it.
+    """
+    try:
+        with path.open(encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(raw, dict):
+        return False
+    return not isinstance(raw.get("task_type"), str)
 
 
 def _prediction_task_type(path: Path) -> str | None:
@@ -1952,6 +2275,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "publish-coupon-agent":
             payload = run_publish_coupon_agent(args)
             exit_code = _coupon_agent_exit_code(payload)
+        elif args.command == "compare-models":
+            payload = run_compare_models(args)
+        elif args.command == "shadow-report":
+            payload = run_shadow_report(args)
+        elif args.command == "model-lineup":
+            payload = run_model_lineup(args)
+        elif args.command == "promote-model":
+            payload = run_promote_model(args)
         else:
             parser.error(f"Unknown command: {args.command}")
     except Exception as exc:

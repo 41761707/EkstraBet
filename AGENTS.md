@@ -160,3 +160,5 @@ Nie rób force push.
 ## Dopiski
 
 Miejsce na kolejne fakty operacyjne. Dopisuj datę i jedno zdanie.
+
+2026-11-10: pretendent pisze do `model_shadow_predictions`, mistrza rodziny wyznacza `event_model_families.status`.

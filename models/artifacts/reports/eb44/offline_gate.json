@@ -1,0 +1,1241 @@
+{
+  "generated_at": "2026-11-26T16:21:56.804230+00:00",
+  "spec": {
+    "sport_id": 1,
+    "test_from": "2026-09-01",
+    "test_to": "2026-11-10",
+    "bootstrap_samples": 2000,
+    "bootstrap_seed": 42,
+    "reliability_edges": [
+      0,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      1.0
+    ],
+    "candidates": [
+      {
+        "label": "result_v2_champion",
+        "role": "champion",
+        "families": [
+          "result"
+        ],
+        "config": "models/configs/prediction/football_result_v2.json"
+      },
+      {
+        "label": "btts_v2_champion",
+        "role": "champion",
+        "families": [
+          "btts"
+        ],
+        "config": "models/configs/prediction/football_btts_v2.json"
+      },
+      {
+        "label": "goals_v1_champion",
+        "role": "champion",
+        "families": [
+          "over_25"
+        ],
+        "config": "models/configs/prediction/football_goals_poisson_v1.json"
+      }
+    ],
+    "thresholds": {},
+    "output_path": "models/artifacts/reports/eb44/offline_gate.json"
+  },
+  "families": {
+    "result": {
+      "n": 2914,
+      "dropped": {
+        "result_v2_champion": 0
+      },
+      "candidates": [
+        {
+          "label": "result_v2_champion",
+          "role": "champion",
+          "n": 2914,
+          "log_loss": 1.0573579785934586,
+          "brier": 0.617940910676928,
+          "ece": 0.03019944951854356,
+          "mean_p": {
+            "h": 0.433690519583775,
+            "d": 0.26792343462831764,
+            "a": 0.29838604578790734
+          },
+          "final_shares": {
+            "h": 0.7594371997254633,
+            "d": 0.0,
+            "a": 0.24056280027453672
+          },
+          "reliability": {
+            "h": [
+              {
+                "bin": "0-20",
+                "n": 77,
+                "mean_p": 0.15353437444389137,
+                "actual": 0.15584415584415584
+              },
+              {
+                "bin": "20-25",
+                "n": 88,
+                "mean_p": 0.22632198811281878,
+                "actual": 0.22727272727272727
+              },
+              {
+                "bin": "25-30",
+                "n": 184,
+                "mean_p": 0.27731757489163406,
+                "actual": 0.266304347826087
+              },
+              {
+                "bin": "30-35",
+                "n": 296,
+                "mean_p": 0.3255037703829651,
+                "actual": 0.30067567567567566
+              },
+              {
+                "bin": "35-40",
+                "n": 562,
+                "mean_p": 0.3772064141553331,
+                "actual": 0.3612099644128114
+              },
+              {
+                "bin": "40-45",
+                "n": 652,
+                "mean_p": 0.4237839375965613,
+                "actual": 0.4539877300613497
+              },
+              {
+                "bin": "45-50",
+                "n": 377,
+                "mean_p": 0.4726121425184216,
+                "actual": 0.53315649867374
+              },
+              {
+                "bin": "50-55",
+                "n": 248,
+                "mean_p": 0.5216488647702421,
+                "actual": 0.4798387096774194
+              },
+              {
+                "bin": "55-60",
+                "n": 167,
+                "mean_p": 0.5715256831715023,
+                "actual": 0.6287425149700598
+              },
+              {
+                "bin": "60-65",
+                "n": 101,
+                "mean_p": 0.6229630144501765,
+                "actual": 0.7227722772277227
+              },
+              {
+                "bin": "65-70",
+                "n": 48,
+                "mean_p": 0.6719025164702886,
+                "actual": 0.7916666666666666
+              },
+              {
+                "bin": "70-100",
+                "n": 114,
+                "mean_p": 0.8614380690104542,
+                "actual": 0.6929824561403509
+              }
+            ],
+            "d": [
+              {
+                "bin": "0-20",
+                "n": 142,
+                "mean_p": 0.11246103833664653,
+                "actual": 0.11267605633802817
+              },
+              {
+                "bin": "20-25",
+                "n": 387,
+                "mean_p": 0.2325063918630657,
+                "actual": 0.1937984496124031
+              },
+              {
+                "bin": "25-30",
+                "n": 2239,
+                "mean_p": 0.28164487435049906,
+                "actual": 0.2639571237159446
+              },
+              {
+                "bin": "30-35",
+                "n": 146,
+                "mean_p": 0.3025792722009585,
+                "actual": 0.2671232876712329
+              }
+            ],
+            "a": [
+              {
+                "bin": "0-20",
+                "n": 486,
+                "mean_p": 0.13557631566405215,
+                "actual": 0.1522633744855967
+              },
+              {
+                "bin": "20-25",
+                "n": 393,
+                "mean_p": 0.22626474704523744,
+                "actual": 0.2544529262086514
+              },
+              {
+                "bin": "25-30",
+                "n": 701,
+                "mean_p": 0.27764507767116275,
+                "actual": 0.24393723252496433
+              },
+              {
+                "bin": "30-35",
+                "n": 572,
+                "mean_p": 0.3216804220341736,
+                "actual": 0.3479020979020979
+              },
+              {
+                "bin": "35-40",
+                "n": 306,
+                "mean_p": 0.37157868623435086,
+                "actual": 0.34967320261437906
+              },
+              {
+                "bin": "40-45",
+                "n": 188,
+                "mean_p": 0.42257382645860364,
+                "actual": 0.5372340425531915
+              },
+              {
+                "bin": "45-50",
+                "n": 108,
+                "mean_p": 0.47167536303614704,
+                "actual": 0.5833333333333334
+              },
+              {
+                "bin": "50-55",
+                "n": 75,
+                "mean_p": 0.5214311889931873,
+                "actual": 0.4666666666666667
+              },
+              {
+                "bin": "55-60",
+                "n": 41,
+                "mean_p": 0.5750116594317412,
+                "actual": 0.6585365853658537
+              },
+              {
+                "bin": "60-65",
+                "n": 21,
+                "mean_p": 0.6266275333757143,
+                "actual": 0.7619047619047619
+              },
+              {
+                "bin": "65-70",
+                "n": 9,
+                "mean_p": 0.6768641754671273,
+                "actual": 0.6666666666666666
+              },
+              {
+                "bin": "70-100",
+                "n": 14,
+                "mean_p": 0.7166237151646098,
+                "actual": 0.7142857142857143
+              }
+            ]
+          },
+          "segments": [
+            {
+              "segment": "split_year",
+              "n": 2914,
+              "log_loss": 1.0573579785934586
+            }
+          ],
+          "market": {
+            "h_model_coef": -0.0059032505785725385,
+            "h_ci_low": -0.10783522727954836,
+            "h_ci_high": 0.08845146188435289,
+            "h_market_log_loss": 0.6232591041378248,
+            "d_model_coef": 0.15444319687737976,
+            "d_ci_low": 0.039771343298286854,
+            "d_ci_high": 0.4279634305788272,
+            "d_market_log_loss": 0.551601517597892,
+            "a_model_coef": -0.09947195895180734,
+            "a_ci_low": -0.21604753239059063,
+            "a_ci_high": 0.015238665442821018,
+            "a_market_log_loss": 0.5639636051066022
+          },
+          "roi": {
+            "bets": 2900.0,
+            "profit": -100.25,
+            "profit_after_tax": -436.2199999999999,
+            "roi": -0.03456896551724138,
+            "roi_after_tax": -0.15042068965517238
+          }
+        }
+      ]
+    },
+    "btts": {
+      "n": 2914,
+      "dropped": {
+        "btts_v2_champion": 0
+      },
+      "candidates": [
+        {
+          "label": "btts_v2_champion",
+          "role": "champion",
+          "n": 2914,
+          "log_loss": 0.7216298264195745,
+          "brier": 0.25173337022428316,
+          "ece": 0.046055841198794356,
+          "mean_p": 0.5325302946968817,
+          "final_shares": {
+            "no": 0.18222374742621825,
+            "yes": 0.8177762525737817
+          },
+          "reliability": [
+            {
+              "bin": "0-20",
+              "n": 50,
+              "mean_p": 0.01447544891745037,
+              "actual": 0.7
+            },
+            {
+              "bin": "30-35",
+              "n": 3,
+              "mean_p": 0.3428533281596498,
+              "actual": 0.3333333333333333
+            },
+            {
+              "bin": "35-40",
+              "n": 29,
+              "mean_p": 0.3830142495616575,
+              "actual": 0.5517241379310345
+            },
+            {
+              "bin": "40-45",
+              "n": 122,
+              "mean_p": 0.43022110118941603,
+              "actual": 0.4672131147540984
+            },
+            {
+              "bin": "45-50",
+              "n": 327,
+              "mean_p": 0.47795734272392887,
+              "actual": 0.5474006116207951
+            },
+            {
+              "bin": "50-55",
+              "n": 1286,
+              "mean_p": 0.5297570945592045,
+              "actual": 0.5699844479004665
+            },
+            {
+              "bin": "55-60",
+              "n": 725,
+              "mean_p": 0.5705179566833631,
+              "actual": 0.5820689655172414
+            },
+            {
+              "bin": "60-65",
+              "n": 288,
+              "mean_p": 0.6217256806312633,
+              "actual": 0.6319444444444444
+            },
+            {
+              "bin": "65-70",
+              "n": 77,
+              "mean_p": 0.6652056331581049,
+              "actual": 0.7142857142857143
+            },
+            {
+              "bin": "70-100",
+              "n": 7,
+              "mean_p": 0.7119336699552621,
+              "actual": 0.8571428571428571
+            }
+          ],
+          "segments": [
+            {
+              "segment": "split_year",
+              "n": 2914,
+              "log_loss": 0.7216298264195745
+            }
+          ],
+          "leagues": [
+            {
+              "league_id": 1,
+              "league_name": "Ekstraklasa",
+              "n": 77,
+              "mean_p": 0.5585707766117662,
+              "std_p": 0.026959782283315997,
+              "share_final_yes": 1.0,
+              "actual": 0.6623376623376623,
+              "level_error": -0.1037668857258961
+            },
+            {
+              "league_id": 2,
+              "league_name": "Premier League",
+              "n": 80,
+              "mean_p": 0.5577282348671405,
+              "std_p": 0.031242703773600375,
+              "share_final_yes": 0.975,
+              "actual": 0.4875,
+              "level_error": 0.07022823486714053
+            },
+            {
+              "league_id": 3,
+              "league_name": "Ligue 1",
+              "n": 72,
+              "mean_p": 0.5560861424191715,
+              "std_p": 0.027596086127012052,
+              "share_final_yes": 1.0,
+              "actual": 0.5972222222222222,
+              "level_error": -0.041136079803050674
+            },
+            {
+              "league_id": 4,
+              "league_name": "Bundesliga",
+              "n": 72,
+              "mean_p": 0.6104902124204951,
+              "std_p": 0.041901708416449274,
+              "share_final_yes": 1.0,
+              "actual": 0.6111111111111112,
+              "level_error": -0.0006208986906161007
+            },
+            {
+              "league_id": 5,
+              "league_name": "Serie A",
+              "n": 90,
+              "mean_p": 0.5514893570700486,
+              "std_p": 0.02505275766685945,
+              "share_final_yes": 1.0,
+              "actual": 0.6333333333333333,
+              "level_error": -0.08184397626328466
+            },
+            {
+              "league_id": 6,
+              "league_name": "LaLiga",
+              "n": 89,
+              "mean_p": 0.5450628009650851,
+              "std_p": 0.027224267994095414,
+              "share_final_yes": 0.9775280898876404,
+              "actual": 0.5617977528089888,
+              "level_error": -0.016734951843903723
+            },
+            {
+              "league_id": 7,
+              "league_name": "Liga Portugal",
+              "n": 64,
+              "mean_p": 0.5119069916338209,
+              "std_p": 0.023964444016812966,
+              "share_final_yes": 0.75,
+              "actual": 0.5,
+              "level_error": 0.011906991633820918
+            },
+            {
+              "league_id": 8,
+              "league_name": "Championship",
+              "n": 139,
+              "mean_p": 0.5177394461883201,
+              "std_p": 0.028394197483598494,
+              "share_final_yes": 0.7769784172661871,
+              "actual": 0.5899280575539568,
+              "level_error": -0.0721886113656367
+            },
+            {
+              "league_id": 10,
+              "league_name": "A-League",
+              "n": 23,
+              "mean_p": 0.5758949228673134,
+              "std_p": 0.033660305136705766,
+              "share_final_yes": 1.0,
+              "actual": 0.7391304347826086,
+              "level_error": -0.16323551191529528
+            },
+            {
+              "league_id": 11,
+              "league_name": "Jupiler League",
+              "n": 66,
+              "mean_p": 0.5683257575293275,
+              "std_p": 0.0322420934931063,
+              "share_final_yes": 0.9848484848484849,
+              "actual": 0.45454545454545453,
+              "level_error": 0.11378030298387293
+            },
+            {
+              "league_id": 12,
+              "league_name": "Chance liga",
+              "n": 68,
+              "mean_p": 0.5271372923244736,
+              "std_p": 0.023407677047320687,
+              "share_final_yes": 0.9117647058823529,
+              "actual": 0.45588235294117646,
+              "level_error": 0.07125493938329713
+            },
+            {
+              "league_id": 13,
+              "league_name": "Ligue 2",
+              "n": 72,
+              "mean_p": 0.5011898576904685,
+              "std_p": 0.024843204925987405,
+              "share_final_yes": 0.4861111111111111,
+              "actual": 0.5833333333333334,
+              "level_error": -0.08214347564286484
+            },
+            {
+              "league_id": 14,
+              "league_name": "LaLiga2",
+              "n": 102,
+              "mean_p": 0.48890867371176366,
+              "std_p": 0.02587592685141057,
+              "share_final_yes": 0.39215686274509803,
+              "actual": 0.5686274509803921,
+              "level_error": -0.07971877726862847
+            },
+            {
+              "league_id": 15,
+              "league_name": "K League 1",
+              "n": 55,
+              "mean_p": 0.5424122335548158,
+              "std_p": 0.022761656312279235,
+              "share_final_yes": 0.9636363636363636,
+              "actual": 0.6363636363636364,
+              "level_error": -0.09395140280882053
+            },
+            {
+              "league_id": 16,
+              "league_name": "Eredivisie",
+              "n": 75,
+              "mean_p": 0.6153049673197898,
+              "std_p": 0.03882471474412591,
+              "share_final_yes": 1.0,
+              "actual": 0.68,
+              "level_error": -0.06469503268021026
+            },
+            {
+              "league_id": 17,
+              "league_name": "J1 League",
+              "n": 100,
+              "mean_p": 0.538503662861371,
+              "std_p": 0.027452708596555665,
+              "share_final_yes": 0.94,
+              "actual": 0.53,
+              "level_error": 0.008503662861370942
+            },
+            {
+              "league_id": 19,
+              "league_name": "Liga MX",
+              "n": 87,
+              "mean_p": 0.5535453009465953,
+              "std_p": 0.030362601781682638,
+              "share_final_yes": 0.9655172413793104,
+              "actual": 0.6206896551724138,
+              "level_error": -0.06714435422581855
+            },
+            {
+              "league_id": 20,
+              "league_name": "2. Bundesliga",
+              "n": 67,
+              "mean_p": 0.5771112878490494,
+              "std_p": 0.028534907598423358,
+              "share_final_yes": 1.0,
+              "actual": 0.5522388059701493,
+              "level_error": 0.02487248187890012
+            },
+            {
+              "league_id": 21,
+              "league_name": "Betclic 1 Liga",
+              "n": 70,
+              "mean_p": 0.5359687834664009,
+              "std_p": 0.024424568560023327,
+              "share_final_yes": 0.9857142857142858,
+              "actual": 0.5571428571428572,
+              "level_error": -0.021174073676456295
+            },
+            {
+              "league_id": 23,
+              "league_name": "Swiss Super League",
+              "n": 51,
+              "mean_p": 0.6232546564386001,
+              "std_p": 0.0430510251746356,
+              "share_final_yes": 1.0,
+              "actual": 0.6274509803921569,
+              "level_error": -0.004196323953556735
+            },
+            {
+              "league_id": 24,
+              "league_name": "Super Lig",
+              "n": 72,
+              "mean_p": 0.5676007014470111,
+              "std_p": 0.035749718655062594,
+              "share_final_yes": 1.0,
+              "actual": 0.4166666666666667,
+              "level_error": 0.15093403478034445
+            },
+            {
+              "league_id": 25,
+              "league_name": "MLS",
+              "n": 173,
+              "mean_p": 0.599596240326411,
+              "std_p": 0.03997837479228658,
+              "share_final_yes": 0.9942196531791907,
+              "actual": 0.653179190751445,
+              "level_error": -0.053582950425034026
+            },
+            {
+              "league_id": 26,
+              "league_name": "Serie B",
+              "n": 84,
+              "mean_p": 0.5229424378338121,
+              "std_p": 0.016535062680907518,
+              "share_final_yes": 0.8809523809523809,
+              "actual": 0.5833333333333334,
+              "level_error": -0.06039089549952126
+            },
+            {
+              "league_id": 29,
+              "league_name": "Bundesliga Austria",
+              "n": 45,
+              "mean_p": 0.5685192355444121,
+              "std_p": 0.03104232574527566,
+              "share_final_yes": 1.0,
+              "actual": 0.6222222222222222,
+              "level_error": -0.05370298667781015
+            },
+            {
+              "league_id": 30,
+              "league_name": "K League 2",
+              "n": 64,
+              "mean_p": 0.5315711124208533,
+              "std_p": 0.01940147889668239,
+              "share_final_yes": 0.953125,
+              "actual": 0.5625,
+              "level_error": -0.03092888757914669
+            },
+            {
+              "league_id": 31,
+              "league_name": "Eerste Divisie",
+              "n": 97,
+              "mean_p": 0.6010159010150633,
+              "std_p": 0.03132153357701427,
+              "share_final_yes": 1.0,
+              "actual": 0.6494845360824743,
+              "level_error": -0.04846863506741095
+            },
+            {
+              "league_id": 32,
+              "league_name": "J2 League",
+              "n": 120,
+              "mean_p": 0.5210588396718752,
+              "std_p": 0.028441954351306885,
+              "share_final_yes": 0.825,
+              "actual": 0.5416666666666666,
+              "level_error": -0.020607826994791467
+            },
+            {
+              "league_id": 33,
+              "league_name": "Liga Profesional",
+              "n": 139,
+              "mean_p": 0.4373402384179945,
+              "std_p": 0.034805691462351795,
+              "share_final_yes": 0.04316546762589928,
+              "actual": 0.5611510791366906,
+              "level_error": -0.12381084071869608
+            },
+            {
+              "league_id": 34,
+              "league_name": "Serie A Betano",
+              "n": 95,
+              "mean_p": 0.5251252612761209,
+              "std_p": 0.01706536436919853,
+              "share_final_yes": 0.9473684210526315,
+              "actual": 0.5894736842105263,
+              "level_error": -0.06434842293440535
+            },
+            {
+              "league_id": 35,
+              "league_name": "Serie B Brasil",
+              "n": 122,
+              "mean_p": 0.4485784827885714,
+              "std_p": 0.03327862145875783,
+              "share_final_yes": 0.01639344262295082,
+              "actual": 0.45901639344262296,
+              "level_error": -0.010437910654051585
+            },
+            {
+              "league_id": 36,
+              "league_name": "Liga Portugal 2",
+              "n": 50,
+              "mean_p": 0.526269271952838,
+              "std_p": 0.016672082644879196,
+              "share_final_yes": 0.92,
+              "actual": 0.58,
+              "level_error": -0.053730728047161946
+            },
+            {
+              "league_id": 37,
+              "league_name": "Challenger Pro League",
+              "n": 44,
+              "mean_p": 0.5651153016697604,
+              "std_p": 0.022578667322683314,
+              "share_final_yes": 1.0,
+              "actual": 0.5454545454545454,
+              "level_error": 0.019660756215215014
+            },
+            {
+              "league_id": 38,
+              "league_name": "2. Liga Austria",
+              "n": 55,
+              "mean_p": 0.5659880459469434,
+              "std_p": 0.02988456548831273,
+              "share_final_yes": 1.0,
+              "actual": 0.6181818181818182,
+              "level_error": -0.05219377223487476
+            },
+            {
+              "league_id": 39,
+              "league_name": "Challenge League",
+              "n": 39,
+              "mean_p": 0.5743538476846817,
+              "std_p": 0.03448978992697124,
+              "share_final_yes": 1.0,
+              "actual": 0.5384615384615384,
+              "level_error": 0.03589230922314324
+            },
+            {
+              "league_id": 40,
+              "league_name": "1. Lig",
+              "n": 87,
+              "mean_p": 0.5325453259579903,
+              "std_p": 0.02901676758950098,
+              "share_final_yes": 0.8620689655172413,
+              "actual": 0.5632183908045977,
+              "level_error": -0.030673064846607367
+            },
+            {
+              "league_id": 41,
+              "league_name": "Dywizja 2",
+              "n": 59,
+              "mean_p": 0.553626741081729,
+              "std_p": 0.028656025994195897,
+              "share_final_yes": 0.9491525423728814,
+              "actual": 0.7288135593220338,
+              "level_error": -0.1751868182403048
+            },
+            {
+              "league_id": 42,
+              "league_name": "Liga Mistrzów",
+              "n": 50,
+              "mean_p": 0.01447544891745037,
+              "std_p": 0.0036958314128516445,
+              "share_final_yes": 0.0,
+              "actual": 0.7,
+              "level_error": -0.6855245510825496
+            }
+          ],
+          "market": {
+            "model_coef": -0.08307911389475856,
+            "ci_low": -0.23388163979474327,
+            "ci_high": 0.040389732201402045,
+            "market_log_loss": 0.6781395682550982
+          },
+          "roi": {
+            "bets": 2901.0,
+            "profit": -172.07,
+            "profit_after_tax": -499.54159999999996,
+            "roi": -0.059314029644950014,
+            "roi_after_tax": -0.172196346087556
+          }
+        }
+      ]
+    },
+    "over_25": {
+      "n": 2914,
+      "dropped": {
+        "goals_v1_champion": 0
+      },
+      "candidates": [
+        {
+          "label": "goals_v1_champion",
+          "role": "champion",
+          "n": 2914,
+          "log_loss": 0.7158388567739372,
+          "brier": 0.24501297970101754,
+          "ece": 0.072073656339689,
+          "mean_p": 0.5104165977419278,
+          "final_shares": {
+            "under": 0.4883321894303363,
+            "over": 0.5116678105696637
+          },
+          "reliability": [
+            {
+              "bin": "25-30",
+              "n": 2,
+              "mean_p": 0.29943793403834,
+              "actual": 0.5
+            },
+            {
+              "bin": "30-35",
+              "n": 89,
+              "mean_p": 0.33026587696700654,
+              "actual": 0.4157303370786517
+            },
+            {
+              "bin": "35-40",
+              "n": 158,
+              "mean_p": 0.37521950680503197,
+              "actual": 0.4936708860759494
+            },
+            {
+              "bin": "40-45",
+              "n": 491,
+              "mean_p": 0.42917442643825265,
+              "actual": 0.5437881873727087
+            },
+            {
+              "bin": "45-50",
+              "n": 683,
+              "mean_p": 0.4748972504536267,
+              "actual": 0.4978038067349927
+            },
+            {
+              "bin": "50-55",
+              "n": 657,
+              "mean_p": 0.5240908432206015,
+              "actual": 0.5981735159817352
+            },
+            {
+              "bin": "55-60",
+              "n": 481,
+              "mean_p": 0.5722772586689702,
+              "actual": 0.6486486486486487
+            },
+            {
+              "bin": "60-65",
+              "n": 221,
+              "mean_p": 0.6206650032269628,
+              "actual": 0.6787330316742082
+            },
+            {
+              "bin": "65-70",
+              "n": 62,
+              "mean_p": 0.6701446461265955,
+              "actual": 0.6935483870967742
+            },
+            {
+              "bin": "70-100",
+              "n": 70,
+              "mean_p": 0.9241185742416526,
+              "actual": 0.7571428571428571
+            }
+          ],
+          "segments": [
+            {
+              "segment": "split_year",
+              "n": 2914,
+              "log_loss": 0.7158388567739372
+            }
+          ],
+          "leagues": [
+            {
+              "league_id": 1,
+              "league_name": "Ekstraklasa",
+              "n": 77,
+              "mean_p": 0.5091443621775156,
+              "std_p": 0.038355013477360825,
+              "share_final_yes": 0.5714285714285714,
+              "actual": 0.6103896103896104,
+              "level_error": -0.1012452482120948
+            },
+            {
+              "league_id": 2,
+              "league_name": "Premier League",
+              "n": 80,
+              "mean_p": 0.537065127136105,
+              "std_p": 0.050888737857078155,
+              "share_final_yes": 0.75,
+              "actual": 0.45,
+              "level_error": 0.08706512713610498
+            },
+            {
+              "league_id": 3,
+              "league_name": "Ligue 1",
+              "n": 72,
+              "mean_p": 0.530369559893582,
+              "std_p": 0.055985350729544935,
+              "share_final_yes": 0.6944444444444444,
+              "actual": 0.5555555555555556,
+              "level_error": -0.025185995661973548
+            },
+            {
+              "league_id": 4,
+              "league_name": "Bundesliga",
+              "n": 72,
+              "mean_p": 0.599083456962281,
+              "std_p": 0.06162007979169992,
+              "share_final_yes": 0.9722222222222222,
+              "actual": 0.6944444444444444,
+              "level_error": -0.09536098748216337
+            },
+            {
+              "league_id": 5,
+              "league_name": "Serie A",
+              "n": 90,
+              "mean_p": 0.5267366750907895,
+              "std_p": 0.06422218076925053,
+              "share_final_yes": 0.6,
+              "actual": 0.6333333333333333,
+              "level_error": -0.10659665824254383
+            },
+            {
+              "league_id": 6,
+              "league_name": "LaLiga",
+              "n": 89,
+              "mean_p": 0.510456403284939,
+              "std_p": 0.07155424286863565,
+              "share_final_yes": 0.4606741573033708,
+              "actual": 0.550561797752809,
+              "level_error": -0.04010539446786998
+            },
+            {
+              "league_id": 7,
+              "league_name": "Liga Portugal",
+              "n": 64,
+              "mean_p": 0.4949541908145113,
+              "std_p": 0.08509363363691225,
+              "share_final_yes": 0.375,
+              "actual": 0.5625,
+              "level_error": -0.06754580918548869
+            },
+            {
+              "league_id": 8,
+              "league_name": "Championship",
+              "n": 139,
+              "mean_p": 0.4786637898063327,
+              "std_p": 0.04445978154216329,
+              "share_final_yes": 0.23741007194244604,
+              "actual": 0.60431654676259,
+              "level_error": -0.12565275695625727
+            },
+            {
+              "league_id": 10,
+              "league_name": "A-League",
+              "n": 23,
+              "mean_p": 0.5351066533632965,
+              "std_p": 0.05010265106400254,
+              "share_final_yes": 0.782608695652174,
+              "actual": 0.6521739130434783,
+              "level_error": -0.11706725968018172
+            },
+            {
+              "league_id": 11,
+              "league_name": "Jupiler League",
+              "n": 66,
+              "mean_p": 0.559051117839871,
+              "std_p": 0.053337222726399465,
+              "share_final_yes": 0.8939393939393939,
+              "actual": 0.5909090909090909,
+              "level_error": -0.03185797306921989
+            },
+            {
+              "league_id": 12,
+              "league_name": "Chance liga",
+              "n": 68,
+              "mean_p": 0.49574454099636245,
+              "std_p": 0.06373807740744791,
+              "share_final_yes": 0.3382352941176471,
+              "actual": 0.5588235294117647,
+              "level_error": -0.06307898841540227
+            },
+            {
+              "league_id": 13,
+              "league_name": "Ligue 2",
+              "n": 72,
+              "mean_p": 0.43820976358724717,
+              "std_p": 0.039321700264712385,
+              "share_final_yes": 0.08333333333333333,
+              "actual": 0.5138888888888888,
+              "level_error": -0.07567912530164167
+            },
+            {
+              "league_id": 14,
+              "league_name": "LaLiga2",
+              "n": 102,
+              "mean_p": 0.4171257955175029,
+              "std_p": 0.0388944784963468,
+              "share_final_yes": 0.00980392156862745,
+              "actual": 0.5392156862745098,
+              "level_error": -0.12208989075700688
+            },
+            {
+              "league_id": 15,
+              "league_name": "K League 1",
+              "n": 55,
+              "mean_p": 0.47353661868616564,
+              "std_p": 0.041497831530429234,
+              "share_final_yes": 0.3090909090909091,
+              "actual": 0.5454545454545454,
+              "level_error": -0.07191792676837977
+            },
+            {
+              "league_id": 16,
+              "league_name": "Eredivisie",
+              "n": 75,
+              "mean_p": 0.6090718300004963,
+              "std_p": 0.04963019137528095,
+              "share_final_yes": 1.0,
+              "actual": 0.68,
+              "level_error": -0.0709281699995038
+            },
+            {
+              "league_id": 17,
+              "league_name": "J1 League",
+              "n": 100,
+              "mean_p": 0.4926317676262088,
+              "std_p": 0.04381545368605663,
+              "share_final_yes": 0.43,
+              "actual": 0.56,
+              "level_error": -0.06736823237379125
+            },
+            {
+              "league_id": 19,
+              "league_name": "Liga MX",
+              "n": 87,
+              "mean_p": 0.5100483968321771,
+              "std_p": 0.04353245426947288,
+              "share_final_yes": 0.5747126436781609,
+              "actual": 0.5172413793103449,
+              "level_error": -0.007192982478167798
+            },
+            {
+              "league_id": 20,
+              "league_name": "2. Bundesliga",
+              "n": 67,
+              "mean_p": 0.5456075832185986,
+              "std_p": 0.036950588904384254,
+              "share_final_yes": 0.9104477611940298,
+              "actual": 0.5522388059701493,
+              "level_error": -0.006631222751550703
+            },
+            {
+              "league_id": 21,
+              "league_name": "Betclic 1 Liga",
+              "n": 70,
+              "mean_p": 0.4762751550320141,
+              "std_p": 0.03461472088687254,
+              "share_final_yes": 0.21428571428571427,
+              "actual": 0.5,
+              "level_error": -0.02372484496798588
+            },
+            {
+              "league_id": 23,
+              "league_name": "Swiss Super League",
+              "n": 51,
+              "mean_p": 0.6045459500725798,
+              "std_p": 0.04580118004129382,
+              "share_final_yes": 1.0,
+              "actual": 0.7058823529411765,
+              "level_error": -0.10133640286859669
+            },
+            {
+              "league_id": 24,
+              "league_name": "Super Lig",
+              "n": 72,
+              "mean_p": 0.540441397001808,
+              "std_p": 0.053732953645485734,
+              "share_final_yes": 0.7361111111111112,
+              "actual": 0.6388888888888888,
+              "level_error": -0.0984474918870808
+            },
+            {
+              "league_id": 25,
+              "league_name": "MLS",
+              "n": 173,
+              "mean_p": 0.5709727011256309,
+              "std_p": 0.04416060983803819,
+              "share_final_yes": 0.953757225433526,
+              "actual": 0.6936416184971098,
+              "level_error": -0.12266891737147889
+            },
+            {
+              "league_id": 26,
+              "league_name": "Serie B",
+              "n": 84,
+              "mean_p": 0.4419881048494057,
+              "std_p": 0.02833028053632393,
+              "share_final_yes": 0.023809523809523808,
+              "actual": 0.44047619047619047,
+              "level_error": 0.0015119143732152396
+            },
+            {
+              "league_id": 29,
+              "league_name": "Bundesliga Austria",
+              "n": 45,
+              "mean_p": 0.5466305585661951,
+              "std_p": 0.04735477430926891,
+              "share_final_yes": 0.8222222222222222,
+              "actual": 0.7111111111111111,
+              "level_error": -0.164480552544916
+            },
+            {
+              "league_id": 30,
+              "league_name": "K League 2",
+              "n": 64,
+              "mean_p": 0.4863577758471299,
+              "std_p": 0.03946324892736355,
+              "share_final_yes": 0.3125,
+              "actual": 0.5,
+              "level_error": -0.013642224152870086
+            },
+            {
+              "league_id": 31,
+              "league_name": "Eerste Divisie",
+              "n": 97,
+              "mean_p": 0.5969268262641738,
+              "std_p": 0.03810601099510483,
+              "share_final_yes": 0.9896907216494846,
+              "actual": 0.6185567010309279,
+              "level_error": -0.021629874766754043
+            },
+            {
+              "league_id": 32,
+              "league_name": "J2 League",
+              "n": 120,
+              "mean_p": 0.4610523159287625,
+              "std_p": 0.03757986755977369,
+              "share_final_yes": 0.2,
+              "actual": 0.4666666666666667,
+              "level_error": -0.005614350737904172
+            },
+            {
+              "league_id": 33,
+              "league_name": "Liga Profesional",
+              "n": 139,
+              "mean_p": 0.36805965953140096,
+              "std_p": 0.04863207502444614,
+              "share_final_yes": 0.02158273381294964,
+              "actual": 0.4460431654676259,
+              "level_error": -0.07798350593622494
+            },
+            {
+              "league_id": 34,
+              "league_name": "Serie A Betano",
+              "n": 95,
+              "mean_p": 0.46230170002957854,
+              "std_p": 0.042347370774805146,
+              "share_final_yes": 0.22105263157894736,
+              "actual": 0.5473684210526316,
+              "level_error": -0.08506672102305307
+            },
+            {
+              "league_id": 35,
+              "league_name": "Serie B Brasil",
+              "n": 122,
+              "mean_p": 0.39048060176861527,
+              "std_p": 0.057403919056161525,
+              "share_final_yes": 0.04918032786885246,
+              "actual": 0.4918032786885246,
+              "level_error": -0.10132267691990932
+            },
+            {
+              "league_id": 36,
+              "league_name": "Liga Portugal 2",
+              "n": 50,
+              "mean_p": 0.4477068181273283,
+              "std_p": 0.030308804584443745,
+              "share_final_yes": 0.08,
+              "actual": 0.58,
+              "level_error": -0.13229318187267164
+            },
+            {
+              "league_id": 37,
+              "league_name": "Challenger Pro League",
+              "n": 44,
+              "mean_p": 0.5428075979470045,
+              "std_p": 0.029941083442421468,
+              "share_final_yes": 0.9318181818181818,
+              "actual": 0.6136363636363636,
+              "level_error": -0.07082876568935914
+            },
+            {
+              "league_id": 38,
+              "league_name": "2. Liga Austria",
+              "n": 55,
+              "mean_p": 0.5529602211623301,
+              "std_p": 0.037220898156100655,
+              "share_final_yes": 0.9454545454545454,
+              "actual": 0.6363636363636364,
+              "level_error": -0.08340341520130623
+            },
+            {
+              "league_id": 39,
+              "league_name": "Challenge League",
+              "n": 39,
+              "mean_p": 0.57891730969552,
+              "std_p": 0.03459230304273452,
+              "share_final_yes": 1.0,
+              "actual": 0.717948717948718,
+              "level_error": -0.13903140825319793
+            },
+            {
+              "league_id": 40,
+              "league_name": "1. Lig",
+              "n": 87,
+              "mean_p": 0.49775090235531866,
+              "std_p": 0.0344937446305901,
+              "share_final_yes": 0.4482758620689655,
+              "actual": 0.5402298850574713,
+              "level_error": -0.04247898270215261
+            },
+            {
+              "league_id": 41,
+              "league_name": "Dywizja 2",
+              "n": 59,
+              "mean_p": 0.5196940838361858,
+              "std_p": 0.034260441441357314,
+              "share_final_yes": 0.7457627118644068,
+              "actual": 0.6610169491525424,
+              "level_error": -0.14132286531635663
+            },
+            {
+              "league_id": 42,
+              "league_name": "Liga Mistrzów",
+              "n": 50,
+              "mean_p": 0.9999887040859825,
+              "std_p": 1.1197336371856033e-05,
+              "share_final_yes": 1.0,
+              "actual": 0.78,
+              "level_error": 0.21998870408598248
+            }
+          ],
+          "market": {
+            "model_coef": 0.04981374149150978,
+            "ci_low": -0.003975658424189816,
+            "ci_high": 0.11547199188517925,
+            "market_log_loss": 0.6685207192351666
+          },
+          "roi": {
+            "bets": 2900.0,
+            "profit": -154.9,
+            "profit_after_tax": -484.31199999999995,
+            "roi": -0.05341379310344828,
+            "roi_after_tax": -0.16700413793103447
+          }
+        }
+      ]
+    }
+  },
+  "decisions": [],
+  "recommended": {
+    "result": null,
+    "btts": null,
+    "over_25": null
+  }
+}

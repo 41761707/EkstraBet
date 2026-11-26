@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -18,6 +20,7 @@ from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.core.registry import register_trainer
+from models.pipeline.training.splits import split_by_dates
 from models.pipeline.training.trainer import Trainer
 
 
@@ -143,6 +146,142 @@ def _slice_batch(batch: SequenceBatch, indexes: np.ndarray) -> SequenceBatch:
         X_static=batch.X_static[indexes])
 
 
+@dataclass(frozen=True)
+class _Holdout:
+    """Train rows and an optional validation holdout."""
+
+    train_batch: SequenceBatch
+    train_labels: np.ndarray
+    validation_batch: SequenceBatch | None
+    validation_labels: np.ndarray | None
+
+
+def _uses_fixed_epochs(config: FutureEventsRunConfig) -> bool:
+    """Return whether training refits for a fixed number of epochs."""
+    return (
+        config.split is not None
+        and config.split.validation_from is None)
+
+
+def _epoch_count(config: FutureEventsRunConfig) -> int:
+    if not _uses_fixed_epochs(config):
+        return config.epochs
+    if config.fixed_epochs is None:
+        raise ValueError(
+            "fixed_epochs is required when validation_from is omitted")
+    return config.fixed_epochs
+
+
+def _holdout_split(
+        batch: SequenceBatch,
+        labels: np.ndarray,
+        dates: np.ndarray,
+        config: FutureEventsRunConfig) -> _Holdout:
+    """Use date windows when ``split`` is set, otherwise a fraction."""
+    if config.split is None:
+        validation_size = (
+            config.training_config.validation_size
+            if config.training_config else 0.15)
+        train_batch, val_batch, y_train, y_val = chronological_split(
+            batch, labels, dates, validation_size)
+        return _Holdout(train_batch, y_train, val_batch, y_val)
+    if config.date_to is None:
+        raise ValueError("date_to is required when split is set")
+    indexes = split_by_dates(dates, config.split, config.date_to)
+    validation_batch = None
+    validation_labels = None
+    if len(indexes.validation) > 0:
+        validation_batch = _slice_batch(batch, indexes.validation)
+        validation_labels = labels[indexes.validation]
+    return _Holdout(
+        _slice_batch(batch, indexes.train),
+        labels[indexes.train],
+        validation_batch,
+        validation_labels)
+
+
+def _scale_holdout(
+        train_batch: SequenceBatch,
+        validation_batch: SequenceBatch | None
+) -> tuple[SequenceBatch, SequenceBatch | None, StandardScaler]:
+    if validation_batch is None:
+        scaler = StandardScaler()
+        scaled = scaler.fit_transform(train_batch.X_static)
+        return (
+            SequenceBatch(
+                train_batch.X_home, train_batch.X_away, scaled),
+            None,
+            scaler)
+    train_scaled, validation_scaled, scaler = _scale_static(
+        train_batch, validation_batch)
+    return train_scaled, validation_scaled, scaler
+
+
+def _fit_chronological_model(
+        model: Any,
+        train_batch: SequenceBatch,
+        train_labels: np.ndarray,
+        validation_batch: SequenceBatch | None,
+        validation_labels: np.ndarray | None,
+        config: FutureEventsRunConfig) -> Any:
+    """Fit without shuffling. Fixed epochs skip early stopping."""
+    fit_kwargs: dict[str, Any] = {
+        "epochs": _epoch_count(config),
+        "batch_size": config.batch_size,
+        "shuffle": False,
+        "verbose": 0
+    }
+    if validation_batch is not None and validation_labels is not None:
+        keras = _keras()
+        fit_kwargs["validation_data"] = (
+            _model_inputs(validation_batch), validation_labels)
+        fit_kwargs["callbacks"] = [keras.callbacks.EarlyStopping(
+            monitor="val_loss",
+            patience=config.patience,
+            restore_best_weights=True)]
+    elif validation_batch is not None or validation_labels is not None:
+        raise ValueError(
+            "validation batch and labels must both be present or absent")
+    return model.fit(
+        _model_inputs(train_batch), train_labels, **fit_kwargs)
+
+
+def _score_validation(
+        model: Any,
+        validation_batch: SequenceBatch | None,
+        validation_labels: np.ndarray | None,
+        metric_fn: Callable[[np.ndarray, np.ndarray], dict[str, float]]
+) -> tuple[dict[str, float], int]:
+    if validation_batch is None or validation_labels is None:
+        return {}, 0
+    predicted = np.asarray(
+        model.predict(_model_inputs(validation_batch), verbose=0))
+    return metric_fn(validation_labels, predicted), len(validation_labels)
+
+
+def _best_epoch(history: Any, config: FutureEventsRunConfig) -> int:
+    """Return the 1-based epoch whose weights are kept."""
+    if _uses_fixed_epochs(config):
+        return _epoch_count(config)
+    losses = np.asarray(history.history["val_loss"])
+    return int(np.argmin(losses)) + 1
+
+
+def _split_meta(
+        config: FutureEventsRunConfig,
+        best_epoch: int | None) -> dict[str, Any]:
+    if config.split is None:
+        return {}
+    date_to = None
+    if config.date_to is not None:
+        date_to = config.date_to.isoformat()
+    return {
+        "best_epoch": best_epoch,
+        "split": config.split.model_dump(mode="json"),
+        "date_to": date_to
+    }
+
+
 def _scale_static(
         train_batch: SequenceBatch,
         validation_batch: SequenceBatch
@@ -191,36 +330,29 @@ class LstmTrainer(Trainer):
     def train(self, config: FutureEventsRunConfig) -> TrainingReport:
         """Train with a chronological holdout and persist Keras artifacts."""
         batch, labels, dates = _prepare_training_data(config)
-        validation_size = (
-            config.training_config.validation_size
-            if config.training_config else 0.15)
-        train_batch, val_batch, y_train, y_val = chronological_split(
-            batch, labels, dates, validation_size)
-        train_batch, val_batch, scaler = _scale_static(
-            train_batch, val_batch)
+        holdout = _holdout_split(batch, labels, dates, config)
+        train_batch, val_batch, scaler = _scale_holdout(
+            holdout.train_batch, holdout.validation_batch)
         classes = 3 if config.task_type == "result" else 2
         model = build_dual_lstm_classifier(
             train_batch.X_home.shape[1:],
             train_batch.X_static.shape[1],
             classes,
             config)
-        keras = _keras()
-        model.fit(
-            _model_inputs(train_batch),
-            y_train,
-            validation_data=(_model_inputs(val_batch), y_val),
-            epochs=config.epochs,
-            batch_size=config.batch_size,
-            shuffle=False,
-            callbacks=[keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                patience=config.patience,
-                restore_best_weights=True)],
-            verbose=0)
-        probabilities = np.asarray(
-            model.predict(_model_inputs(val_batch), verbose=0))
-        metrics = _classification_metrics(y_val, probabilities)
-        _save_artifacts(config, model, scaler, metrics)
+        history = _fit_chronological_model(
+            model,
+            train_batch,
+            holdout.train_labels,
+            val_batch,
+            holdout.validation_labels,
+            config)
+        metrics, n_test = _score_validation(
+            model,
+            val_batch,
+            holdout.validation_labels,
+            _classification_metrics)
+        best_epoch = _best_epoch(history, config)
+        _save_artifacts(config, model, scaler, metrics, best_epoch)
         return TrainingReport(
             model_name=config.model_name,
             model_version=config.model_version,
@@ -229,8 +361,8 @@ class LstmTrainer(Trainer):
             feature_columns=(
                 config.sequence_feature_columns
                 + config.static_feature_columns),
-            n_train=len(y_train),
-            n_test=len(y_val))
+            n_train=len(holdout.train_labels),
+            n_test=n_test)
 
     def evaluate(self, config: FutureEventsRunConfig) -> EvaluationReport:
         """Evaluate a persisted classifier on the latest chronological slice."""
@@ -261,18 +393,21 @@ def _save_artifacts(
         config: FutureEventsRunConfig,
         model: Any,
         scaler: StandardScaler,
-        metrics: dict[str, float]) -> None:
+        metrics: dict[str, float],
+        best_epoch: int | None = None) -> None:
     artifacts.save_keras_model_artifact(config.artifact_dir, model)
     artifacts.save_scaler_artifact(config.artifact_dir, scaler)
     artifacts.save_metrics(config.artifact_dir, metrics)
-    artifacts.save_meta(config.artifact_dir, {
+    meta = {
         "model_name": config.model_name,
         "model_version": config.model_version,
         "task_type": config.task_type,
         "window_size": config.window_size,
         "sequence_feature_columns": config.sequence_feature_columns,
         "static_feature_columns": config.static_feature_columns
-    })
+    }
+    meta.update(_split_meta(config, best_epoch))
+    artifacts.save_meta(config.artifact_dir, meta)
 
 
 def train_result_model(config: FutureEventsRunConfig) -> TrainingReport:

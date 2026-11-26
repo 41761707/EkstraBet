@@ -367,6 +367,16 @@ def build_team_sequence(
     return _impute_numeric(perspective[columns]).to_numpy(dtype=np.float32)
 
 
+def _sample_identity(row: pd.Series) -> tuple[int, int, int, int, int]:
+    """Return match, league, season and goals for one training row."""
+    return (
+        int(row["id"]),
+        int(row["league"]),
+        int(row["season"]),
+        int(row["home_team_goals"]),
+        int(row["away_team_goals"]))
+
+
 def _training_label(row: pd.Series, task_type: str) -> int | tuple[int, int]:
     if task_type == "result":
         from models.pipeline.labels.football_result import label_result
@@ -460,6 +470,7 @@ class FutureEventsFeatureBuilder:
         static_rows: list[np.ndarray] = []
         labels: list[int | tuple[int, int]] = []
         dates: list[pd.Timestamp] = []
+        identity: list[tuple[int, int, int, int, int]] = []
         history = _TrainingHistory(config.window_size)
         sequence_columns = (
             config.sequence_feature_columns or DEFAULT_SEQUENCE_FEATURES)
@@ -483,17 +494,25 @@ class FutureEventsFeatureBuilder:
                 static_rows.append(static)
                 labels.append(_training_label(row, config.task_type))
                 dates.append(pd.Timestamp(row["game_date"]))
+                identity.append(_sample_identity(row))
             for _, row in date_rows.iterrows():
                 history.commit(row)
         if not labels:
             raise ValueError("No matches have enough history for sequences")
+        # Identyfikatory i gole w tej samej kolejności co labels.
+        identity_columns = np.asarray(identity, dtype=np.int64)
         return {
             "batch": SequenceBatch(
                 X_home=np.stack(home_sequences),
                 X_away=np.stack(away_sequences),
                 X_static=np.stack(static_rows)),
             "labels": np.asarray(labels),
-            "dates": np.asarray(dates, dtype="datetime64[ns]")
+            "dates": np.asarray(dates, dtype="datetime64[ns]"),
+            "match_ids": identity_columns[:, 0],
+            "league_ids": identity_columns[:, 1],
+            "season_ids": identity_columns[:, 2],
+            "home_goals": identity_columns[:, 3],
+            "away_goals": identity_columns[:, 4]
         }
 
     def build_matchup_batch(

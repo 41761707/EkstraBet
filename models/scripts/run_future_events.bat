@@ -5,10 +5,11 @@ set "REPO_ROOT=%~dp0..\.."
 cd /d "%REPO_ROOT%"
 
 if "%~1"=="" (
-    echo Usage: models\scripts\run_future_events.bat ^<train-result^|train-btts^|train-goals^|evaluate-result^|evaluate-btts^|evaluate-goals^|predict-pair^|predict-batch^|simulate-season^> [arguments]
+    echo Usage: models\scripts\run_future_events.bat ^<train-result^|train-btts^|train-goals^|evaluate-result^|evaluate-btts^|evaluate-goals^|predict-pair^|predict-batch^|predict-pair-explicit^|predict-batch-explicit^|simulate-season^> [arguments]
     echo.
     echo Examples:
     echo   run_future_events.bat predict-batch --league-id 1 --write-db --select-finals
+    echo   run_future_events.bat predict-batch-explicit --league-id 1 --write-db --select-finals
     echo   run_future_events.bat predict-pair --home 10 --away 20 --as-of 2026-07-23 --match-id 123 --write-db
     echo   run_future_events.bat simulate-season --league-id 1 --season-id 13 --mode from_now --trials 2000 --seed 42
     exit /b 2
@@ -52,13 +53,25 @@ if /I "%ACTION%"=="evaluate-goals" (
 )
 if /I "%ACTION%"=="predict-pair" goto predict
 if /I "%ACTION%"=="predict-batch" goto predict
+if /I "%ACTION%"=="predict-pair-explicit" (
+    set "COMMAND=predict-pair"
+    goto predict_explicit
+)
+if /I "%ACTION%"=="predict-batch-explicit" (
+    set "COMMAND=predict-batch"
+    goto predict_explicit
+)
 if /I "%ACTION%"=="simulate-season" goto simulate_season
 
 echo Unknown action: %ACTION%
 exit /b 2
 
 :predict
-python models\scripts\model_runner.py %ACTION% ^
+python models\scripts\model_runner.py %ACTION% --auto-models%REST%
+exit /b %ERRORLEVEL%
+
+:predict_explicit
+python models\scripts\model_runner.py %COMMAND% ^
     --result-config models\configs\prediction\football_result_v2.json ^
     --btts-config models\configs\prediction\football_btts_v2.json ^
     --goals-config models\configs\prediction\football_goals_poisson_v1.json%REST%

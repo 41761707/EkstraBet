@@ -12,13 +12,9 @@ from types import ModuleType
 from typing import Any
 from typing import Mapping
 
-from backend.config import REPO_ROOT
 
-
-MODEL_CONFIG_DIR = REPO_ROOT / "models" / "configs" / "prediction"
-RESULT_CONFIG_PATH = MODEL_CONFIG_DIR / "football_result_v2.json"
-BTTS_CONFIG_PATH = MODEL_CONFIG_DIR / "football_btts_v2.json"
-GOALS_CONFIG_PATH = MODEL_CONFIG_DIR / "football_goals_poisson_v1.json"
+# Kolejność zgodna z FutureEventsPredictor.from_config_paths.
+_CHAMPION_CONFIG_SLOTS = ("result", "btts", "goals_poisson")
 
 
 class PredictionPreviewHistoryError(Exception):
@@ -40,15 +36,37 @@ def _matchup_input_class(module: ModuleType) -> type[Any]:
     return getattr(config_module, "MatchupInput")
 
 
+def _champion_config_paths() -> tuple[Path | None, Path | None, Path | None]:
+    """Return champion configs for the result, BTTS and goals slots.
+
+    A missing champion leaves that slot empty. Two champions of one
+    task type, or a task type outside those three slots, raise
+    LineupError.
+    """
+    # Import dopiero przy podglądzie, tak jak ciężki moduł predykcji.
+    from models.pipeline.core.model_lineup import LineupError
+    from models.pipeline.core.model_lineup import resolve_lineup
+
+    paths: list[Path | None] = [None, None, None]
+    for entry in resolve_lineup().champion_entries():
+        task_type = entry.config.task_type
+        if task_type not in _CHAMPION_CONFIG_SLOTS:
+            raise LineupError(
+                f"Unsupported task_type {task_type!r} "
+                f"for champion {entry.model_name}")
+        index = _CHAMPION_CONFIG_SLOTS.index(task_type)
+        if paths[index] is not None:
+            raise LineupError(
+                f"Multiple champions for task_type {task_type!r}")
+        paths[index] = entry.config_path
+    return (paths[0], paths[1], paths[2])
+
+
 @lru_cache
 def _load_predictor() -> Any:
     module = _load_predictor_module()
     predictor_class = getattr(module, "FutureEventsPredictor")
-    config_paths: tuple[Path, Path, Path] = (
-        RESULT_CONFIG_PATH,
-        BTTS_CONFIG_PATH,
-        GOALS_CONFIG_PATH)
-    return predictor_class.from_config_paths(*config_paths)
+    return predictor_class.from_config_paths(*_champion_config_paths())
 
 
 def _to_plain_value(value: Any) -> Any:

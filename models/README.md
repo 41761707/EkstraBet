@@ -7,8 +7,9 @@ i skrypty batchowe. Oddzielony od `api/routers/models.py`, który zwraca
 ## Odpowiedzialność
 
 - Trenowanie, ewaluacja i batchowa ocena meczów (zapis do
-  `match_model_assessments` dla modeli assessment; `PREDICTIONS` /
-  `FINAL_PREDICTIONS` pozostają dla predykcji przyszłych zdarzeń).
+  `match_model_assessments` dla modeli assessment; mistrz pisze
+  przyszłe zdarzenia do `PREDICTIONS` / `FINAL_PREDICTIONS`,
+  pretendent do `model_shadow_predictions`).
 - Artefakty: joblib/JSON (i legacy `.h5`), configi training/prediction.
 - Skrypty uruchamiane poza requestami HTTP (`models/scripts/model_runner.py`).
 
@@ -35,6 +36,230 @@ python models/scripts/model_runner.py evaluate --config models/configs/training/
 python models/scripts/model_runner.py assess-match --config models/configs/prediction/football_played_better_v1.json --match-id 12345 --write-db
 python models/scripts/model_runner.py assess-batch --config models/configs/prediction/football_played_better_v1.json --season-id 12 --write-db
 ```
+
+## Mistrz i pretendent
+
+Rola modelu w rodzinie zdarzeń stoi w `event_model_families.status`:
+`champion`, `challenger` albo `retired`. Pusty status zostawia dawne
+zachowanie: `models.active = 1` jest mistrzem, reszta jest wycofana.
+
+Mistrz zapisuje przyszłe mecze do `predictions` i, przy
+`--select-finals`, do `final_predictions`. Pretendent zapisuje tylko
+`model_shadow_predictions`. Hokej i koszykówka tą ścieżką nie idą.
+
+Skład bierze tylko role `champion` i `challenger`. Model wycofany na
+wszystkich swoich rodzinach wypada ze składu i dzienny `predict-batch`
+jedzie dalej. Po awansie poprzedni mistrz jest zwyczajnie `retired`
+i zostaje poza składem.
+
+`ModelRoleError` powstaje wtedy, gdy model nadal jest w składzie
+(mistrz albo pretendent na innej rodzinie) i emituje zdarzenie rodziny,
+na której jest `retired`. Wyjątek leci z `persist_lineup_prediction`,
+poza `try` przy meczu, i urywa całą komendę.
+
+### Rejestracja
+
+Po migracji V004 role wpisuje się ręcznym SQL. Obecni mistrzowie:
+
+```sql
+UPDATE event_model_families
+SET status = 'champion', status_changed_at = NOW()
+WHERE model_id IN (
+    SELECT id FROM models
+    WHERE name IN (
+        'FOOTBALL_RESULT_V2',
+        'FOOTBALL_BTTS_V2',
+        'FOOTBALL_GOALS_POISSON_V1'));
+```
+
+Pretendent dochodzi osobnym blokiem (części B i C). `active = 0`,
+żeby model nie publikował przed awansem. Rodzina idzie przez
+`event_family_mappings`, nie przez stałe ID rodziny. Nazwa musi być
+kluczem `models/configs/prediction/football_model_registry.json`
+i nazwą w `models`.
+
+```sql
+INSERT INTO models (name, active, sport_id)
+VALUES ('NAZWA_Z_REJESTRU', 0, 1);
+
+INSERT INTO event_model_families (
+    model_id, event_family_id, status, status_changed_at)
+SELECT m.id,
+       (SELECT MIN(event_family_id)
+        FROM event_family_mappings
+        WHERE event_id = <ID zdarzenia z configu>),
+       'challenger',
+       NOW()
+FROM models m
+WHERE m.name = 'NAZWA_Z_REJESTRU';
+```
+
+Kontrola piłki (`sport_id = 1`):
+
+```sql
+SELECT models.name, models.active,
+       emf.event_family_id, emf.status
+FROM event_model_families emf
+JOIN models ON models.id = emf.model_id
+WHERE models.sport_id = 1;
+```
+
+### Cień
+
+Codzienny batch bierze skład z bazy. Wrapper dokleja `--auto-models`:
+
+```bat
+models\scripts\run_future_events.bat predict-batch --write-db --select-finals
+```
+
+To samo bez wrappera:
+
+```bash
+python models/scripts/model_runner.py predict-batch --auto-models --write-db --select-finals
+```
+
+`--auto-models` nie łączy się z `--result-config`, `--btts-config` ani
+`--goals-config`. Jawne configi zostają przy `predict-batch-explicit`
+i `predict-pair-explicit`.
+
+Dwóch mistrzów jednej rodziny albo brak mistrza kończy komendę przed
+pierwszym meczem (`LineupError`, kod 1). Błąd predykcji jednego meczu,
+wewnątrz `try`, jest pomijany. Zapis rodziny `retired` przy modelu,
+który skład nadal trzyma, urywa całą komendę. Podgląd składu:
+
+```bash
+python models/scripts/model_runner.py model-lineup
+```
+
+### compare-models
+
+Raport offline na zamrożonym oknie ze spec. `test_from` jest włączny,
+`test_to` wyłączny (`game_date < test_to`). Ścieżka wyniku jest
+w spec (`output_path`), nie w flagach CLI. W dostarczonym spec to
+`models/artifacts/reports/eb44/offline_gate.json`. Ścieżki wewnątrz
+spec są względem katalogu repozytorium.
+
+```bash
+python models/scripts/model_runner.py compare-models \
+  --spec models/configs/evaluation/eb44_offline_gate.json
+```
+
+Raport ma metryki i decyzję bramki (`passed`, `recommended`). Sam
+nie zmienia ról. Liga Mistrzów (liga 42) jest w historii cech, ale
+wypada ze zbioru ocenianego, tak jak z `predict-batch`. Kandydat bez
+artefaktu pada z etykietą kandydata,
+zanim poleci odczyt meczów. Pretendent to kolejny wpis w `candidates`
+tej samej rodziny raportu (`result`, `btts` albo `over_25`).
+
+### shadow-report
+
+Jedna rodzina, okno `[--date-from, --date-to)`. Mistrz jest czytany
+z `predictions`, pretendent z `model_shadow_predictions`. Progi są
+domyślne. Ta komenda nie bierze spec.
+
+`--family` to `result`, `btts` albo `over_25`. To inne nazwy niż
+w `event_families` (`REZULTAT`, `BTTS`, `OU`).
+
+```bash
+python models/scripts/model_runner.py shadow-report \
+  --family result \
+  --champion-model FOOTBALL_RESULT_V2 \
+  --challenger-model NAZWA_Z_REJESTRU \
+  --date-from 2026-11-10 \
+  --date-to 2026-11-25 \
+  --output models/artifacts/reports/eb44/shadow_result.json
+```
+
+Obie nazwy muszą być w rejestrze. Raport ma `passed` na wierzchu.
+Kubełki goli i dokładny wynik nie mają własnej rodziny cienia.
+Czytają raport `over_25`.
+
+### promote-model
+
+Najpierw `--dry-run`. Wypisuje plan i nie otwiera zapisu.
+
+```bash
+python models/scripts/model_runner.py promote-model \
+  --model-name NAZWA_Z_REJESTRU \
+  --event-family REZULTAT \
+  --offline-report models/artifacts/reports/eb44/offline_gate.json \
+  --shadow-report models/artifacts/reports/eb44/shadow_result.json \
+  --dry-run
+```
+
+`--event-family` to nazwa z `event_families` dla piłki: `REZULTAT`,
+`BTTS`, `OU`, `GOALS`, `EXACT`. Flagę powtarza się dla kolejnych
+rodzin tego modelu. Dowód bez `--force` dotyczy tylko pierwszej
+nazwy. `GOALS` i `EXACT` czytają raport `over_25`, tak jak `OU`.
+Nazwa musi być dokładnie taka jak w bazie. Powtórzenie nazwy w jednej
+komendzie jest błędem.
+
+Wiersz promowanego modelu na tych rodzinach musi mieć zapisany status
+`challenger` albo `retired`. `NULL` i `champion` odpadają.
+
+Bez `--force` oba raporty muszą mieć `passed` równe `true` dla tego
+modelu i rodziny pierwszej nazwy. Brak pliku, zły JSON albo
+`passed: false` kończy się kodem 1. W komunikacie jest `offline`
+albo `shadow`.
+
+Zapis jest jedną transakcją: dotychczasowi mistrzowie tych rodzin
+dostają `retired`, promowany model dostaje `champion`, potem
+`models.active` jest przeliczane. Model zostaje aktywny, dopóki
+choć jedna rodzina jest nadal efektywnym mistrzem. Po zapisie
+komenda jeszcze raz czyta skład. Potem:
+
+```bash
+python models/scripts/model_runner.py model-lineup
+```
+
+Podgląd `/predictions/simulate` czyta skład raz na proces API.
+Awans widać tam po restarcie API.
+
+### Rollback
+
+Powrót poprzedniego mistrza to promocja wiersza `retired`. Tego
+modelu nie ma w decyzjach pretendenta, więc trzeba `--force`.
+Flaga pomija oba raporty.
+
+```bash
+python models/scripts/model_runner.py promote-model \
+  --model-name FOOTBALL_RESULT_V2 \
+  --event-family REZULTAT \
+  --force \
+  --dry-run
+```
+
+Ten sam przebieg bez `--dry-run` zapisuje. Na końcu `model-lineup`.
+
+### Sync na produkcję
+
+`models` i `event_model_families` są słownikami. Zmiana istniejącego
+wiersza (status, `active`) wchodzi na produkcję tylko z `--full-dict`.
+Bez `--apply` skrypt jest podglądem i nic nie zapisuje.
+`model_shadow_predictions` nie jest na liście synchronizacji i zostaje
+w bazie matce.
+
+```bash
+python scripts/sync/sync_local_to_prod.py --full-dict
+python scripts/sync/sync_local_to_prod.py --full-dict --apply
+```
+
+### Meta-model po awansie
+
+Nowy mistrz nie ma historii w `predictions`. Wiersze cienia nie są
+kopiowane. Wycofany model schodzi z `active = 1` i wypada z puli.
+Po zebraniu historii nowego mistrza:
+
+1. `train-betting-meta`
+2. `evaluate-betting-meta`
+3. `predict-betting-meta`
+
+Komendy i configi są w sekcji
+[Meta-model wyboru zakładu (EB-18)](#meta-model-wyboru-zakładu-eb-18).
+Gdy `metrics.json` nie przechodzi bramki strategii,
+`predict-betting-meta` kończy się kodem 1 i nie zapisuje werdyktów.
+Agent kuponowy zostaje przy własnym selektorze. Zmiana puli
+meta-modelu to osobne zadanie.
 
 ## Projekcja końca sezonu (`simulate-season`)
 
