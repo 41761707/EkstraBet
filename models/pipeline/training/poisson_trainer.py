@@ -18,12 +18,12 @@ from models.pipeline.training.lstm_trainer import _best_epoch
 from models.pipeline.training.lstm_trainer import _fit_chronological_model
 from models.pipeline.training.lstm_trainer import _holdout_split
 from models.pipeline.training.lstm_trainer import _keras
-from models.pipeline.training.lstm_trainer import _model_inputs
 from models.pipeline.training.lstm_trainer import _prepare_training_data
 from models.pipeline.training.lstm_trainer import _scale_holdout
 from models.pipeline.training.lstm_trainer import _score_validation
 from models.pipeline.training.lstm_trainer import _split_meta
 from models.pipeline.training.lstm_trainer import chronological_split
+from models.pipeline.training.model_inputs import model_inputs
 from models.pipeline.training.trainer import Trainer
 
 
@@ -135,7 +135,8 @@ class PoissonTrainer(Trainer):
             model,
             val_batch,
             holdout.validation_labels,
-            _poisson_metrics)
+            _poisson_metrics,
+            config)
         best_epoch = _best_epoch(history, config)
         _save_artifacts(config, model, scaler, metrics, best_epoch)
         return TrainingReport(
@@ -162,10 +163,12 @@ class PoissonTrainer(Trainer):
         scaled = SequenceBatch(
             val_batch.X_home,
             val_batch.X_away,
-            scaler.transform(val_batch.X_static))
+            scaler.transform(val_batch.X_static),
+            val_batch.league_ids)
         model = artifacts.load_keras_model_artifact(config.artifact_dir)
-        rates = np.asarray(
-            model.predict(_model_inputs(scaled), verbose=0))
+        rates = np.asarray(model.predict(
+            model_inputs(scaled, config, None),
+            verbose=0))
         metrics = _poisson_metrics(y_val, rates)
         return EvaluationReport(
             model_name=config.model_name,

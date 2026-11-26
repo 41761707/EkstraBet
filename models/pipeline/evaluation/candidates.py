@@ -22,6 +22,7 @@ from models.pipeline.data.match_history_repository import (
     fetch_finished_matches)
 from models.pipeline.prediction.score_matrix import derive_goal_markets
 from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
+from models.pipeline.training.model_inputs import model_inputs
 
 
 FAMILY_RESULT = "result"
@@ -240,12 +241,16 @@ def _predict_rows(
     if scaler is None:
         raise FileNotFoundError(
             f"Candidate {label} is missing a scaler artifact")
+    league_ids = None
+    if batch.league_ids is not None:
+        league_ids = batch.league_ids[positions]
     window = SequenceBatch(
         X_home=batch.X_home[positions],
         X_away=batch.X_away[positions],
-        X_static=scaler.transform(batch.X_static[positions]))
+        X_static=scaler.transform(batch.X_static[positions]),
+        league_ids=league_ids)
     values = model.predict(
-        [window.X_home, window.X_away, window.X_static],
+        model_inputs(window, config, None),
         verbose=0)
     return np.asarray(values, dtype=float)
 

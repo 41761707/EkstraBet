@@ -27,6 +27,7 @@ from models.pipeline.data.shared_history_context import feature_signature
 from models.pipeline.prediction.score_matrix import derive_goal_markets
 from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
 from models.pipeline.prediction.score_matrix import top_exact_scores
+from models.pipeline.training.model_inputs import model_inputs
 
 
 # zgodne z SeasonSimulationConfig.inference_batch_size (bez importu simulation)
@@ -174,14 +175,17 @@ def _scaled_batch(batch: SequenceBatch, scaler: Any | None) -> SequenceBatch:
     return SequenceBatch(
         X_home=batch.X_home,
         X_away=batch.X_away,
-        X_static=scaler.transform(batch.X_static))
+        X_static=scaler.transform(batch.X_static),
+        league_ids=batch.league_ids)
 
 
 def _predict_array(
         model: Any,
-        batch: SequenceBatch) -> np.ndarray:
+        batch: SequenceBatch,
+        config: FutureEventsRunConfig,
+        league_vocab: list[int] | None = None) -> np.ndarray:
     values = model.predict(
-        [batch.X_home, batch.X_away, batch.X_static],
+        model_inputs(batch, config, league_vocab),
         verbose=0)
     return np.asarray(values, dtype=float)
 
@@ -190,10 +194,14 @@ def _slice_sequence_batch(
         batch: SequenceBatch,
         start: int,
         end: int) -> SequenceBatch:
+    league_ids = None
+    if batch.league_ids is not None:
+        league_ids = batch.league_ids[start:end]
     return SequenceBatch(
         X_home=batch.X_home[start:end],
         X_away=batch.X_away[start:end],
-        X_static=batch.X_static[start:end])
+        X_static=batch.X_static[start:end],
+        league_ids=league_ids)
 
 
 def _reshape_goal_rates(values: np.ndarray, batch_size: int) -> np.ndarray:
@@ -330,14 +338,16 @@ class FutureEventsPredictor:
             return np.zeros((0, 2), dtype=float)
         if total <= batch_size:
             return _reshape_goal_rates(
-                _predict_array(self.models.goals_model, scaled),
+                _predict_array(
+                    self.models.goals_model, scaled, self.goals_config),
                 total)
         chunks: list[np.ndarray] = []
         for start in range(0, total, batch_size):
             end = min(start + batch_size, total)
             chunk = _slice_sequence_batch(scaled, start, end)
             chunk_rates = _reshape_goal_rates(
-                _predict_array(self.models.goals_model, chunk),
+                _predict_array(
+                    self.models.goals_model, chunk, self.goals_config),
                 end - start)
             chunks.append(chunk_rates)
         return np.concatenate(chunks, axis=0)
@@ -355,7 +365,8 @@ class FutureEventsPredictor:
         values = _normalized_probabilities(
             _predict_array(
                 self.models.result_model,
-                _scaled_batch(batch, self.models.result_scaler))[0],
+                _scaled_batch(batch, self.models.result_scaler),
+                self.result_config)[0],
             3)
         return ResultPrediction(
             p_home=float(values[0]),
@@ -375,7 +386,8 @@ class FutureEventsPredictor:
         values = _normalized_probabilities(
             _predict_array(
                 self.models.btts_model,
-                _scaled_batch(batch, self.models.btts_scaler))[0],
+                _scaled_batch(batch, self.models.btts_scaler),
+                self.btts_config)[0],
             2)
         return BttsPrediction(
             p_yes=float(values[1]),

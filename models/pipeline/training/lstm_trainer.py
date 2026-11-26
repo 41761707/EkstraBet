@@ -20,6 +20,7 @@ from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.core.registry import register_trainer
+from models.pipeline.training.model_inputs import model_inputs
 from models.pipeline.training.splits import split_by_dates
 from models.pipeline.training.trainer import Trainer
 
@@ -140,10 +141,14 @@ def chronological_split(
 
 
 def _slice_batch(batch: SequenceBatch, indexes: np.ndarray) -> SequenceBatch:
+    league_ids = None
+    if batch.league_ids is not None:
+        league_ids = batch.league_ids[indexes]
     return SequenceBatch(
         X_home=batch.X_home[indexes],
         X_away=batch.X_away[indexes],
-        X_static=batch.X_static[indexes])
+        X_static=batch.X_static[indexes],
+        league_ids=league_ids)
 
 
 @dataclass(frozen=True)
@@ -209,7 +214,10 @@ def _scale_holdout(
         scaled = scaler.fit_transform(train_batch.X_static)
         return (
             SequenceBatch(
-                train_batch.X_home, train_batch.X_away, scaled),
+                train_batch.X_home,
+                train_batch.X_away,
+                scaled,
+                train_batch.league_ids),
             None,
             scaler)
     train_scaled, validation_scaled, scaler = _scale_static(
@@ -234,7 +242,8 @@ def _fit_chronological_model(
     if validation_batch is not None and validation_labels is not None:
         keras = _keras()
         fit_kwargs["validation_data"] = (
-            _model_inputs(validation_batch), validation_labels)
+            model_inputs(validation_batch, config, None),
+            validation_labels)
         fit_kwargs["callbacks"] = [keras.callbacks.EarlyStopping(
             monitor="val_loss",
             patience=config.patience,
@@ -243,19 +252,23 @@ def _fit_chronological_model(
         raise ValueError(
             "validation batch and labels must both be present or absent")
     return model.fit(
-        _model_inputs(train_batch), train_labels, **fit_kwargs)
+        model_inputs(train_batch, config, None),
+        train_labels,
+        **fit_kwargs)
 
 
 def _score_validation(
         model: Any,
         validation_batch: SequenceBatch | None,
         validation_labels: np.ndarray | None,
-        metric_fn: Callable[[np.ndarray, np.ndarray], dict[str, float]]
+        metric_fn: Callable[[np.ndarray, np.ndarray], dict[str, float]],
+        config: FutureEventsRunConfig
 ) -> tuple[dict[str, float], int]:
     if validation_batch is None or validation_labels is None:
         return {}, 0
-    predicted = np.asarray(
-        model.predict(_model_inputs(validation_batch), verbose=0))
+    predicted = np.asarray(model.predict(
+        model_inputs(validation_batch, config, None),
+        verbose=0))
     return metric_fn(validation_labels, predicted), len(validation_labels)
 
 
@@ -291,16 +304,16 @@ def _scale_static(
     validation_static = scaler.transform(validation_batch.X_static)
     return (
         SequenceBatch(
-            train_batch.X_home, train_batch.X_away, train_static),
+            train_batch.X_home,
+            train_batch.X_away,
+            train_static,
+            train_batch.league_ids),
         SequenceBatch(
             validation_batch.X_home,
             validation_batch.X_away,
-            validation_static),
+            validation_static,
+            validation_batch.league_ids),
         scaler)
-
-
-def _model_inputs(batch: SequenceBatch) -> list[np.ndarray]:
-    return [batch.X_home, batch.X_away, batch.X_static]
 
 
 def _classification_metrics(
@@ -350,7 +363,8 @@ class LstmTrainer(Trainer):
             model,
             val_batch,
             holdout.validation_labels,
-            _classification_metrics)
+            _classification_metrics,
+            config)
         best_epoch = _best_epoch(history, config)
         _save_artifacts(config, model, scaler, metrics, best_epoch)
         return TrainingReport(
@@ -377,10 +391,12 @@ class LstmTrainer(Trainer):
         scaled = SequenceBatch(
             val_batch.X_home,
             val_batch.X_away,
-            scaler.transform(val_batch.X_static))
+            scaler.transform(val_batch.X_static),
+            val_batch.league_ids)
         model = artifacts.load_keras_model_artifact(config.artifact_dir)
-        probabilities = np.asarray(
-            model.predict(_model_inputs(scaled), verbose=0))
+        probabilities = np.asarray(model.predict(
+            model_inputs(scaled, config, None),
+            verbose=0))
         metrics = _classification_metrics(y_val, probabilities)
         return EvaluationReport(
             model_name=config.model_name,

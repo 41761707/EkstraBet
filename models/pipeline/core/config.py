@@ -151,6 +151,20 @@ class ChronoSplit(BaseModel):
     calibration_from: date | None = None
 
 
+class FootballContextParams(BaseModel):
+    """Shrinkage and window settings for football context features."""
+
+    league_shrink_matches: float = Field(default=60.0, gt=0.0)
+    team_shrink_matches: float = Field(default=6.0, gt=0.0)
+    league_prior_days: int = Field(default=730, ge=30)
+    fatigue_days: int = Field(default=14, ge=1)
+
+
+def _static_column_needs_context(column: str) -> bool:
+    """Return whether a static column is a context feature."""
+    return "_ctx_" in column
+
+
 class FutureEventsRunConfig(ModelRunConfig):
     """Configuration for result, BTTS, or Poisson future-event runs."""
 
@@ -171,6 +185,12 @@ class FutureEventsRunConfig(ModelRunConfig):
     dense_units: int = Field(default=32, ge=1)
     top_exact_scores: int = Field(default=5, ge=1)
     max_goals: int = Field(default=5, ge=1)
+    normalize_sequences: bool = False
+    league_embedding_dim: int = Field(default=0, ge=0)
+    recency_half_life_days: int | None = Field(default=None, ge=1)
+    calibration: Literal[
+        "none", "temperature", "temperature_isotonic"] = "none"
+    context_params: FootballContextParams | None = None
 
     @model_validator(mode="after")
     def _validate_chrono_split(self) -> FutureEventsRunConfig:
@@ -189,6 +209,28 @@ class FutureEventsRunConfig(ModelRunConfig):
             raise ValueError(
                 "validation_from must be before calibration_from "
                 "and calibration_from must be before date_to")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_optional_inputs(self) -> FutureEventsRunConfig:
+        if (
+                self.calibration == "temperature_isotonic"
+                and self.task_type != "btts"):
+            raise ValueError(
+                "temperature_isotonic calibration requires "
+                "task_type='btts'")
+        if self.calibration != "none":
+            calibration_from = (
+                self.split.calibration_from if self.split else None)
+            if calibration_from is None:
+                raise ValueError(
+                    "calibration requires split.calibration_from")
+        if self.context_params is None and any(
+                _static_column_needs_context(column)
+                for column in self.static_feature_columns):
+            raise ValueError(
+                "static feature columns containing '_ctx_' "
+                "require context_params")
         return self
 
 
@@ -228,6 +270,7 @@ class SequenceBatch:
     X_home: np.ndarray
     X_away: np.ndarray
     X_static: np.ndarray
+    league_ids: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if self.X_home.ndim != 3 or self.X_away.ndim != 3:
@@ -241,6 +284,15 @@ class SequenceBatch:
         }
         if len(batch_sizes) != 1:
             raise ValueError("All sequence batch inputs must have equal size")
+        if self.league_ids is None:
+            return
+        if not isinstance(self.league_ids, np.ndarray):
+            raise ValueError("league_ids must be a numpy array")
+        if self.league_ids.ndim != 1:
+            raise ValueError("league_ids must be one-dimensional")
+        if self.league_ids.shape[0] != self.X_home.shape[0]:
+            raise ValueError(
+                "league_ids length must match the sequence batch size")
 
 
 @dataclass(frozen=True)
