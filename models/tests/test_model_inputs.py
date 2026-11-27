@@ -16,6 +16,7 @@ from models.pipeline.core.config import load_model_config
 from models.pipeline.training.model_inputs import build_league_vocab
 from models.pipeline.training.model_inputs import league_indexes
 from models.pipeline.training.model_inputs import model_inputs
+from models.pipeline.training.model_inputs import recency_sample_weights
 from models.pipeline.training.model_inputs import sequence_normalization_layer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -224,3 +225,40 @@ def test_context_and_recency_bounds_are_rejected() -> None:
     with pytest.raises(ValidationError):
         FutureEventsRunConfig.model_validate(
             _payload(league_embedding_dim=-1))
+
+
+def test_recency_weights_favor_the_newest_sample_and_average_one() -> None:
+    dates = np.array([
+        "2026-01-03",
+        "2026-01-01",
+        "2026-01-02"], dtype="datetime64[ns]")
+    reference = np.datetime64("2026-01-03", "ns")
+    weights = recency_sample_weights(dates, reference, 2)
+    assert weights.shape == (3,)
+    assert float(weights[0]) == pytest.approx(float(np.max(weights)))
+    assert weights[0] > weights[1]
+    assert weights[0] > weights[2]
+    assert float(np.mean(weights)) == pytest.approx(1.0)
+    age_days = (reference - dates) / np.timedelta64(1, "D")
+    raw = np.power(0.5, np.asarray(age_days, dtype=np.float64) / 2.0)
+    assert np.allclose(weights, raw / np.mean(raw))
+    same = np.array(["2026-01-01", "2026-01-01"], dtype="datetime64[ns]")
+    flat = recency_sample_weights(
+        same, np.datetime64("2026-01-01", "ns"), 10)
+    assert np.allclose(flat, 1.0)
+
+
+def test_recency_weights_reject_unusable_dates() -> None:
+    reference = np.datetime64("2026-01-01", "ns")
+    column = np.array([["2026-01-01"]], dtype="datetime64[ns]")
+    with pytest.raises(ValueError, match="one-dimensional"):
+        recency_sample_weights(column, reference, 10)
+    empty = np.array([], dtype="datetime64[ns]")
+    with pytest.raises(ValueError, match="empty"):
+        recency_sample_weights(empty, reference, 10)
+    present = np.array(["2026-01-01"], dtype="datetime64[ns]")
+    with pytest.raises(ValueError, match="half_life_days"):
+        recency_sample_weights(present, reference, 0)
+    missing = np.array(["NaT"], dtype="datetime64[ns]")
+    with pytest.raises(ValueError, match="valid"):
+        recency_sample_weights(missing, reference, 10)

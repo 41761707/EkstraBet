@@ -57,6 +57,32 @@ def league_indexes(
     return mapped.reshape(-1, 1)
 
 
+def recency_sample_weights(
+        dates: np.ndarray,
+        reference: np.datetime64,
+        half_life_days: int) -> np.ndarray:
+    """Return mean-one weights that halve every ``half_life_days``.
+
+    Age is the number of days before ``reference``. The raw weight is
+    ``0.5 ** (age_days / half_life_days)``. Dividing by the mean keeps
+    a weighted loss on the same scale as an unweighted fit.
+    """
+    if half_life_days < 1:
+        raise ValueError("half_life_days must be at least 1")
+    stamps = np.asarray(dates, dtype="datetime64[ns]")
+    if stamps.ndim != 1:
+        raise ValueError("dates must be one-dimensional")
+    if stamps.size == 0:
+        raise ValueError("dates must not be empty")
+    origin = np.datetime64(reference, "ns")
+    if np.isnat(stamps).any() or np.isnat(origin):
+        raise ValueError("dates and reference must be valid datetimes")
+    age_days = (origin - stamps) / np.timedelta64(1, "D")
+    age_days = np.asarray(age_days, dtype=np.float64)
+    raw = np.power(0.5, age_days / float(half_life_days))
+    return raw / np.mean(raw)
+
+
 def sequence_normalization_layer(train_sequences: np.ndarray) -> Any:
     """Fit one feature-wise normalization layer on training steps.
 

@@ -38,7 +38,11 @@ POISSON_EPSILON = 1e-6
 
 
 def poisson_nll(y_true: Any, lambdas: Any) -> Any:
-    """Return mean independent Poisson negative log-likelihood."""
+    """Return one independent Poisson negative log-likelihood per sample.
+
+    The value is the sum of the home and away terms. Training reduces
+    that vector after applying ``sample_weight``.
+    """
     try:
         import tensorflow as tf
     except ImportError as exc:
@@ -48,7 +52,8 @@ def poisson_nll(y_true: Any, lambdas: Any) -> Any:
     targets = tf.cast(y_true, rates.dtype)
     component = rates - targets * tf.math.log(rates)
     component += tf.math.lgamma(targets + 1.0)
-    return tf.reduce_mean(tf.reduce_sum(component, axis=-1))
+    # Skalar uśredniony tutaj nie widzi sample_weight z model.fit.
+    return tf.reduce_sum(component, axis=-1)
 
 
 def build_poisson_model(
@@ -157,7 +162,8 @@ class PoissonTrainer(Trainer):
             val_batch,
             holdout.validation_labels,
             config,
-            league_vocab)
+            league_vocab,
+            holdout.train_dates)
         metrics, n_test = _score_validation(
             model,
             val_batch,

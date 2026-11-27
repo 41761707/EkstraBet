@@ -1,4 +1,4 @@
-"""Tests for optional sequence normalization and league embedding."""
+"""Tests for sequence normalization, league embedding and recency."""
 
 from __future__ import annotations
 
@@ -20,9 +20,11 @@ from models.pipeline.training import lstm_trainer
 from models.pipeline.training import poisson_trainer
 from models.pipeline.training.lstm_trainer import LstmTrainer
 from models.pipeline.training.lstm_trainer import build_dual_lstm_classifier
+from models.pipeline.training.model_inputs import recency_sample_weights
 from models.pipeline.training.model_inputs import sequence_normalization_layer
 from models.pipeline.training.poisson_trainer import PoissonTrainer
 from models.pipeline.training.poisson_trainer import build_poisson_model
+from models.pipeline.training.poisson_trainer import poisson_nll
 
 
 def _config(**overrides: object) -> FutureEventsRunConfig:
@@ -518,3 +520,110 @@ def test_candidate_requires_league_vocab_before_history(
             directory,
             "v3",
             _config(artifact_dir=str(directory), league_embedding_dim=4))
+
+
+class _WeightCapture:
+    def __init__(self, width: int) -> None:
+        self.width = width
+        self.history = _History()
+        self.kwargs: dict[str, Any] = {}
+
+    def fit(self, inputs, labels, **kwargs):
+        del inputs, labels
+        self.kwargs = kwargs
+        return self.history
+
+    def predict(self, inputs, verbose=0):
+        del verbose
+        count = len(inputs[0])
+        return np.full((count, self.width), 1.0 / self.width)
+
+    def save(self, path) -> None:
+        Path(path).write_text("ok", encoding="utf-8")
+
+
+def _assert_training_weights(
+        kwargs: dict[str, Any],
+        train_dates: np.ndarray,
+        half_life: int) -> None:
+    weights = np.asarray(kwargs["sample_weight"], dtype=np.float64)
+    reference = np.datetime64(np.max(train_dates), "ns")
+    expected = recency_sample_weights(train_dates, reference, half_life)
+    assert np.allclose(weights, expected)
+    assert float(np.mean(weights)) == pytest.approx(1.0)
+    newest = int(np.argmax(train_dates))
+    assert float(weights[newest]) == pytest.approx(float(np.max(weights)))
+    assert len(kwargs["validation_data"]) == 2
+
+
+def test_recency_weights_are_fit_only_on_the_training_window(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    batch, dates = _window_payload()
+    captured = _WeightCapture(3)
+    monkeypatch.setattr(lstm_trainer, "_keras", lambda: _Keras)
+    monkeypatch.setattr(
+        lstm_trainer,
+        "_prepare_training_data",
+        lambda config: (batch, np.zeros(4, dtype=np.int64), dates))
+    monkeypatch.setattr(
+        lstm_trainer,
+        "build_dual_lstm_classifier",
+        lambda *args, **kwargs: captured)
+    LstmTrainer().train(_split_config(tmp_path / "plain"))
+    assert "sample_weight" not in captured.kwargs
+    LstmTrainer().train(_split_config(
+        tmp_path / "weighted", recency_half_life_days=365))
+    # Styczeń i luty są oknem treningowym; czerwiec i sierpień nie.
+    _assert_training_weights(captured.kwargs, dates[:2], 365)
+    fraction = _WeightCapture(3)
+    monkeypatch.setattr(
+        lstm_trainer,
+        "build_dual_lstm_classifier",
+        lambda *args, **kwargs: fraction)
+    LstmTrainer().train(_config(
+        artifact_dir=str(tmp_path / "fraction"),
+        epochs=1,
+        recency_half_life_days=30))
+    # Ułamek 0.15 zostawia trzy najstarsze mecze w treningu.
+    _assert_training_weights(fraction.kwargs, dates[:3], 30)
+    poisson_model = _WeightCapture(2)
+    monkeypatch.setattr(
+        poisson_trainer,
+        "_prepare_training_data",
+        lambda config: (
+            batch, np.zeros((4, 2), dtype=np.float32), dates))
+    monkeypatch.setattr(
+        poisson_trainer,
+        "build_poisson_model",
+        lambda *args, **kwargs: poisson_model)
+    PoissonTrainer().train(_split_config(
+        tmp_path / "poisson",
+        task_type="goals_poisson",
+        output_columns=["lambda_home", "lambda_away"],
+        recency_half_life_days=365))
+    _assert_training_weights(poisson_model.kwargs, dates[:2], 365)
+
+
+def test_poisson_nll_returns_one_value_per_sample() -> None:
+    tensorflow = pytest.importorskip("tensorflow")
+    inputs = tensorflow.keras.Input(shape=(1,))
+    outputs = tensorflow.keras.layers.Dense(2, use_bias=False)(inputs)
+    model = tensorflow.keras.Model(inputs, outputs)
+    weight = np.array([[0.2, -0.4]], dtype=np.float32)
+    model.layers[-1].set_weights([weight])
+    model.compile(optimizer="sgd", loss=poisson_nll)
+    features = np.ones((2, 1), dtype=np.float32)
+    targets = np.array([[0.0, 1.0], [3.0, 0.0]], dtype=np.float32)
+    predicted = model.predict(features, verbose=0)
+    per_sample = np.asarray(poisson_nll(
+        tensorflow.constant(targets),
+        tensorflow.constant(predicted)))
+    assert per_sample.shape == (2,)
+    plain = model.evaluate(features, targets, verbose=0)
+    assert plain == pytest.approx(float(np.mean(per_sample)))
+    weights = np.array([1.0, 3.0], dtype=np.float32)
+    weighted = model.evaluate(
+        features, targets, sample_weight=weights, verbose=0)
+    # Keras dzieli przez liczbę próbek, nie przez sumę wag.
+    expected = float(np.sum(per_sample * weights) / len(per_sample))
+    assert weighted == pytest.approx(expected)

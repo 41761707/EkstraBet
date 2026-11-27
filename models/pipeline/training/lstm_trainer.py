@@ -22,6 +22,7 @@ from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.core.registry import register_trainer
 from models.pipeline.training.model_inputs import build_league_vocab
 from models.pipeline.training.model_inputs import model_inputs
+from models.pipeline.training.model_inputs import recency_sample_weights
 from models.pipeline.training.model_inputs import sequence_normalization_layer
 from models.pipeline.training.splits import split_by_dates
 from models.pipeline.training.trainer import Trainer
@@ -226,6 +227,19 @@ def _prepare_training_data(
     return _coerce_training_payload(method(matches, config))
 
 
+def _fraction_indexes(
+        dates: np.ndarray,
+        validation_size: float) -> tuple[np.ndarray, np.ndarray]:
+    """Return chronological positions for a fractional holdout."""
+    if not 0.0 < validation_size < 1.0:
+        raise ValueError("validation_size must be between zero and one")
+    order = np.argsort(dates, kind="stable")
+    split_at = max(1, int(len(order) * (1.0 - validation_size)))
+    if split_at >= len(order):
+        split_at = len(order) - 1
+    return order[:split_at], order[split_at:]
+
+
 def chronological_split(
         batch: SequenceBatch,
         labels: np.ndarray,
@@ -233,14 +247,8 @@ def chronological_split(
         validation_size: float
 ) -> tuple[SequenceBatch, SequenceBatch, np.ndarray, np.ndarray]:
     """Split ordered samples without shuffling or future leakage."""
-    if not 0.0 < validation_size < 1.0:
-        raise ValueError("validation_size must be between zero and one")
-    order = np.argsort(dates, kind="stable")
-    split_at = max(1, int(len(order) * (1.0 - validation_size)))
-    if split_at >= len(order):
-        split_at = len(order) - 1
-    train_index = order[:split_at]
-    validation_index = order[split_at:]
+    train_index, validation_index = _fraction_indexes(
+        dates, validation_size)
     train_batch = _slice_batch(batch, train_index)
     validation_batch = _slice_batch(batch, validation_index)
     return (
@@ -269,6 +277,7 @@ class _Holdout:
     train_labels: np.ndarray
     validation_batch: SequenceBatch | None
     validation_labels: np.ndarray | None
+    train_dates: np.ndarray
 
 
 def _uses_fixed_epochs(config: FutureEventsRunConfig) -> bool:
@@ -297,9 +306,14 @@ def _holdout_split(
         validation_size = (
             config.training_config.validation_size
             if config.training_config else 0.15)
-        train_batch, val_batch, y_train, y_val = chronological_split(
-            batch, labels, dates, validation_size)
-        return _Holdout(train_batch, y_train, val_batch, y_val)
+        train_index, validation_index = _fraction_indexes(
+            dates, validation_size)
+        return _Holdout(
+            _slice_batch(batch, train_index),
+            labels[train_index],
+            _slice_batch(batch, validation_index),
+            labels[validation_index],
+            np.asarray(dates)[train_index])
     if config.date_to is None:
         raise ValueError("date_to is required when split is set")
     indexes = split_by_dates(dates, config.split, config.date_to)
@@ -312,7 +326,8 @@ def _holdout_split(
         _slice_batch(batch, indexes.train),
         labels[indexes.train],
         validation_batch,
-        validation_labels)
+        validation_labels,
+        np.asarray(dates)[indexes.train])
 
 
 def _scale_holdout(
@@ -335,6 +350,26 @@ def _scale_holdout(
     return train_scaled, validation_scaled, scaler
 
 
+def _training_sample_weight(
+        config: FutureEventsRunConfig,
+        train_dates: np.ndarray | None) -> np.ndarray | None:
+    """Return recency weights for the training window, or None."""
+    half_life = config.recency_half_life_days
+    if half_life is None:
+        return None
+    if train_dates is None:
+        raise ValueError(
+            "training dates are required when "
+            "recency_half_life_days is set")
+    stamps = np.asarray(train_dates, dtype="datetime64[ns]")
+    if stamps.ndim != 1 or stamps.size == 0:
+        raise ValueError(
+            "training dates must be a non-empty one-dimensional array")
+    # Koniec okna treningowego, nie granica walidacji ani date_to.
+    reference = np.datetime64(np.max(stamps), "ns")
+    return recency_sample_weights(stamps, reference, half_life)
+
+
 def _fit_chronological_model(
         model: Any,
         train_batch: SequenceBatch,
@@ -342,7 +377,8 @@ def _fit_chronological_model(
         validation_batch: SequenceBatch | None,
         validation_labels: np.ndarray | None,
         config: FutureEventsRunConfig,
-        league_vocab: list[int] | None = None) -> Any:
+        league_vocab: list[int] | None = None,
+        train_dates: np.ndarray | None = None) -> Any:
     """Fit without shuffling. Fixed epochs skip early stopping."""
     fit_kwargs: dict[str, Any] = {
         "epochs": _epoch_count(config),
@@ -350,6 +386,13 @@ def _fit_chronological_model(
         "shuffle": False,
         "verbose": 0
     }
+    sample_weight = _training_sample_weight(config, train_dates)
+    if sample_weight is not None:
+        if len(sample_weight) != len(train_labels):
+            raise ValueError(
+                "sample_weight length must match the training window")
+        # Waga świeżości wchodzi tylko do treningu. Walidacja zostaje (x, y).
+        fit_kwargs["sample_weight"] = sample_weight
     if validation_batch is not None and validation_labels is not None:
         keras = _keras()
         fit_kwargs["validation_data"] = (
@@ -476,7 +519,8 @@ class LstmTrainer(Trainer):
             val_batch,
             holdout.validation_labels,
             config,
-            league_vocab)
+            league_vocab,
+            holdout.train_dates)
         metrics, n_test = _score_validation(
             model,
             val_batch,
