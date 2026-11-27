@@ -1,8 +1,9 @@
-"""Tests for shrunk seasonal league context."""
+"""Tests for shrunk seasonal league and team context."""
 
 from __future__ import annotations
 
 from datetime import date
+from math import exp
 
 import pandas as pd
 import pytest
@@ -39,6 +40,36 @@ def _match(
 def _commit(state: FootballContextState, matches: list[ContextMatch]) -> None:
     for match in matches:
         state.commit(match)
+
+
+def _teams(
+        match_id: int,
+        league_id: int,
+        season_id: int,
+        game_date: str,
+        home_team: int,
+        away_team: int,
+        home_goals: int,
+        away_goals: int) -> ContextMatch:
+    return ContextMatch(
+        match_id=match_id,
+        league_id=league_id,
+        season_id=season_id,
+        game_date=pd.Timestamp(game_date),
+        home_team=home_team,
+        away_team=away_team,
+        home_goals=home_goals,
+        away_goals=away_goals)
+
+
+def _newcomer(
+        state: FootballContextState,
+        team_id: int,
+        league_id: int,
+        season_id: int) -> float:
+    features = state.team_features(
+        team_id, "home", league_id, season_id, AS_OF)
+    return features["home_ctx_is_newcomer"]
 
 
 def test_context_match_from_row_reads_history_columns() -> None:
@@ -212,3 +243,111 @@ def test_league_prior_window_is_730_days_and_excludes_as_of() -> None:
     assert features["league_ctx_draw_pct"] == pytest.approx(0.0, abs=_ABS)
     assert features["league_ctx_season_matches"] == pytest.approx(
         2.0, abs=_ABS)
+
+
+def test_team_with_no_history_gets_the_league_prior() -> None:
+    state = FootballContextState(FootballContextParams())
+    features = state.team_features(1, "home", 1, 1, AS_OF)
+    zero_prior = exp(-(1.5 + 1.2) / 2.0)
+    assert features["home_ctx_clean_sheet_pct"] == pytest.approx(
+        zero_prior, abs=_ABS)
+    assert features["home_ctx_failed_to_score_pct"] == pytest.approx(
+        zero_prior, abs=_ABS)
+    assert features["home_ctx_draw_pct"] == pytest.approx(0.26, abs=_ABS)
+    assert features["home_ctx_matches_played"] == pytest.approx(
+        0.0, abs=_ABS)
+    assert features["home_ctx_is_newcomer"] == pytest.approx(0.0, abs=_ABS)
+
+
+def test_team_rates_shrink_toward_the_league() -> None:
+    # Sezon 8: trzy razy 0:0 (6 stron bez gola, 3 remisy).
+    # Sezon 10: 2:1 i 1:0 (1 strona bez gola, 0 remisów).
+    # Prior z 5 meczów: zero 7/10, remis 3/5. k ligi = 4, k drużyny = 2.
+    # 9:0 w innej lidze i mecz z dnia as_of nie wchodzą do sezonu 10.
+    params = FootballContextParams(
+        league_shrink_matches=4.0,
+        team_shrink_matches=2.0)
+    state = FootballContextState(params)
+    _commit(state, [
+        _teams(1, 1, 8, "2025-08-01", 1, 2, 0, 0),
+        _teams(2, 1, 8, "2025-08-08", 1, 2, 0, 0),
+        _teams(3, 1, 8, "2025-08-15", 1, 2, 0, 0),
+        _teams(4, 1, 10, "2026-03-01", 1, 3, 2, 1),
+        _teams(5, 1, 10, "2026-03-08", 1, 4, 1, 0),
+        _teams(6, 2, 1, "2026-03-01", 1, 9, 9, 0),
+        _teams(7, 1, 10, "2026-06-01", 1, 3, 5, 0)
+    ])
+    zero_ref = (0.5 + 4 * (7 / 10)) / 6
+    draw_ref = (0 + 4 * (3 / 5)) / 6
+    home = state.team_features(1, "home", 1, 10, AS_OF)
+    assert set(home) == {
+        "home_ctx_clean_sheet_pct",
+        "home_ctx_failed_to_score_pct",
+        "home_ctx_draw_pct",
+        "home_ctx_matches_played",
+        "home_ctx_is_newcomer"
+    }
+    assert home["home_ctx_clean_sheet_pct"] == pytest.approx(
+        (1 + 2 * zero_ref) / 4, abs=_ABS)
+    assert home["home_ctx_failed_to_score_pct"] == pytest.approx(
+        (0 + 2 * zero_ref) / 4, abs=_ABS)
+    assert home["home_ctx_draw_pct"] == pytest.approx(
+        (0 + 2 * draw_ref) / 4, abs=_ABS)
+    assert home["home_ctx_matches_played"] == pytest.approx(2.0, abs=_ABS)
+    assert home["home_ctx_is_newcomer"] == pytest.approx(0.0, abs=_ABS)
+    away = state.team_features(1, "away", 1, 10, AS_OF)
+    assert away["away_ctx_clean_sheet_pct"] == pytest.approx(
+        home["home_ctx_clean_sheet_pct"], abs=_ABS)
+    conceded = state.team_features(4, "away", 1, 10, AS_OF)
+    assert conceded["away_ctx_clean_sheet_pct"] == pytest.approx(
+        (0 + 2 * zero_ref) / 3, abs=_ABS)
+    assert conceded["away_ctx_failed_to_score_pct"] == pytest.approx(
+        (1 + 2 * zero_ref) / 3, abs=_ABS)
+    assert conceded["away_ctx_draw_pct"] == pytest.approx(
+        (0 + 2 * draw_ref) / 3, abs=_ABS)
+    assert conceded["away_ctx_matches_played"] == pytest.approx(
+        1.0, abs=_ABS)
+    assert conceded["away_ctx_is_newcomer"] == pytest.approx(1.0, abs=_ABS)
+    idle = state.team_features(9, "home", 1, 10, AS_OF)
+    assert idle["home_ctx_matches_played"] == pytest.approx(0.0, abs=_ABS)
+    assert idle["home_ctx_clean_sheet_pct"] == pytest.approx(
+        zero_ref, abs=_ABS)
+    assert idle["home_ctx_failed_to_score_pct"] == pytest.approx(
+        zero_ref, abs=_ABS)
+    assert idle["home_ctx_draw_pct"] == pytest.approx(draw_ref, abs=_ABS)
+    assert idle["home_ctx_is_newcomer"] == pytest.approx(1.0, abs=_ABS)
+    stayed = state.team_features(2, "home", 1, 10, AS_OF)
+    assert stayed["home_ctx_matches_played"] == pytest.approx(
+        0.0, abs=_ABS)
+    assert stayed["home_ctx_clean_sheet_pct"] == pytest.approx(
+        zero_ref, abs=_ABS)
+    assert stayed["home_ctx_draw_pct"] == pytest.approx(draw_ref, abs=_ABS)
+    assert stayed["home_ctx_is_newcomer"] == pytest.approx(0.0, abs=_ABS)
+
+
+def test_newcomer_follows_the_previous_season_of_the_league() -> None:
+    # Sezon 90 zaczyna się przed 50, mimo wyższego id.
+    # Drużyna 6 grała w 90, opuściła 50 i nie jest w 70.
+    state = FootballContextState(FootballContextParams())
+    _commit(state, [
+        _teams(1, 4, 90, "2025-05-01", 6, 7, 1, 0),
+        _teams(2, 4, 50, "2026-02-01", 7, 8, 1, 0),
+        _teams(3, 4, 70, "2026-04-01", 8, 9, 1, 0)
+    ])
+    assert _newcomer(state, 6, 4, 90) == pytest.approx(0.0, abs=_ABS)
+    assert _newcomer(state, 99, 4, 90) == pytest.approx(0.0, abs=_ABS)
+    assert _newcomer(state, 6, 4, 50) == pytest.approx(0.0, abs=_ABS)
+    assert _newcomer(state, 8, 4, 50) == pytest.approx(1.0, abs=_ABS)
+    assert _newcomer(state, 6, 4, 70) == pytest.approx(1.0, abs=_ABS)
+    assert _newcomer(state, 7, 4, 70) == pytest.approx(0.0, abs=_ABS)
+    assert _newcomer(state, 8, 4, 70) == pytest.approx(0.0, abs=_ABS)
+    assert _newcomer(state, 9, 4, 70) == pytest.approx(1.0, abs=_ABS)
+    assert _newcomer(state, 8, 4, 80) == pytest.approx(0.0, abs=_ABS)
+    assert _newcomer(state, 6, 4, 80) == pytest.approx(1.0, abs=_ABS)
+    assert _newcomer(state, 6, 5, 1) == pytest.approx(0.0, abs=_ABS)
+
+
+def test_team_features_reject_an_unknown_side() -> None:
+    state = FootballContextState(FootballContextParams())
+    with pytest.raises(ValueError, match="side"):
+        state.team_features(1, "draw", 1, 1, AS_OF)
