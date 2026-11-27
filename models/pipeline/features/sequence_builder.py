@@ -13,12 +13,16 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from models.pipeline.core.config import FootballContextParams
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import MatchupInput
 from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.registry import register_feature_builder
 from models.pipeline.data.match_history_repository import fetch_finished_matches
 from models.pipeline.data.match_history_repository import fetch_league_context
+from models.pipeline.features.football_context import FootballContextState
+from models.pipeline.features.football_context import build_context_state
+from models.pipeline.features.football_context import context_match_from_row
 from models.pipeline.features.matchup_features import STATIC_FEATURE_COLUMNS
 from models.pipeline.features.matchup_features import build_matchup_static
 from models.pipeline.features.ratings import compute_ratings_timeline
@@ -302,7 +306,8 @@ def _training_static(
         row: pd.Series,
         history: _TrainingHistory,
         league_tier: int | None,
-        feature_cols: list[str]) -> np.ndarray:
+        feature_cols: list[str],
+        context_values: dict[str, float] | None = None) -> np.ndarray:
     home_id = int(row["home_team"])
     away_id = int(row["away_team"])
     match_date = pd.Timestamp(row["game_date"])
@@ -334,6 +339,9 @@ def _training_static(
         "league_tier": float(league_tier or 0)
     })
     _add_static_aliases(values)
+    # None zostawia wektor V2, bez podmiany elo i średnich ligi.
+    if context_values is not None:
+        values.update(context_values)
     missing = set(feature_cols).difference(values)
     if missing:
         raise KeyError(f"Unknown static features: {sorted(missing)}")
@@ -473,6 +481,69 @@ def _timeline_for_matchup(
     return timeline.loc[dates < pd.Timestamp(matchup.as_of_date)].copy()
 
 
+def _calendar_day(value: date | datetime) -> date:
+    """Return the calendar day of a kickoff timestamp."""
+    if isinstance(value, datetime):
+        return value.date()
+    return value
+
+
+def context_state_for(
+        context: SharedHistoryContext | None,
+        timeline: pd.DataFrame,
+        as_of: date | datetime,
+        params: FootballContextParams) -> FootballContextState:
+    """Return context state for one day, reusing the shared cache."""
+    if context is None:
+        return build_context_state(timeline, _calendar_day(as_of), params)
+    # Ten sam dzień i te same parametry dają ten sam stan.
+    key = (_calendar_day(as_of), params.model_dump_json())
+    cached = context.context_states.get(key)
+    if cached is not None:
+        return cached
+    state = build_context_state(timeline, key[0], params)
+    context.context_states[key] = state
+    return state
+
+
+def _sample_context_values(
+        state: FootballContextState | None,
+        row: pd.Series) -> dict[str, float] | None:
+    """Return context features visible before this row's kickoff."""
+    if state is None:
+        return None
+    return state.static_features(
+        int(row["home_team"]),
+        int(row["away_team"]),
+        int(row["league"]),
+        int(row["season"]),
+        pd.Timestamp(row["game_date"]))
+
+
+def _matchup_context_values(
+        matchup: MatchupInput,
+        config: FutureEventsRunConfig,
+        context: SharedHistoryContext | None,
+        timeline: pd.DataFrame,
+        league_id: int) -> dict[str, float] | None:
+    """Return context features when the config asks for them."""
+    params = config.context_params
+    if params is None:
+        return None
+    # Sezon jest na parze. Stan nie zgaduje go z ostatniego meczu ligi.
+    if matchup.season_id is None:
+        raise ValueError(
+            "season_id is required when context_params is set")
+    state = context_state_for(
+        context, timeline, matchup.as_of_date, params)
+    return state.static_features(
+        matchup.home_team_id,
+        matchup.away_team_id,
+        league_id,
+        matchup.season_id,
+        pd.Timestamp(matchup.as_of_date))
+
+
 @register_feature_builder("FutureEventsFeatureBuilder")
 class FutureEventsFeatureBuilder:
     """Build dual sequences, static features, labels, and sample dates."""
@@ -497,6 +568,9 @@ class FutureEventsFeatureBuilder:
         dates: list[pd.Timestamp] = []
         identity: list[tuple[int, int, int, int, int]] = []
         history = _TrainingHistory(config.window_size)
+        context_state = None
+        if config.context_params is not None:
+            context_state = FootballContextState(config.context_params)
         sequence_columns = (
             config.sequence_feature_columns or DEFAULT_SEQUENCE_FEATURES)
         static_columns = (
@@ -513,7 +587,8 @@ class FutureEventsFeatureBuilder:
                     row,
                     history,
                     league_tiers.get(int(row["league"])),
-                    static_columns)
+                    static_columns,
+                    _sample_context_values(context_state, row))
                 home_sequences.append(home)
                 away_sequences.append(away)
                 static_rows.append(static)
@@ -522,19 +597,23 @@ class FutureEventsFeatureBuilder:
                 identity.append(_sample_identity(row))
             for _, row in date_rows.iterrows():
                 history.commit(row)
+                if context_state is not None:
+                    context_state.commit(context_match_from_row(row))
         if not labels:
             raise ValueError("No matches have enough history for sequences")
         # Identyfikatory i gole w tej samej kolejności co labels.
         identity_columns = np.asarray(identity, dtype=np.int64)
+        league_ids = identity_columns[:, 1]
         return {
             "batch": SequenceBatch(
                 X_home=np.stack(home_sequences),
                 X_away=np.stack(away_sequences),
-                X_static=np.stack(static_rows)),
+                X_static=np.stack(static_rows),
+                league_ids=league_ids),
             "labels": np.asarray(labels),
             "dates": np.asarray(dates, dtype="datetime64[ns]"),
             "match_ids": identity_columns[:, 0],
-            "league_ids": identity_columns[:, 1],
+            "league_ids": league_ids,
             "season_ids": identity_columns[:, 2],
             "home_goals": identity_columns[:, 3],
             "away_goals": identity_columns[:, 4]
@@ -573,11 +652,14 @@ class FutureEventsFeatureBuilder:
             timeline,
             _matchup_league_tier(
                 config.sport_id, league_id, context),
-            config.static_feature_columns)
+            config.static_feature_columns,
+            _matchup_context_values(
+                matchup, config, context, timeline, league_id))
         return SequenceBatch(
             X_home=home[np.newaxis, ...],
             X_away=away[np.newaxis, ...],
-            X_static=static[np.newaxis, ...])
+            X_static=static[np.newaxis, ...],
+            league_ids=np.asarray([league_id], dtype=np.int64))
 
     def build_prediction_batch(
             self,

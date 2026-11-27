@@ -6,6 +6,7 @@ import json
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import date
 from datetime import datetime
 from typing import Any
@@ -17,6 +18,7 @@ from models.pipeline.data.match_history_repository import (
     fetch_finished_matches)
 from models.pipeline.data.match_history_repository import (
     fetch_league_context)
+from models.pipeline.features.football_context import FootballContextState
 from models.pipeline.features.ratings import compute_ratings_timeline
 
 
@@ -41,6 +43,9 @@ class SharedHistoryContext:
     league_tiers: dict[int, int | None]
     max_as_of_date: date
     ratings_by_key: dict[str, pd.DataFrame] | None = None
+    # Klucz: dzień meczu i JSON parametrów. Stan nie zależy od ratingów.
+    context_states: dict[tuple[date, str], FootballContextState] = field(
+        default_factory=dict)
 
 
 def _ratings_key(params: Mapping[str, Any] | None) -> str:

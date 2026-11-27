@@ -169,7 +169,8 @@ def build_matchup_static(
         matches: pd.DataFrame,
         ratings_timeline: pd.DataFrame | None = None,
         league_tier: int | None = None,
-        feature_cols: list[str] | None = None) -> np.ndarray:
+        feature_cols: list[str] | None = None,
+        context_values: dict[str, float] | None = None) -> np.ndarray:
     """Build an ordered numeric vector of static matchup features."""
     ratings = ratings_timeline if ratings_timeline is not None else matches
     home = _rating_features(ratings, home_id, as_of_date, "home")
@@ -220,6 +221,9 @@ def build_matchup_static(
         "h2h_home_win_rate": values["h2h_home_wins"] / h2h_count,
         "h2h_draw_rate": values["h2h_draws"] / h2h_count
     })
+    # None zostawia wektor V2, bez podmiany elo i średnich ligi.
+    if context_values is not None:
+        values.update(context_values)
     columns = feature_cols or STATIC_FEATURE_COLUMNS
     missing = set(columns).difference(values)
     if missing:
