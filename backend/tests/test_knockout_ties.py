@@ -1,4 +1,4 @@
-"""Unit tests for knockout ties and football scores."""
+"""Unit tests for knockout ties, football scores and series wins."""
 
 from __future__ import annotations
 
@@ -6,13 +6,16 @@ import unittest
 from datetime import datetime
 
 from backend.services.knockout_stages import stage_label
+from backend.services.knockout_ties import BASKETBALL_SPORT_ID
 from backend.services.knockout_ties import FOOTBALL_SPORT_ID
+from backend.services.knockout_ties import HOCKEY_SPORT_ID
 from backend.services.knockout_ties import THIRD_PLACE_LABEL
 from backend.services.knockout_ties import BracketTie
 from backend.services.knockout_ties import GroupedTies
 from backend.services.knockout_ties import TieMatch
 from backend.services.knockout_ties import football_match_winner
 from backend.services.knockout_ties import group_ties
+from backend.services.knockout_ties import hockey_match_winner
 from backend.services.knockout_ties import resolve_score_winner
 from backend.services.knockout_ties import tie_with_score
 
@@ -53,7 +56,9 @@ def _played(
         home_extra_time_goals: int | None = None,
         away_extra_time_goals: int | None = None,
         home_penalty_goals: int | None = None,
-        away_penalty_goals: int | None = None) -> TieMatch:
+        away_penalty_goals: int | None = None,
+        ot_winner: int | None = None,
+        so_winner: int | None = None) -> TieMatch:
     """Build a match whose score the winner rules can read."""
     played = (
         result not in (None, "", "0")
@@ -77,7 +82,9 @@ def _played(
         home_extra_time_goals=home_extra_time_goals,
         away_extra_time_goals=away_extra_time_goals,
         home_penalty_goals=home_penalty_goals,
-        away_penalty_goals=away_penalty_goals)
+        away_penalty_goals=away_penalty_goals,
+        ot_winner=ot_winner,
+        so_winner=so_winner)
 
 
 def _one_tie(matches: list[TieMatch]) -> BracketTie:
@@ -405,12 +412,125 @@ class TestFootballScore(unittest.TestCase):
         self.assertEqual(level_scored.matches[0].decided_by, "regulation")
 
     def test_other_sport_stays_unscored(self) -> None:
-        # 2 to hokej. Gałąź serii jest poza tym podzadaniem.
-        hockey_sport_id = 2
+        # Sport spoza piłki, hokeja i koszykówki nie ma gałęzi wyniku.
+        other_sport_id = 9
         match = _played(1, 970, 10, 20, 2, 1, "1")
         original = _one_tie([match])
-        self.assertIsNone(resolve_score_winner(original, hockey_sport_id))
-        self.assertIs(tie_with_score(original, hockey_sport_id), original)
+        self.assertIsNone(resolve_score_winner(original, other_sport_id))
+        self.assertIs(tie_with_score(original, other_sport_id), original)
+
+
+class TestSeriesScore(unittest.TestCase):
+    """Win counts for a hockey or basketball series."""
+
+    def test_overtime_draw_counts_as_a_home_win(self) -> None:
+        # Remis 3:3 z OTwinner 1 jest punktem gospodarza, nie remisem.
+        match = _played(1, 960, 10, 20, 3, 3, "X", ot_winner=1)
+        self.assertEqual(hockey_match_winner(match), 10)
+        scored = tie_with_score(_one_tie([match]), HOCKEY_SPORT_ID)
+        self.assertEqual(scored.series_wins_by_team, {10: 1, 20: 0})
+        self.assertEqual(scored.matches[0].decided_by, "overtime")
+        self.assertIsNone(scored.score_winner_team_id)
+        self.assertIsNone(scored.aggregate_by_team)
+
+    def test_hockey_series_clinches_at_four_wins(self) -> None:
+        games = [
+            _played(1, 960, 10, 20, 3, 3, "X", ot_winner=1),
+            _played(2, 961, 10, 20, 2, 1, "1"),
+            _played(3, 962, 20, 10, 4, 2, "1"),
+            _played(4, 963, 10, 20, 1, 0, "1"),
+            _played(5, 964, 20, 10, 3, 1, "1"),
+            _played(6, 965, 10, 20, 3, 1, "1")]
+        original = _one_tie(games)
+        scored = tie_with_score(original, HOCKEY_SPORT_ID)
+        self.assertEqual(hockey_match_winner(games[0]), 10)
+        self.assertEqual(scored.series_wins_by_team, {10: 4, 20: 2})
+        self.assertEqual(scored.score_winner_team_id, 10)
+        self.assertEqual(
+            resolve_score_winner(original, HOCKEY_SPORT_ID), 10)
+        self.assertEqual(scored.matches[0].decided_by, "overtime")
+        self.assertEqual(scored.matches[1].decided_by, "regulation")
+        self.assertIsNone(scored.aggregate_by_team)
+        self.assertIsNone(scored.advanced_team_id)
+        self.assertIsNone(original.series_wins_by_team)
+        self.assertIsNone(original.score_winner_team_id)
+        self.assertIsNone(original.matches[0].decided_by)
+
+    def test_series_below_four_wins_has_no_score_winner(self) -> None:
+        games = [
+            _played(1, 960, 10, 20, 3, 3, "X", ot_winner=1),
+            _played(2, 961, 10, 20, 2, 3, "2"),
+            _played(3, 962, 10, 20, 1, 0, "1"),
+            _played(4, 963, 10, 20, 1, 2, "2")]
+        original = _one_tie(games)
+        scored = tie_with_score(original, HOCKEY_SPORT_ID)
+        self.assertEqual(scored.series_wins_by_team, {10: 2, 20: 2})
+        self.assertIsNone(scored.score_winner_team_id)
+        self.assertIsNone(
+            resolve_score_winner(original, HOCKEY_SPORT_ID))
+        self.assertIsNone(scored.advanced_team_id)
+
+    def test_shootout_names_the_winner_of_a_draw(self) -> None:
+        match = _played(
+            1, 960, 10, 20, 2, 2, "X",
+            ot_winner=3,
+            so_winner=2)
+        self.assertEqual(hockey_match_winner(match), 20)
+        scored = tie_with_score(_one_tie([match]), HOCKEY_SPORT_ID)
+        self.assertEqual(scored.series_wins_by_team, {10: 0, 20: 1})
+        self.assertEqual(scored.matches[0].decided_by, "shootout")
+        self.assertIsNone(scored.score_winner_team_id)
+
+    def test_shootout_side_outranks_overtime_side(self) -> None:
+        # Przy obu kodach wygrywa karna, bo jest późniejsza.
+        match = _played(
+            1, 960, 10, 20, 3, 3, "X",
+            ot_winner=1,
+            so_winner=2)
+        self.assertEqual(hockey_match_winner(match), 20)
+        scored = tie_with_score(_one_tie([match]), HOCKEY_SPORT_ID)
+        self.assertEqual(scored.matches[0].decided_by, "shootout")
+
+    def test_draw_without_a_side_code_has_no_winner(self) -> None:
+        match = _played(
+            1, 960, 10, 20, 3, 3, "X",
+            ot_winner=3,
+            so_winner=0)
+        self.assertIsNone(hockey_match_winner(match))
+        scored = tie_with_score(_one_tie([match]), HOCKEY_SPORT_ID)
+        self.assertIsNone(scored.series_wins_by_team)
+        self.assertIsNone(scored.score_winner_team_id)
+
+    def test_unplayed_hockey_game_does_not_count(self) -> None:
+        match = _played(1, 960, 10, 20, 3, 2, "0")
+        scored = tie_with_score(_one_tie([match]), HOCKEY_SPORT_ID)
+        self.assertIsNone(hockey_match_winner(match))
+        self.assertIsNone(scored.series_wins_by_team)
+        self.assertIsNone(scored.score_winner_team_id)
+        self.assertIsNone(scored.matches[0].decided_by)
+
+    def test_basketball_uses_only_the_result_code(self) -> None:
+        draw = _played(1, 960, 10, 20, 100, 100, "X", ot_winner=1)
+        away = _played(2, 961, 10, 20, 98, 110, "2")
+        self.assertEqual(hockey_match_winner(draw), 10)
+        scored = tie_with_score(
+            _one_tie([draw, away]), BASKETBALL_SPORT_ID)
+        self.assertEqual(scored.series_wins_by_team, {10: 0, 20: 1})
+        self.assertIsNone(scored.score_winner_team_id)
+        self.assertEqual(
+            [match.decided_by for match in scored.matches],
+            [None, "regulation"])
+        self.assertIsNone(scored.aggregate_by_team)
+
+    def test_basketball_clinches_at_four_wins(self) -> None:
+        games = [
+            _played(index, 959 + index, 10, 20, 100, 90, "1")
+            for index in range(1, 5)]
+        scored = tie_with_score(_one_tie(games), BASKETBALL_SPORT_ID)
+        self.assertEqual(scored.series_wins_by_team, {10: 4, 20: 0})
+        self.assertEqual(scored.score_winner_team_id, 10)
+        self.assertEqual(
+            resolve_score_winner(scored, BASKETBALL_SPORT_ID), 10)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Group knockout matches into ties and score a football tie."""
+"""Group knockout matches into ties and score them."""
 
 from __future__ import annotations
 
@@ -14,12 +14,20 @@ from backend.services.knockout_stages import stage_label
 
 THIRD_PLACE_LABEL = "Mecz o 3. miejsce"
 FOOTBALL_SPORT_ID = 1
+HOCKEY_SPORT_ID = 2
+BASKETBALL_SPORT_ID = 3
+SERIES_WINS_TO_CLINCH = 4
 DECIDED_REGULATION = "regulation"
 DECIDED_EXTRA_TIME = "extra_time"
 DECIDED_PENALTIES = "penalties"
+DECIDED_OVERTIME = "overtime"
+DECIDED_SHOOTOUT = "shootout"
 _UNPLAYED_RESULT = "0"
 _RESULT_HOME = "1"
 _RESULT_AWAY = "2"
+_RESULT_DRAW = "X"
+_SIDE_HOME = 1
+_SIDE_AWAY = 2
 # Bez terminu mecz idzie za tymi, które datę mają.
 _UNDATED = datetime.max
 
@@ -30,7 +38,8 @@ class TieMatch:
 
     ``round_number`` is ``matches.round``. Grouping classifies it
     instead of trusting a caller-supplied family or depth. The leg
-    stored on the tie comes from that classification.
+    stored on the tie comes from that classification. A hockey
+    draw names its winner through ``so_winner`` and ``ot_winner``.
     """
 
     match_id: int
@@ -52,6 +61,8 @@ class TieMatch:
     away_extra_time_goals: int | None = None
     home_penalty_goals: int | None = None
     away_penalty_goals: int | None = None
+    ot_winner: int | None = None
+    so_winner: int | None = None
 
 
 @dataclass(frozen=True)
@@ -59,8 +70,9 @@ class BracketTie:
     """All matches of one pair in a single knockout phase.
 
     ``team_ids`` lists the lower team id first. ``tie_with_score``
-    fills the football score on a copy. Feeders and the champion
-    path stay empty until a later step.
+    fills the football aggregate or the series win counts on a
+    copy. Feeders and the champion path stay empty until a later
+    step.
     """
 
     tie_id: str
@@ -214,31 +226,41 @@ def football_match_winner(match: TieMatch) -> int | None:
     return _football_outcome(match)[0]
 
 
-def resolve_score_winner(tie: BracketTie, sport_id: int) -> int | None:
-    """Return the football score winner of a tie, or None.
+def hockey_match_winner(match: TieMatch) -> int | None:
+    """Return the team that won one hockey match, or None.
 
-    One match uses ``football_match_winner``. Two matches compare
-    the aggregate once both legs are played. A level aggregate
-    uses the penalty shootout. Hockey and basketball are not
-    scored here.
+    A ``"1"`` or ``"2"`` result names that side. A draw takes
+    ``so_winner`` 1 or 2, then ``ot_winner`` 1 or 2 when the
+    shootout names no side. Basketball does not use this.
     """
-    # Seria hokeja i koszykówki ma osobny próg zwycięstw.
-    if sport_id != FOOTBALL_SPORT_ID:
-        return None
+    return _hockey_outcome(match)[0]
+
+
+def resolve_score_winner(tie: BracketTie, sport_id: int) -> int | None:
+    """Return the score winner of a tie, or None.
+
+    Football uses one match or a two-legged aggregate. Hockey and
+    basketball count wins and name a winner only when one team
+    reaches ``SERIES_WINS_TO_CLINCH`` and leads. Any other sport
+    has no score.
+    """
     return tie_with_score(tie, sport_id).score_winner_team_id
 
 
 def tie_with_score(tie: BracketTie, sport_id: int) -> BracketTie:
-    """Return a copy with the football score written onto the tie.
+    """Return a copy with this sport's score written on the tie.
 
-    ``decided_by`` is set on each match. A two-legged tie also gets
-    ``aggregate_by_team``. ``score_winner_team_id`` is the value
-    ``resolve_score_winner`` returns. The tie is frozen, so the
-    fields are filled on a copy. Other sports come back unchanged.
+    Football sets ``decided_by`` and, for two legs,
+    ``aggregate_by_team``. Hockey and basketball set ``decided_by``
+    and ``series_wins_by_team``. ``score_winner_team_id`` matches
+    ``resolve_score_winner``. The tie is frozen, so the fields are
+    filled on a copy. Any other sport comes back unchanged.
     """
-    if sport_id != FOOTBALL_SPORT_ID:
-        return tie
-    return _football_tie_with_score(tie)
+    if sport_id == FOOTBALL_SPORT_ID:
+        return _football_tie_with_score(tie)
+    if sport_id in (HOCKEY_SPORT_ID, BASKETBALL_SPORT_ID):
+        return _series_tie_with_score(tie, sport_id)
+    return tie
 
 
 def _football_outcome(match: TieMatch) -> tuple[int | None, str | None]:
@@ -415,3 +437,107 @@ def _shootout_winner(tie: BracketTie) -> int | None:
         if shootout is not None:
             winner = shootout
     return winner
+
+
+def _series_tie_with_score(tie: BracketTie, sport_id: int) -> BracketTie:
+    """Fill the decision, the win counts and the series winner."""
+    scored = [_series_match(match, sport_id) for match in tie.matches]
+    wins = _series_wins(scored, tie.team_ids)
+    return replace(
+        tie,
+        matches=[match for match, _winner in scored],
+        series_wins_by_team=wins,
+        score_winner_team_id=_winner_from_series(wins))
+
+
+def _series_match(
+        match: TieMatch,
+        sport_id: int) -> tuple[TieMatch, int | None]:
+    """Return the match copy and the team that took the game."""
+    winner, decided_by = _series_outcome(match, sport_id)
+    if match.decided_by == decided_by:
+        return (match, winner)
+    return (replace(match, decided_by=decided_by), winner)
+
+
+def _series_outcome(
+        match: TieMatch,
+        sport_id: int) -> tuple[int | None, str | None]:
+    """Winner and decision of one series game.
+
+    Basketball reads only ``result``. The stored score is already
+    the one after overtime, so there is no extra side column.
+    """
+    if sport_id == HOCKEY_SPORT_ID:
+        return _hockey_outcome(match)
+    winner = _result_side(match)
+    if winner is None:
+        return (None, None)
+    return (winner, DECIDED_REGULATION)
+
+
+def _hockey_outcome(match: TieMatch) -> tuple[int | None, str | None]:
+    """Winner team id and how that hockey match was decided."""
+    result_winner = _result_side(match)
+    if result_winner is not None:
+        return (result_winner, DECIDED_REGULATION)
+    if match.result != _RESULT_DRAW:
+        return (None, None)
+    # Karne są późniejszym rozstrzygnięciem niż sama dogrywka.
+    shootout = _coded_side(match.so_winner, match)
+    if shootout is not None:
+        return (shootout, DECIDED_SHOOTOUT)
+    overtime = _coded_side(match.ot_winner, match)
+    if overtime is not None:
+        return (overtime, DECIDED_OVERTIME)
+    return (None, None)
+
+
+def _coded_side(code: int | None, match: TieMatch) -> int | None:
+    """Map a 1 or 2 side code onto a team id.
+
+    Overtime 3 and shootout 0 do not name a side.
+    """
+    if code == _SIDE_HOME:
+        return match.home_team_id
+    if code == _SIDE_AWAY:
+        return match.away_team_id
+    return None
+
+
+def _series_wins(
+        scored: list[tuple[TieMatch, int | None]],
+        team_ids: tuple[int, ...]) -> dict[int, int] | None:
+    """Count decided games. An undecided series has no total."""
+    if len(team_ids) != 2:
+        return None
+    totals = {team_id: 0 for team_id in team_ids}
+    counted = False
+    for _match, winner in scored:
+        if winner not in totals:
+            continue
+        totals[winner] += 1
+        counted = True
+    if not counted:
+        return None
+    return totals
+
+
+def _winner_from_series(wins: dict[int, int] | None) -> int | None:
+    """Team with at least four wins and more than the rival."""
+    if wins is None or len(wins) != 2:
+        return None
+    first_id, second_id = tuple(wins)
+    first_wins = wins[first_id]
+    second_wins = wins[second_id]
+    if first_wins == second_wins:
+        return None
+    if first_wins > second_wins:
+        leader_id = first_id
+        leader_wins = first_wins
+    else:
+        leader_id = second_id
+        leader_wins = second_wins
+    if leader_wins < SERIES_WINS_TO_CLINCH:
+        return None
+    return leader_id
