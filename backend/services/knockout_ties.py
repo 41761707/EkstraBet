@@ -1,4 +1,4 @@
-"""Group knockout matches that share two teams into one tie."""
+"""Group knockout matches into ties and score a football tie."""
 
 from __future__ import annotations
 
@@ -13,6 +13,13 @@ from backend.services.knockout_stages import stage_label
 
 
 THIRD_PLACE_LABEL = "Mecz o 3. miejsce"
+FOOTBALL_SPORT_ID = 1
+DECIDED_REGULATION = "regulation"
+DECIDED_EXTRA_TIME = "extra_time"
+DECIDED_PENALTIES = "penalties"
+_UNPLAYED_RESULT = "0"
+_RESULT_HOME = "1"
+_RESULT_AWAY = "2"
 # Bez terminu mecz idzie za tymi, które datę mają.
 _UNDATED = datetime.max
 
@@ -51,8 +58,9 @@ class TieMatch:
 class BracketTie:
     """All matches of one pair in a single knockout phase.
 
-    ``team_ids`` lists the lower team id first. Score, feeders and
-    the champion path stay empty until a later step fills them.
+    ``team_ids`` lists the lower team id first. ``tie_with_score``
+    fills the football score on a copy. Feeders and the champion
+    path stay empty until a later step.
     """
 
     tie_id: str
@@ -193,3 +201,217 @@ def _match_sort_key(
 
 def _source_rounds(matches: list[TieMatch]) -> tuple[int, ...]:
     return tuple(sorted({match.round_number for match in matches}))
+
+
+def football_match_winner(match: TieMatch) -> int | None:
+    """Return the team that won one football match, or None.
+
+    The first condition that names a winner stands. An unplayed
+    match (empty result, ``"0"``, or missing goals) has none.
+    Otherwise penalties, extra time, a split regulation score and
+    a ``"1"`` or ``"2"`` result are tried in that order.
+    """
+    return _football_outcome(match)[0]
+
+
+def resolve_score_winner(tie: BracketTie, sport_id: int) -> int | None:
+    """Return the football score winner of a tie, or None.
+
+    One match uses ``football_match_winner``. Two matches compare
+    the aggregate once both legs are played. A level aggregate
+    uses the penalty shootout. Hockey and basketball are not
+    scored here.
+    """
+    # Seria hokeja i koszykówki ma osobny próg zwycięstw.
+    if sport_id != FOOTBALL_SPORT_ID:
+        return None
+    return tie_with_score(tie, sport_id).score_winner_team_id
+
+
+def tie_with_score(tie: BracketTie, sport_id: int) -> BracketTie:
+    """Return a copy with the football score written onto the tie.
+
+    ``decided_by`` is set on each match. A two-legged tie also gets
+    ``aggregate_by_team``. ``score_winner_team_id`` is the value
+    ``resolve_score_winner`` returns. The tie is frozen, so the
+    fields are filled on a copy. Other sports come back unchanged.
+    """
+    if sport_id != FOOTBALL_SPORT_ID:
+        return tie
+    return _football_tie_with_score(tie)
+
+
+def _football_outcome(match: TieMatch) -> tuple[int | None, str | None]:
+    """Winner team id and how that winner was decided."""
+    if _is_unplayed(match):
+        return (None, None)
+    penalty_winner = _side_winner(
+        match.home_penalty_goals,
+        match.away_penalty_goals,
+        match)
+    if penalty_winner is not None:
+        return (penalty_winner, DECIDED_PENALTIES)
+    extra_winner = _side_winner(
+        match.home_extra_time_goals,
+        match.away_extra_time_goals,
+        match)
+    if extra_winner is not None:
+        return (extra_winner, DECIDED_EXTRA_TIME)
+    regulation_winner = _side_winner(
+        match.home_goals,
+        match.away_goals,
+        match)
+    if regulation_winner is not None:
+        return (regulation_winner, DECIDED_REGULATION)
+    result_winner = _result_side(match)
+    if result_winner is not None:
+        return (result_winner, DECIDED_REGULATION)
+    return (None, None)
+
+
+def _is_unplayed(match: TieMatch) -> bool:
+    """True when the result is empty or the regulation goals are missing."""
+    result = match.result
+    if result is None or result == "" or result == _UNPLAYED_RESULT:
+        return True
+    return match.home_goals is None or match.away_goals is None
+
+
+def _result_side(match: TieMatch) -> int | None:
+    """Team named by a 1 or 2 result, when the score did not split."""
+    if match.result == _RESULT_HOME:
+        return match.home_team_id
+    if match.result == _RESULT_AWAY:
+        return match.away_team_id
+    return None
+
+
+def _side_winner(
+        home_goals: int | None,
+        away_goals: int | None,
+        match: TieMatch) -> int | None:
+    """Team with the strictly higher total, otherwise None."""
+    if home_goals is None or away_goals is None or home_goals == away_goals:
+        return None
+    if home_goals > away_goals:
+        return match.home_team_id
+    return match.away_team_id
+
+
+def _football_tie_with_score(tie: BracketTie) -> BracketTie:
+    """Fill decision, aggregate and score winner for football."""
+    matches = [_with_decision(match) for match in tie.matches]
+    scored = replace(tie, matches=matches)
+    if len(matches) == 1:
+        return replace(
+            scored,
+            score_winner_team_id=football_match_winner(matches[0]))
+    if len(matches) == 2:
+        return _two_legged_score(scored)
+    return scored
+
+
+def _with_decision(match: TieMatch) -> TieMatch:
+    """Copy the match when ``decided_by`` changes."""
+    decided_by = _football_outcome(match)[1]
+    if match.decided_by == decided_by:
+        return match
+    return replace(match, decided_by=decided_by)
+
+
+def _two_legged_score(tie: BracketTie) -> BracketTie:
+    """Fill the running total, then the winner when both legs are played.
+
+    The total of the played leg stays on the card. The pair winner
+    waits, because a final would otherwise name a champion between
+    the two matches.
+    """
+    aggregate = _aggregate_by_team(tie)
+    # W finale ten identyfikator staje się awansem. W przerwie
+    # między nogami ścieżka mistrza ma zostać zgaszona.
+    if _has_unplayed_leg(tie):
+        winner = None
+    else:
+        winner = _winner_from_aggregate(tie, aggregate)
+    return replace(
+        tie,
+        aggregate_by_team=aggregate,
+        score_winner_team_id=winner)
+
+
+def _has_unplayed_leg(tie: BracketTie) -> bool:
+    """True when either leg is still unplayed."""
+    for match in tie.matches:
+        if _is_unplayed(match):
+            return True
+    return False
+
+
+def _aggregate_by_team(tie: BracketTie) -> dict[int, int] | None:
+    """Sum played legs by team. Penalty kicks are not included."""
+    if len(tie.team_ids) != 2:
+        return None
+    totals = {team_id: 0 for team_id in tie.team_ids}
+    counted = False
+    for match in tie.matches:
+        pair = _goals_in_aggregate(match)
+        if pair is None:
+            continue
+        home_goals, away_goals = pair
+        totals[match.home_team_id] += home_goals
+        totals[match.away_team_id] += away_goals
+        counted = True
+    if not counted:
+        return None
+    return totals
+
+
+def _goals_in_aggregate(match: TieMatch) -> tuple[int, int] | None:
+    """Goals that enter the two-legged sum for one match.
+
+    Only a leg that ``football_match_winner`` would accept is
+    counted. Extra-time totals already include regulation, so they
+    replace it. A shootout never enters the sum.
+    """
+    if _is_unplayed(match):
+        return None
+    extra_home = match.home_extra_time_goals
+    extra_away = match.away_extra_time_goals
+    if extra_home is not None and extra_away is not None:
+        return (extra_home, extra_away)
+    home_goals = match.home_goals
+    away_goals = match.away_goals
+    if home_goals is None or away_goals is None:
+        return None
+    return (home_goals, away_goals)
+
+
+def _winner_from_aggregate(
+        tie: BracketTie,
+        aggregate: dict[int, int] | None) -> int | None:
+    """Higher aggregate, or the shootout when the sums are level."""
+    if aggregate is None or len(tie.team_ids) != 2:
+        return None
+    first_id, second_id = tie.team_ids
+    first_goals = aggregate[first_id]
+    second_goals = aggregate[second_id]
+    if first_goals > second_goals:
+        return first_id
+    if second_goals > first_goals:
+        return second_id
+    return _shootout_winner(tie)
+
+
+def _shootout_winner(tie: BracketTie) -> int | None:
+    """Team that won penalties on the latest match that had them."""
+    # Karne dwumeczu padają na późniejszym meczu. Gdy są na obu,
+    # rozstrzyga ten późniejszy.
+    winner = None
+    for match in tie.matches:
+        shootout = _side_winner(
+            match.home_penalty_goals,
+            match.away_penalty_goals,
+            match)
+        if shootout is not None:
+            winner = shootout
+    return winner
