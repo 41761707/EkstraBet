@@ -11,6 +11,7 @@ import pandas as pd
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.features import sequence_builder
 from models.pipeline.features.ratings import compute_ratings_timeline
+from models.pipeline.features.matchup_features import build_matchup_static
 from models.pipeline.features.sequence_builder import FutureEventsFeatureBuilder
 from models.pipeline.features.sequence_builder import _perspective_row
 from models.pipeline.features.sequence_builder import build_team_sequence
@@ -251,3 +252,47 @@ def test_training_batch_uses_chronological_state_without_public_scans(
     assert result["season_ids"].tolist() == [15] * 10
     assert result["home_goals"].tolist() == [2] * 10
     assert result["away_goals"].tolist() == [1] * 10
+
+
+def test_abs_elo_diff_is_the_absolute_pre_match_gap() -> None:
+    row = pd.Series({
+        "home_team": 10,
+        "away_team": 20,
+        "league": 1,
+        "game_date": datetime(2026, 6, 1),
+        "home_elo": 1410.0,
+        "away_elo": 1540.0
+    })
+    trained = sequence_builder._training_static(
+        row,
+        sequence_builder._TrainingHistory(window=1),
+        None,
+        ["elo_diff", "abs_elo_diff"])
+    assert float(trained[0]) == -130.0
+    assert float(trained[1]) == 130.0
+    matches = pd.DataFrame([{
+        "league": 1,
+        "game_date": datetime(2026, 5, 1),
+        "result": "1",
+        "home_team": 10,
+        "away_team": 20,
+        "home_team_goals": 1,
+        "away_team_goals": 0,
+        "home_elo": 1500.0,
+        "away_elo": 1500.0,
+        "home_elo_post": 1410.0,
+        "away_elo_post": 1540.0,
+        "home_gap_att": 1.0,
+        "home_gap_def": 1.0,
+        "away_gap_att": 1.0,
+        "away_gap_def": 1.0
+    }])
+    predicted = build_matchup_static(
+        10,
+        20,
+        datetime(2026, 6, 1),
+        1,
+        matches,
+        feature_cols=["elo_diff", "abs_elo_diff"])
+    assert float(predicted[0]) == -130.0
+    assert float(predicted[1]) == 130.0

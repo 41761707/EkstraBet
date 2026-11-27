@@ -1,4 +1,4 @@
-"""Incremental league and team-season context from finished matches."""
+"""Incremental league, team-season and table context from finished matches."""
 
 from __future__ import annotations
 
@@ -21,6 +21,9 @@ _PRIOR_AWAY_GOALS = 1.2
 # o λ równym średniej domyślnych bramek gospodarzy i gości.
 _PRIOR_ZERO_GOAL_SIDE = exp(
     -(_PRIOR_HOME_GOALS + _PRIOR_AWAY_GOALS) / 2.0)
+
+# Plan podaje 1.35, gdy sezon nie ma jeszcze żadnego meczu drużyn.
+_DEFAULT_POINTS_PER_GAME = 1.35
 
 # Prior, gdy w oknie nie ma ani meczów ligi, ani meczów globalnych.
 DEFAULT_LEAGUE_PRIOR = {
@@ -89,6 +92,9 @@ class _TeamGame:
     clean_sheet: int
     failed_to_score: int
     draw: int
+    points: int
+    goals_for: int
+    goals_against: int
 
 
 @dataclass
@@ -99,6 +105,9 @@ class _TeamCounts:
     clean_sheets: int = 0
     failed_to_score: int = 0
     draws: int = 0
+    points: int = 0
+    goals_for: int = 0
+    goals_against: int = 0
 
 
 class FootballContextState:
@@ -112,6 +121,9 @@ class FootballContextState:
         # Lista meczów, nie suma: wcześniejsze as_of na tym samym stanie
         # musi pominąć mecze dopisane później.
         self._team_games: dict[tuple[int, int, int], list[_TeamGame]] = {}
+        self._season_teams: dict[tuple[int, int], list[int]] = {}
+        # Daty każdej ligi: zmęczenie nie jest ograniczone do sezonu.
+        self._team_dates: dict[int, list[pd.Timestamp]] = {}
 
     def commit(self, match: ContextMatch) -> None:
         """Append one finished match to league, team and global history."""
@@ -162,10 +174,14 @@ class FootballContextState:
             league_id: int,
             season_id: int,
             as_of: pd.Timestamp) -> dict[str, float]:
-        """Return season rates for one team, shrunk toward the league.
+        """Return season rates, table place and fatigue for one team.
 
         Clean sheets and matches without a goal use the shrunk share of
         sides that scored zero. Draws use ``league_ctx_draw_pct``.
+        Rank is 0 for the leader and 0.5 when the team has not played
+        or the table has fewer than two teams. Points per game fall
+        back to the season average, then to 1.35. Fatigue counts every
+        league in ``[as_of - fatigue_days, as_of)``.
         ``side`` selects the ``home`` or ``away`` key prefix.
         """
         if side not in ("home", "away"):
@@ -180,6 +196,12 @@ class FootballContextState:
         shrink = self._params.team_shrink_matches
         prefix = f"{side}_ctx"
         played = float(counts.matches)
+        standings = _season_standings(
+            self._team_games,
+            self._season_teams.get((league_id, season_id), ()),
+            league_id,
+            season_id,
+            moment)
         return {
             f"{prefix}_clean_sheet_pct": _shrink(
                 counts.clean_sheets, counts.matches, zero_ref, shrink),
@@ -189,8 +211,30 @@ class FootballContextState:
                 counts.draws, counts.matches, draw_ref, shrink),
             f"{prefix}_matches_played": played,
             f"{prefix}_is_newcomer": self._newcomer_flag(
-                team_id, league_id, season_id, moment)
+                team_id, league_id, season_id, moment),
+            f"{prefix}_rank_pct": _rank_pct(team_id, standings),
+            f"{prefix}_points_per_game": _points_per_game(
+                team_id, standings),
+            f"{prefix}_matches_last_14d": _matches_in_window(
+                self._team_dates.get(team_id, ()),
+                moment,
+                self._params.fatigue_days)
         }
+
+    def static_features(
+            self,
+            home_id: int,
+            away_id: int,
+            league_id: int,
+            season_id: int,
+            as_of: pd.Timestamp) -> dict[str, float]:
+        """Return league features plus both teams' context features."""
+        features = self.league_features(league_id, season_id, as_of)
+        features.update(self.team_features(
+            home_id, "home", league_id, season_id, as_of))
+        features.update(self.team_features(
+            away_id, "away", league_id, season_id, as_of))
+        return features
 
     def _append_team_game(
             self,
@@ -204,9 +248,19 @@ class FootballContextState:
             game_date=game_date,
             clean_sheet=int(goals_against == 0),
             failed_to_score=int(goals_for == 0),
-            draw=int(goals_for == goals_against))
+            draw=int(goals_for == goals_against),
+            points=_result_points(goals_for, goals_against),
+            goals_for=goals_for,
+            goals_against=goals_against)
         key = (team_id, league_id, season_id)
-        self._team_games.setdefault(key, []).append(game)
+        games = self._team_games.get(key)
+        if games is None:
+            self._team_games[key] = [game]
+            season_key = (league_id, season_id)
+            self._season_teams.setdefault(season_key, []).append(team_id)
+        else:
+            games.append(game)
+        self._team_dates.setdefault(team_id, []).append(game_date)
 
     def _zero_goal_side_rate(
             self,
@@ -351,7 +405,100 @@ def _count_team_games(
         counts.clean_sheets += game.clean_sheet
         counts.failed_to_score += game.failed_to_score
         counts.draws += game.draw
+        counts.points += game.points
+        counts.goals_for += game.goals_for
+        counts.goals_against += game.goals_against
     return counts
+
+
+def _result_points(goals_for: int, goals_against: int) -> int:
+    """Return 3, 1 or 0 from the team's own scoreline."""
+    if goals_for > goals_against:
+        return 3
+    if goals_for == goals_against:
+        return 1
+    return 0
+
+
+def _season_standings(
+        team_games: Mapping[tuple[int, int, int], list[_TeamGame]],
+        team_ids: Iterable[int],
+        league_id: int,
+        season_id: int,
+        as_of: pd.Timestamp) -> dict[int, _TeamCounts]:
+    """Return teams that already played in this league season."""
+    standings: dict[int, _TeamCounts] = {}
+    for team_id in team_ids:
+        counts = _count_team_games(
+            team_games.get((team_id, league_id, season_id), ()),
+            as_of)
+        if counts.matches == 0:
+            continue
+        standings[team_id] = counts
+    return standings
+
+
+def _standing_key(
+        team_id: int,
+        counts: _TeamCounts) -> tuple[int, int, int, int]:
+    """Order a leader first: points, goal difference, goals, then id.
+
+    A lower team id ranks higher when the other three are equal, so a
+    full tie does not depend on commit order.
+    """
+    goal_difference = counts.goals_for - counts.goals_against
+    return (
+        -counts.points,
+        -goal_difference,
+        -counts.goals_for,
+        team_id)
+
+
+def _rank_pct(
+        team_id: int,
+        standings: Mapping[int, _TeamCounts]) -> float:
+    """Map table position to ``[0, 1]``. The leader is 0.
+
+    A side with no match yet, or a table shorter than two teams, is 0.5.
+    """
+    if team_id not in standings or len(standings) < 2:
+        return 0.5
+    ordered = sorted(
+        standings,
+        key=lambda team: _standing_key(team, standings[team]))
+    rank = ordered.index(team_id) + 1
+    return (rank - 1) / (len(standings) - 1)
+
+
+def _points_per_game(
+        team_id: int,
+        standings: Mapping[int, _TeamCounts]) -> float:
+    """Return the team's rate, the season average, or 1.35."""
+    counts = standings.get(team_id)
+    if counts is not None:
+        return counts.points / counts.matches
+    total_points = 0
+    total_matches = 0
+    for row in standings.values():
+        total_points += row.points
+        total_matches += row.matches
+    if total_matches == 0:
+        return _DEFAULT_POINTS_PER_GAME
+    return total_points / total_matches
+
+
+def _matches_in_window(
+        dates: Iterable[pd.Timestamp],
+        as_of: pd.Timestamp,
+        fatigue_days: int) -> float:
+    """Count dates in ``[as_of - fatigue_days, as_of)``."""
+    start = as_of - pd.Timedelta(days=fatigue_days)
+    count = 0
+    for game_date in dates:
+        if game_date < start or game_date >= as_of:
+            continue
+        count += 1
+    return float(count)
 
 
 def _previous_season_id(

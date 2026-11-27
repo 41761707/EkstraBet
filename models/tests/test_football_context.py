@@ -285,7 +285,10 @@ def test_team_rates_shrink_toward_the_league() -> None:
         "home_ctx_failed_to_score_pct",
         "home_ctx_draw_pct",
         "home_ctx_matches_played",
-        "home_ctx_is_newcomer"
+        "home_ctx_is_newcomer",
+        "home_ctx_rank_pct",
+        "home_ctx_points_per_game",
+        "home_ctx_matches_last_14d"
     }
     assert home["home_ctx_clean_sheet_pct"] == pytest.approx(
         (1 + 2 * zero_ref) / 4, abs=_ABS)
@@ -351,3 +354,150 @@ def test_team_features_reject_an_unknown_side() -> None:
     state = FootballContextState(FootballContextParams())
     with pytest.raises(ValueError, match="side"):
         state.team_features(1, "draw", 1, 1, AS_OF)
+
+
+def _context_feature_names() -> set[str]:
+    league = {
+        "league_ctx_home_goals",
+        "league_ctx_away_goals",
+        "league_ctx_btts_pct",
+        "league_ctx_over_25_pct",
+        "league_ctx_draw_pct",
+        "league_ctx_season_matches"
+    }
+    suffixes = (
+        "clean_sheet_pct",
+        "failed_to_score_pct",
+        "draw_pct",
+        "matches_played",
+        "is_newcomer",
+        "rank_pct",
+        "points_per_game",
+        "matches_last_14d"
+    )
+    names = set(league)
+    for side in ("home", "away"):
+        for suffix in suffixes:
+            names.add(f"{side}_ctx_{suffix}")
+    return names
+
+
+def test_rank_pct_breaks_points_ties_by_difference_goals_and_id() -> None:
+    # Sezon 10: 3:0 i 1:0. Oba zwycięstwa dają 3 pkt, bilans stawia
+    # 10 przed 30 oraz 40 przed 20. Sezon 11 to same remisy: punkty
+    # i bilans równe, więc decydują gole, a potem niższe id.
+    # Porażka 10 w innej lidze i mecz z dnia as_of nie wchodzą.
+    state = FootballContextState(FootballContextParams())
+    _commit(state, [
+        _teams(1, 1, 10, "2026-03-01", 10, 20, 3, 0),
+        _teams(2, 1, 10, "2026-03-08", 30, 40, 1, 0),
+        _teams(3, 1, 11, "2026-04-01", 10, 20, 2, 2),
+        _teams(4, 1, 11, "2026-04-08", 30, 40, 0, 0),
+        _teams(5, 2, 10, "2026-03-02", 10, 70, 0, 5),
+        _teams(6, 1, 10, "2026-06-01", 20, 10, 5, 0)
+    ])
+    rank = "home_ctx_rank_pct"
+    season_10 = {
+        10: 0.0,
+        30: 1 / 3,
+        40: 2 / 3,
+        20: 1.0
+    }
+    for team_id, expected in season_10.items():
+        features = state.team_features(team_id, "home", 1, 10, AS_OF)
+        assert features[rank] == pytest.approx(expected, abs=_ABS)
+    leader = state.team_features(10, "home", 1, 10, AS_OF)
+    assert leader["home_ctx_matches_played"] == pytest.approx(1.0, abs=_ABS)
+    assert leader["home_ctx_points_per_game"] == pytest.approx(3.0, abs=_ABS)
+    season_11 = {
+        10: 0.0,
+        20: 1 / 3,
+        30: 2 / 3,
+        40: 1.0
+    }
+    for team_id, expected in season_11.items():
+        features = state.team_features(team_id, "home", 1, 11, AS_OF)
+        assert features[rank] == pytest.approx(expected, abs=_ABS)
+        assert features["home_ctx_points_per_game"] == pytest.approx(
+            1.0, abs=_ABS)
+    early = state.team_features(
+        30, "home", 1, 10, pd.Timestamp("2026-03-05"))
+    assert early[rank] == pytest.approx(0.5, abs=_ABS)
+    assert early["home_ctx_points_per_game"] == pytest.approx(1.5, abs=_ABS)
+
+
+def test_points_per_game_without_matches_uses_league_average() -> None:
+    # Cztery mecze drużyn rozdają 6 punktów, więc średnia to 1.5.
+    # Drużyna bez występu bierze 1.5. Pusta liga zostaje przy 1.35.
+    state = FootballContextState(FootballContextParams())
+    _commit(state, [
+        _teams(1, 1, 10, "2026-03-01", 10, 20, 3, 0),
+        _teams(2, 1, 10, "2026-03-08", 30, 40, 1, 0)
+    ])
+    played = state.team_features(10, "home", 1, 10, AS_OF)
+    beaten = state.team_features(40, "away", 1, 10, AS_OF)
+    idle = state.team_features(99, "home", 1, 10, AS_OF)
+    empty = state.team_features(1, "home", 8, 1, AS_OF)
+    assert played["home_ctx_points_per_game"] == pytest.approx(3.0, abs=_ABS)
+    assert beaten["away_ctx_points_per_game"] == pytest.approx(0.0, abs=_ABS)
+    assert idle["home_ctx_points_per_game"] == pytest.approx(1.5, abs=_ABS)
+    assert idle["home_ctx_rank_pct"] == pytest.approx(0.5, abs=_ABS)
+    assert empty["home_ctx_points_per_game"] == pytest.approx(
+        1.35, abs=_ABS)
+    assert empty["home_ctx_rank_pct"] == pytest.approx(0.5, abs=_ABS)
+    assert empty["home_ctx_matches_last_14d"] == pytest.approx(
+        0.0, abs=_ABS)
+
+
+def test_fatigue_window_includes_the_opening_day_and_other_leagues() -> None:
+    # Okno [as_of - dni, as_of). Dzień otwarcia wchodzi, dzień wcześniej
+    # i dzień as_of nie. Mecz innej ligi w środku okna też się liczy.
+    # Przy fatigue_days=1 zostaje tylko wczoraj: nazwa cechy bez zmian.
+    as_of = pd.Timestamp("2026-06-01")
+    start = as_of - pd.Timedelta(days=14)
+    outside = (start - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    state = FootballContextState(FootballContextParams(fatigue_days=14))
+    _commit(state, [
+        _teams(1, 1, 10, outside, 10, 20, 1, 0),
+        _teams(2, 1, 10, start.strftime("%Y-%m-%d"), 10, 30, 1, 0),
+        _teams(3, 9, 3, "2026-05-25", 10, 40, 2, 2),
+        _teams(4, 1, 10, "2026-06-01", 10, 20, 3, 0)
+    ])
+    home = state.team_features(10, "home", 1, 10, as_of)
+    rested = state.team_features(20, "away", 1, 10, as_of)
+    boundary = state.team_features(30, "away", 1, 10, as_of)
+    assert home["home_ctx_matches_last_14d"] == pytest.approx(2.0, abs=_ABS)
+    assert rested["away_ctx_matches_last_14d"] == pytest.approx(
+        0.0, abs=_ABS)
+    assert boundary["away_ctx_matches_last_14d"] == pytest.approx(
+        1.0, abs=_ABS)
+    narrow = FootballContextState(FootballContextParams(fatigue_days=1))
+    _commit(narrow, [
+        _teams(1, 1, 10, "2026-05-30", 10, 20, 1, 0),
+        _teams(2, 1, 10, "2026-05-31", 10, 20, 1, 0),
+        _teams(3, 1, 10, "2026-06-01", 10, 20, 1, 0)
+    ])
+    short = narrow.team_features(10, "home", 1, 10, as_of)
+    assert short["home_ctx_matches_last_14d"] == pytest.approx(
+        1.0, abs=_ABS)
+
+
+def test_static_features_join_league_and_both_teams() -> None:
+    state = FootballContextState(FootballContextParams())
+    _commit(state, [
+        _teams(1, 1, 10, "2026-03-01", 10, 20, 2, 0)
+    ])
+    features = state.static_features(10, 20, 1, 10, AS_OF)
+    home = state.team_features(10, "home", 1, 10, AS_OF)
+    away = state.team_features(20, "away", 1, 10, AS_OF)
+    league = state.league_features(1, 10, AS_OF)
+    assert set(features) == _context_feature_names()
+    assert "abs_elo_diff" not in features
+    assert features["home_ctx_rank_pct"] == pytest.approx(
+        home["home_ctx_rank_pct"], abs=_ABS)
+    assert features["away_ctx_points_per_game"] == pytest.approx(
+        away["away_ctx_points_per_game"], abs=_ABS)
+    assert features["league_ctx_home_goals"] == pytest.approx(
+        league["league_ctx_home_goals"], abs=_ABS)
+    assert features["home_ctx_matches_last_14d"] == pytest.approx(
+        home["home_ctx_matches_last_14d"], abs=_ABS)

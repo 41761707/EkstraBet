@@ -312,6 +312,7 @@ def _training_static(
         "elo_home": home["elo"],
         "elo_away": away["elo"],
         "elo_diff": home["elo"] - away["elo"],
+        "abs_elo_diff": abs(home["elo"] - away["elo"]),
         "home_att": home["att"],
         "home_def": home["def"],
         "away_att": away["att"],
