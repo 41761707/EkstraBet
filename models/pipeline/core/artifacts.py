@@ -14,6 +14,7 @@ ARTIFACT_MODEL_NAME = "model.joblib"
 ARTIFACT_KERAS_MODEL_NAME = "model.keras"
 ARTIFACT_SCALER_NAME = "scaler.joblib"
 ARTIFACT_FEATURES_NAME = "feature_columns.json"
+ARTIFACT_LEAGUE_VOCAB_NAME = "league_vocab.json"
 ARTIFACT_METRICS_NAME = "metrics.json"
 ARTIFACT_META_NAME = "meta.json"
 
@@ -116,6 +117,43 @@ def load_feature_columns(artifact_dir: Path) -> list[str]:
     if not isinstance(columns, list) or not columns:
         raise ValueError("feature_columns artifact is empty or invalid")
     return [str(column) for column in columns]
+
+
+def save_league_vocab(artifact_dir: Path, league_ids: list[int]) -> Path:
+    """Persist the ordered training-window league vocabulary."""
+    target = ensure_artifact_dir(artifact_dir) / ARTIFACT_LEAGUE_VOCAB_NAME
+    with target.open("w", encoding="utf-8") as handle:
+        json.dump({"league_ids": league_ids}, handle, indent=2)
+    return target
+
+
+def load_league_vocab(artifact_dir: Path) -> list[int]:
+    """Load the league vocabulary. A missing file is an error.
+
+    Each id must be a JSON integer. Bools, strings and non-integer
+    numbers are rejected so a damaged file cannot alias a real league.
+    """
+    target = Path(artifact_dir) / ARTIFACT_LEAGUE_VOCAB_NAME
+    if not target.is_file():
+        raise FileNotFoundError(
+            f"League vocabulary artifact not found: {target}")
+    with target.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    league_ids = None
+    if isinstance(payload, dict):
+        league_ids = payload.get("league_ids")
+    if not isinstance(league_ids, list):
+        raise ValueError("league_vocab artifact is missing league_ids")
+    return [_require_json_int(league_id) for league_id in league_ids]
+
+
+def _require_json_int(value: object) -> int:
+    """Return a JSON integer. Bools and fractional numbers are rejected."""
+    # bool jest podklasą int, a json.load zostawia 1.5 i "45" bez zmian.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(
+            "league_vocab artifact league_ids must be integers")
+    return value
 
 
 def save_metrics(artifact_dir: Path, metrics: dict[str, Any]) -> Path:

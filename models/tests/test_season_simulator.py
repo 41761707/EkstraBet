@@ -14,6 +14,8 @@ import pytest
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import SequenceBatch
 from models.pipeline.features.chronological_state import (
+    BuiltMatchupFeatures)
+from models.pipeline.features.chronological_state import (
     build_season_start_state)
 from models.pipeline.prediction.future_events_predictor import (
     FutureEventsPredictor)
@@ -26,6 +28,7 @@ from models.pipeline.simulation.config import SeasonSimulationInput
 from models.pipeline.simulation.config import SimulationMode
 from models.pipeline.simulation.season_simulator import DynamicSeasonSimulator
 from models.pipeline.simulation.season_simulator import TrialStandingState
+from models.pipeline.simulation.season_simulator import _stack_features
 
 
 def _goals_config(window: int = 1) -> FutureEventsRunConfig:
@@ -426,3 +429,30 @@ def test_round_progress_wraps_each_round_once() -> None:
         base_state=_warm_state([10, 20, 30, 40]),
         round_progress=progress)
     assert seen == [1, 2, 3, 4, 5, 6]
+
+
+def test_stacked_features_repeat_the_simulated_league() -> None:
+    row = BuiltMatchupFeatures(
+        home_sequence=np.zeros((2, 1), dtype=np.float32),
+        away_sequence=np.ones((2, 1), dtype=np.float32),
+        static_features=np.zeros((3,), dtype=np.float32))
+    batch = _stack_features([row, row], 45)
+    assert batch.league_ids is not None
+    assert batch.league_ids.tolist() == [45, 45]
+    captured: dict[str, np.ndarray] = {}
+
+    class _Model:
+        def predict(self, inputs, verbose=0):
+            del verbose
+            captured["index"] = np.asarray(inputs[3])
+            return np.full((2, 2), [1.4, 1.1], dtype=float)
+
+    config = _goals_config().model_copy(update={"league_embedding_dim": 4})
+    predictor = FutureEventsPredictor(
+        goals_config=config,
+        models=LoadedFutureModels(
+            goals_model=_Model(),
+            goals_league_vocab=[7, 45]))
+    rates = predictor.predict_goal_rates(batch)
+    assert rates.shape == (2, 2)
+    assert captured["index"].reshape(-1).tolist() == [2, 2]

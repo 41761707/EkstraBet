@@ -20,10 +20,15 @@ from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.core.registry import register_trainer
+from models.pipeline.training.model_inputs import build_league_vocab
 from models.pipeline.training.model_inputs import model_inputs
 from models.pipeline.training.model_inputs import sequence_normalization_layer
 from models.pipeline.training.splits import split_by_dates
 from models.pipeline.training.trainer import Trainer
+
+
+# Małe L2, bo lig jest kilkadziesiąt i embedding łatwo zapamiętuje szum.
+_LEAGUE_EMBEDDING_L2 = 1e-3
 
 
 def _keras() -> Any:
@@ -59,16 +64,85 @@ def _training_normalization_layer(
     return sequence_normalization_layer(sequences)
 
 
+def _league_branch(
+        config: FutureEventsRunConfig,
+        league_vocab_size: int | None) -> tuple[Any, Any] | None:
+    """Return the league input and its flattened embedding.
+
+    ``None`` keeps the three-input graph used by V2. Index 0 is reserved
+    for a league missing from the training vocabulary, so the table has
+    one extra row.
+    """
+    if config.league_embedding_dim <= 0:
+        return None
+    if league_vocab_size is None:
+        raise ValueError(
+            "league_vocab_size is required when league_embedding_dim > 0")
+    if league_vocab_size < 0:
+        raise ValueError("league_vocab_size must be non-negative")
+    keras = _keras()
+    league_input = keras.Input(
+        shape=(1,), dtype="int32", name="league_index")
+    embedded = keras.layers.Embedding(
+        league_vocab_size + 1,
+        config.league_embedding_dim,
+        embeddings_regularizer=keras.regularizers.l2(
+            _LEAGUE_EMBEDDING_L2),
+        name="league_embedding")(league_input)
+    vector = keras.layers.Flatten(
+        name="league_embedding_flat")(embedded)
+    return league_input, vector
+
+
+def _training_league_vocab(
+        config: FutureEventsRunConfig,
+        train_batch: SequenceBatch) -> list[int] | None:
+    """Build the league vocabulary from the training window only."""
+    if config.league_embedding_dim <= 0:
+        return None
+    if train_batch.league_ids is None:
+        raise ValueError(
+            "league_ids is required when league_embedding_dim > 0")
+    return build_league_vocab(train_batch.league_ids)
+
+
+def _artifact_league_vocab(
+        config: FutureEventsRunConfig) -> list[int] | None:
+    """Load a saved vocabulary when the config embeds leagues."""
+    if config.league_embedding_dim <= 0:
+        return None
+    return artifacts.load_league_vocab(config.artifact_dir)
+
+
+def _save_league_vocab_artifact(
+        config: FutureEventsRunConfig,
+        league_vocab: list[int] | None) -> None:
+    """Write ``league_vocab.json`` only for an embedding model."""
+    if league_vocab is None:
+        return
+    artifacts.save_league_vocab(config.artifact_dir, league_vocab)
+
+
+def _vocab_size(league_vocab: list[int] | None) -> int | None:
+    """Return the embedding table's known-league count."""
+    if league_vocab is None:
+        return None
+    return len(league_vocab)
+
+
 def build_dual_lstm_classifier(
         sequence_shape: tuple[int, int],
         static_features: int,
         classes: int,
         config: FutureEventsRunConfig,
-        normalization_layer: Any | None = None) -> Any:
+        normalization_layer: Any | None = None,
+        league_vocab_size: int | None = None) -> Any:
     """Build dual home/away LSTMs plus a dense static branch.
 
     When ``normalization_layer`` is set, both sequences pass through
-    that one layer before the LSTMs.
+    that one layer before the LSTMs. A positive ``league_embedding_dim``
+    adds a ``league_index`` input and joins its embedding with the
+    branches before the hidden layer.
     """
     keras = _keras()
     home_input = keras.Input(shape=sequence_shape, name="home_sequence")
@@ -85,16 +159,20 @@ def build_dual_lstm_classifier(
         config.dense_units,
         activation="relu",
         name="static_dense")(static_input)
-    merged = keras.layers.Concatenate()([
-        home_branch, away_branch, static_branch])
+    inputs = [home_input, away_input, static_input]
+    branches = [home_branch, away_branch, static_branch]
+    league = _league_branch(config, league_vocab_size)
+    if league is not None:
+        league_input, league_vector = league
+        inputs.append(league_input)
+        branches.append(league_vector)
+    merged = keras.layers.Concatenate()(branches)
     hidden = keras.layers.Dense(
         config.dense_units, activation="relu")(merged)
     hidden = keras.layers.Dropout(0.2)(hidden)
     output = keras.layers.Dense(
         classes, activation="softmax", name="probabilities")(hidden)
-    model = keras.Model(
-        inputs=[home_input, away_input, static_input],
-        outputs=output)
+    model = keras.Model(inputs=inputs, outputs=output)
     model.compile(
         optimizer=keras.optimizers.Adam(config.learning_rate),
         loss="sparse_categorical_crossentropy",
@@ -263,7 +341,8 @@ def _fit_chronological_model(
         train_labels: np.ndarray,
         validation_batch: SequenceBatch | None,
         validation_labels: np.ndarray | None,
-        config: FutureEventsRunConfig) -> Any:
+        config: FutureEventsRunConfig,
+        league_vocab: list[int] | None = None) -> Any:
     """Fit without shuffling. Fixed epochs skip early stopping."""
     fit_kwargs: dict[str, Any] = {
         "epochs": _epoch_count(config),
@@ -274,7 +353,7 @@ def _fit_chronological_model(
     if validation_batch is not None and validation_labels is not None:
         keras = _keras()
         fit_kwargs["validation_data"] = (
-            model_inputs(validation_batch, config, None),
+            model_inputs(validation_batch, config, league_vocab),
             validation_labels)
         fit_kwargs["callbacks"] = [keras.callbacks.EarlyStopping(
             monitor="val_loss",
@@ -284,7 +363,7 @@ def _fit_chronological_model(
         raise ValueError(
             "validation batch and labels must both be present or absent")
     return model.fit(
-        model_inputs(train_batch, config, None),
+        model_inputs(train_batch, config, league_vocab),
         train_labels,
         **fit_kwargs)
 
@@ -294,12 +373,13 @@ def _score_validation(
         validation_batch: SequenceBatch | None,
         validation_labels: np.ndarray | None,
         metric_fn: Callable[[np.ndarray, np.ndarray], dict[str, float]],
-        config: FutureEventsRunConfig
+        config: FutureEventsRunConfig,
+        league_vocab: list[int] | None = None
 ) -> tuple[dict[str, float], int]:
     if validation_batch is None or validation_labels is None:
         return {}, 0
     predicted = np.asarray(model.predict(
-        model_inputs(validation_batch, config, None),
+        model_inputs(validation_batch, config, league_vocab),
         verbose=0))
     return metric_fn(validation_labels, predicted), len(validation_labels)
 
@@ -381,27 +461,32 @@ class LstmTrainer(Trainer):
         classes = 3 if config.task_type == "result" else 2
         normalization_layer = _training_normalization_layer(
             config, train_batch)
+        league_vocab = _training_league_vocab(config, train_batch)
         model = build_dual_lstm_classifier(
             train_batch.X_home.shape[1:],
             train_batch.X_static.shape[1],
             classes,
             config,
-            normalization_layer)
+            normalization_layer,
+            _vocab_size(league_vocab))
         history = _fit_chronological_model(
             model,
             train_batch,
             holdout.train_labels,
             val_batch,
             holdout.validation_labels,
-            config)
+            config,
+            league_vocab)
         metrics, n_test = _score_validation(
             model,
             val_batch,
             holdout.validation_labels,
             _classification_metrics,
-            config)
+            config,
+            league_vocab)
         best_epoch = _best_epoch(history, config)
-        _save_artifacts(config, model, scaler, metrics, best_epoch)
+        _save_artifacts(
+            config, model, scaler, metrics, best_epoch, league_vocab)
         return TrainingReport(
             model_name=config.model_name,
             model_version=config.model_version,
@@ -430,7 +515,8 @@ class LstmTrainer(Trainer):
             val_batch.league_ids)
         model = artifacts.load_keras_model_artifact(config.artifact_dir)
         probabilities = np.asarray(model.predict(
-            model_inputs(scaled, config, None),
+            model_inputs(
+                scaled, config, _artifact_league_vocab(config)),
             verbose=0))
         metrics = _classification_metrics(y_val, probabilities)
         return EvaluationReport(
@@ -445,10 +531,12 @@ def _save_artifacts(
         model: Any,
         scaler: StandardScaler,
         metrics: dict[str, float],
-        best_epoch: int | None = None) -> None:
+        best_epoch: int | None = None,
+        league_vocab: list[int] | None = None) -> None:
     artifacts.save_keras_model_artifact(config.artifact_dir, model)
     artifacts.save_scaler_artifact(config.artifact_dir, scaler)
     artifacts.save_metrics(config.artifact_dir, metrics)
+    _save_league_vocab_artifact(config, league_vocab)
     meta = {
         "model_name": config.model_name,
         "model_version": config.model_version,

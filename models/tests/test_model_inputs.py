@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from models.pipeline.core.artifacts import load_league_vocab
+from models.pipeline.core.artifacts import save_league_vocab
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import load_model_config
@@ -99,6 +101,31 @@ def test_model_inputs_requires_vocab_and_league_ids() -> None:
 def test_build_league_vocab_returns_sorted_unique_ids() -> None:
     vocab = build_league_vocab(np.array([45, 1, 45, 7]))
     assert vocab == [1, 7, 45]
+
+
+def test_league_vocab_artifact_keeps_the_given_order(
+        tmp_path: Path) -> None:
+    target = save_league_vocab(tmp_path, [45, 1])
+    assert target.name == "league_vocab.json"
+    assert load_league_vocab(tmp_path) == [45, 1]
+    save_league_vocab(tmp_path, [])
+    assert load_league_vocab(tmp_path) == []
+
+
+def test_league_vocab_artifact_rejects_a_bad_file(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    with pytest.raises(FileNotFoundError, match="league_vocab"):
+        load_league_vocab(missing)
+    target = save_league_vocab(tmp_path, [1])
+    target.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="league_ids"):
+        load_league_vocab(tmp_path)
+    rejected = ["[1.5]", "[1.0]", '["45"]', "[true]", "[false]", "[null]"]
+    for payload in rejected:
+        target.write_text(
+            '{"league_ids": ' + payload + "}", encoding="utf-8")
+        with pytest.raises(ValueError, match="integers"):
+            load_league_vocab(tmp_path)
 
 
 def test_league_indexes_follow_the_given_vocab_order() -> None:

@@ -1,15 +1,21 @@
-"""Tests for optional sequence normalization in the LSTM networks."""
+"""Tests for optional sequence normalization and league embedding."""
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 
+from models.pipeline.core.artifacts import load_league_vocab
+from models.pipeline.core.artifacts import save_league_vocab
 from models.pipeline.core.config import FutureEventsRunConfig
+from models.pipeline.core.config import MatchupInput
 from models.pipeline.core.config import SequenceBatch
+from models.pipeline.evaluation import candidates
+from models.pipeline.prediction import future_events_predictor as predictor
 from models.pipeline.training import lstm_trainer
 from models.pipeline.training import poisson_trainer
 from models.pipeline.training.lstm_trainer import LstmTrainer
@@ -172,9 +178,13 @@ def test_trainers_fit_normalization_on_the_training_window_only(
 
     def _build(*args: object, **kwargs: object) -> _RecordingModel:
         del kwargs
-        seen["layer"] = args[-1]
-        width = 3 if len(args) == 5 else 2
-        return _RecordingModel(width)
+        if len(args) > 2 and isinstance(args[2], int):
+            seen["layer"] = args[4] if len(args) > 4 else None
+            seen["vocab_size"] = args[5] if len(args) > 5 else None
+            return _RecordingModel(3)
+        seen["layer"] = args[3] if len(args) > 3 else None
+        seen["vocab_size"] = args[4] if len(args) > 4 else None
+        return _RecordingModel(2)
 
     monkeypatch.setattr(lstm_trainer, "_keras", lambda: _Keras)
     monkeypatch.setattr(
@@ -193,11 +203,15 @@ def test_trainers_fit_normalization_on_the_training_window_only(
         [batch.X_home[:2], batch.X_away[:2]], axis=0)
     assert np.array_equal(seen["sequences"], expected)
     assert seen["layer"] == "norm"
+    assert seen["vocab_size"] is None
+    assert not (tmp_path / "lstm" / "league_vocab.json").is_file()
 
     seen.clear()
     LstmTrainer().train(_split_config(tmp_path / "plain"))
     assert "sequences" not in seen
     assert seen["layer"] is None
+    assert seen["vocab_size"] is None
+    assert not (tmp_path / "plain" / "league_vocab.json").is_file()
 
     monkeypatch.setattr(
         poisson_trainer,
@@ -213,3 +227,294 @@ def test_trainers_fit_normalization_on_the_training_window_only(
     PoissonTrainer().train(poisson_config)
     assert np.array_equal(seen["sequences"], expected)
     assert seen["layer"] == "norm"
+    assert seen["vocab_size"] is None
+    assert not (tmp_path / "poisson" / "league_vocab.json").is_file()
+
+
+def _embedding_inputs(model: Any) -> list[str]:
+    return [tensor.name.split(":")[0] for tensor in model.inputs]
+
+
+def _concat_width(model: Any) -> int:
+    layer = next(
+        item for item in model.layers
+        if item.__class__.__name__ == "Concatenate")
+    return int(layer.output.shape[-1])
+
+
+def test_embedding_is_a_fourth_standard_input() -> None:
+    pytest.importorskip("tensorflow")
+    config = _config(league_embedding_dim=2, lstm_units=4, dense_units=4)
+    layer = sequence_normalization_layer(_sequences())
+    model = build_dual_lstm_classifier((2, 2), 1, 3, config, layer, 3)
+    assert _embedding_inputs(model) == [
+        "home_sequence",
+        "away_sequence",
+        "static_features",
+        "league_index"]
+    assert "int32" in str(model.inputs[3].dtype)
+    embedding = model.get_layer("league_embedding").get_config()
+    assert embedding["input_dim"] == 4
+    assert embedding["output_dim"] == 2
+    regularizer = embedding["embeddings_regularizer"]
+    assert regularizer["class_name"] == "L2"
+    assert regularizer["config"]["l2"] == pytest.approx(1e-3)
+    flat = model.get_layer("league_embedding_flat")
+    assert flat.__class__.__name__ == "Flatten"
+    assert len(_normalization_layers(model)) == 1
+    assert _lstm_reads_normalization(model, "home_lstm")
+    assert _lstm_reads_normalization(model, "away_lstm")
+    assert _concat_width(model) == 4 + 4 + 4 + 2
+    poisson = build_poisson_model((2, 2), 1, config, None, 3)
+    assert _embedding_inputs(poisson)[-1] == "league_index"
+    assert _concat_width(poisson) == 4 + 4 + 4 + 2
+    with pytest.raises(ValueError, match="league_vocab_size"):
+        build_dual_lstm_classifier((2, 2), 1, 3, config)
+    with pytest.raises(ValueError, match="league_vocab_size"):
+        build_poisson_model((2, 2), 1, config)
+
+
+def test_embedding_model_loads_without_custom_objects(
+        tmp_path: Path) -> None:
+    tensorflow = pytest.importorskip("tensorflow")
+    model = build_dual_lstm_classifier(
+        (2, 2),
+        1,
+        3,
+        _config(league_embedding_dim=2),
+        sequence_normalization_layer(_sequences()),
+        3)
+    target = tmp_path / "model.keras"
+    model.save(target)
+    loaded = tensorflow.keras.models.load_model(target)
+    assert loaded.get_layer("league_embedding").get_config()["input_dim"] == 4
+    home = np.zeros((2, 2, 2), dtype=np.float32)
+    away = np.ones((2, 2, 2), dtype=np.float32)
+    static = np.zeros((2, 1), dtype=np.float32)
+    indexes = np.array([[1], [0]], dtype=np.int32)
+    before = np.asarray(model.predict(
+        [home, away, static, indexes], verbose=0))
+    after = np.asarray(loaded.predict(
+        [home, away, static, indexes], verbose=0))
+    assert np.allclose(before, after)
+
+
+def test_zero_embedding_dim_keeps_three_inputs() -> None:
+    pytest.importorskip("tensorflow")
+    model = build_dual_lstm_classifier((2, 2), 1, 3, _config(), None, 3)
+    poisson = build_poisson_model((2, 2), 1, _config(), None, 3)
+    assert len(model.inputs) == 3
+    assert len(poisson.inputs) == 3
+
+
+class _CaptureModel:
+    def __init__(self, width: int) -> None:
+        self.width = width
+        self.train_inputs: list[np.ndarray] | None = None
+        self.validation_inputs: list[np.ndarray] | None = None
+        self.history = _History()
+
+    def fit(self, inputs, labels, **kwargs):
+        del labels
+        self.train_inputs = inputs
+        validation = kwargs.get("validation_data")
+        if validation is not None:
+            self.validation_inputs = validation[0]
+        return self.history
+
+    def predict(self, inputs, verbose=0):
+        del inputs, verbose
+        return np.full((1, self.width), 1.0 / self.width)
+
+    def save(self, path) -> None:
+        Path(path).write_text("ok", encoding="utf-8")
+
+
+def _dated_batch(
+        league_ids: np.ndarray) -> tuple[SequenceBatch, np.ndarray]:
+    rows = len(league_ids)
+    home = np.zeros((rows, 2, 1), dtype=np.float32)
+    away = np.ones((rows, 2, 1), dtype=np.float32)
+    static = np.arange(rows, dtype=np.float32).reshape(rows, 1)
+    dates = np.array([
+        "2026-01-01",
+        "2026-02-01",
+        "2026-06-01",
+        "2026-08-01"], dtype="datetime64[ns]")
+    return SequenceBatch(home, away, static, league_ids), dates
+
+
+def test_trainers_save_vocabulary_from_the_training_window(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    league_ids = np.array([45, 7, 99, 3])
+    batch, dates = _dated_batch(league_ids)
+    captured = _CaptureModel(3)
+    sizes: dict[str, object] = {}
+
+    def _build(*args: object, **kwargs: object) -> _CaptureModel:
+        del kwargs
+        sizes["lstm"] = args[5]
+        return captured
+
+    monkeypatch.setattr(lstm_trainer, "_keras", lambda: _Keras)
+    monkeypatch.setattr(
+        lstm_trainer,
+        "_prepare_training_data",
+        lambda config: (batch, np.zeros(4, dtype=np.int64), dates))
+    monkeypatch.setattr(lstm_trainer, "build_dual_lstm_classifier", _build)
+    artifact_dir = tmp_path / "lstm"
+    LstmTrainer().train(_split_config(
+        artifact_dir, league_embedding_dim=4))
+    assert load_league_vocab(artifact_dir) == [7, 45]
+    assert sizes["lstm"] == 2
+    assert captured.train_inputs is not None
+    assert captured.validation_inputs is not None
+    assert captured.train_inputs[3].reshape(-1).tolist() == [2, 1]
+    assert captured.validation_inputs[3].reshape(-1).tolist() == [0]
+
+    poisson_model = _CaptureModel(2)
+    monkeypatch.setattr(
+        poisson_trainer,
+        "_prepare_training_data",
+        lambda config: (
+            batch, np.zeros((4, 2), dtype=np.float32), dates))
+    def _poisson_build(*args: object, **kwargs: object) -> _CaptureModel:
+        del kwargs
+        sizes["poisson"] = args[4]
+        return poisson_model
+
+    monkeypatch.setattr(
+        poisson_trainer, "build_poisson_model", _poisson_build)
+    poisson_dir = tmp_path / "poisson"
+    PoissonTrainer().train(_split_config(
+        poisson_dir,
+        task_type="goals_poisson",
+        output_columns=["lambda_home", "lambda_away"],
+        league_embedding_dim=4))
+    assert load_league_vocab(poisson_dir) == [7, 45]
+    assert sizes["poisson"] == 2
+    assert poisson_model.train_inputs is not None
+    assert poisson_model.train_inputs[3].reshape(-1).tolist() == [2, 1]
+
+
+def test_embedding_training_requires_league_ids(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    batch, dates = _window_payload()
+    monkeypatch.setattr(
+        lstm_trainer,
+        "_prepare_training_data",
+        lambda config: (batch, np.zeros(4, dtype=np.int64), dates))
+    with pytest.raises(ValueError, match="league_ids"):
+        LstmTrainer().train(_split_config(
+            tmp_path, league_embedding_dim=4))
+
+
+def test_load_future_models_reads_vocab_only_for_an_embedding(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        predictor.artifacts, "load_keras_model_artifact", lambda path: "model")
+    monkeypatch.setattr(
+        predictor.artifacts, "load_scaler_artifact", lambda path: None)
+    plain = predictor.load_future_models(
+        _config(artifact_dir=str(tmp_path / "plain")), None, None)
+    assert plain.result_league_vocab is None
+    embedded_dir = tmp_path / "embedded"
+    save_league_vocab(embedded_dir, [7, 45])
+    loaded = predictor.load_future_models(
+        _config(artifact_dir=str(embedded_dir), league_embedding_dim=4),
+        None,
+        None)
+    assert loaded.result_league_vocab == [7, 45]
+    assert loaded.btts_league_vocab is None
+    with pytest.raises(FileNotFoundError, match="league_vocab"):
+        predictor.load_future_models(
+            _config(
+                artifact_dir=str(tmp_path / "missing"),
+                league_embedding_dim=4),
+            None,
+            None)
+
+
+def test_predictor_maps_an_unknown_league_to_zero() -> None:
+    captured: dict[str, np.ndarray] = {}
+
+    class _Model:
+        def predict(self, inputs, verbose=0):
+            del verbose
+            captured["index"] = np.asarray(inputs[3])
+            return np.asarray([[0.2, 0.5, 0.3]], dtype=float)
+
+    batch = SequenceBatch(
+        np.zeros((1, 2, 1), dtype=np.float32),
+        np.zeros((1, 2, 1), dtype=np.float32),
+        np.zeros((1, 1), dtype=np.float32),
+        np.array([99]))
+
+    def _provider(matchup, config, context=None):
+        del matchup, config, context
+        return batch
+
+    model = predictor.FutureEventsPredictor(
+        result_config=_config(league_embedding_dim=4),
+        models=predictor.LoadedFutureModels(
+            result_model=_Model(),
+            result_league_vocab=[1, 7]),
+        feature_provider=_provider)
+    model.predict_pair(MatchupInput(
+        home_team_id=1,
+        away_team_id=2,
+        league_id=99,
+        as_of_date=date(2026, 11, 1)))
+    assert captured["index"].reshape(-1).tolist() == [0]
+
+
+class _Scaler:
+    def transform(self, values: np.ndarray) -> np.ndarray:
+        return values
+
+
+def test_candidate_scoring_maps_an_unknown_league_to_zero(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    save_league_vocab(tmp_path, [7, 45])
+    captured: dict[str, np.ndarray] = {}
+
+    class _Model:
+        def predict(self, inputs, verbose=0):
+            del verbose
+            captured["index"] = np.asarray(inputs[3])
+            return np.asarray([[0.2, 0.3, 0.5]], dtype=float)
+
+    monkeypatch.setattr(
+        candidates.artifacts,
+        "load_keras_model_artifact",
+        lambda path: _Model())
+    monkeypatch.setattr(
+        candidates.artifacts,
+        "load_scaler_artifact",
+        lambda path, required=False: _Scaler())
+    batch = SequenceBatch(
+        np.zeros((1, 2, 1), dtype=np.float32),
+        np.zeros((1, 2, 1), dtype=np.float32),
+        np.zeros((1, 1), dtype=np.float32),
+        np.array([99]))
+    candidates._predict_rows(
+        _config(artifact_dir=str(tmp_path), league_embedding_dim=4),
+        batch,
+        np.array([0]),
+        "v3")
+    assert captured["index"].reshape(-1).tolist() == [0]
+
+
+def test_candidate_requires_league_vocab_before_history(
+        tmp_path: Path) -> None:
+    directory = tmp_path / "artifact"
+    directory.mkdir()
+    (directory / "model.keras").write_text("x", encoding="utf-8")
+    (directory / "scaler.joblib").write_text("x", encoding="utf-8")
+    candidates._require_saved_model(
+        directory, "v2", _config(artifact_dir=str(directory)))
+    with pytest.raises(FileNotFoundError, match="v3"):
+        candidates._require_saved_model(
+            directory,
+            "v3",
+            _config(artifact_dir=str(directory), league_embedding_dim=4))

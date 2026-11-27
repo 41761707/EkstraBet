@@ -342,7 +342,7 @@ class DynamicSeasonSimulator:
                 built_rows.append(built)
                 keys.append((trial_index, fixture.schedule.id))
         rates = self._predictor.predict_goal_rates(
-            _stack_features(built_rows),
+            _stack_features(built_rows, config.league_id),
             batch_size=config.inference_batch_size)
         scores = sample_poisson_scores(rates, rng)
         per_trial: list[dict[int, tuple[int, int]]] = [
@@ -406,11 +406,19 @@ def _round_results_for_trial(
 
 
 def _stack_features(
-        rows: list[BuiltMatchupFeatures]) -> SequenceBatch:
+        rows: list[BuiltMatchupFeatures],
+        league_id: int) -> SequenceBatch:
+    """Stack matchup tensors and repeat the simulated league id.
+
+    Daily pair prediction already carries ``league_id``. The season
+    path has one league for the whole run. ``model_inputs`` reads this
+    column only when a goals model embeds leagues.
+    """
     return SequenceBatch(
         X_home=np.stack([row.home_sequence for row in rows]),
         X_away=np.stack([row.away_sequence for row in rows]),
-        X_static=np.stack([row.static_features for row in rows]))
+        X_static=np.stack([row.static_features for row in rows]),
+        league_ids=np.full(len(rows), league_id, dtype=np.int64))
 
 
 def _assert_each_schedule_row_once(

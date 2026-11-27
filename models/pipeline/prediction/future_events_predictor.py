@@ -53,7 +53,7 @@ ProgressCallback = Callable[[int, int, MatchupInput], None]
 
 @dataclass(frozen=True)
 class LoadedFutureModels:
-    """Loaded model artifacts and optional static feature scalers."""
+    """Loaded model artifacts, scalers and optional league vocabularies."""
 
     result_model: Any | None = None
     btts_model: Any | None = None
@@ -61,6 +61,9 @@ class LoadedFutureModels:
     result_scaler: Any | None = None
     btts_scaler: Any | None = None
     goals_scaler: Any | None = None
+    result_league_vocab: list[int] | None = None
+    btts_league_vocab: list[int] | None = None
+    goals_league_vocab: list[int] | None = None
 
 
 def _future_config(path: Path) -> FutureEventsRunConfig:
@@ -84,6 +87,15 @@ def _require_at_least_one_config(
     if result_config is None and btts_config is None and goals_config is None:
         raise ValueError(
             "At least one of result, BTTS, or goals config is required")
+
+
+def _league_vocab_for(
+        config: FutureEventsRunConfig | None) -> list[int] | None:
+    """Load the league vocabulary when the family uses an embedding."""
+    if config is None or config.league_embedding_dim <= 0:
+        return None
+    # Brak pliku przy embeddingu jest błędem artefaktu, nie cichym V2.
+    return artifacts.load_league_vocab(config.artifact_dir)
 
 
 def load_future_models(
@@ -110,7 +122,10 @@ def load_future_models(
             if btts_config is not None else None),
         goals_scaler=(
             artifacts.load_scaler_artifact(goals_config.artifact_dir)
-            if goals_config is not None else None))
+            if goals_config is not None else None),
+        result_league_vocab=_league_vocab_for(result_config),
+        btts_league_vocab=_league_vocab_for(btts_config),
+        goals_league_vocab=_league_vocab_for(goals_config))
 
 
 def matchup_cache_key(matchup: MatchupInput) -> tuple[Any, ...]:
@@ -339,7 +354,10 @@ class FutureEventsPredictor:
         if total <= batch_size:
             return _reshape_goal_rates(
                 _predict_array(
-                    self.models.goals_model, scaled, self.goals_config),
+                    self.models.goals_model,
+                    scaled,
+                    self.goals_config,
+                    self.models.goals_league_vocab),
                 total)
         chunks: list[np.ndarray] = []
         for start in range(0, total, batch_size):
@@ -347,7 +365,10 @@ class FutureEventsPredictor:
             chunk = _slice_sequence_batch(scaled, start, end)
             chunk_rates = _reshape_goal_rates(
                 _predict_array(
-                    self.models.goals_model, chunk, self.goals_config),
+                    self.models.goals_model,
+                    chunk,
+                    self.goals_config,
+                    self.models.goals_league_vocab),
                 end - start)
             chunks.append(chunk_rates)
         return np.concatenate(chunks, axis=0)
@@ -366,7 +387,8 @@ class FutureEventsPredictor:
             _predict_array(
                 self.models.result_model,
                 _scaled_batch(batch, self.models.result_scaler),
-                self.result_config)[0],
+                self.result_config,
+                self.models.result_league_vocab)[0],
             3)
         return ResultPrediction(
             p_home=float(values[0]),
@@ -387,7 +409,8 @@ class FutureEventsPredictor:
             _predict_array(
                 self.models.btts_model,
                 _scaled_batch(batch, self.models.btts_scaler),
-                self.btts_config)[0],
+                self.btts_config,
+                self.models.btts_league_vocab)[0],
             2)
         return BttsPrediction(
             p_yes=float(values[1]),

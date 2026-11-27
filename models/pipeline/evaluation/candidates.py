@@ -11,6 +11,7 @@ import numpy as np
 
 from models.pipeline.core import artifacts
 from models.pipeline.core.artifacts import ARTIFACT_KERAS_MODEL_NAME
+from models.pipeline.core.artifacts import ARTIFACT_LEAGUE_VOCAB_NAME
 from models.pipeline.core.artifacts import ARTIFACT_SCALER_NAME
 from models.pipeline.core.config import FutureEventsRunConfig
 from models.pipeline.core.config import SequenceBatch
@@ -90,7 +91,7 @@ def load_candidate_output(
         raise ValueError(
             f"Candidate {label} config is not a future-event model")
     config = loaded.model_copy(update={"date_to": test_to})
-    _require_saved_model(config.artifact_dir, label)
+    _require_saved_model(config.artifact_dir, label, config)
     payload = _training_payload(config)
     positions = _score_positions(payload, test_from, label)
     batch = _require_batch(payload, positions)
@@ -148,13 +149,19 @@ def _families_from_task(
     return ({FAMILY_OVER_25: over}, None, expected)
 
 
-def _require_saved_model(artifact_dir: Path, label: str) -> None:
+def _require_saved_model(
+        artifact_dir: Path,
+        label: str,
+        config: FutureEventsRunConfig) -> None:
     """Reject a candidate before history is loaded."""
     # Literówka w spec nie powinna otwierać bazy ani budować cech.
     directory = Path(artifact_dir)
     model_file = directory / ARTIFACT_KERAS_MODEL_NAME
     scaler_file = directory / ARTIFACT_SCALER_NAME
-    if model_file.is_file() and scaler_file.is_file():
+    vocab_file = directory / ARTIFACT_LEAGUE_VOCAB_NAME
+    needs_vocab = config.league_embedding_dim > 0
+    vocab_ready = not needs_vocab or vocab_file.is_file()
+    if model_file.is_file() and scaler_file.is_file() and vocab_ready:
         return
     raise FileNotFoundError(
         f"Candidate {label} is missing an artifact in {directory}")
@@ -226,6 +233,14 @@ def _require_batch(
     return batch
 
 
+def _candidate_league_vocab(
+        config: FutureEventsRunConfig) -> list[int] | None:
+    """Load the saved vocabulary when the candidate embeds leagues."""
+    if config.league_embedding_dim <= 0:
+        return None
+    return artifacts.load_league_vocab(config.artifact_dir)
+
+
 def _predict_rows(
         config: FutureEventsRunConfig,
         batch: SequenceBatch,
@@ -235,6 +250,7 @@ def _predict_rows(
         scaler = artifacts.load_scaler_artifact(
             config.artifact_dir, required=True)
         model = artifacts.load_keras_model_artifact(config.artifact_dir)
+        league_vocab = _candidate_league_vocab(config)
     except FileNotFoundError as exc:
         raise FileNotFoundError(
             f"Candidate {label} is missing an artifact: {exc}") from exc
@@ -250,7 +266,7 @@ def _predict_rows(
         X_static=scaler.transform(batch.X_static[positions]),
         league_ids=league_ids)
     values = model.predict(
-        model_inputs(window, config, None),
+        model_inputs(window, config, league_vocab),
         verbose=0)
     return np.asarray(values, dtype=float)
 
