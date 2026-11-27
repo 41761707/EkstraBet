@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from models.pipeline.core import artifacts
+from models.pipeline.core.artifacts import ARTIFACT_CALIBRATOR_NAME
 from models.pipeline.core.artifacts import ARTIFACT_KERAS_MODEL_NAME
 from models.pipeline.core.artifacts import ARTIFACT_LEAGUE_VOCAB_NAME
 from models.pipeline.core.artifacts import ARTIFACT_SCALER_NAME
@@ -23,6 +24,7 @@ from models.pipeline.data.match_history_repository import (
     fetch_finished_matches)
 from models.pipeline.prediction.score_matrix import derive_goal_markets
 from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
+from models.pipeline.training.calibration import apply_calibration
 from models.pipeline.training.model_inputs import model_inputs
 
 
@@ -159,12 +161,33 @@ def _require_saved_model(
     model_file = directory / ARTIFACT_KERAS_MODEL_NAME
     scaler_file = directory / ARTIFACT_SCALER_NAME
     vocab_file = directory / ARTIFACT_LEAGUE_VOCAB_NAME
+    calibrator_file = directory / ARTIFACT_CALIBRATOR_NAME
     needs_vocab = config.league_embedding_dim > 0
+    needs_calibrator = config.calibration == "temperature_isotonic"
     vocab_ready = not needs_vocab or vocab_file.is_file()
-    if model_file.is_file() and scaler_file.is_file() and vocab_ready:
+    calibrator_ready = not needs_calibrator or calibrator_file.is_file()
+    temperature_ready = _calibration_meta_ready(directory, config)
+    if (
+            model_file.is_file()
+            and scaler_file.is_file()
+            and vocab_ready
+            and calibrator_ready
+            and temperature_ready):
         return
     raise FileNotFoundError(
         f"Candidate {label} is missing an artifact in {directory}")
+
+
+def _calibration_meta_ready(
+        directory: Path,
+        config: FutureEventsRunConfig) -> bool:
+    """Return whether meta.json carries the temperature this config fits."""
+    if config.calibration == "none":
+        return True
+    meta = artifacts.load_meta(directory)
+    return (
+        meta.get("calibration") == config.calibration
+        and meta.get("temperature") is not None)
 
 
 def _training_payload(config: FutureEventsRunConfig) -> dict[str, object]:
@@ -265,10 +288,28 @@ def _predict_rows(
         X_away=batch.X_away[positions],
         X_static=scaler.transform(batch.X_static[positions]),
         league_ids=league_ids)
-    values = model.predict(
+    values = np.asarray(model.predict(
         model_inputs(window, config, league_vocab),
-        verbose=0)
-    return np.asarray(values, dtype=float)
+        verbose=0), dtype=float)
+    return _apply_saved_calibration(config, values)
+
+
+def _apply_saved_calibration(
+        config: FutureEventsRunConfig,
+        values: np.ndarray) -> np.ndarray:
+    """Use the same temperature and isotonic map as pair prediction.
+
+    Goals stay raw lambdas. ``calibration == none`` returns the network
+    output unchanged.
+    """
+    if config.task_type == "goals_poisson" or config.calibration == "none":
+        return values
+    meta = artifacts.load_meta(config.artifact_dir)
+    calibrator = None
+    if config.calibration == "temperature_isotonic":
+        calibrator = artifacts.load_calibrator(
+            config.artifact_dir, required=True)
+    return apply_calibration(values, meta, calibrator)
 
 
 def _slice_frame(

@@ -15,6 +15,7 @@ ARTIFACT_KERAS_MODEL_NAME = "model.keras"
 ARTIFACT_SCALER_NAME = "scaler.joblib"
 ARTIFACT_FEATURES_NAME = "feature_columns.json"
 ARTIFACT_LEAGUE_VOCAB_NAME = "league_vocab.json"
+ARTIFACT_CALIBRATOR_NAME = "calibrator.joblib"
 ARTIFACT_METRICS_NAME = "metrics.json"
 ARTIFACT_META_NAME = "meta.json"
 
@@ -154,6 +155,26 @@ def _require_json_int(value: object) -> int:
         raise ValueError(
             "league_vocab artifact league_ids must be integers")
     return value
+
+
+def save_calibrator(artifact_dir: Path, calibrator: Any) -> Path:
+    """Persist an isotonic calibrator fitted on the calibration window."""
+    target = ensure_artifact_dir(artifact_dir) / ARTIFACT_CALIBRATOR_NAME
+    joblib.dump(calibrator, target)
+    return target
+
+
+def load_calibrator(
+        artifact_dir: Path,
+        required: bool = False) -> Any | None:
+    """Load an isotonic calibrator. V2 artifacts omit the file."""
+    target = Path(artifact_dir) / ARTIFACT_CALIBRATOR_NAME
+    if not target.is_file():
+        if required:
+            raise FileNotFoundError(
+                f"Calibrator artifact not found: {target}")
+        return None
+    return joblib.load(target)
 
 
 def save_metrics(artifact_dir: Path, metrics: dict[str, Any]) -> Path:

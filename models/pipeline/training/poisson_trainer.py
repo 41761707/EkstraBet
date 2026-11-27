@@ -22,6 +22,7 @@ from models.pipeline.training.lstm_trainer import _holdout_split
 from models.pipeline.training.lstm_trainer import _keras
 from models.pipeline.training.lstm_trainer import _league_branch
 from models.pipeline.training.lstm_trainer import _prepare_training_data
+from models.pipeline.training.lstm_trainer import _option_meta
 from models.pipeline.training.lstm_trainer import _save_league_vocab_artifact
 from models.pipeline.training.lstm_trainer import _scale_holdout
 from models.pipeline.training.lstm_trainer import _score_validation
@@ -235,6 +236,8 @@ def _save_artifacts(
         "loss": "independent_poisson_nll"
     }
     meta.update(_split_meta(config, best_epoch))
+    # Poisson nie liczy temperatury. Klucz zostaje, wartość jest pusta.
+    meta.update(_option_meta(config, None))
     artifacts.save_meta(config.artifact_dir, meta)
 
 

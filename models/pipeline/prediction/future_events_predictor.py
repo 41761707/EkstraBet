@@ -27,6 +27,7 @@ from models.pipeline.data.shared_history_context import feature_signature
 from models.pipeline.prediction.score_matrix import derive_goal_markets
 from models.pipeline.prediction.score_matrix import score_matrix_from_lambdas
 from models.pipeline.prediction.score_matrix import top_exact_scores
+from models.pipeline.training.calibration import apply_calibration
 from models.pipeline.training.model_inputs import model_inputs
 
 
@@ -53,7 +54,7 @@ ProgressCallback = Callable[[int, int, MatchupInput], None]
 
 @dataclass(frozen=True)
 class LoadedFutureModels:
-    """Loaded model artifacts, scalers and optional league vocabularies."""
+    """Loaded artifacts, scalers, league vocabularies and calibration."""
 
     result_model: Any | None = None
     btts_model: Any | None = None
@@ -64,6 +65,12 @@ class LoadedFutureModels:
     result_league_vocab: list[int] | None = None
     btts_league_vocab: list[int] | None = None
     goals_league_vocab: list[int] | None = None
+    result_meta: dict[str, Any] | None = None
+    btts_meta: dict[str, Any] | None = None
+    goals_meta: dict[str, Any] | None = None
+    result_calibrator: Any | None = None
+    btts_calibrator: Any | None = None
+    goals_calibrator: Any | None = None
 
 
 def _future_config(path: Path) -> FutureEventsRunConfig:
@@ -98,12 +105,41 @@ def _league_vocab_for(
     return artifacts.load_league_vocab(config.artifact_dir)
 
 
+def _family_calibration(
+        config: FutureEventsRunConfig | None
+) -> tuple[dict[str, Any] | None, Any | None]:
+    """Load meta and, for BTTS isotonic, the calibrator file.
+
+    ``calibration == none`` still returns meta so the artifact is
+    visible, but prediction ignores it and keeps the raw network.
+    """
+    if config is None:
+        return None, None
+    meta = artifacts.load_meta(config.artifact_dir)
+    if config.calibration == "none":
+        return meta, None
+    if (
+            meta.get("calibration") != config.calibration
+            or meta.get("temperature") is None):
+        raise ValueError(
+            "calibration artifact does not match the config "
+            f"in {config.artifact_dir}")
+    calibrator = None
+    if config.calibration == "temperature_isotonic":
+        calibrator = artifacts.load_calibrator(
+            config.artifact_dir, required=True)
+    return meta, calibrator
+
+
 def load_future_models(
         result_config: FutureEventsRunConfig | None,
         btts_config: FutureEventsRunConfig | None,
         goals_config: FutureEventsRunConfig | None) -> LoadedFutureModels:
     """Load Keras artifacts for the provided future-event families."""
     _require_at_least_one_config(result_config, btts_config, goals_config)
+    result_meta, result_calibrator = _family_calibration(result_config)
+    btts_meta, btts_calibrator = _family_calibration(btts_config)
+    goals_meta, goals_calibrator = _family_calibration(goals_config)
     return LoadedFutureModels(
         result_model=(
             artifacts.load_keras_model_artifact(result_config.artifact_dir)
@@ -125,7 +161,13 @@ def load_future_models(
             if goals_config is not None else None),
         result_league_vocab=_league_vocab_for(result_config),
         btts_league_vocab=_league_vocab_for(btts_config),
-        goals_league_vocab=_league_vocab_for(goals_config))
+        goals_league_vocab=_league_vocab_for(goals_config),
+        result_meta=result_meta,
+        btts_meta=btts_meta,
+        goals_meta=goals_meta,
+        result_calibrator=result_calibrator,
+        btts_calibrator=btts_calibrator,
+        goals_calibrator=goals_calibrator)
 
 
 def matchup_cache_key(matchup: MatchupInput) -> tuple[Any, ...]:
@@ -231,6 +273,21 @@ def _reshape_goal_rates(values: np.ndarray, batch_size: int) -> np.ndarray:
         raise ValueError("Poisson model returned non-finite lambdas")
     # ujemne lambdy traktujemy jak w ścieżce pair prediction
     return np.maximum(rates, 0.0)
+
+
+def _family_probabilities(
+        values: np.ndarray,
+        config: FutureEventsRunConfig,
+        meta: dict[str, Any] | None,
+        calibrator: Any | None,
+        expected_size: int) -> np.ndarray:
+    """Normalize one row, applying the artifact calibration when set."""
+    raw = np.asarray(values, dtype=float).reshape(-1)
+    if config.calibration == "none":
+        calibrated = raw
+    else:
+        calibrated = apply_calibration(raw, meta or {}, calibrator)
+    return _normalized_probabilities(calibrated, expected_size)
 
 
 def _normalized_probabilities(
@@ -383,12 +440,15 @@ class FutureEventsPredictor:
             raise RuntimeError("Result model is not configured")
         batch = self._batch_for(
             matchup, self.result_config, cache=cache, context=context)
-        values = _normalized_probabilities(
+        values = _family_probabilities(
             _predict_array(
                 self.models.result_model,
                 _scaled_batch(batch, self.models.result_scaler),
                 self.result_config,
                 self.models.result_league_vocab)[0],
+            self.result_config,
+            self.models.result_meta,
+            self.models.result_calibrator,
             3)
         return ResultPrediction(
             p_home=float(values[0]),
@@ -405,12 +465,15 @@ class FutureEventsPredictor:
             raise RuntimeError("BTTS model is not configured")
         batch = self._batch_for(
             matchup, self.btts_config, cache=cache, context=context)
-        values = _normalized_probabilities(
+        values = _family_probabilities(
             _predict_array(
                 self.models.btts_model,
                 _scaled_batch(batch, self.models.btts_scaler),
                 self.btts_config,
                 self.models.btts_league_vocab)[0],
+            self.btts_config,
+            self.models.btts_meta,
+            self.models.btts_calibrator,
             2)
         return BttsPrediction(
             p_yes=float(values[1]),

@@ -20,10 +20,15 @@ from models.pipeline.core.config import SequenceBatch
 from models.pipeline.core.config import TrainingReport
 from models.pipeline.core.registry import get_feature_builder
 from models.pipeline.core.registry import register_trainer
+from models.pipeline.training.calibration import apply_calibration
+from models.pipeline.training.calibration import apply_temperature
+from models.pipeline.training.calibration import fit_isotonic
+from models.pipeline.training.calibration import fit_temperature
 from models.pipeline.training.model_inputs import build_league_vocab
 from models.pipeline.training.model_inputs import model_inputs
 from models.pipeline.training.model_inputs import recency_sample_weights
 from models.pipeline.training.model_inputs import sequence_normalization_layer
+from models.pipeline.training.splits import SplitIndexes
 from models.pipeline.training.splits import split_by_dates
 from models.pipeline.training.trainer import Trainer
 
@@ -271,13 +276,15 @@ def _slice_batch(batch: SequenceBatch, indexes: np.ndarray) -> SequenceBatch:
 
 @dataclass(frozen=True)
 class _Holdout:
-    """Train rows and an optional validation holdout."""
+    """Train rows plus optional validation and calibration windows."""
 
     train_batch: SequenceBatch
     train_labels: np.ndarray
     validation_batch: SequenceBatch | None
     validation_labels: np.ndarray | None
     train_dates: np.ndarray
+    calibration_batch: SequenceBatch | None = None
+    calibration_labels: np.ndarray | None = None
 
 
 def _uses_fixed_epochs(config: FutureEventsRunConfig) -> bool:
@@ -317,17 +324,44 @@ def _holdout_split(
     if config.date_to is None:
         raise ValueError("date_to is required when split is set")
     indexes = split_by_dates(dates, config.split, config.date_to)
+    return _dated_holdout(batch, labels, dates, indexes)
+
+
+def _dated_holdout(
+        batch: SequenceBatch,
+        labels: np.ndarray,
+        dates: np.ndarray,
+        indexes: SplitIndexes) -> _Holdout:
+    """Slice train, validation and calibration from one date split."""
     validation_batch = None
     validation_labels = None
     if len(indexes.validation) > 0:
         validation_batch = _slice_batch(batch, indexes.validation)
         validation_labels = labels[indexes.validation]
+    calibration_batch = None
+    calibration_labels = None
+    if len(indexes.calibration) > 0:
+        calibration_batch = _slice_batch(batch, indexes.calibration)
+        calibration_labels = labels[indexes.calibration]
     return _Holdout(
         _slice_batch(batch, indexes.train),
         labels[indexes.train],
         validation_batch,
         validation_labels,
-        np.asarray(dates)[indexes.train])
+        np.asarray(dates)[indexes.train],
+        calibration_batch,
+        calibration_labels)
+
+
+def _scale_static_batch(
+        batch: SequenceBatch,
+        scaler: StandardScaler) -> SequenceBatch:
+    """Apply a scaler that was fit on the training window only."""
+    return SequenceBatch(
+        batch.X_home,
+        batch.X_away,
+        scaler.transform(batch.X_static),
+        batch.league_ids)
 
 
 def _scale_holdout(
@@ -471,6 +505,70 @@ def _scale_static(
         scaler)
 
 
+def _window_log_loss(
+        labels: np.ndarray,
+        probabilities: np.ndarray) -> float:
+    """Return log loss over the columns the model actually emits."""
+    classes = list(range(probabilities.shape[1]))
+    return float(log_loss(labels, probabilities, labels=classes))
+
+
+def _fit_classifier_calibration(
+        model: Any,
+        config: FutureEventsRunConfig,
+        calibration_batch: SequenceBatch | None,
+        calibration_labels: np.ndarray | None,
+        scaler: StandardScaler,
+        league_vocab: list[int] | None
+) -> tuple[float | None, Any | None, dict[str, float]]:
+    """Fit temperature after early stopping. ``none`` skips the window."""
+    if config.calibration == "none":
+        return None, None, {}
+    if calibration_batch is None or calibration_labels is None:
+        raise ValueError("calibration window is empty")
+    scaled = _scale_static_batch(calibration_batch, scaler)
+    probabilities = np.asarray(model.predict(
+        model_inputs(scaled, config, league_vocab),
+        verbose=0), dtype=float)
+    before = _window_log_loss(calibration_labels, probabilities)
+    temperature = fit_temperature(probabilities, calibration_labels)
+    calibrator = None
+    if config.calibration == "temperature_isotonic":
+        adjusted = apply_temperature(probabilities, temperature)
+        # Isotonic widzi P(yes) już po temperaturze, bo inferencja
+        # robi te kroki w tej samej kolejności.
+        calibrator = fit_isotonic(adjusted[:, 1], calibration_labels)
+    calibrated = apply_calibration(
+        probabilities,
+        {
+            "calibration": config.calibration,
+            "temperature": temperature
+        },
+        calibrator)
+    after = _window_log_loss(calibration_labels, calibrated)
+    return temperature, calibrator, {
+        "calibration_log_loss_before": before,
+        "calibration_log_loss_after": after
+    }
+
+
+def _option_meta(
+        config: FutureEventsRunConfig,
+        temperature: float | None) -> dict[str, Any]:
+    """Return the opt-in fields stored next to the fitted temperature."""
+    context_params = None
+    if config.context_params is not None:
+        context_params = config.context_params.model_dump(mode="json")
+    return {
+        "normalize_sequences": config.normalize_sequences,
+        "league_embedding_dim": config.league_embedding_dim,
+        "recency_half_life_days": config.recency_half_life_days,
+        "calibration": config.calibration,
+        "temperature": temperature,
+        "context_params": context_params
+    }
+
+
 def _classification_metrics(
         labels: np.ndarray,
         probabilities: np.ndarray) -> dict[str, float]:
@@ -529,8 +627,25 @@ class LstmTrainer(Trainer):
             config,
             league_vocab)
         best_epoch = _best_epoch(history, config)
+        # Wagi są już po early stopie. Kalibracja nie wchodzi do fit.
+        temperature, calibrator, calibration_metrics = (
+            _fit_classifier_calibration(
+                model,
+                config,
+                holdout.calibration_batch,
+                holdout.calibration_labels,
+                scaler,
+                league_vocab))
+        metrics = {**metrics, **calibration_metrics}
         _save_artifacts(
-            config, model, scaler, metrics, best_epoch, league_vocab)
+            config,
+            model,
+            scaler,
+            metrics,
+            best_epoch,
+            league_vocab,
+            temperature,
+            calibrator)
         return TrainingReport(
             model_name=config.model_name,
             model_version=config.model_version,
@@ -576,11 +691,15 @@ def _save_artifacts(
         scaler: StandardScaler,
         metrics: dict[str, float],
         best_epoch: int | None = None,
-        league_vocab: list[int] | None = None) -> None:
+        league_vocab: list[int] | None = None,
+        temperature: float | None = None,
+        calibrator: Any | None = None) -> None:
     artifacts.save_keras_model_artifact(config.artifact_dir, model)
     artifacts.save_scaler_artifact(config.artifact_dir, scaler)
     artifacts.save_metrics(config.artifact_dir, metrics)
     _save_league_vocab_artifact(config, league_vocab)
+    if calibrator is not None:
+        artifacts.save_calibrator(config.artifact_dir, calibrator)
     meta = {
         "model_name": config.model_name,
         "model_version": config.model_version,
@@ -590,6 +709,7 @@ def _save_artifacts(
         "static_feature_columns": config.static_feature_columns
     }
     meta.update(_split_meta(config, best_epoch))
+    meta.update(_option_meta(config, temperature))
     artifacts.save_meta(config.artifact_dir, meta)
 
 
