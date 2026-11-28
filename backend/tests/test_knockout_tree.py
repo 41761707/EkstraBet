@@ -1,10 +1,13 @@
-"""Unit tests for knockout linking and bracket visibility."""
+"""Unit tests for knockout linking, byes and bracket visibility."""
 
 from __future__ import annotations
 
 import unittest
 from datetime import datetime
 
+from backend.services.knockout_profiles import CHAMPIONS_LEAGUE_ID
+from backend.services.knockout_profiles import SeededTeam
+from backend.services.knockout_profiles import active_bye_profile
 from backend.services.knockout_stages import stage_label
 from backend.services.knockout_ties import FOOTBALL_SPORT_ID
 from backend.services.knockout_ties import BracketTie
@@ -12,6 +15,7 @@ from backend.services.knockout_ties import TieMatch
 from backend.services.knockout_ties import group_ties
 from backend.services.knockout_ties import tie_with_score
 from backend.services.knockout_tree import KnockoutBracket
+from backend.services.knockout_tree import apply_byes
 from backend.services.knockout_tree import link_feeders
 from backend.services.knockout_tree import visible_brackets
 
@@ -240,6 +244,199 @@ class TestVisibleBrackets(unittest.TestCase):
 
     def test_empty_input(self) -> None:
         self.assertEqual(visible_brackets([]), [])
+
+
+class TestApplyByes(unittest.TestCase):
+    """Byes from a missing earlier round, then the league profile."""
+
+    def test_four_teams_entering_later_get_a_bye(self) -> None:
+        linked = _linked([
+            _played(1, 974, 1, 2, 2, 0, "1"),
+            _played(2, 974, 3, 4, 2, 0, "1"),
+            _played(3, 974, 5, 6, 2, 0, "1"),
+            _played(4, 974, 7, 8, 2, 0, "1"),
+            _played(5, 973, 1, 9, 1, 0, "1"),
+            _played(6, 973, 3, 10, 1, 0, "1"),
+            _played(7, 973, 5, 11, 1, 0, "1"),
+            _played(8, 973, 7, 12, 1, 0, "1")])
+        before = {tie.tie_id: tie.feeder_tie_ids for tie in linked}
+        result = apply_byes(linked, [], None)
+        byes = [tie for tie in result if tie.is_bye]
+        self.assertEqual(
+            [bye.tie_id for bye in byes],
+            [
+                "bye-cup-16-9",
+                "bye-cup-16-10",
+                "bye-cup-16-11",
+                "bye-cup-16-12"])
+        self.assertEqual(
+            [bye.team_ids for bye in byes],
+            [(9,), (10,), (11,), (12,)])
+        for bye in byes:
+            self.assertEqual(bye.depth, 16)
+            self.assertEqual(bye.family, "cup")
+            self.assertEqual(bye.matches, [])
+            self.assertEqual(bye.feeder_tie_ids, ())
+        by_id = {tie.tie_id: tie for tie in result}
+        expected = {
+            "cup-8-1-9": ("cup-16-1-2", "bye-cup-16-9"),
+            "cup-8-3-10": ("cup-16-3-4", "bye-cup-16-10"),
+            "cup-8-5-11": ("cup-16-5-6", "bye-cup-16-11"),
+            "cup-8-7-12": ("cup-16-7-8", "bye-cup-16-12")}
+        for tie_id, feeders in expected.items():
+            self.assertEqual(by_id[tie_id].feeder_tie_ids, feeders)
+        self.assertEqual(
+            {tie.tie_id: tie.feeder_tie_ids for tie in linked},
+            before)
+
+    def test_bye_stops_at_the_previous_phase(self) -> None:
+        result = apply_byes(_linked([
+            _played(1, 974, 1, 2, 1, 0, "1"),
+            _played(2, 973, 1, 2, 1, 0, "1"),
+            _played(3, 972, 9, 1, 1, 0, "1")]), [], None)
+        byes = [tie for tie in result if tie.is_bye]
+        self.assertEqual([bye.tie_id for bye in byes], ["bye-cup-8-9"])
+        by_id = {tie.tie_id: tie for tie in result}
+        self.assertEqual(
+            by_id["cup-4-1-9"].feeder_tie_ids,
+            ("cup-8-1-2", "bye-cup-8-9"))
+        self.assertNotIn("bye-cup-8-9", by_id["cup-8-1-2"].feeder_tie_ids)
+        self.assertNotIn("bye-cup-16-9", by_id)
+
+    def test_relegation_bye_stays_in_that_family(self) -> None:
+        result = apply_byes(_linked([
+            _played(1, 1003, 1, 2, 1, 0, "1"),
+            _played(2, 1005, 1, 4, 1, 0, "1")]), [], None)
+        byes = [tie for tie in result if tie.is_bye]
+        self.assertEqual(
+            [bye.tie_id for bye in byes],
+            ["bye-relegation-2-4"])
+        final = next(tie for tie in result if tie.depth == 1)
+        self.assertEqual(
+            final.feeder_tie_ids,
+            ("relegation-2-1-2", "bye-relegation-2-4"))
+
+    def test_unplayed_league_phase_adds_no_seed_cards(self) -> None:
+        self.assertIsNone(active_bye_profile(CHAMPIONS_LEAGUE_ID, 3))
+        self.assertIsNone(active_bye_profile(1, 0))
+        linked = _linked([
+            _played(1, 974, 20, 21, 1, 0, "1")])
+        seeds = _seeds()
+        result = apply_byes(linked, seeds, None)
+        self.assertEqual(
+            [tie.tie_id for tie in result],
+            [tie.tie_id for tie in linked])
+        self.assertFalse(any(tie.is_bye for tie in result))
+        self.assertFalse(any(
+            tie.pending_opponent_label is not None for tie in result))
+
+    def test_complete_table_adds_placeholders_without_lines(self) -> None:
+        profile = active_bye_profile(CHAMPIONS_LEAGUE_ID, 0)
+        self.assertIsNotNone(profile)
+        linked = _linked([
+            _played(1, 974, 20, 21, 1, 0, "1"),
+            _played(2, 974, 22, 23, 2, 0, "1")])
+        before = {tie.tie_id: tie.feeder_tie_ids for tie in linked}
+        result = apply_byes(linked, _seeds(), profile)
+        placeholders = [
+            tie for tie in result
+            if tie.pending_opponent_label is not None]
+        self.assertEqual(
+            [tie.seed_position for tie in placeholders],
+            [1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(
+            [tie.team_ids for tie in placeholders],
+            [(309,), (308,), (307,), (306,), (305,), (304,), (303,), (302,)])
+        for tie in placeholders:
+            self.assertEqual(tie.depth, 8)
+            self.assertEqual(tie.family, "cup")
+            self.assertEqual(
+                tie.pending_opponent_label,
+                "Zwycięzca barażu")
+            self.assertEqual(tie.feeder_tie_ids, ())
+            self.assertFalse(tie.is_bye)
+            self.assertEqual(tie.matches, [])
+            self.assertEqual(
+                tie.tie_id,
+                f"cup-8-{tie.team_ids[0]}-pending")
+        kept = [tie for tie in result if tie.tie_id in before]
+        self.assertEqual(
+            {tie.tie_id: tie.feeder_tie_ids for tie in kept},
+            before)
+        placeholder_ids = {tie.tie_id for tie in placeholders}
+        for tie in kept:
+            self.assertTrue(placeholder_ids.isdisjoint(tie.feeder_tie_ids))
+
+    def test_drawn_seed_gets_a_bye_on_the_ladder_step(self) -> None:
+        profile = active_bye_profile(CHAMPIONS_LEAGUE_ID, 0)
+        seeds = [
+            SeededTeam(team_id=2, position=2),
+            SeededTeam(team_id=1, position=1)]
+        result = apply_byes(_linked([
+            _played(1, 973, 1, 50, 1, 0, "1")]), seeds, profile)
+        byes = [tie for tie in result if tie.is_bye]
+        self.assertEqual([bye.tie_id for bye in byes], ["bye-cup-16-1"])
+        self.assertEqual(byes[0].depth, 16)
+        self.assertEqual(byes[0].matches, [])
+        self.assertFalse(any(
+            tie.pending_opponent_label is not None for tie in result))
+        destination = next(tie for tie in result if tie.depth == 8)
+        self.assertEqual(destination.feeder_tie_ids, ("bye-cup-16-1",))
+
+    def test_real_feeder_blocks_the_seed_bye(self) -> None:
+        profile = active_bye_profile(CHAMPIONS_LEAGUE_ID, 0)
+        result = apply_byes(_linked([
+            _played(1, 974, 1, 60, 2, 0, "1"),
+            _played(2, 974, 50, 51, 1, 0, "1"),
+            _played(3, 973, 1, 50, 1, 0, "1")]), [
+                SeededTeam(team_id=1, position=1)], profile)
+        self.assertFalse(any(tie.is_bye for tie in result))
+        self.assertFalse(any(
+            tie.pending_opponent_label is not None for tie in result))
+        destination = next(tie for tie in result if tie.depth == 8)
+        self.assertEqual(
+            destination.feeder_tie_ids,
+            ("cup-16-1-60", "cup-16-50-51"))
+
+    def test_profile_does_not_duplicate_a_structural_bye(self) -> None:
+        profile = active_bye_profile(CHAMPIONS_LEAGUE_ID, 0)
+        seeds = [
+            SeededTeam(team_id=1, position=1),
+            SeededTeam(team_id=2, position=2)]
+        result = apply_byes(_linked([
+            _played(1, 974, 20, 21, 1, 0, "1"),
+            _played(2, 973, 1, 50, 1, 0, "1")]), seeds, profile)
+        bye_ids = [tie.tie_id for tie in result if tie.is_bye]
+        self.assertEqual(bye_ids, ["bye-cup-16-1", "bye-cup-16-50"])
+        self.assertEqual(bye_ids.count("bye-cup-16-1"), 1)
+        self.assertFalse(any(
+            tie.pending_opponent_label is not None for tie in result))
+
+    def test_profile_without_a_cup_match_adds_nothing(self) -> None:
+        profile = active_bye_profile(CHAMPIONS_LEAGUE_ID, 0)
+        seeds = _seeds()
+        self.assertEqual(apply_byes([], seeds, profile), [])
+        linked = _linked([
+            _played(1, 1005, 1, 2, 1, 0, "1")])
+        result = apply_byes(linked, seeds, profile)
+        self.assertEqual(
+            [tie.tie_id for tie in result],
+            [tie.tie_id for tie in linked])
+
+    def test_empty_input(self) -> None:
+        self.assertEqual(apply_byes([], [], None), [])
+
+
+def _seeds() -> list[SeededTeam]:
+    """Places 1–8 in shuffled order, plus a row the profile ignores.
+
+    Team ids run backwards from the place, so a sort by team id is
+    not a sort by the table.
+    """
+    places = (4, 1, 8, 2, 7, 3, 6, 5, 9)
+    return [
+        SeededTeam(team_id=310 - place, position=place)
+        for place in places]
 
 
 if __name__ == "__main__":
