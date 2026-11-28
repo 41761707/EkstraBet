@@ -9,6 +9,7 @@ from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from api.schemas.analytics import LeagueCharacteristics
+from api.schemas.knockout import LeagueBracketResponse
 from api.schemas.league import (
     LeagueDetails,
     LeagueRoundsListResponse,
@@ -51,6 +52,7 @@ from backend.repositories.season_projection_repository import (
 from backend.repositories.sport_league_repository import (
     BASKETBALL_SPORT_ID,
     HOCKEY_SPORT_ID)
+from backend.services import knockout_bracket_service
 from backend.services import league_service, match_service, sport_league_service, standings_service
 from backend.services.rating_progress_service import NonFootballLeagueError
 from backend.services.rating_progress_service import classify_missing_progress
@@ -84,6 +86,7 @@ async def leagues_info() -> dict[str, object]:
             "GET /leagues/{league_id} - League details",
             "GET /leagues/{league_id}/seasons - Seasons for a league",
             "GET /leagues/{league_id}/rounds/{season_id} - Rounds for a season",
+            "GET /leagues/{league_id}/bracket - Knockout bracket",
             "GET /leagues/{league_id}/matches - League schedule and results",
             "GET /leagues/{league_id}/standings - League standings",
             "GET /leagues/{league_id}/season-projection - Cached season projection",
@@ -177,6 +180,43 @@ async def get_league_rounds(
             status_code=500,
             detail=(
                 f"Failed to fetch rounds for league {league_id}, "
+                f"season {season_id}")) from exc
+
+
+@router.get(
+    "/{league_id}/bracket",
+    response_model=LeagueBracketResponse)
+async def get_league_bracket(
+    league_id: int = Path(..., ge=1, description="League ID"),
+    season_id: int = Query(..., ge=1, description="Season ID")
+) -> LeagueBracketResponse:
+    """Return the knockout bracket for one league season.
+
+    A missing league is 404. A season with nothing to draw is
+    200 and an empty bracket list. The handler wraps the service
+    dictionary and does not rebuild columns.
+    """
+    try:
+        payload = knockout_bracket_service.get_league_bracket(
+            league_id,
+            season_id)
+        if payload is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"League {league_id} not found")
+        return LeagueBracketResponse.model_validate(payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch bracket for league %s season %s: %s",
+            league_id,
+            season_id,
+            exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to fetch bracket for league {league_id}, "
                 f"season {season_id}")) from exc
 
 
