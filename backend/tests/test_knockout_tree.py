@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from datetime import datetime
 
 from backend.services.knockout_profiles import CHAMPIONS_LEAGUE_ID
@@ -16,7 +17,9 @@ from backend.services.knockout_ties import group_ties
 from backend.services.knockout_ties import tie_with_score
 from backend.services.knockout_tree import KnockoutBracket
 from backend.services.knockout_tree import apply_byes
+from backend.services.knockout_tree import champion_path
 from backend.services.knockout_tree import link_feeders
+from backend.services.knockout_tree import order_ties
 from backend.services.knockout_tree import visible_brackets
 
 
@@ -425,6 +428,192 @@ class TestApplyByes(unittest.TestCase):
 
     def test_empty_input(self) -> None:
         self.assertEqual(apply_byes([], [], None), [])
+
+
+class TestChampionPath(unittest.TestCase):
+    """The accent follows the club that won the closest tie."""
+
+    def test_four_team_cup_marks_only_the_winners_road(self) -> None:
+        grouped = group_ties([
+            _played(1, 971, 1, 2, 2, 0, "1", datetime(2026, 7, 1)),
+            _played(2, 971, 3, 4, 1, 0, "1", datetime(2026, 7, 2)),
+            _played(3, 970, 1, 3, 1, 0, "1", datetime(2026, 7, 10)),
+            _played(4, 969, 2, 4, 2, 1, "1", datetime(2026, 7, 18))])
+        scored = [
+            tie_with_score(tie, FOOTBALL_SPORT_ID)
+            for tie in grouped.ties]
+        third = tie_with_score(
+            grouped.third_place[0], FOOTBALL_SPORT_ID)
+        linked = link_feeders(scored)
+        placeholder = _placeholder(1)
+        source = _with_feeder(
+            linked,
+            "cup-1-1-3",
+            placeholder.tie_id) + [third, placeholder]
+        marked = champion_path(source)
+        by_id = {tie.tie_id: tie for tie in marked}
+        self.assertEqual(
+            [tie.tie_id for tie in marked],
+            [tie.tie_id for tie in source])
+        self.assertTrue(by_id["cup-1-1-3"].on_champion_path)
+        self.assertTrue(by_id["cup-2-1-2"].on_champion_path)
+        self.assertFalse(by_id["cup-2-3-4"].on_champion_path)
+        self.assertFalse(by_id[third.tie_id].on_champion_path)
+        self.assertFalse(by_id[placeholder.tie_id].on_champion_path)
+        self.assertTrue(all(
+            not tie.on_champion_path for tie in source))
+
+    def test_unplayed_final_leaves_the_path_dark(self) -> None:
+        marked = champion_path(_linked([
+            _played(1, 971, 1, 2, 2, 0, "1", datetime(2026, 7, 1)),
+            _played(2, 971, 3, 4, 1, 0, "1", datetime(2026, 7, 2)),
+            _played(3, 970, 1, 3, None, None, "0", datetime(2026, 7, 10))]))
+        final = next(tie for tie in marked if tie.depth == 1)
+        semis = [tie for tie in marked if tie.depth == 2]
+        self.assertIsNone(final.advanced_team_id)
+        self.assertTrue(all(
+            tie.advanced_team_id is not None for tie in semis))
+        self.assertTrue(all(not tie.on_champion_path for tie in marked))
+
+    def test_winner_road_crosses_three_rounds(self) -> None:
+        marked = champion_path(_linked([
+            _played(1, 972, 1, 8, 1, 0, "1", datetime(2026, 6, 1)),
+            _played(2, 972, 3, 4, 1, 0, "1", datetime(2026, 6, 2)),
+            _played(3, 971, 1, 5, 1, 0, "1", datetime(2026, 7, 1)),
+            _played(4, 971, 3, 6, 1, 0, "1", datetime(2026, 7, 2)),
+            _played(5, 970, 1, 3, 2, 0, "1", datetime(2026, 7, 10))]))
+        by_id = {tie.tie_id: tie for tie in marked}
+        on_path = {
+            tie.tie_id for tie in marked if tie.on_champion_path}
+        self.assertEqual(
+            on_path,
+            {"cup-4-1-8", "cup-2-1-5", "cup-1-1-3"})
+        self.assertFalse(by_id["cup-4-3-4"].on_champion_path)
+        self.assertFalse(by_id["cup-2-3-6"].on_champion_path)
+
+    def test_each_family_keeps_its_own_winner(self) -> None:
+        marked = champion_path(_linked([
+            _played(1, 970, 1, 2, 1, 0, "1", datetime(2026, 5, 20)),
+            _played(2, 1003, 10, 11, 2, 0, "1", datetime(2026, 5, 1)),
+            _played(3, 1005, 10, 12, 1, 0, "1", datetime(2026, 5, 15))]))
+        on_path = {
+            tie.tie_id for tie in marked if tie.on_champion_path}
+        self.assertEqual(
+            on_path,
+            {
+                "cup-1-1-2",
+                "relegation-2-10-11",
+                "relegation-1-10-12"})
+
+    def test_empty_input(self) -> None:
+        self.assertEqual(champion_path([]), [])
+
+
+class TestOrderTies(unittest.TestCase):
+    """Upper and lower follow the date, not the input order."""
+
+    def test_earlier_semi_stays_above_on_every_call(self) -> None:
+        linked = _linked([
+            _played(2, 971, 1, 2, 2, 0, "1", datetime(2026, 7, 2)),
+            _played(1, 971, 3, 4, 1, 0, "1", datetime(2026, 7, 1)),
+            _played(3, 970, 1, 3, 1, 0, "1", datetime(2026, 7, 10))])
+        expected = ["cup-2-3-4", "cup-2-1-2", "cup-1-1-3"]
+        first = [tie.tie_id for tie in order_ties(linked)]
+        second = [tie.tie_id for tie in order_ties(linked)]
+        shuffled = [
+            tie.tie_id
+            for tie in order_ties(list(reversed(linked)))]
+        self.assertEqual(first, expected)
+        self.assertEqual(second, first)
+        self.assertEqual(shuffled, first)
+
+    def test_same_date_uses_the_smaller_match_id(self) -> None:
+        linked = _linked([
+            _played(20, 971, 3, 4, 1, 0, "1", datetime(2026, 7, 1)),
+            _played(5, 971, 1, 2, 2, 0, "1", datetime(2026, 7, 1)),
+            _played(30, 970, 1, 3, 1, 0, "1", datetime(2026, 7, 10))])
+        self.assertEqual(
+            [tie.tie_id for tie in order_ties(linked)],
+            ["cup-2-1-2", "cup-2-3-4", "cup-1-1-3"])
+
+    def test_byes_without_a_date_use_the_smaller_team_id(self) -> None:
+        upper = _bye(3, 2)
+        lower = _bye(8, 2)
+        final = BracketTie(
+            tie_id="cup-1-3-8",
+            family="cup",
+            depth=1,
+            stage_label=stage_label(1),
+            matches=[_played(
+                1, 970, 3, 8, 1, 0, "1", datetime(2026, 7, 10))],
+            team_ids=(3, 8),
+            advanced_team_id=3,
+            feeder_tie_ids=(lower.tie_id, upper.tie_id))
+        ordered = [
+            tie.tie_id
+            for tie in order_ties([final, lower, upper])]
+        self.assertEqual(
+            ordered,
+            [upper.tie_id, lower.tie_id, final.tie_id])
+        self.assertEqual(
+            final.feeder_tie_ids,
+            (lower.tie_id, upper.tie_id))
+
+    def test_unlinked_tie_sits_under_the_column(self) -> None:
+        linked = _linked([
+            _played(1, 972, 1, 10, 1, 0, "1", datetime(2026, 6, 20)),
+            _played(2, 972, 50, 51, 1, 0, "1", datetime(2026, 6, 1)),
+            _played(3, 971, 1, 2, 2, 0, "1", datetime(2026, 7, 1)),
+            _played(4, 971, 3, 4, 1, 0, "1", datetime(2026, 7, 2)),
+            _played(5, 970, 1, 3, 1, 0, "1", datetime(2026, 7, 10))])
+        self.assertEqual(
+            [tie.tie_id for tie in order_ties(linked)],
+            [
+                "cup-4-1-10",
+                "cup-4-50-51",
+                "cup-2-1-2",
+                "cup-2-3-4",
+                "cup-1-1-3"])
+
+    def test_without_a_final_columns_follow_the_date(self) -> None:
+        linked = _linked([
+            _played(1, 971, 1, 2, 1, 0, "1", datetime(2026, 7, 2)),
+            _played(9, 971, 3, 4, 1, 0, "1", datetime(2026, 7, 1))])
+        self.assertEqual(
+            [tie.tie_id for tie in order_ties(linked)],
+            ["cup-2-3-4", "cup-2-1-2"])
+
+    def test_empty_input(self) -> None:
+        self.assertEqual(order_ties([]), [])
+
+
+def _placeholder(team_id: int, depth: int = 8) -> BracketTie:
+    """A seeded card whose opponent has not been drawn."""
+    return BracketTie(
+        tie_id=f"cup-{depth}-{team_id}-pending",
+        family="cup",
+        depth=depth,
+        stage_label=stage_label(depth),
+        matches=[],
+        team_ids=(team_id,),
+        pending_opponent_label="Zwycięzca barażu",
+        seed_position=1)
+
+
+def _with_feeder(
+        ties: list[BracketTie],
+        tie_id: str,
+        feeder_id: str) -> list[BracketTie]:
+    """Point one tie at an extra feeder without editing the original."""
+    planted: list[BracketTie] = []
+    for tie in ties:
+        if tie.tie_id != tie_id:
+            planted.append(tie)
+            continue
+        planted.append(replace(
+            tie,
+            feeder_tie_ids=tie.feeder_tie_ids + (feeder_id,)))
+    return planted
 
 
 def _seeds() -> list[SeededTeam]:

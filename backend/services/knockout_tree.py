@@ -1,9 +1,10 @@
-"""Link knockout ties, add byes and hide a lone phase."""
+"""Link knockout ties, add byes, mark the winner and order cards."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import replace
+from datetime import datetime
 
 from backend.services.knockout_profiles import PENDING_OPPONENT_LABEL
 from backend.services.knockout_profiles import ByeProfile
@@ -12,6 +13,7 @@ from backend.services.knockout_stages import FAMILY_CUP
 from backend.services.knockout_stages import FAMILY_RELEGATION
 from backend.services.knockout_stages import stage_label
 from backend.services.knockout_ties import BracketTie
+from backend.services.knockout_ties import TieMatch
 
 
 CUP_BRACKET_TITLE = "Drabinka"
@@ -617,3 +619,220 @@ def _has_cup_match(ties: list[BracketTie]) -> bool:
         if _is_real_match(tie):
             return True
     return False
+
+
+def champion_path(ties: list[BracketTie]) -> list[BracketTie]:
+    """Mark the cards the winner played on the way to the title.
+
+    Each family starts from its single closest tie. The walk runs
+    only when that tie names who advanced, so an unplayed final
+    leaves every card unmarked. A placeholder and the third-place
+    match stay off the path. The input order is kept.
+    """
+    marked = _path_ids(ties)
+    return [
+        _with_path(tie, tie.tie_id in marked)
+        for tie in ties]
+
+
+def order_ties(ties: list[BracketTie]) -> list[BracketTie]:
+    """Return each phase top to bottom, independent of input order.
+
+    When a final exists, its earlier feeder sits above the later
+    one. Cards with no later parent sit under the connected cards
+    of their column. Without a final, each column follows that
+    same date order. Feeder ids are left as linking stored them.
+    """
+    grouped = _by_family(ties)
+    ordered: list[BracketTie] = []
+    for family in sorted(grouped):
+        ordered.extend(_order_family(grouped[family]))
+    return ordered
+
+
+def _path_ids(ties: list[BracketTie]) -> set[str]:
+    """Ids on a winner's road. Families do not share a walk."""
+    by_id = {tie.tie_id: tie for tie in ties}
+    marked: set[str] = set()
+    for family_ties in _by_family(ties).values():
+        root = _path_root(family_ties)
+        if root is None or root.advanced_team_id is None:
+            continue
+        _walk_path(root, root.advanced_team_id, by_id, marked)
+    return marked
+
+
+def _path_root(family_ties: list[BracketTie]) -> BracketTie | None:
+    """The one closest tie, or None when that phase is not unique.
+
+    A placeholder is not a champion card. Two real ties sharing
+    the closest depth would force a guess, so the path stays dark.
+    """
+    playable: list[BracketTie] = []
+    for tie in family_ties:
+        if tie.depth is None or tie.pending_opponent_label is not None:
+            continue
+        playable.append(tie)
+    closest = _closest_depth(playable)
+    if closest is None:
+        return None
+    roots = [tie for tie in playable if tie.depth == closest]
+    if len(roots) != 1:
+        return None
+    return roots[0]
+
+
+def _walk_path(
+        tie: BracketTie,
+        team_id: int,
+        by_id: dict[str, BracketTie],
+        marked: set[str]) -> None:
+    """Mark this tie and earlier ties that still hold the winner."""
+    if tie.tie_id in marked:
+        return
+    if tie.depth is None or tie.pending_opponent_label is not None:
+        return
+    marked.add(tie.tie_id)
+    for feeder_id in tie.feeder_tie_ids:
+        feeder = by_id.get(feeder_id)
+        if feeder is None or team_id not in feeder.team_ids:
+            continue
+        _walk_path(feeder, team_id, by_id, marked)
+
+
+def _with_path(tie: BracketTie, on_path: bool) -> BracketTie:
+    """Return the same tie when the flag already matches."""
+    if tie.on_champion_path == on_path:
+        return tie
+    return replace(tie, on_champion_path=on_path)
+
+
+def _order_family(ties: list[BracketTie]) -> list[BracketTie]:
+    """One family, earliest phase first, top card first in a phase."""
+    playable = [tie for tie in ties if tie.depth is not None]
+    aside = [tie for tie in ties if tie.depth is None]
+    ordered = _flatten_columns(_columns_for(playable))
+    ordered.extend(sorted(aside, key=lambda tie: tie.tie_id))
+    return ordered
+
+
+def _columns_for(
+        ties: list[BracketTie]) -> dict[int, list[BracketTie]]:
+    """Top-to-bottom lists keyed by depth."""
+    columns: dict[int, list[BracketTie]] = {}
+    if not ties:
+        return columns
+    finals = [tie for tie in ties if tie.depth == 1]
+    if not finals:
+        # Bez finału nie ma drzewa, od którego da się zejść.
+        for tie in sorted(ties, key=_tie_sort_key):
+            _append_column(columns, tie)
+        return columns
+    by_id = {tie.tie_id: tie for tie in ties}
+    visited: set[str] = set()
+    for root in sorted(finals, key=_tie_sort_key):
+        _walk_column(root, by_id, columns, visited)
+    _append_orphans(ties, by_id, columns, visited)
+    return columns
+
+
+def _append_column(
+        columns: dict[int, list[BracketTie]],
+        tie: BracketTie) -> None:
+    """Add one card to its phase. A tie without depth is ignored."""
+    depth = tie.depth
+    if depth is None:
+        return
+    columns.setdefault(depth, []).append(tie)
+
+
+def _walk_column(
+        tie: BracketTie,
+        by_id: dict[str, BracketTie],
+        columns: dict[int, list[BracketTie]],
+        visited: set[str]) -> None:
+    """Record the card, then its upper feeder, then the lower one."""
+    if tie.tie_id in visited or tie.depth is None:
+        return
+    visited.add(tie.tie_id)
+    _append_column(columns, tie)
+    for child in _ordered_feeders(tie, by_id):
+        _walk_column(child, by_id, columns, visited)
+
+
+def _ordered_feeders(
+        tie: BracketTie,
+        by_id: dict[str, BracketTie]) -> list[BracketTie]:
+    """Feeders of this tie, earlier match first.
+
+    The stored feeder tuple keeps the linking order. Upper and
+    lower come from the date, not from that tuple.
+    """
+    found: list[BracketTie] = []
+    for feeder_id in tie.feeder_tie_ids:
+        feeder = by_id.get(feeder_id)
+        if feeder is None or feeder.depth is None:
+            continue
+        found.append(feeder)
+    return sorted(found, key=_tie_sort_key)
+
+
+def _append_orphans(
+        ties: list[BracketTie],
+        by_id: dict[str, BracketTie],
+        columns: dict[int, list[BracketTie]],
+        visited: set[str]) -> None:
+    """Place cards the final never reaches under their column."""
+    remaining = [
+        tie for tie in ties
+        if tie.tie_id not in visited and tie.depth is not None]
+    child_ids: set[str] = set()
+    for tie in remaining:
+        for feeder_id in tie.feeder_tie_ids:
+            if feeder_id not in visited:
+                child_ids.add(feeder_id)
+    roots = [
+        tie for tie in remaining
+        if tie.tie_id not in child_ids]
+    for root in sorted(roots, key=_tie_sort_key):
+        _walk_column(root, by_id, columns, visited)
+    leftover = [
+        tie for tie in remaining
+        if tie.tie_id not in visited]
+    for tie in sorted(leftover, key=_tie_sort_key):
+        _walk_column(tie, by_id, columns, visited)
+
+
+def _flatten_columns(
+        columns: dict[int, list[BracketTie]]) -> list[BracketTie]:
+    """Earliest phase first. A phase list is already top-down."""
+    ordered: list[BracketTie] = []
+    for depth in sorted(columns, reverse=True):
+        ordered.extend(columns[depth])
+    return ordered
+
+
+def _tie_sort_key(
+        tie: BracketTie) -> tuple[int, datetime, int, int, str]:
+    """Earlier card first. A bye falls back to the smaller team id."""
+    earliest = _earliest_match(tie)
+    team_id = min(tie.team_ids) if tie.team_ids else 0
+    if earliest is None:
+        return (1, datetime.max, 0, team_id, tie.tie_id)
+    if earliest.game_date is None:
+        return (1, datetime.max, earliest.match_id, team_id, tie.tie_id)
+    return (0, earliest.game_date, earliest.match_id, team_id, tie.tie_id)
+
+
+def _earliest_match(tie: BracketTie) -> TieMatch | None:
+    """The match that decides which of two cards sits higher."""
+    if not tie.matches:
+        return None
+    return min(tie.matches, key=_match_time_key)
+
+
+def _match_time_key(match: TieMatch) -> tuple[int, datetime, int]:
+    """Dated matches come first, then the earlier date, then the id."""
+    if match.game_date is None:
+        return (1, datetime.max, match.match_id)
+    return (0, match.game_date, match.match_id)
