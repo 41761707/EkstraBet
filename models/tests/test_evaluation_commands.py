@@ -345,8 +345,11 @@ def test_offline_gate_spec_lists_three_champions() -> None:
     spec = json.loads(path.read_text(encoding="utf-8"))
     assert spec["test_from"] == "2026-09-01"
     assert spec["test_to"] == "2026-11-10"
+    # Ostatnia rola rodziny nadpisałaby mistrza po dopisaniu kontroli.
+    champions = [
+        row for row in spec["candidates"] if row["role"] == "champion"]
     families = {
-        row["families"][0]: row["role"] for row in spec["candidates"]}
+        row["families"][0]: row["role"] for row in champions}
     assert families == {
         "result": "champion",
         "btts": "champion",

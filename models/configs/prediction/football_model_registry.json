@@ -2,6 +2,8 @@
   "models": {
     "FOOTBALL_RESULT_V2": "models/configs/prediction/football_result_v2.json",
     "FOOTBALL_BTTS_V2": "models/configs/prediction/football_btts_v2.json",
-    "FOOTBALL_GOALS_POISSON_V1": "models/configs/prediction/football_goals_poisson_v1.json"
+    "FOOTBALL_GOALS_POISSON_V1": "models/configs/prediction/football_goals_poisson_v1.json",
+    "FOOTBALL_RESULT_V3": "models/configs/prediction/football_result_v3.json",
+    "FOOTBALL_BTTS_V3": "models/configs/prediction/football_btts_v3.json"
   }
 }

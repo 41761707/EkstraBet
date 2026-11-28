@@ -23,6 +23,36 @@
       "role": "champion",
       "families": ["over_25"],
       "config": "models/configs/prediction/football_goals_poisson_v1.json"
+    },
+    {
+      "label": "result_v2_control",
+      "role": "control",
+      "families": ["result"],
+      "config": "models/configs/training/football_result_v2_control.json"
+    },
+    {
+      "label": "btts_v2_control",
+      "role": "control",
+      "families": ["btts"],
+      "config": "models/configs/training/football_btts_v2_control.json"
+    },
+    {
+      "label": "goals_v1_control",
+      "role": "control",
+      "families": ["over_25"],
+      "config": "models/configs/training/football_goals_poisson_v1_control.json"
+    },
+    {
+      "label": "result_v3",
+      "role": "challenger",
+      "families": ["result"],
+      "config": "models/configs/training/football_result_v3.json"
+    },
+    {
+      "label": "btts_v3",
+      "role": "challenger",
+      "families": ["btts"],
+      "config": "models/configs/training/football_btts_v3.json"
     }
   ],
   "thresholds": {},
